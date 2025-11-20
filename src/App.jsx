@@ -32,18 +32,8 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('admin_auth');
-    setView('dashboard');
-  };
-
-  const fetchCourses = () => {
-    fetch(`${API_URL}/courses`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => Array.isArray(data) ? setCourses(data) : setCourses([]))
-      .catch(err => { console.error(err); setError("Connection Error"); });
-  };
+  const handleLogout = () => { setIsAuthenticated(false); localStorage.removeItem('admin_auth'); setView('dashboard'); };
+  const fetchCourses = () => { fetch(`${API_URL}/courses`).then(res => res.ok ? res.json() : []).then(data => Array.isArray(data) ? setCourses(data) : setCourses([])).catch(err => { console.error(err); setError("Connection Error"); }); };
 
   if (!isAuthenticated) {
     return (
@@ -64,13 +54,13 @@ export default function App() {
     <div className="app-container" style={{ fontFamily: 'Segoe UI, sans-serif', padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
       <style>{`@media print { .no-print { display: none !important; } .app-container { background: white !important; padding: 0 !important; } body { font-size: 12pt; } }`}</style>
 
-      {/* Navigation */}
       <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={() => setView('dashboard')} style={btnStyle(view === 'dashboard')}>📊 Dashboard</button>
           <button onClick={() => setView('checkin')} style={btnStyle(view === 'checkin')}>📝 Check-In Desk</button>
           <button onClick={() => setView('participants')} style={btnStyle(view === 'participants')}>👥 Manage Students</button>
           <button onClick={() => setView('expenses')} style={btnStyle(view === 'expenses')}>🛒 Store</button>
+          <button onClick={() => setView('reports')} style={btnStyle(view === 'reports')}>🖨️ Reports</button>
           <button onClick={() => setView('create-course')} style={btnStyle(view === 'create-course')}>➕ New Course</button>
           <button onClick={() => setView('upload')} style={btnStyle(view === 'upload')}>📂 Upload Student Data</button>
         </div>
@@ -82,6 +72,7 @@ export default function App() {
       {view === 'dashboard' && <Dashboard courses={courses} />}
       {view === 'checkin' && <CheckInForm courses={courses} />}
       {view === 'expenses' && <ExpenseTracker courses={courses} />}
+      {view === 'reports' && <ReportsPanel courses={courses} />}
       {view === 'participants' && <ParticipantList courses={courses} />}
       {view === 'create-course' && <CreateCourseForm refreshCourses={fetchCourses} setView={setView} />}
       {view === 'upload' && <UploadParticipants courses={courses} setView={setView} />}
@@ -89,135 +80,70 @@ export default function App() {
   );
 }
 
-// --- 1. MANAGE STUDENTS (With Dining Sheet) ---
+// --- 1. MANAGE STUDENTS (Updated Columns + Edit) ---
 function ParticipantList({ courses }) {
   const [courseId, setCourseId] = useState('');
   const [participants, setParticipants] = useState([]);
   const [search, setSearch] = useState('');
   const [editingStudent, setEditingStudent] = useState(null);
-  const [showDiningSheet, setShowDiningSheet] = useState(false); // Toggle View
 
   const loadStudents = () => {
     if (!courseId) return;
     fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : []));
   };
-
   useEffect(loadStudents, [courseId]);
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this student?")) return;
+    if (!window.confirm("Delete this student?")) return;
     await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' });
     loadStudents();
   };
 
   const handleEditSave = async (e) => {
     e.preventDefault();
-    await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editingStudent)
-    });
+    await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingStudent) });
     setEditingStudent(null);
     loadStudents();
   };
 
-  const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || 'Course';
   const filtered = participants.filter(p => p.full_name.toLowerCase().includes(search.toLowerCase()));
-  
-  // Sort for Dining Sheet (by Seat No)
-  const sortedForDining = [...participants].sort((a,b) => (a.dining_seat_no || 'Z').localeCompare(b.dining_seat_no || 'Z'));
 
-  // --- DINING SHEET VIEW ---
-  if (showDiningSheet) {
-    return (
-      <div style={cardStyle}>
-        <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
-          <button onClick={() => setShowDiningSheet(false)} style={btnStyle(false)}>← Back to List</button>
-          <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Sheet</button>
-        </div>
-        
-        <div style={{textAlign: 'center', marginBottom: '20px'}}>
-          <h1 style={{margin: 0}}>Dining Seating Chart</h1>
-          <h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3>
-        </div>
-        <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '16px'}}>
-          <thead>
-            <tr style={{borderBottom: '2px solid black'}}>
-              <th style={{textAlign:'left', padding: '10px'}}>Seat No</th>
-              <th style={{textAlign:'left', padding: '10px'}}>Name</th>
-              <th style={{textAlign:'left', padding: '10px'}}>Room</th>
-              <th style={{textAlign:'left', padding: '10px'}}>Language</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedForDining.filter(p => p.status === 'Arrived').map(p => (
-              <tr key={p.participant_id} style={{borderBottom: '1px solid #ddd'}}>
-                <td style={{padding: '12px', fontWeight: 'bold', fontSize: '18px'}}>{p.dining_seat_no || '-'}</td>
-                <td style={{padding: '12px'}}>{p.full_name}</td>
-                <td style={{padding: '12px'}}>{p.room_no}</td>
-                <td style={{padding: '12px'}}>{p.discourse_language || 'English'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
-  // --- NORMAL LIST VIEW ---
   return (
     <div style={cardStyle}>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+      <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
         <h2 style={{margin:0}}>Manage Students</h2>
-        <div style={{display:'flex', gap:'10px'}}>
-          <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
-          <button onClick={() => setShowDiningSheet(true)} disabled={!courseId} style={{...btnStyle(false), background:'#6c757d', color:'white'}}>🖨️ Dining Sheet</button>
-        </div>
+        <div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div>
       </div>
-
-      <div style={{marginBottom:'15px'}}>
-         <input style={inputStyle} placeholder="Search Name..." onChange={e => setSearch(e.target.value)} disabled={!courseId} />
-      </div>
-
       <div style={{overflowX:'auto'}}>
         <table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}>
-          <thead><tr style={{background:'#f1f1f1', textAlign:'left'}}><th style={tdStyle}>Name</th><th style={tdStyle}>Status</th><th style={tdStyle}>Room</th><th style={tdStyle}>Pagoda</th><th style={tdStyle}>Actions</th></tr></thead>
+          <thead><tr style={{background:'#f1f1f1', textAlign:'left'}}><th style={tdStyle}>Name</th><th style={tdStyle}>Conf No</th><th style={tdStyle}>Dining Seat</th><th style={tdStyle}>Room</th><th style={tdStyle}>Pagoda</th><th style={tdStyle}>Actions</th></tr></thead>
           <tbody>
             {filtered.map(p => (
               <tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}>
-                <td style={tdStyle}><strong>{p.full_name}</strong><br/><span style={{fontSize:'11px', color:'#888'}}>{p.phone_number}</span></td>
-                <td style={tdStyle}><span style={statusBadge(p.status)}>{p.status}</span></td>
+                <td style={tdStyle}><strong>{p.full_name}</strong></td>
+                <td style={tdStyle}>{p.conf_no || '-'}</td>
+                <td style={tdStyle}>{p.dining_seat_no || '-'}</td>
                 <td style={tdStyle}>{p.room_no || '-'}</td>
                 <td style={tdStyle}>{p.pagoda_cell_no || '-'}</td>
-                <td style={tdStyle}>
-                  <button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button>
-                  <button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button>
-                </td>
+                <td style={tdStyle}><button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
       {editingStudent && (
         <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center'}}>
           <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'400px'}}>
             <h3>Edit Student</h3>
             <form onSubmit={handleEditSave} style={{display:'flex', flexDirection:'column', gap:'10px'}}>
               <label>Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e => setEditingStudent({...editingStudent, full_name: e.target.value})} />
-              <label>Status</label>
-              <select style={inputStyle} value={editingStudent.status} onChange={e => setEditingStudent({...editingStudent, status: e.target.value})}>
-                <option>No Response</option><option>Arrived</option><option>Cancelled</option>
-              </select>
+              <label>Conf No</label><input style={inputStyle} value={editingStudent.conf_no||''} onChange={e => setEditingStudent({...editingStudent, conf_no: e.target.value})} />
               <div style={{display:'flex', gap:'10px'}}>
                 <div><label>Room</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e => setEditingStudent({...editingStudent, room_no: e.target.value})} /></div>
-                <div><label>Seat</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div>
+                <div><label>Dining Seat</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div>
               </div>
               <label>Pagoda Cell</label><input style={inputStyle} value={editingStudent.pagoda_cell_no||''} onChange={e => setEditingStudent({...editingStudent, pagoda_cell_no: e.target.value})} />
-              <div style={{display:'flex', gap:'10px', marginTop:'15px'}}>
-                <button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button>
-                <button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button>
-              </div>
+              <div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div>
             </form>
           </div>
         </div>
@@ -226,143 +152,141 @@ function ParticipantList({ courses }) {
   );
 }
 
-// --- 2. STORE / EXPENSES (With Invoice) ---
-function ExpenseTracker({ courses }) {
+// --- 2. REPORTS PANEL (With Financial Summary & Pagoda Column) ---
+function ReportsPanel({ courses }) {
+  const [mode, setMode] = useState(''); 
   const [courseId, setCourseId] = useState('');
-  const [participants, setParticipants] = useState([]);
-  const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [expenseType, setExpenseType] = useState('Laundry Token');
-  const [amount, setAmount] = useState('');
-  const [history, setHistory] = useState([]);
-  const [status, setStatus] = useState('');
-  const [showInvoice, setShowInvoice] = useState(false); // Toggle Invoice
+  const [data, setData] = useState([]);
+  const [financialData, setFinancialData] = useState([]);
 
   useEffect(() => {
-    if (courseId) {
-      fetch(`${API_URL}/courses/${courseId}/participants`)
-        .then(res => res.json()).then(data => setParticipants(Array.isArray(data)?data:[])).catch(console.error);
-    }
-  }, [courseId]);
-
-  useEffect(() => {
-    if (selectedStudentId) {
-      fetch(`${API_URL}/participants/${selectedStudentId}/expenses`)
-        .then(res => res.json()).then(data => setHistory(Array.isArray(data)?data:[])).catch(console.error);
-    } else { setHistory([]); }
-  }, [selectedStudentId]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setStatus('Saving...');
-    try {
-      const res = await fetch(`${API_URL}/expenses`, {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ courseId, participantId: selectedStudentId, type: expenseType, amount })
+    if (!courseId) { setData([]); return; }
+    // Fetch Data based on Mode
+    if (mode === 'dining') {
+      fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => { 
+        const sorted = (Array.isArray(data) ? data : []).sort((a,b) => (a.dining_seat_no || 'Z').localeCompare(b.dining_seat_no || 'Z'));
+        setData(sorted);
       });
-      if (!res.ok) throw new Error("Failed");
-      setStatus('✅ Saved!'); setAmount('');
-      const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`);
-      const histData = await histRes.json(); setHistory(histData);
-    } catch (err) { setStatus('❌ Error'); }
-  };
+    } else if (mode === 'financial') {
+      fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => setFinancialData(Array.isArray(data) ? data : []));
+    }
+  }, [courseId, mode]);
 
-  const totalDue = history.reduce((sum, item) => sum + parseFloat(item.amount), 0);
-  const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || '';
-  const currentStudent = participants.find(p => p.participant_id == selectedStudentId);
+  const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || 'Course';
 
-  // --- INVOICE VIEW ---
-  if (showInvoice && currentStudent) {
-    return (
-      <div style={cardStyle}>
-        <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
-          <button onClick={() => setShowInvoice(false)} style={btnStyle(false)}>← Back to Store</button>
-          <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button>
+  return (
+    <div style={cardStyle}>
+      <div className="no-print" style={{marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '15px'}}>
+        <h2>🖨️ Reports</h2>
+        <div style={{display: 'flex', gap: '10px', alignItems: 'center', flexWrap:'wrap'}}>
+          <select style={inputStyle} onChange={e => setCourseId(e.target.value)} value={courseId}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+          <button onClick={() => setMode('dining')} disabled={!courseId} style={quickBtnStyle(mode==='dining')}>🍽️ Dining Sheet</button>
+          <button onClick={() => setMode('financial')} disabled={!courseId} style={quickBtnStyle(mode==='financial')}>💰 Financial Summary</button>
+          {mode && <button onClick={() => window.print()} style={{...btnStyle(true), background: '#28a745', color: 'white', marginLeft:'auto'}}>🖨️ Print</button>}
         </div>
-        <div className="print-area" style={{maxWidth: '800px', margin: '0 auto', border: '1px solid #eee', padding: '40px'}}>
-          <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}>
-            <div><h1 style={{margin: 0}}>INVOICE</h1><p style={{color: '#666'}}>Date: {new Date().toLocaleDateString()}</p></div>
-            <div style={{textAlign: 'right'}}><h3>{currentStudent.full_name}</h3><p>Room: {currentStudent.room_no}</p><p>{selectedCourseName}</p></div>
+      </div>
+
+      {/* DINING SHEET VIEW */}
+      {mode === 'dining' && (
+        <div className="print-area">
+          <div style={{textAlign: 'center', marginBottom: '20px'}}>
+            <h1 style={{margin: 0}}>Dining Seating Chart</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3>
           </div>
-          <table style={{width: '100%', borderCollapse: 'collapse', marginBottom: '30px'}}>
-            <thead><tr style={{background: '#f9f9f9', borderBottom: '2px solid #333'}}><th style={{textAlign: 'left', padding: '10px'}}>Description</th><th style={{textAlign: 'left', padding: '10px'}}>Date</th><th style={{textAlign: 'right', padding: '10px'}}>Amount</th></tr></thead>
+          <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '16px'}}>
+            <thead><tr style={{borderBottom: '2px solid black'}}><th style={thPrint}>Seat No</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda Cell</th><th style={thPrint}>Language</th></tr></thead>
             <tbody>
-              {history.map(ex => (
-                <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}>
-                  <td style={{padding: '10px'}}>{ex.expense_type}</td>
-                  <td style={{padding: '10px'}}>{new Date(ex.recorded_at).toLocaleDateString()}</td>
-                  <td style={{padding: '10px', textAlign: 'right'}}>₹{ex.amount}</td>
+              {data.filter(p => p.status === 'Arrived').map(p => (
+                <tr key={p.participant_id} style={{borderBottom: '1px solid #ddd'}}>
+                  <td style={{padding: '12px', fontWeight: 'bold', fontSize: '18px'}}>{p.dining_seat_no || '-'}</td><td style={{padding: '12px'}}>{p.full_name}</td><td style={{padding: '12px'}}>{p.room_no}</td><td style={{padding: '12px'}}>{p.pagoda_cell_no}</td><td style={{padding: '12px'}}>{p.discourse_language || 'English'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div style={{textAlign: 'right', marginTop: '20px'}}><h3>Total Due: ₹{totalDue}</h3></div>
-          <div style={{marginTop: '60px', borderTop: '1px solid #000', width: '200px', textAlign: 'center', paddingTop: '5px'}}>Signature</div>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  // --- STORE VIEW ---
+      {/* FINANCIAL SUMMARY VIEW */}
+      {mode === 'financial' && (
+        <div className="print-area">
+          <div style={{textAlign: 'center', marginBottom: '20px'}}>
+            <h1 style={{margin: 0}}>Expenses Summary Report</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3>
+          </div>
+          <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}>
+            <thead><tr style={{borderBottom: '2px solid black'}}><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Total Due (₹)</th></tr></thead>
+            <tbody>
+              {financialData.map((p, i) => (
+                <tr key={i} style={{borderBottom: '1px solid #ddd'}}>
+                  <td style={{padding: '10px'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td><td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_due}</td>
+                </tr>
+              ))}
+              <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px'}}>
+                <td colSpan={3} style={{padding:'15px', textAlign:'right'}}>GRAND TOTAL:</td>
+                <td style={{padding:'15px', textAlign:'right'}}>₹{financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+      {!mode && <p style={{textAlign: 'center', color: '#888', padding: '50px'}}>Select a course and report type.</p>}
+    </div>
+  );
+}
+
+// --- 3. UPDATED CHECK-IN FORM (Seat -> Dining Seat, Add Conf No) ---
+function CheckInForm({ courses }) {
+  const [participants, setParticipants] = useState([]);
+  const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: '', confNo: '' });
+  const [status, setStatus] = useState('');
+  
+  useEffect(() => { if (formData.courseId) { fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); } }, [formData.courseId]);
+  const studentsPending = participants.filter(p => p.status !== 'Arrived');
+  const handleSubmit = async (e) => {
+    e.preventDefault(); setStatus('Submitting...');
+    try {
+      const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+      if (!res.ok) throw new Error("Error");
+      setStatus('✅ Success!'); setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '' }));
+      fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data));
+    } catch (err) { setStatus(`❌ Error: ${err.message}`); }
+  };
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-      <div style={cardStyle}>
-        <h2>🛒 Record Expense</h2>
-        <form onSubmit={handleSubmit} style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-          <select style={inputStyle} onChange={e => setCourseId(e.target.value)} required>
-            <option value="">-- 1. Select Course --</option>
-            {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
-          </select>
-          <select style={inputStyle} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} required>
-            <option value="">-- 2. Select Student --</option>
-            {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}
-          </select>
-          <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px'}}>
-            <div>
-              <label>Item / Type</label>
-              <input list="expense-types" style={inputStyle} value={expenseType} onChange={e => setExpenseType(e.target.value)} required />
-              <datalist id="expense-types"><option value="Laundry Token" /><option value="Medicine" /><option value="Store Item" /><option value="Donation" /></datalist>
-            </div>
-            <div><label>Amount (₹)</label><input type="number" style={inputStyle} value={amount} onChange={e => setAmount(e.target.value)} required /></div>
-          </div>
-          <div style={{display:'flex', gap:'5px'}}>
-            <button type="button" onClick={() => {setExpenseType('Laundry Token'); setAmount('50')}} style={quickBtnStyle(false)}>🧺 Laundry (50)</button>
-            <button type="button" onClick={() => {setExpenseType('Soap'); setAmount('30')}} style={quickBtnStyle(false)}>🧼 Soap (30)</button>
-          </div>
-          <button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Save Record</button>
-          {status && <p>{status}</p>}
-        </form>
-      </div>
-
-      <div style={cardStyle}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'2px solid #eee', paddingBottom:'10px', marginBottom:'10px'}}>
-          <h3 style={{margin:0}}>History</h3>
-          {selectedStudentId && <button onClick={() => setShowInvoice(true)} style={quickBtnStyle(true)}>🖨️ Print Invoice</button>}
+    <div style={cardStyle}>
+      <h2>Participant Check-In</h2>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '800px' }}>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}>
+          <div><label style={labelStyle}>Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div>
+          <div><label style={labelStyle}>Student (Pending)</label><select style={inputStyle} onChange={e => setFormData({...formData, participantId: e.target.value})} value={formData.participantId} disabled={!formData.courseId}><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}</select></div>
         </div>
-        {history.length === 0 ? ( <p style={{color:'#888'}}>No expenses recorded.</p> ) : (
-          <div style={{maxHeight:'300px', overflowY:'auto'}}>
-            <table style={{width:'100%', fontSize:'14px', borderCollapse:'collapse'}}>
-              <thead><tr style={{background:'#f9f9f9', textAlign:'left'}}><th>Item</th><th>Date</th><th>₹</th></tr></thead>
-              <tbody>
-                {history.map(h => (
-                  <tr key={h.expense_id} style={{borderBottom:'1px solid #eee'}}>
-                    <td style={{padding:'8px'}}>{h.expense_type}</td>
-                    <td style={{padding:'8px', color:'#666'}}>{new Date(h.recorded_at).toLocaleDateString()}</td>
-                    <td style={{padding:'8px', fontWeight:'bold'}}>₹{h.amount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{textAlign:'right', marginTop:'10px', fontSize:'16px', fontWeight:'bold', color:'#2e7d32'}}>
-              Total Due: ₹{totalDue}
-            </div>
-          </div>
-        )}
-      </div>
+        <hr style={{border:'0', borderTop:'1px solid #eee'}} />
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
+          <div><label style={labelStyle}>Conf No</label><input style={inputStyle} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} /></div>
+          <div><label style={labelStyle}>Room No</label><input style={inputStyle} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required /></div>
+          <div><label style={labelStyle}>Dining Seat No</label><input style={inputStyle} value={formData.seatNo} onChange={e => setFormData({...formData, seatNo: e.target.value})} required /></div>
+          <div><label style={labelStyle}>Pagoda Cell</label><input style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})} /></div>
+        </div>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
+           <div><label style={labelStyle}>Mob Locker</label><input style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})} /></div>
+           <div><label style={labelStyle}>Val Locker</label><input style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})} /></div>
+           <div><label style={labelStyle}>Language</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option></select></div>
+           <div><label style={labelStyle}>Laundry Tk</label><input style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})} /></div>
+        </div>
+        <button type="submit" style={{...btnStyle(true), background:'#007bff', color:'white', padding:'15px'}}>Confirm Check-In</button> {status && <p>{status}</p>}
+      </form>
     </div>
   );
 }
 
 // --- OTHER COMPONENTS (Unchanged) ---
+function ExpenseTracker({ courses }) {
+  const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [selectedStudentId, setSelectedStudentId] = useState(''); const [expenseType, setExpenseType] = useState('Laundry Token'); const [amount, setAmount] = useState(''); const [history, setHistory] = useState([]); const [status, setStatus] = useState(''); const [showInvoice, setShowInvoice] = useState(false);
+  useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data)?data:[])).catch(console.error); }, [courseId]);
+  useEffect(() => { if (selectedStudentId) { fetch(`${API_URL}/participants/${selectedStudentId}/expenses`).then(res => res.json()).then(data => setHistory(Array.isArray(data)?data:[])).catch(console.error); } else { setHistory([]); } }, [selectedStudentId]);
+  const handleSubmit = async (e) => { e.preventDefault(); setStatus('Saving...'); try { const res = await fetch(`${API_URL}/expenses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ courseId, participantId: selectedStudentId, type: expenseType, amount }) }); if (!res.ok) throw new Error("Failed"); setStatus('✅ Saved!'); setAmount(''); const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); const histData = await histRes.json(); setHistory(histData); } catch (err) { setStatus('❌ Error'); } };
+  const totalDue = history.reduce((sum, item) => sum + parseFloat(item.amount), 0); const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || ''; const currentStudent = participants.find(p => p.participant_id == selectedStudentId);
+  if (showInvoice && currentStudent) { return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setShowInvoice(false)} style={btnStyle(false)}>← Back to Store</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button> </div> <div className="print-area" style={{maxWidth: '800px', margin: '0 auto', border: '1px solid #eee', padding: '40px'}}> <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}> <div><h1 style={{margin: 0}}>INVOICE</h1><p style={{color: '#666'}}>Date: {new Date().toLocaleDateString()}</p></div> <div style={{textAlign: 'right'}}><h3>{currentStudent.full_name}</h3><p>Room: {currentStudent.room_no}</p><p>{selectedCourseName}</p></div> </div> <table style={{width: '100%', borderCollapse: 'collapse', marginBottom: '30px'}}> <thead><tr style={{background: '#f9f9f9', borderBottom: '2px solid #333'}}><th style={{textAlign: 'left', padding: '10px'}}>Description</th><th style={{textAlign: 'left', padding: '10px'}}>Date</th><th style={{textAlign: 'right', padding: '10px'}}>Amount</th></tr></thead> <tbody> {history.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}> <td style={{padding: '10px'}}>{ex.expense_type}</td> <td style={{padding: '10px'}}>{new Date(ex.recorded_at).toLocaleDateString()}</td> <td style={{padding: '10px', textAlign: 'right'}}>₹{ex.amount}</td> </tr> ))} </tbody> </table> <div style={{textAlign: 'right', marginTop: '20px'}}><h3>Total Due: ₹{totalDue}</h3></div> <div style={{marginTop: '60px', borderTop: '1px solid #000', width: '200px', textAlign: 'center', paddingTop: '5px'}}>Signature</div> </div> </div> ); }
+  return ( <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}> <div style={cardStyle}> <h2>🛒 Record Expense</h2> <form onSubmit={handleSubmit} style={{display:'flex', flexDirection:'column', gap:'15px'}}> <select style={inputStyle} onChange={e => setCourseId(e.target.value)} required> <option value="">-- 1. Select Course --</option> {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)} </select> <select style={inputStyle} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} required> <option value="">-- 2. Select Student --</option> {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} (Room: {p.room_no||'-'})</option>)} </select> <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px'}}> <div> <label>Item / Type</label> <input list="expense-types" style={inputStyle} value={expenseType} onChange={e => setExpenseType(e.target.value)} required /> <datalist id="expense-types"><option value="Laundry Token" /><option value="Medicine" /><option value="Store Item" /><option value="Donation" /></datalist> </div> <div><label>Amount (₹)</label><input type="number" style={inputStyle} value={amount} onChange={e => setAmount(e.target.value)} required /></div> </div> <div style={{display:'flex', gap:'5px'}}> <button type="button" onClick={() => {setExpenseType('Laundry Token'); setAmount('50')}} style={quickBtnStyle(false)}>🧺 Laundry (50)</button> <button type="button" onClick={() => {setExpenseType('Soap'); setAmount('30')}} style={quickBtnStyle(false)}>🧼 Soap (30)</button> </div> <button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Save Record</button> {status && <p>{status}</p>} </form> </div> <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'2px solid #eee', paddingBottom:'10px', marginBottom:'10px'}}> <h3 style={{margin:0}}>History</h3> {selectedStudentId && <button onClick={() => setShowInvoice(true)} style={quickBtnStyle(true)}>🖨️ Print Invoice</button>} </div> {history.length === 0 ? ( <p style={{color:'#888'}}>No expenses recorded.</p> ) : ( <div style={{maxHeight:'300px', overflowY:'auto'}}> <table style={{width:'100%', fontSize:'14px', borderCollapse:'collapse'}}> <thead><tr style={{background:'#f9f9f9', textAlign:'left'}}><th>Item</th><th>Date</th><th>₹</th></tr></thead> <tbody> {history.map(h => ( <tr key={h.expense_id} style={{borderBottom:'1px solid #eee'}}> <td style={{padding:'8px'}}>{h.expense_type}</td> <td style={{padding:'8px', color:'#666'}}>{new Date(h.recorded_at).toLocaleDateString()}</td> <td style={{padding:'8px', fontWeight:'bold'}}>₹{h.amount}</td> </tr> ))} </tbody> </table> <div style={{textAlign:'right', marginTop:'10px', fontSize:'16px', fontWeight:'bold', color:'#2e7d32'}}> Total Due: ₹{totalDue} </div> </div> )} </div> </div> );
+}
 
 function Dashboard({ courses }) {
   const safeCourses = Array.isArray(courses) ? courses : [];
@@ -385,19 +309,12 @@ function UploadParticipants({ courses, setView }) {
   return ( <div style={cardStyle}><h2>📂 Upload Student Data</h2><div style={{maxWidth:'600px'}}><div style={{marginBottom:'10px'}}><label>1. Target Course:</label><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div><div style={{marginBottom:'10px'}}><label>2. File (CSV):</label><input type="file" accept=".csv" onChange={handleFileChange} /></div>{status && <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'4px', marginBottom:'10px'}}>{status}</div>}<button onClick={handleUpload} disabled={!csvFile || !courseId || preview.length===0} style={{...btnStyle(true), width:'100%', background: preview.length>0?'#28a745':'#ccc'}}>Upload</button>{showDebug && <div style={{marginTop:'10px', background:'#333', color:'#0f0', padding:'10px', fontSize:'10px'}}><pre>{debugLines.join('\n')}</pre></div>}</div></div> );
 }
 
-function CheckInForm({ courses }) {
-  const [participants, setParticipants] = useState([]); const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: '' }); const [status, setStatus] = useState('');
-  useEffect(() => { if (formData.courseId) { fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data)?data:[])).catch(console.error); } }, [formData.courseId]);
-  const studentsPending = participants.filter(p => p.status !== 'Arrived');
-  const handleSubmit = async (e) => { e.preventDefault(); setStatus('Submitting...'); try { const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) }); if (!res.ok) throw new Error("Error"); setStatus('✅ Success!'); setFormData(prev => ({...prev, participantId:'', roomNo:'', seatNo:'', laundryToken:'', mobileLocker:'', valuablesLocker:'', pagodaCell:'', laptop:''})); fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); } catch (err) { setStatus(`❌ Error: ${err.message}`); } };
-  return ( <div style={cardStyle}> <h2>Participant Check-In</h2> <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '800px' }}> <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}> <div><label style={labelStyle}>Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> <div><label style={labelStyle}>Student (Pending Only)</label><select style={inputStyle} onChange={e => setFormData({...formData, participantId: e.target.value})} value={formData.participantId} disabled={!formData.courseId}><option value="">-- Select ({studentsPending.length} left) --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}</select></div> </div> <hr style={{border:'0', borderTop:'1px solid #eee'}} /> <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}> <div><label style={labelStyle}>Room No</label><input style={inputStyle} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required /></div> <div><label style={labelStyle}>Seat No</label><input style={inputStyle} value={formData.seatNo} onChange={e => setFormData({...formData, seatNo: e.target.value})} required /></div> <div><label style={labelStyle}>Pagoda Cell</label><input style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})} /></div> <div><label style={labelStyle}>Language</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option></select></div> </div> <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}> <div><label style={labelStyle}>Mob Locker</label><input style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})} /></div> <div><label style={labelStyle}>Val Locker</label><input style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})} /></div> <div><label style={labelStyle}>Laptop</label><input style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})} placeholder="Yes / No" /></div> <div><label style={labelStyle}>Laundry Tk</label><input style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})} /></div> </div> <button type="submit" style={{...btnStyle(true), background:'#007bff', color:'white', padding:'15px'}}>Confirm Check-In</button> {status && <p>{status}</p>} </form> </div> );
-}
-
 // --- STYLES ---
 const btnStyle = (isActive) => ({ padding: '10px 20px', border: '1px solid #ddd', borderRadius: '5px', cursor: 'pointer', background: isActive ? '#007bff' : '#fff', color: isActive ? 'white' : '#333', fontWeight: '500' });
 const quickBtnStyle = (isActive) => ({ padding: '6px 12px', border: '1px solid #ccc', borderRadius: '15px', background: isActive ? '#007bff' : '#f1f1f1', color: isActive ? 'white' : 'black', cursor: 'pointer', fontSize: '13px' });
 const cardStyle = { background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginBottom: '20px' };
 const inputStyle = { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px' };
 const labelStyle = { fontSize: '14px', color: '#555', fontWeight: 'bold', marginBottom: '5px', display: 'block' };
+const thPrint = { textAlign: 'left', padding: '10px', borderBottom: '1px solid #000' };
 const tdStyle = { padding: '12px', borderBottom: '1px solid #eee' };
 const statusBadge = (status) => { const colors = { 'Arrived': '#d4edda', 'On the way': '#fff3cd', 'Cancelled': '#f8d7da', 'No Response': '#e2e3e5' }; return { background: colors[status] || '#eee', padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', color: '#333' }; };
