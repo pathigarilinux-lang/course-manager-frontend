@@ -3,8 +3,6 @@ import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, Resp
 
 // YOUR BACKEND URL
 const API_URL = "https://course-manager-backend-cd1m.onrender.com";
-
-// *** SECURITY CONFIGURATION ***
 const ADMIN_PASSCODE = "1234"; 
 
 export default function App() {
@@ -63,7 +61,7 @@ export default function App() {
       <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={() => setView('dashboard')} style={btnStyle(view === 'dashboard')}>📊 Dashboard</button>
-          <button onClick={() => setView('onboarding')} style={btnStyle(view === 'onboarding')}>📝 Onboarding Form</button>
+          <button onClick={() => setView('onboarding')} style={btnStyle(view === 'onboarding')}>📝 Onboarding</button>
           <button onClick={() => setView('participants')} style={btnStyle(view === 'participants')}>👥 Manage Students</button>
           <button onClick={() => setView('expenses')} style={btnStyle(view === 'expenses')}>🛒 Store & Finance</button>
           <button onClick={() => setView('course-admin')} style={btnStyle(view === 'course-admin')}>⚙️ Course Admin</button>
@@ -82,11 +80,12 @@ export default function App() {
   );
 }
 
-// --- 1. DASHBOARD (FIXED SYNTAX ERROR HERE) ---
+// --- 1. DASHBOARD (Updated Layout) ---
 function Dashboard({ courses }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [stats, setStats] = useState(null);
 
+  // Auto-select most recent course
   useEffect(() => { if (courses.length > 0 && !selectedCourse) setSelectedCourse(courses[0].course_id); }, [courses]);
 
   useEffect(() => {
@@ -106,24 +105,24 @@ function Dashboard({ courses }) {
   }, [selectedCourse]);
 
   const arrivalData = stats ? [ { name: 'Arrived', count: stats.arrived }, { name: 'Pending', count: stats.no_response }, { name: 'Cancelled', count: stats.cancelled } ] : [];
-  const typeData = stats ? [ { name: 'Old Students', value: stats.old_students, color: '#8884d8' }, { name: 'New Students', value: stats.new_students, color: '#82ca9d' }, { name: 'Servers (DS)', value: stats.servers, color: '#ffc658' } ] : [];
+  const typeData = stats ? [ { name: 'Old Students', value: stats.old_students, color: '#8884d8' }, { name: 'New Students', value: stats.new_students, color: '#82ca9d' }, { name: 'Servers', value: stats.servers, color: '#ffc658' } ] : [];
 
   return (
     <div>
       <h2 style={{marginBottom: '20px', color: '#333'}}>Summary Dashboard</h2>
       
-      {courses.length === 0 ? <p>No courses.</p> : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '15px', marginBottom: '30px' }}>
+      {/* Top Row: Course Selector Cards */}
+      {courses.length === 0 ? <p>No courses found.</p> : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '30px' }}>
           {courses.map(c => {
              const isSelected = selectedCourse == c.course_id;
              return (
               <div key={c.course_id} onClick={() => setSelectedCourse(c.course_id)} 
-                style={{...cardStyle, cursor:'pointer', border: isSelected ? '2px solid #007bff' : '1px solid transparent', background: isSelected ? '#f0f8ff' : 'white'}}>
+                style={{...cardStyle, cursor:'pointer', border: isSelected ? '2px solid #007bff' : '1px solid transparent', background: isSelected ? '#f0f8ff' : 'white', transition: '0.2s'}}>
                 <h3 style={{margin: '0 0 5px 0', color: '#007bff', fontSize:'16px'}}>{c.course_name}</h3>
                 <p style={{fontSize:'12px', color:'#666', margin:0}}> {new Date(c.start_date).toLocaleDateString()} </p>
                 <div style={{display:'flex', justifyContent:'space-between', marginTop:'15px', fontSize:'13px'}}>
-                  <span>✅ {c.arrived||0} Arrived</span>
-                  <span>⏳ {c.pending||0} Pend</span>
+                  <span>✅ {c.arrived||0} Arrived</span><span>⏳ {c.pending||0} Pend</span>
                 </div>
               </div>
              );
@@ -131,25 +130,31 @@ function Dashboard({ courses }) {
         </div>
       )}
 
-      {stats && (
+      {/* Bottom Row: Detailed Stats for Selected Course */}
+      {stats && selectedCourse && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', animation: 'fadeIn 0.5s' }}>
-          {/* Chart 1 */}
+          
+          {/* Card 1: Status Bar Chart */}
           <div style={cardStyle}>
             <h3 style={{marginTop:0}}>Status Overview</h3>
             <div style={{height:'250px', width:'100%'}}><ResponsiveContainer width="100%" height="100%"><BarChart data={arrivalData}><XAxis dataKey="name" /><YAxis /><Tooltip /><Legend /><Bar dataKey="count" fill="#0088FE" barSize={50} /></BarChart></ResponsiveContainer></div>
           </div>
-          {/* Chart 2 */}
+
+          {/* Card 2: Applicant Types Pie */}
           <div style={cardStyle}>
-            <h3 style={{marginTop:0}}>Applicant Types</h3>
+            <h3 style={{marginTop:0}}>Applicant Types (Checked-In)</h3>
             <div style={{height:'250px', width:'100%'}}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={typeData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label>{typeData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div>
           </div>
-          {/* Counts */}
+
+          {/* Card 3: Live Counts */}
           <div style={cardStyle}>
              <h3 style={{marginTop:0}}>Live Counts</h3>
-             <div style={{display:'grid', gap:'10px'}}>
-               <div style={{padding:'10px', background:'#e8eaf6', borderRadius:'5px'}}>Old Students (OM/OF): <strong>{stats.old_students}</strong></div>
-               <div style={{padding:'10px', background:'#e0f2f1', borderRadius:'5px'}}>New Students (NM/NF): <strong>{stats.new_students}</strong></div>
-               <div style={{padding:'10px', background:'#fff8e1', borderRadius:'5px'}}>Servers (SM/SF): <strong>{stats.servers}</strong></div>
+             <div style={{display:'grid', gap:'12px'}}>
+               <div style={{padding:'12px', background:'#e8eaf6', borderRadius:'6px', borderLeft:'4px solid #8884d8'}}>Old Students (OM/OF): <strong>{stats.old_students}</strong></div>
+               <div style={{padding:'12px', background:'#e0f2f1', borderRadius:'6px', borderLeft:'4px solid #82ca9d'}}>New Students (NM/NF): <strong>{stats.new_students}</strong></div>
+               <div style={{padding:'12px', background:'#fff8e1', borderRadius:'6px', borderLeft:'4px solid #ffc658'}}>Servers (SM/SF): <strong>{stats.servers}</strong></div>
+               <hr style={{margin:'5px 0', border:'0', borderTop:'1px solid #eee'}}/>
+               <div style={{display:'flex', justifyContent:'space-between'}}><span>Total Confirmed:</span> <strong>{stats.arrived}</strong></div>
              </div>
           </div>
         </div>
@@ -161,58 +166,23 @@ function Dashboard({ courses }) {
 // --- 2. ONBOARDING FORM ---
 function OnboardingForm({ courses }) {
   const [participants, setParticipants] = useState([]);
-  const [formData, setFormData] = useState({ 
-    courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', 
-    mobileLocker: '', valuablesLocker: '', language: 'English', 
-    pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', 
-    specialSeating: '', seatType: 'F' 
-  });
+  const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'F' });
   const [status, setStatus] = useState('');
 
-  useEffect(() => {
-    if (formData.courseId) {
-      fetch(`${API_URL}/courses/${formData.courseId}/participants`)
-        .then(res => res.json())
-        .then(data => setParticipants(Array.isArray(data) ? data : []));
-    }
-  }, [formData.courseId]);
-
+  useEffect(() => { if (formData.courseId) { fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); } }, [formData.courseId]);
   const studentsPending = participants.filter(p => p.status !== 'Arrived');
-
-  const handleStudentChange = (e) => {
-    const selectedId = e.target.value;
-    const student = participants.find(p => p.participant_id == selectedId);
-    setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setStatus('Submitting...');
-    
-    const finalSeatNo = formData.seatType && formData.seatNo ? `${formData.seatType}-${formData.seatNo}` : formData.seatNo;
-    const payload = { ...formData, seatNo: finalSeatNo };
-
-    try {
-      const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error");
-      setStatus('✅ Success! Student Onboarded.');
-      setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'F' }));
-      fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data));
-    } catch (err) { setStatus(`❌ ${err.message}`); }
-  };
+  const handleStudentChange = (e) => { const selectedId = e.target.value; const student = participants.find(p => p.participant_id == selectedId); setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); };
+  const handleSubmit = async (e) => { e.preventDefault(); setStatus('Submitting...'); const finalSeatNo = formData.seatType && formData.seatNo ? `${formData.seatType}-${formData.seatNo}` : formData.seatNo; const payload = { ...formData, seatNo: finalSeatNo }; try { const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const data = await res.json(); if (!res.ok) throw new Error(data.error || "Error"); setStatus('✅ Success! Student Onboarded.'); setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'F' })); fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); } catch (err) { setStatus(`❌ ${err.message}`); } };
 
   return (
     <div style={cardStyle}>
       <h2>📝 Onboarding Form</h2>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '900px' }}>
-        
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}>
           <div><label style={labelStyle}>Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div>
           <div><label style={labelStyle}>Student (Pending)</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId}><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}</select></div>
         </div>
         <hr style={{border:'0', borderTop:'1px solid #eee'}} />
-
         <div style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:'10px'}}>
           <div><label style={labelStyle}>Conf No</label><input style={{...inputStyle, background:'#f9f9f9'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="Auto-fills" /></div>
           <div style={{gridColumn: 'span 2', display:'flex', gap:'5px'}}>
@@ -221,14 +191,12 @@ function OnboardingForm({ courses }) {
           </div>
           <div><label style={labelStyle}>Dhamma Seat</label><input style={inputStyle} value={formData.dhammaSeat} onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} placeholder="or NA" /></div>
         </div>
-
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
           <div><label style={labelStyle}>Room No</label><input style={inputStyle} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required /></div>
           <div><label style={labelStyle}>Mob Locker</label><input style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})} placeholder="or NA" /></div>
           <div><label style={labelStyle}>Val Locker</label><input style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})} placeholder="or NA" /></div>
           <div><label style={labelStyle}>Laundry Tk</label><input style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})} placeholder="or NA" /></div>
         </div>
-
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
            <div><label style={labelStyle}>Laptop</label><input style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})} placeholder="Details/NA" /></div>
            <div><label style={labelStyle}>Pagoda</label><input style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})} placeholder="or NA" /></div>
@@ -241,7 +209,131 @@ function OnboardingForm({ courses }) {
   );
 }
 
-// --- 3. COURSE ADMIN ---
+// --- 3. MANAGE STUDENTS (Sorting + Export + Dhamma Fix) ---
+function ParticipantList({ courses, refreshCourses }) {
+  const [courseId, setCourseId] = useState('');
+  const [participants, setParticipants] = useState([]);
+  const [search, setSearch] = useState('');
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [viewMode, setViewMode] = useState('list');
+  // Sorting State
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+  const loadStudents = () => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
+  useEffect(loadStudents, [courseId]);
+
+  // SORT HANDLER
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+    setSortConfig({ key, direction });
+  };
+
+  // EXPORT TO CSV
+  const handleExport = () => {
+    if (participants.length === 0) return alert("No data to export");
+    const headers = ["Name", "Conf No", "Courses", "Age", "Gender", "Dining Seat", "Room", "Pagoda", "Language", "Status"];
+    const rows = participants.map(p => [
+      `"${p.full_name}"`, p.conf_no, `"${p.courses_info}"`, p.age, p.gender, p.dining_seat_no, p.room_no, p.pagoda_cell_no, p.discourse_language, p.status
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `students_course_${courseId}.csv`);
+    document.body.appendChild(link);
+    link.click();
+  };
+
+  // SORTING LOGIC
+  const sortedList = React.useMemo(() => {
+    let sortableItems = [...participants];
+    if (sortConfig.key) {
+      sortableItems.sort((a, b) => {
+        const valA = (a[sortConfig.key] || '').toString().toLowerCase();
+        const valB = (b[sortConfig.key] || '').toString().toLowerCase();
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems.filter(p => p.full_name.toLowerCase().includes(search.toLowerCase()));
+  }, [participants, sortConfig, search]);
+
+  const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students/expenses?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
+  const handleDeleteCourse = async () => { if (window.confirm("🛑 DELETE COURSE COMPLETELY?")) { await fetch(`${API_URL}/courses/${courseId}`, { method: 'DELETE' }); refreshCourses(); setCourseId(''); } };
+  const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); } };
+  const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingStudent) }); setEditingStudent(null); loadStudents(); };
+  const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || 'Course';
+  const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = seatNo.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 'Old'; return 'New'; };
+  const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = confNo.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 1; return 2; };
+  const parseCourses = (str) => { if (!str) return { s: 0, l: 0, seva: 0 }; const s = str.match(/S:\s*(\d+)/); const l = str.match(/L:\s*(\d+)/); const sv = str.match(/Seva:\s*(\d+)/); return { s: s ? parseInt(s[1]) : 0, l: l ? parseInt(l[1]) : 0, seva: sv ? parseInt(sv[1]) : 0 }; };
+  const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info); return (c.l * 10000) + (c.s * 10) + (c.seva * 0.1); };
+
+  // VIEW: DINING SHEET
+  if (viewMode === 'dining') {
+    const sorted = [...participants].sort((a,b) => {
+      const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no);
+      if (rankA !== rankB) return rankA - rankB;
+      return (a.dining_seat_no || 'Z').localeCompare(b.dining_seat_no || 'Z');
+    });
+    return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Sheet</button></div><div style={{textAlign:'center'}}><h1>Dining Seating Chart</h1><h3>{selectedCourseName}</h3></div><table style={{width:'100%', borderCollapse:'collapse', fontSize:'16px'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Seat</th><th style={thPrint}>Cat</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Lang</th></tr></thead><tbody>{sorted.filter(p=>p.status==='Arrived').map(p=>(<tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}><td style={{padding:'12px', fontWeight:'bold'}}>{p.dining_seat_no}</td><td style={{padding:'12px'}}>{getCategory(p.conf_no)}</td><td style={{padding:'12px'}}>{p.full_name}</td><td style={{padding:'12px'}}>{p.room_no}</td><td style={{padding:'12px'}}>{p.pagoda_cell_no}</td><td style={{padding:'12px'}}>{p.discourse_language}</td></tr>))}</tbody></table></div> );
+  }
+
+  // VIEW: DHAMMA SEATING PLAN (Fixed)
+  if (viewMode === 'seating') {
+    // Filter only those with assigned seats, then sort
+    const sorted = participants.filter(p => p.dhamma_hall_seat_no).sort((a,b) => (a.dhamma_hall_seat_no || 'Z').localeCompare(b.dhamma_hall_seat_no || 'Z'));
+    return (
+      <div style={cardStyle}>
+        <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Plan</button></div>
+        <div style={{textAlign:'center', marginBottom:'20px'}}><h1>Dhamma Hall Seating</h1><h3>{selectedCourseName}</h3></div>
+        {sorted.length === 0 ? (
+          <p style={{textAlign:'center', color:'red'}}>No Dhamma Seats assigned yet. Use "Onboarding" to assign seats.</p>
+        ) : (
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:'10px', marginTop:'20px'}}>
+            {sorted.map(p => (<div key={p.participant_id} style={{border:'1px solid #333', padding:'10px', textAlign:'center', borderRadius:'5px', background:'#f9f9f9'}}><div style={{fontWeight:'bold', fontSize:'18px', marginBottom:'5px'}}>{p.dhamma_hall_seat_no}</div><div style={{fontSize:'13px'}}>{p.full_name}</div></div>))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // VIEW: LIST (With Sort Headers)
+  return ( <div style={cardStyle}> 
+    <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}>
+      <div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div>
+      <div style={{display:'flex', gap:'5px'}}>
+        <button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button>
+        <button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining Sheet</button>
+        <button onClick={() => setViewMode('seating')} disabled={!courseId} style={quickBtnStyle(true)}>🧘 Dhamma Plan</button>
+      </div>
+    </div>
+    {courseId && (<div style={{background:'#fff5f5', border:'1px solid #feb2b2', padding:'10px', borderRadius:'5px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}><span style={{color:'#c53030', fontWeight:'bold', fontSize:'13px'}}>⚠️ Admin Zone:</span><div><button onClick={handleResetCourse} style={{background:'#e53e3e', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', marginRight:'10px', fontSize:'12px'}}>Reset Data</button><button onClick={handleDeleteCourse} style={{background:'red', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Delete Course</button></div></div>)}
+    <div style={{overflowX:'auto'}}>
+      <table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}>
+        <thead><tr style={{background:'#f1f1f1', textAlign:'left'}}>
+          {['full_name', 'conf_no', 'courses_info', 'age', 'gender', 'dining_seat_no', 'room_no', 'pagoda_cell_no'].map(key => (
+            <th key={key} style={{...tdStyle, cursor:'pointer', userSelect:'none'}} onClick={()=>handleSort(key)}>
+              {key.replace('_',' ').toUpperCase()} {sortConfig.key===key ? (sortConfig.direction==='asc'?'▲':'▼') : ''}
+            </th>
+          ))}
+          <th style={tdStyle}>ACTIONS</th>
+        </tr></thead>
+        <tbody>
+          {sortedList.map(p => (
+            <tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}>
+              <td style={tdStyle}><strong>{p.full_name}</strong></td><td style={tdStyle}>{p.conf_no||'-'}</td><td style={tdStyle}>{p.courses_info||'-'}</td><td style={tdStyle}>{p.age||'-'}</td><td style={tdStyle}>{p.gender||'-'}</td><td style={tdStyle}>{p.dining_seat_no||'-'}</td><td style={tdStyle}>{p.room_no||'-'}</td><td style={tdStyle}>{p.pagoda_cell_no||'-'}</td>
+              <td style={tdStyle}><button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    {editingStudent && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center'}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'400px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave} style={{display:'flex', flexDirection:'column', gap:'10px'}}><label>Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e => setEditingStudent({...editingStudent, full_name: e.target.value})} /><label>Conf No</label><input style={inputStyle} value={editingStudent.conf_no||''} onChange={e => setEditingStudent({...editingStudent, conf_no: e.target.value})} /><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Dining</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div><div><label>Dhamma</label><input style={inputStyle} value={editingStudent.dhamma_hall_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dhamma_hall_seat_no: e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Room</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e => setEditingStudent({...editingStudent, room_no: e.target.value})} /></div><div><label>Pagoda</label><input style={inputStyle} value={editingStudent.pagoda_cell_no||''} onChange={e => setEditingStudent({...editingStudent, pagoda_cell_no: e.target.value})} /></div></div><label>Special Seating</label><select style={inputStyle} value={editingStudent.special_seating||''} onChange={e => setEditingStudent({...editingStudent, special_seating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select><div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div></form></div></div>)}</div> );
+}
+
+// --- 4. COURSE ADMIN (Create & Upload) ---
 function CourseAdmin({ courses, refreshCourses, setView }) {
   const [activeTab, setActiveTab] = useState('create');
   return (
@@ -266,45 +358,74 @@ function UploadParticipants({ courses, setView }) {
   return ( <div><h3>Upload CSV</h3><div style={{maxWidth:'500px'}}><div style={{marginBottom:'10px'}}><label>Select Course:</label><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div><div style={{marginBottom:'10px'}}><input type="file" accept=".csv" onChange={handleFileChange} /></div>{status && <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'4px', marginBottom:'10px'}}>{status}</div>}<button onClick={handleUpload} disabled={!csvFile || !courseId || preview.length===0} style={{...btnStyle(true), width:'100%', background: preview.length>0?'#28a745':'#ccc'}}>Upload</button></div></div> );
 }
 
-// --- 4. MANAGE STUDENTS ---
-function ParticipantList({ courses, refreshCourses }) {
-  const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [search, setSearch] = useState(''); const [editingStudent, setEditingStudent] = useState(null); const [viewMode, setViewMode] = useState('list');
-  const loadStudents = () => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
-  useEffect(loadStudents, [courseId]);
-  const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students/expenses?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
-  const handleDeleteCourse = async () => { if (window.confirm("🛑 DELETE COURSE?")) { await fetch(`${API_URL}/courses/${courseId}`, { method: 'DELETE' }); refreshCourses(); setCourseId(''); } };
-  const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); } };
-  const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingStudent) }); setEditingStudent(null); loadStudents(); };
-  const filtered = participants.filter(p => p.full_name.toLowerCase().includes(search.toLowerCase())); const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || 'Course';
-  const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = seatNo.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 'Old'; return 'New'; };
-  const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = confNo.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 1; return 2; };
-  const parseCourses = (str) => { if (!str) return { s: 0, l: 0, seva: 0 }; const s = str.match(/S:\s*(\d+)/); const l = str.match(/L:\s*(\d+)/); const sv = str.match(/Seva:\s*(\d+)/); return { s: s ? parseInt(s[1]) : 0, l: l ? parseInt(l[1]) : 0, seva: sv ? parseInt(sv[1]) : 0 }; };
-  const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info); return (c.l * 10000) + (c.s * 10) + (c.seva * 0.1); };
-
-  if (viewMode === 'dining') {
-    const sorted = [...participants].sort((a,b) => {
-      const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no);
-      if (rankA !== rankB) return rankA - rankB;
-      return (a.dining_seat_no || 'Z').localeCompare(b.dining_seat_no || 'Z');
-    });
-    return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print</button></div><div style={{textAlign:'center'}}><h1>Dining Seating Chart</h1><h3>{selectedCourseName}</h3></div><table style={{width:'100%', borderCollapse:'collapse', fontSize:'16px'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Seat</th><th style={thPrint}>Cat</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Lang</th></tr></thead><tbody>{sorted.filter(p=>p.status==='Arrived').map(p=>(<tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}><td style={{padding:'12px', fontWeight:'bold'}}>{p.dining_seat_no}</td><td style={{padding:'12px'}}>{getCategory(p.conf_no)}</td><td style={{padding:'12px'}}>{p.full_name}</td><td style={{padding:'12px'}}>{p.room_no}</td><td style={{padding:'12px'}}>{p.pagoda_cell_no}</td><td style={{padding:'12px'}}>{p.discourse_language}</td></tr>))}</tbody></table></div> );
-  }
-
-  if (viewMode === 'seating') { const sorted = participants.filter(p => p.dhamma_hall_seat_no).sort((a,b) => (a.dhamma_hall_seat_no || 'Z').localeCompare(b.dhamma_hall_seat_no || 'Z')); return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print</button></div><div style={{textAlign:'center', marginBottom:'20px'}}><h1>Dhamma Hall Seating</h1><h3>{selectedCourseName}</h3></div><div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', gap:'10px', marginTop:'20px'}}>{sorted.map(p => (<div key={p.participant_id} style={{border:'1px solid #333', padding:'10px', textAlign:'center', borderRadius:'5px', background:'#f9f9f9'}}><div style={{fontWeight:'bold', fontSize:'18px', marginBottom:'5px'}}>{p.dhamma_hall_seat_no}</div><div style={{fontSize:'14px'}}>{p.full_name}</div></div>))}</div></div> ); }
-
-  return ( <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}><div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div><div style={{display:'flex', gap:'5px'}}><button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining Sheet</button><button onClick={() => setViewMode('seating')} disabled={!courseId} style={quickBtnStyle(true)}>🧘 Dhamma Plan</button></div></div>{courseId && (<div style={{background:'#fff5f5', border:'1px solid #feb2b2', padding:'10px', borderRadius:'5px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}><span style={{color:'#c53030', fontWeight:'bold', fontSize:'13px'}}>⚠️ Admin Zone:</span><div><button onClick={handleResetCourse} style={{background:'#e53e3e', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', marginRight:'10px', fontSize:'12px'}}>Reset Data</button><button onClick={handleDeleteCourse} style={{background:'red', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Delete Course</button></div></div>)}<div style={{overflowX:'auto'}}><table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}><thead><tr style={{background:'#f1f1f1', textAlign:'left'}}><th style={tdStyle}>Name</th><th style={tdStyle}>Conf No</th><th style={tdStyle}>Courses</th><th style={tdStyle}>Age</th><th style={tdStyle}>Gender</th><th style={tdStyle}>Dining</th><th style={tdStyle}>Room</th><th style={tdStyle}>Pagoda</th><th style={tdStyle}>Actions</th></tr></thead><tbody>{filtered.map(p => (<tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}><td style={tdStyle}><strong>{p.full_name}</strong></td><td style={tdStyle}>{p.conf_no||'-'}</td><td style={tdStyle}>{p.courses_info||'-'}</td><td style={tdStyle}>{p.age||'-'}</td><td style={tdStyle}>{p.gender||'-'}</td><td style={tdStyle}>{p.dining_seat_no||'-'}</td><td style={tdStyle}>{p.room_no||'-'}</td><td style={tdStyle}>{p.pagoda_cell_no||'-'}</td><td style={tdStyle}><button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button></td></tr>))}</tbody></table></div>{editingStudent && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center'}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'400px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave} style={{display:'flex', flexDirection:'column', gap:'10px'}}><label>Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e => setEditingStudent({...editingStudent, full_name: e.target.value})} /><label>Conf No</label><input style={inputStyle} value={editingStudent.conf_no||''} onChange={e => setEditingStudent({...editingStudent, conf_no: e.target.value})} /><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Dining</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div><div><label>Dhamma</label><input style={inputStyle} value={editingStudent.dhamma_hall_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dhamma_hall_seat_no: e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Room</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e => setEditingStudent({...editingStudent, room_no: e.target.value})} /></div><div><label>Pagoda</label><input style={inputStyle} value={editingStudent.pagoda_cell_no||''} onChange={e => setEditingStudent({...editingStudent, pagoda_cell_no: e.target.value})} /></div></div><label>Special Seating</label><select style={inputStyle} value={editingStudent.special_seating||''} onChange={e => setEditingStudent({...editingStudent, special_seating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select><div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div></form></div></div>)}</div> ); }
-
 // --- 5. STORE & FINANCE ---
 function ExpenseTracker({ courses }) {
-  const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [selectedStudentId, setSelectedStudentId] = useState(''); const [studentToken, setStudentToken] = useState(''); const [expenseType, setExpenseType] = useState('Laundry Token'); const [amount, setAmount] = useState(''); const [history, setHistory] = useState([]); const [status, setStatus] = useState(''); const [showInvoice, setShowInvoice] = useState(false); const [reportMode, setReportMode] = useState(''); const [financialData, setFinancialData] = useState([]); const [editingId, setEditingId] = useState(null);
+  const [courseId, setCourseId] = useState('');
+  const [participants, setParticipants] = useState([]);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [studentToken, setStudentToken] = useState('');
+  const [expenseType, setExpenseType] = useState('Laundry Token');
+  const [amount, setAmount] = useState('');
+  const [history, setHistory] = useState([]);
+  const [status, setStatus] = useState('');
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [reportMode, setReportMode] = useState(''); 
+  const [financialData, setFinancialData] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+
   useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data)?data:[])).catch(console.error); }, [courseId]);
-  useEffect(() => { if (selectedStudentId) { const student = participants.find(p => p.participant_id == selectedStudentId); setStudentToken(student ? student.laundry_token_no : ''); fetch(`${API_URL}/participants/${selectedStudentId}/expenses`).then(res => res.json()).then(data => setHistory(Array.isArray(data)?data:[])).catch(console.error); } else { setHistory([]); setStudentToken(''); } }, [selectedStudentId]);
+  
+  useEffect(() => {
+    if (selectedStudentId) {
+      const student = participants.find(p => p.participant_id == selectedStudentId);
+      setStudentToken(student ? student.laundry_token_no : '');
+      fetch(`${API_URL}/participants/${selectedStudentId}/expenses`).then(res => res.json()).then(data => setHistory(Array.isArray(data)?data:[])).catch(console.error);
+    } else { setHistory([]); setStudentToken(''); }
+  }, [selectedStudentId]);
+
   const loadFinancialReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => setFinancialData(Array.isArray(data) ? data : [])); setReportMode('summary'); };
-  const handleLaundryClick = () => { const label = studentToken ? `Laundry Token ${studentToken}` : `Laundry Token`; setExpenseType(label); setAmount('50'); };
-  const handleEditClick = (item) => { setEditingId(item.expense_id); setExpenseType(item.expense_type); setAmount(item.amount); setStatus('✏️ Editing Mode...'); };
-  const handleSubmit = async (e) => { e.preventDefault(); setStatus('Saving...'); const url = editingId ? `${API_URL}/expenses/${editingId}` : `${API_URL}/expenses`; const method = editingId ? 'PUT' : 'POST'; const body = editingId ? { expense_type: expenseType, amount } : { courseId, participantId: selectedStudentId, type: expenseType, amount }; try { const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }); if (!res.ok) throw new Error("Failed"); setStatus(editingId ? '✅ Updated!' : '✅ Saved!'); setAmount(''); setEditingId(null); const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); const histData = await histRes.json(); setHistory(histData); } catch (err) { setStatus('❌ Error'); } };
-  const handleDeleteExpense = async (id) => { if (!window.confirm("Delete?")) return; await fetch(`${API_URL}/expenses/${id}`, { method: 'DELETE' }); const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); const histData = await histRes.json(); setHistory(histData); };
-  const totalDue = history.reduce((sum, item) => sum + parseFloat(item.amount), 0); const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || ''; const currentStudent = participants.find(p => p.participant_id == selectedStudentId);
+  
+  const handleLaundryClick = () => {
+    const label = studentToken ? `Laundry Token ${studentToken}` : `Laundry Token`;
+    setExpenseType(label);
+    setAmount('50');
+  };
+
+  const handleEditClick = (item) => {
+    setEditingId(item.expense_id);
+    setExpenseType(item.expense_type);
+    setAmount(item.amount);
+    setStatus('✏️ Editing Mode...');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault(); 
+    setStatus('Saving...');
+    const url = editingId ? `${API_URL}/expenses/${editingId}` : `${API_URL}/expenses`;
+    const method = editingId ? 'PUT' : 'POST';
+    const body = editingId 
+      ? { expense_type: expenseType, amount }
+      : { courseId, participantId: selectedStudentId, type: expenseType, amount };
+
+    try {
+      const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("Failed");
+      setStatus(editingId ? '✅ Updated!' : '✅ Saved!');
+      setAmount(''); setEditingId(null); 
+      const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); const histData = await histRes.json(); setHistory(histData);
+    } catch (err) { setStatus('❌ Error'); }
+  };
+
+  const handleDeleteExpense = async (id) => {
+    if (!window.confirm("Delete this expense?")) return;
+    await fetch(`${API_URL}/expenses/${id}`, { method: 'DELETE' });
+    const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); const histData = await histRes.json(); setHistory(histData);
+  };
+
+  const totalDue = history.reduce((sum, item) => sum + parseFloat(item.amount), 0);
+  const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || '';
+  const currentStudent = participants.find(p => p.participant_id == selectedStudentId);
+
   if (reportMode === 'invoice' && currentStudent) { return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button> </div> <div className="print-area" style={{maxWidth: '800px', margin: '0 auto', border: '1px solid #eee', padding: '40px'}}> <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}> <div><h1 style={{margin: 0}}>INVOICE</h1><p style={{color: '#666'}}>Date: {new Date().toLocaleDateString()}</p></div> <div style={{textAlign: 'right'}}><h3>{currentStudent.full_name}</h3><p>Room: {currentStudent.room_no}</p><p>{selectedCourseName}</p></div> </div> <table style={{width: '100%', borderCollapse: 'collapse', marginBottom: '30px'}}> <thead><tr style={{background: '#f9f9f9', borderBottom: '2px solid #333'}}><th style={{textAlign: 'left', padding: '10px'}}>Description</th><th style={{textAlign: 'left', padding: '10px'}}>Date</th><th style={{textAlign: 'right', padding: '10px'}}>Amount</th></tr></thead> <tbody> {history.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}> <td style={{padding: '10px'}}>{ex.expense_type}</td> <td style={{padding: '10px'}}>{new Date(ex.recorded_at).toLocaleDateString()}</td> <td style={{padding: '10px', textAlign: 'right'}}>₹{ex.amount}</td> </tr> ))} </tbody> </table> <div style={{textAlign: 'right', marginTop: '20px'}}><h3>Total Due: ₹{totalDue}</h3></div> <div style={{marginTop: '60px', borderTop: '1px solid #000', width: '200px', textAlign: 'center', paddingTop: '5px'}}>Signature</div> </div> </div> ); }
   if (reportMode === 'summary') { return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Report</button> </div> <div className="print-area"> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Expenses Summary Report</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black'}}><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Total Due (₹)</th></tr></thead><tbody>{financialData.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '10px'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td><td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_due}</td></tr>))} <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px'}}><td colSpan={3} style={{padding:'15px', textAlign:'right'}}>GRAND TOTAL:</td><td style={{padding:'15px', textAlign:'right'}}>₹{financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0)}</td></tr> </tbody></table> </div> </div> ); }
   return (
@@ -315,14 +436,30 @@ function ExpenseTracker({ courses }) {
           <select style={inputStyle} onChange={e => setCourseId(e.target.value)} required> <option value="">-- 1. Select Course --</option> {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)} </select>
           <select style={inputStyle} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} required> <option value="">-- 2. Select Student --</option> {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)} </select>
           <div style={{background:'#f0f2f5', padding:'10px', borderRadius:'6px', border:'1px solid #ddd'}}> <label style={{fontSize:'12px', color:'#666', fontWeight:'bold'}}>ASSIGNED LAUNDRY TOKEN:</label> <div style={{fontSize:'18px', fontWeight:'bold', color:'#007bff'}}>{studentToken || '-'}</div> </div>
-          <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px'}}> <div><label>Item / Type</label><input list="expense-types" style={inputStyle} value={expenseType} onChange={e => setExpenseType(e.target.value)} required /><datalist id="expense-types"><option value="Laundry Token" /><option value="Medicine" /><option value="Store Item" /><option value="Donation" /></datalist></div> <div><label>Amount (₹)</label><input type="number" style={inputStyle} value={amount} onChange={e => setAmount(e.target.value)} required /></div> </div>
-          <div style={{display:'flex', gap:'5px'}}> <button type="button" onClick={handleLaundryClick} style={quickBtnStyle(false)}>🧺 Laundry (50)</button> <button type="button" onClick={() => {setExpenseType('Soap'); setAmount('30')}} style={quickBtnStyle(false)}>🧼 Soap (30)</button> </div>
-          <div style={{display:'flex', gap:'10px'}}> <button type="submit" style={{...btnStyle(true), flex:1, background: editingId ? '#ffc107' : '#28a745', color: editingId ? 'black' : 'white'}}> {editingId ? 'Update Record' : 'Save Record'} </button> {editingId && <button type="button" onClick={() => {setEditingId(null); setAmount(''); setExpenseType('Laundry Token');}} style={{...btnStyle(false), background:'#6c757d', color:'white'}}>Cancel</button>} </div> {status && <p>{status}</p>}
+          <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px'}}>
+            <div><label>Item / Type</label><input list="expense-types" style={inputStyle} value={expenseType} onChange={e => setExpenseType(e.target.value)} required /><datalist id="expense-types"><option value="Laundry Token" /><option value="Medicine" /><option value="Store Item" /><option value="Donation" /></datalist></div>
+            <div><label>Amount (₹)</label><input type="number" style={inputStyle} value={amount} onChange={e => setAmount(e.target.value)} required /></div>
+          </div>
+          <div style={{display:'flex', gap:'5px'}}>
+            <button type="button" onClick={handleLaundryClick} style={quickBtnStyle(false)}>🧺 Laundry (50)</button>
+            <button type="button" onClick={() => {setExpenseType('Soap'); setAmount('30')}} style={quickBtnStyle(false)}>🧼 Soap (30)</button>
+          </div>
+          <div style={{display:'flex', gap:'10px'}}>
+            <button type="submit" style={{...btnStyle(true), flex:1, background: editingId ? '#ffc107' : '#28a745', color: editingId ? 'black' : 'white'}}> {editingId ? 'Update Record' : 'Save Record'} </button>
+            {editingId && <button type="button" onClick={() => {setEditingId(null); setAmount(''); setExpenseType('Laundry Token');}} style={{...btnStyle(false), background:'#6c757d', color:'white'}}>Cancel</button>}
+          </div>
+          {status && <p>{status}</p>}
         </form>
       </div>
       <div style={cardStyle}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'2px solid #eee', paddingBottom:'10px', marginBottom:'10px'}}> <h3 style={{margin:0}}>History</h3> <div style={{display:'flex', gap:'5px'}}> {selectedStudentId && <button onClick={() => setReportMode('invoice')} style={quickBtnStyle(true)}>🖨️ Invoice</button>} {courseId && <button onClick={loadFinancialReport} style={quickBtnStyle(true)}>💰 Summary Report</button>} </div> </div>
-        {history.length === 0 ? ( <p style={{color:'#888'}}>No expenses recorded.</p> ) : ( <div style={{maxHeight:'300px', overflowY:'auto'}}> <table style={{width:'100%', fontSize:'14px', borderCollapse:'collapse'}}> <thead><tr style={{background:'#f9f9f9', textAlign:'left'}}><th>Item</th><th>Date</th><th>₹</th><th></th></tr></thead> <tbody> {history.map(h => ( <tr key={h.expense_id} style={{borderBottom:'1px solid #eee'}}> <td style={{padding:'8px'}}>{h.expense_type}</td> <td style={{padding:'8px', color:'#666'}}>{new Date(h.recorded_at).toLocaleDateString()}</td> <td style={{padding:'8px', fontWeight:'bold'}}>₹{h.amount}</td> <td style={{padding:'8px', textAlign:'right'}}><button onClick={()=>handleEditClick(h)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={()=>handleDeleteExpense(h.expense_id)} style={{color:'red', border:'none', background:'none', cursor:'pointer'}}>🗑️</button></td> </tr> ))} </tbody> </table> <div style={{textAlign:'right', marginTop:'10px', fontSize:'16px', fontWeight:'bold', color:'#2e7d32'}}> Total Due: ₹{totalDue} </div> </div> )}
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'2px solid #eee', paddingBottom:'10px', marginBottom:'10px'}}>
+          <h3 style={{margin:0}}>History</h3>
+          <div style={{display:'flex', gap:'5px'}}>
+            {selectedStudentId && <button onClick={() => setReportMode('invoice')} style={quickBtnStyle(true)}>🖨️ Invoice</button>}
+            {courseId && <button onClick={loadFinancialReport} style={quickBtnStyle(true)}>💰 Summary Report</button>}
+          </div>
+        </div>
+        {history.length === 0 ? ( <p style={{color:'#888'}}>No expenses recorded.</p> ) : ( <div style={{maxHeight:'300px', overflowY:'auto'}}><table style={{width:'100%', fontSize:'14px', borderCollapse:'collapse'}}><thead><tr style={{background:'#f9f9f9', textAlign:'left'}}><th>Item</th><th>Date</th><th>₹</th><th></th></tr></thead><tbody>{history.map(h => (<tr key={h.expense_id} style={{borderBottom:'1px solid #eee'}}><td style={{padding:'8px'}}>{h.expense_type}</td><td style={{padding:'8px', color:'#666'}}>{new Date(h.recorded_at).toLocaleDateString()}</td><td style={{padding:'8px', fontWeight:'bold'}}>₹{h.amount}</td><td style={{padding:'8px', textAlign:'right'}}><button onClick={()=>handleEditClick(h)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={()=>handleDeleteExpense(h.expense_id)} style={{color:'red', border:'none', background:'none', cursor:'pointer'}}>🗑️</button></td></tr>))}</tbody></table><div style={{textAlign:'right', marginTop:'10px', fontSize:'16px', fontWeight:'bold', color:'#2e7d32'}}>Total Due: ₹{totalDue}</div></div> )}
       </div>
     </div>
   );
