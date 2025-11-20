@@ -31,6 +31,8 @@ export default function App() {
         <button onClick={() => setView('dashboard')} style={btnStyle(view === 'dashboard')}>📊 Dashboard</button>
         <button onClick={() => setView('checkin')} style={btnStyle(view === 'checkin')}>📝 Check-In Desk</button>
         <button onClick={() => setView('create-course')} style={btnStyle(view === 'create-course')}>➕ New Course</button>
+        
+        {/* THIS IS THE BUTTON THAT WAS MISSING */}
         <button onClick={() => setView('upload')} style={btnStyle(view === 'upload')}>📂 Upload List</button>
       </nav>
 
@@ -41,6 +43,8 @@ export default function App() {
       {view === 'dashboard' && <Dashboard courses={courses} />}
       {view === 'checkin' && <CheckInForm courses={courses} />}
       {view === 'create-course' && <CreateCourseForm refreshCourses={fetchCourses} setView={setView} />}
+      
+      {/* THIS COMPONENT CONNECTS TO THE BUTTON */}
       {view === 'upload' && <UploadParticipants courses={courses} setView={setView} />}
 
     </div>
