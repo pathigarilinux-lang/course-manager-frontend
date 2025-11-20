@@ -41,70 +41,79 @@ export default function App() {
   );
 }
 
-// --- COMPONENT: SMART UPLOAD PARTICIPANTS ---
+// --- COMPONENT: FLEXIBLE UPLOAD PARTICIPANTS ---
 function UploadParticipants({ courses, setView }) {
   const [courseId, setCourseId] = useState('');
   const [csvFile, setCsvFile] = useState(null);
   const [preview, setPreview] = useState([]);
   const [status, setStatus] = useState('');
+  const [debugLines, setDebugLines] = useState([]); // To show you the raw file
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     setCsvFile(file);
+    setStatus('');
+    setPreview([]);
     
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target.result;
-      const lines = text.split(/\r\n|\n/); // Handle Windows/Mac line breaks
+      const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
+      
+      // Show first 5 lines for debugging
+      setDebugLines(lines.slice(0, 5));
 
-      // 1. Find the Header Row
-      // We look for a row containing "Name" AND ("Email" OR "Phone" OR "Mobile")
+      // 1. Find the Header Row (Less Strict: Just looks for "Name" or "Participant")
       let headerIndex = -1;
       let headers = [];
 
       for (let i = 0; i < Math.min(lines.length, 20); i++) {
         const rowLower = lines[i].toLowerCase();
-        if (rowLower.includes('name') && (rowLower.includes('phone') || rowLower.includes('mobile') || rowLower.includes('email'))) {
+        // If the row has "name", "student", or "participant", we assume it's the header
+        if (rowLower.includes('name') || rowLower.includes('student') || rowLower.includes('participant')) {
           headerIndex = i;
-          // Clever Split: Handles commas inside quotes (e.g. "Doe, John")
-          headers = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+          // Handle comma or semicolon delimiters
+          const delimiter = lines[i].includes(';') ? ';' : ',';
+          
+          // Split and clean quotes
+          headers = lines[i].split(delimiter).map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
           break;
         }
       }
 
       if (headerIndex === -1) {
-        setStatus("⚠️ Error: Could not find 'Name', 'Phone', or 'Email' headers in the first 20 rows.");
+        setStatus("⚠️ Warning: Could not auto-detect headers. Showing raw data below. Please check column names.");
         return;
       }
 
       // 2. Map Columns
-      // We find which column number corresponds to which data
-      const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('participant'));
-      const emailIdx = headers.findIndex(h => h.includes('email'));
-      const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('contact'));
+      // We look for keywords to guess which column is which
+      const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('participant') || h.includes('student'));
+      const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('contact') || h.includes('tel'));
+      const emailIdx = headers.findIndex(h => h.includes('email') || h.includes('mail'));
 
       if (nameIdx === -1) {
-        setStatus("⚠️ Error: Found a header row, but couldn't identify a 'Name' column.");
+        setStatus("⚠️ Error: Found a header row, but couldn't identify the Name column.");
         return;
       }
 
-      // 3. Parse Data Rows
+      // 3. Parse Data
       const dataRows = lines.slice(headerIndex + 1);
+      const delimiter = lines[headerIndex].includes(';') ? ';' : ',';
+
       const parsedData = dataRows.map(row => {
-        // Same clever split for data
-        const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, ''));
-        
-        if (cols.length <= nameIdx) return null; // Skip empty/short rows
+        const cols = row.split(delimiter).map(c => c.trim().replace(/^"|"$/g, ''));
+        if (cols.length <= nameIdx) return null;
 
         return { 
           name: cols[nameIdx], 
           phone: phoneIdx !== -1 ? cols[phoneIdx] : '', 
           email: emailIdx !== -1 ? cols[emailIdx] : '' 
         };
-      }).filter(r => r && r.name && r.name.length > 2); // Filter out garbage
+      }).filter(r => r && r.name && r.name.length > 1);
 
       setPreview(parsedData);
-      setStatus(`✅ Found Headers! Ready to upload ${parsedData.length} students.`);
+      setStatus(`✅ Success! Headers found: [${headers[nameIdx]}] (Name), [${phoneIdx !== -1 ? headers[phoneIdx] : 'None'}] (Phone). Found ${parsedData.length} students.`);
     };
     reader.readAsText(file);
   };
@@ -123,7 +132,7 @@ function UploadParticipants({ courses, setView }) {
       
       if (!res.ok) throw new Error("Upload failed");
       
-      setStatus(`✅ Success! Added ${preview.length} students from your file.`);
+      setStatus(`✅ Success! Added ${preview.length} students.`);
       setTimeout(() => setView('checkin'), 2000); 
     } catch (err) {
       setStatus("❌ Error: " + err.message);
@@ -132,7 +141,7 @@ function UploadParticipants({ courses, setView }) {
 
   return (
     <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-      <h2>📂 Upload Standard Data File</h2>
+      <h2>📂 Smart Upload (Debug Mode)</h2>
       <div style={{maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '20px'}}>
         
         <div>
@@ -143,18 +152,20 @@ function UploadParticipants({ courses, setView }) {
           </select>
         </div>
 
-        <div style={{padding: '15px', background: '#e3f2fd', borderRadius: '5px', fontSize: '14px'}}>
-          <strong>ℹ️ Smart Import:</strong><br/>
-          The system will automatically skip the top title rows in your file and find the columns labeled 
-          "Name", "Mobile", or "Email".
-        </div>
-
         <div>
           <label style={{fontWeight: 'bold', display: 'block', marginBottom: '5px'}}>2. Choose File:</label>
           <input type="file" accept=".csv" onChange={handleFileChange} />
         </div>
 
-        {status && <div style={{padding: '10px', background: '#fff3cd', borderRadius: '4px', fontWeight: 'bold'}}>{status}</div>}
+        {/* DEBUG BOX: Shows what the computer sees */}
+        {debugLines.length > 0 && (
+          <div style={{padding: '10px', background: '#333', color: '#0f0', borderRadius: '5px', fontSize: '12px', fontFamily: 'monospace'}}>
+            <strong>RAW FILE CHECK (First 5 lines):</strong><br/>
+            {debugLines.map((line, i) => <div key={i}>{i}: {line}</div>)}
+          </div>
+        )}
+
+        {status && <div style={{padding: '10px', background: status.includes('Success') ? '#d4edda' : '#fff3cd', borderRadius: '4px', fontWeight: 'bold'}}>{status}</div>}
 
         {preview.length > 0 && (
           <div>
