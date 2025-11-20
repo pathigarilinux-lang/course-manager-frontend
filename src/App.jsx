@@ -232,16 +232,20 @@ function OnboardingForm({ courses }) {
   );
 }
 
-// --- 3. COURSE ADMIN (Create + Upload + Manual Add) ---
+// --- 3. COURSE ADMIN (Create + Upload + Manual) ---
 function CourseAdmin({ courses, refreshCourses, setView }) {
-  const [activeTab, setActiveTab] = useState('create'); // create, upload, manual
+  // Default to 'create'
+  const [activeTab, setActiveTab] = useState('create'); 
+
   return (
     <div style={cardStyle}>
-      <div style={{display:'flex', borderBottom:'1px solid #ddd', marginBottom:'20px', gap:'10px'}}>
-        <button onClick={()=>setActiveTab('create')} style={{padding:'10px', background:activeTab==='create'?'#eee':'white', border:'none', borderBottom:activeTab==='create'?'2px solid #007bff':'none', cursor:'pointer'}}>➕ New Course</button>
-        <button onClick={()=>setActiveTab('upload')} style={{padding:'10px', background:activeTab==='upload'?'#eee':'white', border:'none', borderBottom:activeTab==='upload'?'2px solid #007bff':'none', cursor:'pointer'}}>📂 Upload CSV</button>
-        <button onClick={()=>setActiveTab('manual')} style={{padding:'10px', background:activeTab==='manual'?'#eee':'white', border:'none', borderBottom:activeTab==='manual'?'2px solid #007bff':'none', cursor:'pointer'}}>✍️ Manual Entry</button>
+      <div style={{display:'flex', borderBottom:'1px solid #ddd', marginBottom:'20px', gap:'10px', flexWrap:'wrap'}}>
+        <button onClick={()=>setActiveTab('create')} style={{padding:'10px 20px', background: activeTab==='create'?'#eee':'white', border:'none', borderBottom: activeTab==='create'?'2px solid #007bff':'none', cursor:'pointer'}}>➕ New Course</button>
+        <button onClick={()=>setActiveTab('upload')} style={{padding:'10px 20px', background: activeTab==='upload'?'#eee':'white', border:'none', borderBottom: activeTab==='upload'?'2px solid #007bff':'none', cursor:'pointer'}}>📂 Upload CSV</button>
+        <button onClick={()=>setActiveTab('manual')} style={{padding:'10px 20px', background: activeTab==='manual'?'#eee':'white', border:'none', borderBottom: activeTab==='manual'?'2px solid #007bff':'none', cursor:'pointer'}}>✍️ Manual Entry</button>
       </div>
+
+      {/* Tab Content */}
       {activeTab === 'create' && <CreateCourseForm refreshCourses={refreshCourses} setView={setView} />}
       {activeTab === 'upload' && <UploadParticipants courses={courses} setView={setView} />}
       {activeTab === 'manual' && <ManualStudentForm courses={courses} setView={setView} />}
@@ -249,7 +253,133 @@ function CourseAdmin({ courses, refreshCourses, setView }) {
   );
 }
 
-// NEW: Manual Student Form
+// --- SUB-COMPONENT: CREATE COURSE ---
+function CreateCourseForm({ refreshCourses, setView }) { 
+  const [formData, setFormData] = useState({ courseName: '', teacherName: '', startDate: '', endDate: '' }); 
+  const [status, setStatus] = useState('');
+
+  const handleSubmit = async (e) => { 
+    e.preventDefault(); 
+    setStatus('Saving...'); 
+    try { 
+      const res = await fetch(`${API_URL}/courses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(formData)}); 
+      if (!res.ok) throw new Error("Failed"); 
+      setStatus('✅ Created!'); 
+      refreshCourses(); 
+      setTimeout(() => setView('dashboard'), 1500); 
+    } catch (err) { setStatus('❌ ' + err.message); } 
+  };
+
+  return ( 
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '500px' }}> 
+      <h3>Create New Course</h3> 
+      <input style={inputStyle} placeholder="Course Name (e.g. 10-Day)" required onChange={e => setFormData({...formData, courseName: e.target.value})} />
+      <input style={inputStyle} placeholder="Teacher Name" required onChange={e => setFormData({...formData, teacherName: e.target.value})} />
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
+        <div><label style={{fontSize:'12px'}}>Start Date</label><input type="date" style={inputStyle} required onChange={e => setFormData({...formData, startDate: e.target.value})} /></div>
+        <div><label style={{fontSize:'12px'}}>End Date</label><input type="date" style={inputStyle} required onChange={e => setFormData({...formData, endDate: e.target.value})} /></div>
+      </div>
+      <button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Create Course</button>
+      {status && <p>{status}</p>}
+    </form> 
+  );
+}
+
+// --- SUB-COMPONENT: UPLOAD CSV ---
+function UploadParticipants({ courses, setView }) { 
+  const [courseId, setCourseId] = useState(''); 
+  const [csvFile, setCsvFile] = useState(null); 
+  const [preview, setPreview] = useState([]); 
+  const [status, setStatus] = useState(''); 
+
+  const handleFileChange = (e) => { 
+    const file = e.target.files[0]; 
+    if (!file) return; 
+    setCsvFile(file); 
+    setStatus(''); 
+    setPreview([]); 
+    
+    const reader = new FileReader(); 
+    reader.onload = (event) => { 
+      const text = event.target.result; 
+      const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== ''); 
+      
+      let headerIndex = -1; 
+      let headers = []; 
+      
+      // Find Header Row (Scans first 20 lines)
+      for (let i = 0; i < Math.min(lines.length, 20); i++) { 
+        if (lines[i].toLowerCase().includes('name')) { 
+          headerIndex = i; 
+          // Regex to handle commas inside quotes
+          headers = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.trim().replace(/^"|"$/g, '').toLowerCase()); 
+          break; 
+        } 
+      } 
+
+      if (headerIndex === -1) { setStatus("⚠️ Error: No 'Name' column found in CSV."); return; } 
+
+      // Map Columns
+      const nameIdx = headers.findIndex(h => h.includes('name')); 
+      const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile')); 
+      const emailIdx = headers.findIndex(h => h.includes('email')); 
+      const ageIdx = headers.findIndex(h => h === 'age'); 
+      const genderIdx = headers.findIndex(h => h === 'gender'); 
+      const coursesIdx = headers.findIndex(h => h.includes('courses')); 
+      const confIdx = headers.findIndex(h => h.includes('conf')); 
+
+      const dataRows = lines.slice(headerIndex + 1); 
+      const parsedData = dataRows.map(row => { 
+        const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, '')); 
+        if (cols.length <= nameIdx) return null; 
+        return { 
+          name: cols[nameIdx], 
+          phone: phoneIdx!==-1?cols[phoneIdx]:'', 
+          email: emailIdx!==-1?cols[emailIdx]:'', 
+          age: ageIdx!==-1?cols[ageIdx]:'', 
+          gender: genderIdx!==-1?cols[genderIdx]:'', 
+          courses: coursesIdx!==-1?cols[coursesIdx]:'', 
+          confNo: confIdx!==-1?cols[confIdx]:'' 
+        }; 
+      }).filter(r => r && r.name); 
+      
+      setPreview(parsedData); 
+      setStatus(`✅ Ready! Found ${parsedData.length} students.`); 
+    }; 
+    reader.readAsText(file); 
+  };
+
+  const handleUpload = async () => { 
+    if (!courseId) return alert("Select course"); 
+    setStatus('Uploading...'); 
+    try { 
+      const res = await fetch(`${API_URL}/courses/${courseId}/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ students: preview }) }); 
+      if (!res.ok) throw new Error("Failed"); 
+      setStatus(`✅ Added ${preview.length} students.`); 
+      setTimeout(() => setView('onboarding'), 2000); 
+    } catch (err) { setStatus("❌ " + err.message); } 
+  };
+
+  return ( 
+    <div>
+      <h3>Upload Student CSV</h3>
+      <div style={{maxWidth:'500px'}}>
+        <div style={{marginBottom:'10px'}}>
+          <label>Select Course:</label>
+          <select style={inputStyle} onChange={e => setCourseId(e.target.value)}>
+            <option value="">-- Select --</option>
+            {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
+          </select>
+        </div>
+        <div style={{marginBottom:'10px'}}><input type="file" accept=".csv" onChange={handleFileChange} /></div>
+        {status && <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'4px', marginBottom:'10px'}}>{status}</div>}
+        <button onClick={handleUpload} disabled={!csvFile || !courseId || preview.length===0} style={{...btnStyle(true), width:'100%', background: preview.length>0?'#28a745':'#ccc'}}>Upload Data</button>
+      </div>
+    </div> 
+  );
+}
+
+// --- SUB-COMPONENT: MANUAL ENTRY (Restored) ---
 function ManualStudentForm({ courses, setView }) {
   const [formData, setFormData] = useState({ courseId: '', fullName: '', phone: '', email: '', age: '', gender: '', confNo: '' });
   const [status, setStatus] = useState('');
@@ -258,15 +388,15 @@ function ManualStudentForm({ courses, setView }) {
     e.preventDefault(); setStatus('Saving...');
     try {
       const res = await fetch(`${API_URL}/participants`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(formData)});
-      if (!res.ok) throw new Error("Failed. ConfNo/Name might exist.");
+      if (!res.ok) throw new Error("Failed. Check duplicates.");
       setStatus('✅ Student Added!');
-      setFormData({ courseId: formData.courseId, fullName: '', phone: '', email: '', age: '', gender: '', confNo: '' });
+      setFormData({ ...formData, fullName: '', phone: '', email: '', age: '', gender: '', confNo: '' }); // Keep CourseId, clear rest
     } catch (err) { setStatus('❌ ' + err.message); }
   };
 
   return (
     <form onSubmit={handleSubmit} style={{display:'flex', flexDirection:'column', gap:'15px', maxWidth:'600px'}}>
-       <h3>Add Single Student (Walk-in)</h3>
+       <h3>Add Student (Manual)</h3>
        <label>Select Course</label>
        <select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} required>
          <option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
