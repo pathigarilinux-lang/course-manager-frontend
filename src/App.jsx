@@ -1,86 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 
-// YOUR BACKEND URL
 const API_URL = "https://course-manager-backend-cd1m.onrender.com";
-
-// *** SECURITY CONFIGURATION ***
 const ADMIN_PASSCODE = "1234"; 
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState('');
-  const [loginError, setLoginError] = useState('');
   const [view, setView] = useState('dashboard');
   const [courses, setCourses] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const savedAuth = localStorage.getItem('admin_auth');
-    if (savedAuth === 'true') setIsAuthenticated(true);
+    if (localStorage.getItem('admin_auth') === 'true') setIsAuthenticated(true);
     fetchCourses();
   }, []);
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    if (pinInput === ADMIN_PASSCODE) {
-      setIsAuthenticated(true);
-      localStorage.setItem('admin_auth', 'true');
-    } else {
-      setLoginError('❌ Incorrect Passcode');
-      setPinInput('');
-    }
-  };
+  const handleLogin = (e) => { e.preventDefault(); if (pinInput === ADMIN_PASSCODE) { setIsAuthenticated(true); localStorage.setItem('admin_auth', 'true'); } else alert('Wrong PIN'); };
+  const handleLogout = () => { setIsAuthenticated(false); localStorage.removeItem('admin_auth'); };
+  const fetchCourses = () => { fetch(`${API_URL}/courses`).then(res => res.ok ? res.json() : []).then(data => setCourses(Array.isArray(data) ? data : [])).catch(console.error); };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('admin_auth');
-    setView('dashboard');
-  };
-
-  const fetchCourses = () => {
-    fetch(`${API_URL}/courses`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => Array.isArray(data) ? setCourses(data) : setCourses([]))
-      .catch(err => { console.error(err); setError("Connection Error"); });
-  };
-
-  if (!isAuthenticated) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}>
-        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
-          <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Center Admin</h1>
-          <form onSubmit={handleLogin}>
-            <input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} />
-            <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button>
-          </form>
-          {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>}
-        </div>
-      </div>
-    );
-  }
+  if (!isAuthenticated) return <div style={{height:'100vh', display:'flex', justifyContent:'center', alignItems:'center'}}><form onSubmit={handleLogin} style={cardStyle}><h2 style={{marginTop:0}}>Locked</h2><input type="password" value={pinInput} onChange={e=>setPinInput(e.target.value)} style={inputStyle} placeholder="PIN" /><button style={{...btnStyle(true), background:'#007bff', color:'white', marginTop:'10px', width:'100%'}}>Unlock</button></form></div>;
 
   return (
     <div className="app-container" style={{ fontFamily: 'Segoe UI, sans-serif', padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
       <style>{`@media print { .no-print { display: none !important; } .app-container { background: white !important; padding: 0 !important; } body { font-size: 12pt; } }`}</style>
-
-      {/* Navigation */}
-      <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+      
+      <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={() => setView('dashboard')} style={btnStyle(view === 'dashboard')}>📊 Dashboard</button>
-          <button onClick={() => setView('checkin')} style={btnStyle(view === 'checkin')}>📝 Check-In Desk</button>
+          <button onClick={() => setView('checkin')} style={btnStyle(view === 'checkin')}>📝 Check-In</button>
           <button onClick={() => setView('expenses')} style={btnStyle(view === 'expenses')}>🛒 Store</button>
           <button onClick={() => setView('reports')} style={btnStyle(view === 'reports')}>🖨️ Reports</button>
-          <button onClick={() => setView('participants')} style={btnStyle(view === 'participants')}>👥 Students</button>
-          <button onClick={() => setView('create-course')} style={btnStyle(view === 'create-course')}>➕ New Course</button>
-          
-          {/* UPDATED BUTTON NAME */}
-          <button onClick={() => setView('upload')} style={btnStyle(view === 'upload')}>📂 Upload Student Data</button>
+          <button onClick={() => setView('participants')} style={btnStyle(view === 'participants')}>👥 Manage Students</button>
+          <button onClick={() => setView('create-course')} style={btnStyle(view === 'create-course')}>➕ Course</button>
+          <button onClick={() => setView('upload')} style={btnStyle(view === 'upload')}>📂 Upload</button>
         </div>
-        <button onClick={handleLogout} style={{ ...btnStyle(false), border: '1px solid #dc3545', color: '#dc3545' }}>🔒 Logout</button>
+        <button onClick={handleLogout} style={{...btnStyle(false), color:'red', border:'1px solid red'}}>Logout</button>
       </nav>
-
-      {error && <div className="no-print" style={{ padding: '12px', background: '#ffebee', color: '#c62828', borderRadius: '5px', marginBottom: '20px' }}>⚠️ {error}</div>}
 
       {view === 'dashboard' && <Dashboard courses={courses} />}
       {view === 'checkin' && <CheckInForm courses={courses} />}
@@ -93,19 +50,13 @@ export default function App() {
   );
 }
 
-// --- 1. UPDATED CHECK-IN FORM ---
+// --- UPDATED CHECK-IN FORM (With Filters + New Fields) ---
 function CheckInForm({ courses }) {
   const [participants, setParticipants] = useState([]);
   const [formData, setFormData] = useState({ 
-    courseId: '', 
-    participantId: '', 
-    roomNo: '', 
-    seatNo: '', 
-    laundryToken: '',
-    // NEW FIELDS ADDED HERE
-    mobileLocker: '',
-    valuablesLocker: '',
-    language: 'English'
+    courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', 
+    mobileLocker: '', valuablesLocker: '', language: 'English',
+    pagodaCell: '', laptop: '' // NEW FIELDS
   });
   const [status, setStatus] = useState('');
 
@@ -113,105 +64,154 @@ function CheckInForm({ courses }) {
     if (formData.courseId) {
       fetch(`${API_URL}/courses/${formData.courseId}/participants`)
         .then(res => res.json())
-        .then(data => setParticipants(Array.isArray(data) ? data : []))
-        .catch(console.error);
+        .then(data => setParticipants(Array.isArray(data) ? data : []));
     }
   }, [formData.courseId]);
+
+  // FILTER: Only show students who are NOT 'Arrived' yet
+  const studentsPending = participants.filter(p => p.status !== 'Arrived');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus('Submitting...');
     try {
-      const res = await fetch(`${API_URL}/check-in`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
+      const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
       if (!res.ok) throw new Error("Error checking in");
-      setStatus('✅ Check-In Successful!');
-      // Reset Form
-      setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English' }));
-    } catch (err) {
-      setStatus(`❌ Error: ${err.message}`);
-    }
+      setStatus('✅ Success! Student removed from list.');
+      setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '' }));
+      
+      // Refresh list to remove the checked-in student immediately
+      fetch(`${API_URL}/courses/${formData.courseId}/participants`)
+        .then(res => res.json()).then(data => setParticipants(data));
+
+    } catch (err) { setStatus(`❌ Error: ${err.message}`); }
   };
 
   return (
     <div style={cardStyle}>
       <h2>Participant Check-In</h2>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '600px' }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '800px' }}>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}>
+          <div><label style={labelStyle}>Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div>
+          <div><label style={labelStyle}>Student (Pending Only)</label><select style={inputStyle} onChange={e => setFormData({...formData, participantId: e.target.value})} value={formData.participantId} disabled={!formData.courseId}><option value="">-- Select ({studentsPending.length} left) --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}</select></div>
+        </div>
+        <hr style={{border:'0', borderTop:'1px solid #eee'}} />
         
-        {/* Top Section: Selection */}
-        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px'}}>
-          <div>
-            <label style={labelStyle}>Course</label>
-            <select name="courseId" onChange={e => setFormData({...formData, courseId: e.target.value})} style={inputStyle} required>
-              <option value="">-- Select Course --</option>
-              {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Participant</label>
-            <select name="participantId" onChange={e => setFormData({...formData, participantId: e.target.value})} value={formData.participantId} style={inputStyle} required disabled={!formData.courseId}>
-              <option value="">-- Select Student --</option>
-              {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}
-            </select>
-          </div>
+        {/* Logistics Row 1 */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
+          <div><label style={labelStyle}>Room No</label><input style={inputStyle} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required /></div>
+          <div><label style={labelStyle}>Seat No</label><input style={inputStyle} value={formData.seatNo} onChange={e => setFormData({...formData, seatNo: e.target.value})} required /></div>
+          <div><label style={labelStyle}>Pagoda Cell</label><input style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})} /></div>
+          <div><label style={labelStyle}>Language</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option></select></div>
         </div>
 
-        <hr style={{border: '0', borderTop: '1px solid #eee', margin: '5px 0'}} />
-
-        {/* Middle Section: Lockers & Token */}
-        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px'}}>
-          <div>
-            <label style={labelStyle}>Mobile Locker No</label>
-            <input name="mobileLocker" value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Valuables Locker</label>
-            <input name="valuablesLocker" value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Laundry Token</label>
-            <input name="laundryToken" value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})} style={inputStyle} />
-          </div>
+        {/* Logistics Row 2 */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
+           <div><label style={labelStyle}>Mob Locker</label><input style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})} /></div>
+           <div><label style={labelStyle}>Val Locker</label><input style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})} /></div>
+           <div><label style={labelStyle}>Laptop</label><input style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})} placeholder="Yes / No" /></div>
+           <div><label style={labelStyle}>Laundry Tk</label><input style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})} /></div>
         </div>
 
-        {/* Bottom Section: Language, Room, Seat */}
-        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px'}}>
-          <div>
-            <label style={labelStyle}>Discourse Language</label>
-            <select name="language" value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})} style={inputStyle}>
-              <option value="English">English</option>
-              <option value="Hindi">Hindi</option>
-              <option value="Marathi">Marathi</option>
-              <option value="French">French</option>
-              <option value="German">German</option>
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Room No</label>
-            <input name="roomNo" value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} style={inputStyle} required />
-          </div>
-          <div>
-            <label style={labelStyle}>Dining Seat No</label>
-            <input name="seatNo" value={formData.seatNo} onChange={e => setFormData({...formData, seatNo: e.target.value})} style={inputStyle} required />
-          </div>
-        </div>
-
-        <button type="submit" style={{ padding: '12px', background: '#007bff', color: 'white', border: 'none', borderRadius: '5px', fontSize: '16px', cursor: 'pointer', marginTop: '10px' }}>
-          Confirm Check-In
-        </button>
-
-        {status && <p style={{ fontWeight: 'bold', color: status.includes('Success') ? 'green' : 'red' }}>{status}</p>}
+        <button type="submit" style={{...btnStyle(true), background:'#007bff', color:'white', padding:'15px'}}>Confirm Check-In</button>
+        {status && <p>{status}</p>}
       </form>
     </div>
   );
 }
 
-// --- (KEEP ALL OTHER COMPONENTS BELOW: ReportsPanel, ExpenseTracker, Dashboard, UploadParticipants, ParticipantList, CreateCourseForm) ---
-// --- PASTE THEM HERE EXACTLY AS THEY WERE ---
+// --- UPDATED PARTICIPANT LIST (With Edit/Delete) ---
+function ParticipantList({ courses }) {
+  const [courseId, setCourseId] = useState('');
+  const [participants, setParticipants] = useState([]);
+  const [search, setSearch] = useState('');
+  const [editingStudent, setEditingStudent] = useState(null); // For Modal
 
+  const loadStudents = () => {
+    if (!courseId) return;
+    fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : []));
+  };
+
+  useEffect(loadStudents, [courseId]);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this student? This cannot be undone.")) return;
+    await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' });
+    loadStudents();
+  };
+
+  const handleEditSave = async (e) => {
+    e.preventDefault();
+    await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingStudent)
+    });
+    setEditingStudent(null);
+    loadStudents();
+  };
+
+  const filtered = participants.filter(p => p.full_name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div style={cardStyle}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+        <h2 style={{margin:0}}>Manage Students</h2>
+        <div style={{display:'flex', gap:'10px'}}>
+          <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+          <input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} />
+        </div>
+      </div>
+
+      <div style={{overflowX:'auto'}}>
+        <table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}>
+          <thead><tr style={{background:'#f1f1f1', textAlign:'left'}}><th style={tdStyle}>Name</th><th style={tdStyle}>Status</th><th style={tdStyle}>Room</th><th style={tdStyle}>Pagoda</th><th style={tdStyle}>Actions</th></tr></thead>
+          <tbody>
+            {filtered.map(p => (
+              <tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}>
+                <td style={tdStyle}><strong>{p.full_name}</strong><br/><span style={{fontSize:'11px', color:'#888'}}>{p.phone_number}</span></td>
+                <td style={tdStyle}><span style={statusBadge(p.status)}>{p.status}</span></td>
+                <td style={tdStyle}>{p.room_no || '-'}</td>
+                <td style={tdStyle}>{p.pagoda_cell_no || '-'}</td>
+                <td style={tdStyle}>
+                  <button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button>
+                  <button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* EDIT MODAL */}
+      {editingStudent && (
+        <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center'}}>
+          <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'400px'}}>
+            <h3>Edit Student</h3>
+            <form onSubmit={handleEditSave} style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+              <label>Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e => setEditingStudent({...editingStudent, full_name: e.target.value})} />
+              <label>Status</label>
+              <select style={inputStyle} value={editingStudent.status} onChange={e => setEditingStudent({...editingStudent, status: e.target.value})}>
+                <option>No Response</option><option>Arrived</option><option>Cancelled</option>
+              </select>
+              <div style={{display:'flex', gap:'10px'}}>
+                <div><label>Room</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e => setEditingStudent({...editingStudent, room_no: e.target.value})} /></div>
+                <div><label>Seat</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div>
+              </div>
+              <label>Pagoda Cell</label><input style={inputStyle} value={editingStudent.pagoda_cell_no||''} onChange={e => setEditingStudent({...editingStudent, pagoda_cell_no: e.target.value})} />
+              <div style={{display:'flex', gap:'10px', marginTop:'15px'}}>
+                <button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button>
+                <button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- OTHER COMPONENTS (Unchanged) ---
 function ReportsPanel({ courses }) {
   const [mode, setMode] = useState('dining'); const [courseId, setCourseId] = useState(''); const [studentId, setStudentId] = useState(''); const [data, setData] = useState([]); const [expenses, setExpenses] = useState([]);
   useEffect(() => { if (!courseId) { setData([]); return; } fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => { const sorted = (Array.isArray(data) ? data : []).sort((a,b) => (a.dining_seat_no || 'Z').localeCompare(b.dining_seat_no || 'Z')); setData(sorted); }); }, [courseId]);
@@ -236,13 +236,6 @@ function UploadParticipants({ courses, setView }) {
   return ( <div style={cardStyle}><h2>📂 Upload Student Data</h2><div style={{maxWidth:'600px'}}><div style={{marginBottom:'10px'}}><label>1. Target Course:</label><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div><div style={{marginBottom:'10px'}}><label>2. File (CSV):</label><input type="file" accept=".csv" onChange={handleFileChange} /></div>{status && <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'4px', marginBottom:'10px'}}>{status}</div>}<button onClick={handleUpload} disabled={!csvFile || !courseId || preview.length===0} style={{...btnStyle(true), width:'100%', background: preview.length>0?'#28a745':'#ccc'}}>Upload</button>{showDebug && <div style={{marginTop:'10px', background:'#333', color:'#0f0', padding:'10px', fontSize:'10px'}}><pre>{debugLines.join('\n')}</pre></div>}</div></div> );
 }
 
-function ParticipantList({ courses }) {
-  const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [loading, setLoading] = useState(false); const [search, setSearch] = useState('');
-  useEffect(() => { if (!courseId) { setParticipants([]); return; } setLoading(true); fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => { setParticipants(Array.isArray(data) ? data : []); setLoading(false); }).catch(err => { console.error(err); setLoading(false); }); }, [courseId]);
-  const filteredList = participants.filter(p => p.full_name.toLowerCase().includes(search.toLowerCase()) || (p.phone_number && p.phone_number.includes(search)));
-  return ( <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}> <h2 style={{margin:0}}>👥 Student List</h2> <div style={{background:'#e3f2fd', padding:'5px 10px', borderRadius:'15px', fontSize:'14px', color:'#0d47a1'}}>Total: <strong>{filteredList.length}</strong></div> </div> <div style={{display:'flex', gap:'15px', marginBottom:'20px', flexWrap:'wrap'}}> <div style={{flex:1}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)} value={courseId}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> <div style={{flex:1}}><input style={inputStyle} placeholder="🔍 Search..." value={search} onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div> </div> {loading ? <p>Loading...</p> : !courseId ? <p style={{color:'#888'}}>Select a course.</p> : filteredList.length === 0 ? <p>No students found.</p> : ( <div style={{overflowX:'auto'}}><table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}><thead><tr style={{background:'#f1f1f1', textAlign:'left'}}><th style={thStyle}>#</th><th style={thStyle}>Name</th><th style={thStyle}>Phone</th><th style={thStyle}>Status</th><th style={thStyle}>Room</th><th style={thStyle}>Seat</th></tr></thead><tbody>{filteredList.map((p, index) => (<tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}><td style={tdStyle}>{index + 1}</td><td style={tdStyle}><strong>{p.full_name}</strong></td><td style={tdStyle}>{p.phone_number || '-'}</td><td style={tdStyle}><span style={statusBadge(p.status)}>{p.status}</span></td><td style={tdStyle}>{p.room_no || '-'}</td><td style={tdStyle}>{p.dining_seat_no || '-'}</td></tr>))}</tbody></table></div> )} </div> );
-}
-
 function Dashboard({ courses }) {
   const safeCourses = Array.isArray(courses) ? courses : [];
   const statusData = [{ name: 'Arrived', value: 12 }, { name: 'Expected', value: 5 }];
@@ -263,6 +256,5 @@ const quickBtnStyle = (isActive) => ({ padding: '6px 12px', border: '1px solid #
 const cardStyle = { background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginBottom: '20px' };
 const inputStyle = { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px' };
 const labelStyle = { fontSize: '14px', color: '#555', fontWeight: 'bold', marginBottom: '5px', display: 'block' };
-const thStyle = { padding: '12px', borderBottom: '2px solid #eee', color: '#555' };
 const tdStyle = { padding: '12px', borderBottom: '1px solid #eee' };
 const statusBadge = (status) => { const colors = { 'Arrived': '#d4edda', 'On the way': '#fff3cd', 'Cancelled': '#f8d7da', 'No Response': '#e2e3e5' }; return { background: colors[status] || '#eee', padding: '4px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', color: '#333' }; };
