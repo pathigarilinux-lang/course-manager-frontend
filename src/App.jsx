@@ -41,14 +41,13 @@ export default function App() {
   );
 }
 
-// --- COMPONENT: UPLOAD PARTICIPANTS (CSV) ---
+// --- COMPONENT: SMART UPLOAD PARTICIPANTS ---
 function UploadParticipants({ courses, setView }) {
   const [courseId, setCourseId] = useState('');
   const [csvFile, setCsvFile] = useState(null);
   const [preview, setPreview] = useState([]);
   const [status, setStatus] = useState('');
 
-  // Parse CSV on client side (simple browser logic)
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     setCsvFile(file);
@@ -56,30 +55,67 @@ function UploadParticipants({ courses, setView }) {
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target.result;
-      // Split by new line, ignore header row (slice(1))
-      const rows = text.split('\n').slice(1); 
-      const parsedData = rows.map(row => {
-        // Assumes CSV format: Name, Phone, Email
-        const cols = row.split(',');
-        if (cols.length < 1) return null;
+      const lines = text.split(/\r\n|\n/); // Handle Windows/Mac line breaks
+
+      // 1. Find the Header Row
+      // We look for a row containing "Name" AND ("Email" OR "Phone" OR "Mobile")
+      let headerIndex = -1;
+      let headers = [];
+
+      for (let i = 0; i < Math.min(lines.length, 20); i++) {
+        const rowLower = lines[i].toLowerCase();
+        if (rowLower.includes('name') && (rowLower.includes('phone') || rowLower.includes('mobile') || rowLower.includes('email'))) {
+          headerIndex = i;
+          // Clever Split: Handles commas inside quotes (e.g. "Doe, John")
+          headers = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+          break;
+        }
+      }
+
+      if (headerIndex === -1) {
+        setStatus("⚠️ Error: Could not find 'Name', 'Phone', or 'Email' headers in the first 20 rows.");
+        return;
+      }
+
+      // 2. Map Columns
+      // We find which column number corresponds to which data
+      const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('participant'));
+      const emailIdx = headers.findIndex(h => h.includes('email'));
+      const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('contact'));
+
+      if (nameIdx === -1) {
+        setStatus("⚠️ Error: Found a header row, but couldn't identify a 'Name' column.");
+        return;
+      }
+
+      // 3. Parse Data Rows
+      const dataRows = lines.slice(headerIndex + 1);
+      const parsedData = dataRows.map(row => {
+        // Same clever split for data
+        const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, ''));
+        
+        if (cols.length <= nameIdx) return null; // Skip empty/short rows
+
         return { 
-          name: cols[0]?.trim(), 
-          phone: cols[1]?.trim() || '', 
-          email: cols[2]?.trim() || '' 
+          name: cols[nameIdx], 
+          phone: phoneIdx !== -1 ? cols[phoneIdx] : '', 
+          email: emailIdx !== -1 ? cols[emailIdx] : '' 
         };
-      }).filter(r => r && r.name); // Remove empty rows
+      }).filter(r => r && r.name && r.name.length > 2); // Filter out garbage
+
       setPreview(parsedData);
+      setStatus(`✅ Found Headers! Ready to upload ${parsedData.length} students.`);
     };
     reader.readAsText(file);
   };
 
   const handleUpload = async () => {
     if (!courseId) return alert("Please select a course first.");
-    if (preview.length === 0) return alert("No students found in file.");
+    if (preview.length === 0) return alert("No valid data found.");
 
     setStatus('Uploading...');
     try {
-      const res = await fetch(`${API_URL}/courses/${courseId}/import`, {
+      const res = await fetch(`https://course-manager-backend-cd1m.onrender.com/courses/${courseId}/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ students: preview })
@@ -87,30 +123,30 @@ function UploadParticipants({ courses, setView }) {
       
       if (!res.ok) throw new Error("Upload failed");
       
-      setStatus(`✅ Success! Added ${preview.length} students.`);
-      setTimeout(() => setView('checkin'), 2000); // Go to checkin desk
+      setStatus(`✅ Success! Added ${preview.length} students from your file.`);
+      setTimeout(() => setView('checkin'), 2000); 
     } catch (err) {
       setStatus("❌ Error: " + err.message);
     }
   };
 
   return (
-    <div style={cardStyle}>
-      <h2>Upload Participants (CSV)</h2>
+    <div style={{ background: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+      <h2>📂 Upload Standard Data File</h2>
       <div style={{maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '20px'}}>
         
         <div>
-          <label style={{fontWeight: 'bold', display: 'block', marginBottom: '5px'}}>1. Select Course:</label>
-          <select style={inputStyle} onChange={e => setCourseId(e.target.value)} required>
+          <label style={{fontWeight: 'bold', display: 'block', marginBottom: '5px'}}>1. Target Course:</label>
+          <select style={{ width: '100%', padding: '8px' }} onChange={e => setCourseId(e.target.value)} required>
             <option value="">-- Select Course --</option>
             {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
           </select>
         </div>
 
         <div style={{padding: '15px', background: '#e3f2fd', borderRadius: '5px', fontSize: '14px'}}>
-          <strong>📝 CSV Format Instructions:</strong><br/>
-          Create an Excel file with 3 columns (No headers needed, or ignore first row):<br/>
-          <code>Name, Phone, Email</code>
+          <strong>ℹ️ Smart Import:</strong><br/>
+          The system will automatically skip the top title rows in your file and find the columns labeled 
+          "Name", "Mobile", or "Email".
         </div>
 
         <div>
@@ -118,27 +154,25 @@ function UploadParticipants({ courses, setView }) {
           <input type="file" accept=".csv" onChange={handleFileChange} />
         </div>
 
+        {status && <div style={{padding: '10px', background: '#fff3cd', borderRadius: '4px', fontWeight: 'bold'}}>{status}</div>}
+
         {preview.length > 0 && (
           <div>
-            <p><strong>Preview:</strong> Found {preview.length} students.</p>
+            <p><strong>Preview (First 5):</strong></p>
             <div style={{maxHeight: '150px', overflowY: 'auto', background: '#eee', padding: '10px', fontSize: '12px'}}>
-              {preview.slice(0, 5).map((s, i) => <div key={i}>{s.name} - {s.phone}</div>)}
-              {preview.length > 5 && <div>...and {preview.length - 5} more</div>}
+              {preview.slice(0, 5).map((s, i) => <div key={i}><strong>{s.name}</strong> | {s.phone} | {s.email}</div>)}
             </div>
           </div>
         )}
 
-        <button onClick={handleUpload} disabled={!csvFile || !courseId} 
-          style={{...btnStyle(true), background: (!csvFile || !courseId) ? '#ccc' : '#28a745'}}>
-          Upload Students
+        <button onClick={handleUpload} disabled={!csvFile || !courseId || preview.length === 0} 
+          style={{ padding: '10px', background: preview.length > 0 ? '#28a745' : '#ccc', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer'}}>
+          Upload Data
         </button>
-
-        {status && <p style={{fontWeight: 'bold'}}>{status}</p>}
       </div>
     </div>
   );
 }
-
 // --- EXISTING COMPONENTS (Dashboard, CheckIn, CreateCourse) ---
 // (Paste these below exactly as they were in previous steps, 
 // or I can provide the FULL file again if you prefer)
