@@ -1,11 +1,11 @@
-// ... [Keep your imports at the top] ...
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 
+// YOUR BACKEND URL
 const API_URL = "https://course-manager-backend-cd1m.onrender.com";
-const ADMIN_PASSCODE = "1234"; 
 
-// ... [Keep the main App component exactly as it is] ...
+// *** SECURITY CONFIGURATION ***
+const ADMIN_PASSCODE = "1234"; 
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -21,30 +21,64 @@ export default function App() {
     fetchCourses();
   }, []);
 
-  const handleLogin = (e) => { e.preventDefault(); if (pinInput === ADMIN_PASSCODE) { setIsAuthenticated(true); localStorage.setItem('admin_auth', 'true'); } else { setLoginError('❌ Incorrect Passcode'); setPinInput(''); } };
-  const handleLogout = () => { setIsAuthenticated(false); localStorage.removeItem('admin_auth'); setView('dashboard'); };
-  const fetchCourses = () => { fetch(`${API_URL}/courses`).then(res => res.ok ? res.json() : []).then(data => Array.isArray(data) ? setCourses(data) : setCourses([])).catch(err => { console.error(err); setError("Connection Error"); }); };
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (pinInput === ADMIN_PASSCODE) {
+      setIsAuthenticated(true);
+      localStorage.setItem('admin_auth', 'true');
+    } else {
+      setLoginError('❌ Incorrect Passcode');
+      setPinInput('');
+    }
+  };
 
-  if (!isAuthenticated) { return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}> <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}> <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Center Admin</h1> <form onSubmit={handleLogin}> <input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} /> <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button> </form> {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>} </div> </div>; }
+  const handleLogout = () => { setIsAuthenticated(false); localStorage.removeItem('admin_auth'); setView('dashboard'); };
+  
+  const fetchCourses = () => { 
+    fetch(`${API_URL}/courses`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => Array.isArray(data) ? setCourses(data) : setCourses([]))
+      .catch(err => { console.error(err); setError("Connection Error: Could not load courses."); }); 
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}>
+        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
+          <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Center Admin</h1>
+          <form onSubmit={handleLogin}>
+            <input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} />
+            <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button>
+          </form>
+          {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container" style={{ fontFamily: 'Segoe UI, sans-serif', padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
       <style>{`@media print { .no-print { display: none !important; } .app-container { background: white !important; padding: 0 !important; } body { font-size: 12pt; } }`}</style>
+
       <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={() => setView('dashboard')} style={btnStyle(view === 'dashboard')}>📊 Dashboard</button>
           <button onClick={() => setView('checkin')} style={btnStyle(view === 'checkin')}>📝 Check-In Desk</button>
           <button onClick={() => setView('participants')} style={btnStyle(view === 'participants')}>👥 Manage Students</button>
-          <button onClick={() => setView('expenses')} style={btnStyle(view === 'expenses')}>🛒 Store</button>
+          <button onClick={() => setView('expenses')} style={btnStyle(view === 'expenses')}>🛒 Store & Finance</button>
+          <button onClick={() => setView('reports')} style={btnStyle(view === 'reports')}>🖨️ Reports</button>
           <button onClick={() => setView('create-course')} style={btnStyle(view === 'create-course')}>➕ New Course</button>
           <button onClick={() => setView('upload')} style={btnStyle(view === 'upload')}>📂 Upload Student Data</button>
         </div>
         <button onClick={handleLogout} style={{ ...btnStyle(false), border: '1px solid #dc3545', color: '#dc3545' }}>🔒 Logout</button>
       </nav>
+
       {error && <div className="no-print" style={{ padding: '12px', background: '#ffebee', color: '#c62828', borderRadius: '5px', marginBottom: '20px' }}>⚠️ {error}</div>}
+
       {view === 'dashboard' && <Dashboard courses={courses} />}
       {view === 'checkin' && <CheckInForm courses={courses} />}
       {view === 'expenses' && <ExpenseTracker courses={courses} />}
+      {view === 'reports' && <ReportsPanel courses={courses} />}
       {view === 'participants' && <ParticipantList courses={courses} />}
       {view === 'create-course' && <CreateCourseForm refreshCourses={fetchCourses} setView={setView} />}
       {view === 'upload' && <UploadParticipants courses={courses} setView={setView} />}
@@ -52,50 +86,171 @@ export default function App() {
   );
 }
 
-// --- CHECK-IN FORM (FIXED ERROR DISPLAY) ---
-function CheckInForm({ courses }) {
-  const [participants, setParticipants] = useState([]);
-  const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '' });
-  const [status, setStatus] = useState('');
+// --- 1. REPORTS PANEL (Restored as Main Tab) ---
+function ReportsPanel({ courses }) {
+  const [mode, setMode] = useState(''); 
+  const [courseId, setCourseId] = useState('');
+  const [data, setData] = useState([]);
+  const [financialData, setFinancialData] = useState([]);
 
   useEffect(() => {
-    if (formData.courseId) {
-      fetch(`${API_URL}/courses/${formData.courseId}/participants`)
-        .then(res => res.json())
-        .then(data => setParticipants(Array.isArray(data) ? data : []));
-    }
-  }, [formData.courseId]);
-
-  const studentsPending = participants.filter(p => p.status !== 'Arrived');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setStatus('Submitting...');
-    try {
-      const res = await fetch(`${API_URL}/check-in`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+    if (!courseId) { setData([]); return; }
+    if (mode === 'dining') {
+      fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => { 
+        const sorted = (Array.isArray(data) ? data : []).sort((a,b) => (a.dining_seat_no || 'Z').localeCompare(b.dining_seat_no || 'Z'));
+        setData(sorted);
       });
-
-      // --- THE FIX IS HERE ---
-      const data = await res.json(); // Parse the response first
-
-      if (!res.ok) {
-        // If error, throw the custom message from backend
-        throw new Error(data.error || "Error checking in");
-      }
-
-      setStatus('✅ Success! Student Checked In.');
-      setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '' }));
-      
-      fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data));
-
-    } catch (err) {
-      setStatus(`❌ ${err.message}`); // Display the specific error
+    } else if (mode === 'financial') {
+      fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => setFinancialData(Array.isArray(data) ? data : []));
     }
-  };
+  }, [courseId, mode]);
 
+  const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || 'Course';
+
+  return (
+    <div style={cardStyle}>
+      <div className="no-print" style={{marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '15px'}}>
+        <h2>🖨️ Print Reports</h2>
+        <div style={{display: 'flex', gap: '10px', alignItems: 'center', flexWrap:'wrap'}}>
+          <select style={inputStyle} onChange={e => setCourseId(e.target.value)} value={courseId}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+          <button onClick={() => setMode('dining')} disabled={!courseId} style={quickBtnStyle(mode==='dining')}>🍽️ Dining Sheet</button>
+          <button onClick={() => setMode('financial')} disabled={!courseId} style={quickBtnStyle(mode==='financial')}>💰 Financial Summary</button>
+          {mode && <button onClick={() => window.print()} style={{...btnStyle(true), background: '#28a745', color: 'white', marginLeft:'auto'}}>🖨️ Print</button>}
+        </div>
+      </div>
+
+      {/* DINING SHEET */}
+      {mode === 'dining' && (
+        <div className="print-area">
+          <div style={{textAlign: 'center', marginBottom: '20px'}}>
+            <h1 style={{margin: 0}}>Dining Seating Chart</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3>
+          </div>
+          <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '16px'}}>
+            <thead><tr style={{borderBottom: '2px solid black'}}><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda Cell</th><th style={thPrint}>Language</th></tr></thead>
+            <tbody>
+              {data.filter(p => p.status === 'Arrived').map(p => (
+                <tr key={p.participant_id} style={{borderBottom: '1px solid #ddd'}}>
+                  <td style={{padding: '12px', fontWeight: 'bold', fontSize: '18px'}}>{p.dining_seat_no || '-'}</td><td style={{padding: '12px'}}>{p.full_name}</td><td style={{padding: '12px'}}>{p.room_no}</td><td style={{padding: '12px'}}>{p.pagoda_cell_no}</td><td style={{padding: '12px'}}>{p.discourse_language || 'English'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* FINANCIAL REPORT */}
+      {mode === 'financial' && (
+        <div className="print-area">
+          <div style={{textAlign: 'center', marginBottom: '20px'}}>
+            <h1 style={{margin: 0}}>Expenses Summary</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3>
+          </div>
+          <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}>
+            <thead><tr style={{borderBottom: '2px solid black'}}><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Total Due (₹)</th></tr></thead>
+            <tbody>
+              {financialData.map((p, i) => (
+                <tr key={i} style={{borderBottom: '1px solid #ddd'}}>
+                  <td style={{padding: '10px'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td><td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_due}</td>
+                </tr>
+              ))}
+              <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px'}}>
+                <td colSpan={3} style={{padding:'15px', textAlign:'right'}}>GRAND TOTAL:</td>
+                <td style={{padding:'15px', textAlign:'right'}}>₹{financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+      {!mode && <p style={{textAlign: 'center', color: '#888', padding: '50px'}}>Select a course and report type above.</p>}
+    </div>
+  );
+}
+
+// --- 2. DASHBOARD (Fixed Empty State) ---
+function Dashboard({ courses }) {
+  const safeCourses = Array.isArray(courses) ? courses : [];
+  const statusData = [{ name: 'Arrived', value: 12 }, { name: 'Expected', value: 5 }];
+  const COLORS = ['#0088FE', '#FFBB28'];
+
+  return (
+    <div>
+      <h2 style={{marginBottom: '20px', color: '#333'}}>Summary Dashboard</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+        
+        {/* Card 1: Active Courses */}
+        <div style={cardStyle}>
+          <h3 style={{marginTop:0}}>Active Courses</h3>
+          {safeCourses.length > 0 ? (
+            <>
+              <p style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0', color: '#007bff' }}>{safeCourses.length}</p>
+              <ul style={{marginTop: '10px', paddingLeft: '20px', color: '#666'}}>
+                {safeCourses.map(c => <li key={c.course_id}>{c.course_name}</li>)}
+              </ul>
+            </>
+          ) : (
+            <div style={{padding: '20px', textAlign: 'center', color: '#888', background: '#f9f9f9', borderRadius: '8px'}}>
+              <p>No courses found.</p>
+              <p style={{fontSize: '12px'}}>Go to "New Course" to add one.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Card 2: Chart (Example) */}
+        <div style={cardStyle}>
+          <h3 style={{marginTop:0}}>Arrival Status</h3>
+          {safeCourses.length > 0 ? (
+            <PieChart width={250} height={200}>
+              <Pie data={statusData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} dataKey="value">
+                {statusData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+              </Pie>
+              <Tooltip /><Legend />
+            </PieChart>
+          ) : (
+             <p style={{color: '#888', padding: '30px', textAlign: 'center'}}>No data to display.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- 3. MANAGE STUDENTS ---
+function ParticipantList({ courses }) {
+  const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [search, setSearch] = useState(''); const [editingStudent, setEditingStudent] = useState(null); const [showDiningSheet, setShowDiningSheet] = useState(false);
+  const loadStudents = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
+  useEffect(loadStudents, [courseId]);
+  const handleDelete = async (id) => { if (!window.confirm("Delete this student?")) return; await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); };
+  const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingStudent) }); setEditingStudent(null); loadStudents(); };
+  const filtered = participants.filter(p => p.full_name.toLowerCase().includes(search.toLowerCase())); const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || 'Course';
+  if (showDiningSheet) { const sortedDining = [...participants].sort((a,b) => (a.dining_seat_no || 'Z').localeCompare(b.dining_seat_no || 'Z')); return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setShowDiningSheet(false)} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Sheet</button> </div> <div style={{textAlign:'center'}}><h1>Dining Seating Chart</h1><h3>{selectedCourseName}</h3></div> <table style={{width:'100%', borderCollapse:'collapse', fontSize:'16px'}}> <thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Lang</th></tr></thead> <tbody> {sortedDining.filter(p=>p.status==='Arrived').map(p=>( <tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}> <td style={{padding:'12px', fontWeight:'bold'}}>{p.dining_seat_no}</td><td style={{padding:'12px'}}>{p.full_name}</td><td style={{padding:'12px'}}>{p.room_no}</td><td style={{padding:'12px'}}>{p.pagoda_cell_no}</td><td style={{padding:'12px'}}>{p.discourse_language}</td> </tr> ))} </tbody> </table> </div> ); }
+  return ( <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <h2 style={{margin:0}}>Manage Students</h2> <div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><button onClick={() => setShowDiningSheet(true)} disabled={!courseId} style={{...btnStyle(false), background:'#6c757d', color:'white'}}>🖨️ Dining Sheet</button></div> </div> <div style={{marginBottom:'15px'}}><input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div> <div style={{overflowX:'auto'}}> <table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}> <thead><tr style={{background:'#f1f1f1', textAlign:'left'}}><th style={tdStyle}>Name</th><th style={tdStyle}>Conf No</th><th style={tdStyle}>Seat</th><th style={tdStyle}>Room</th><th style={tdStyle}>Pagoda</th><th style={tdStyle}>Actions</th></tr></thead> <tbody> {filtered.map(p => ( <tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}> <td style={tdStyle}><strong>{p.full_name}</strong></td><td style={tdStyle}>{p.conf_no||'-'}</td><td style={tdStyle}>{p.dining_seat_no||'-'}</td><td style={tdStyle}>{p.room_no||'-'}</td><td style={tdStyle}>{p.pagoda_cell_no||'-'}</td> <td style={tdStyle}><button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button></td> </tr> ))} </tbody> </table> </div> {editingStudent && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center'}}> <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'400px'}}> <h3>Edit Student</h3> <form onSubmit={handleEditSave} style={{display:'flex', flexDirection:'column', gap:'10px'}}> <label>Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e => setEditingStudent({...editingStudent, full_name: e.target.value})} /> <label>Conf No</label><input style={inputStyle} value={editingStudent.conf_no||''} onChange={e => setEditingStudent({...editingStudent, conf_no: e.target.value})} /> <div style={{display:'flex', gap:'10px'}}> <div><label>Room</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e => setEditingStudent({...editingStudent, room_no: e.target.value})} /></div> <div><label>Dining Seat</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div> </div> <label>Pagoda Cell</label><input style={inputStyle} value={editingStudent.pagoda_cell_no||''} onChange={e => setEditingStudent({...editingStudent, pagoda_cell_no: e.target.value})} /> <div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div> </form> </div> </div> )} </div> );
+}
+
+// --- 4. STORE & FINANCE ---
+function ExpenseTracker({ courses }) {
+  const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [selectedStudentId, setSelectedStudentId] = useState(''); const [expenseType, setExpenseType] = useState('Laundry Token'); const [amount, setAmount] = useState(''); const [history, setHistory] = useState([]); const [status, setStatus] = useState(''); const [showInvoice, setShowInvoice] = useState(false);
+  useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data)?data:[])).catch(console.error); }, [courseId]);
+  useEffect(() => { if (selectedStudentId) { fetch(`${API_URL}/participants/${selectedStudentId}/expenses`).then(res => res.json()).then(data => setHistory(Array.isArray(data)?data:[])).catch(console.error); } else { setHistory([]); } }, [selectedStudentId]);
+  const handleSubmit = async (e) => { e.preventDefault(); setStatus('Saving...'); try { const res = await fetch(`${API_URL}/expenses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ courseId, participantId: selectedStudentId, type: expenseType, amount }) }); if (!res.ok) throw new Error("Failed"); setStatus('✅ Saved!'); setAmount(''); const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); const histData = await histRes.json(); setHistory(histData); } catch (err) { setStatus('❌ Error'); } };
+  const totalDue = history.reduce((sum, item) => sum + parseFloat(item.amount), 0); const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || ''; const currentStudent = participants.find(p => p.participant_id == selectedStudentId);
+  if (showInvoice && currentStudent) { return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setShowInvoice(false)} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button> </div> <div className="print-area" style={{maxWidth: '800px', margin: '0 auto', border: '1px solid #eee', padding: '40px'}}> <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}> <div><h1 style={{margin: 0}}>INVOICE</h1><p style={{color: '#666'}}>Date: {new Date().toLocaleDateString()}</p></div> <div style={{textAlign: 'right'}}><h3>{currentStudent.full_name}</h3><p>Room: {currentStudent.room_no}</p><p>{selectedCourseName}</p></div> </div> <table style={{width: '100%', borderCollapse: 'collapse', marginBottom: '30px'}}> <thead><tr style={{background: '#f9f9f9', borderBottom: '2px solid #333'}}><th style={{textAlign: 'left', padding: '10px'}}>Description</th><th style={{textAlign: 'left', padding: '10px'}}>Date</th><th style={{textAlign: 'right', padding: '10px'}}>Amount</th></tr></thead> <tbody> {history.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}> <td style={{padding: '10px'}}>{ex.expense_type}</td> <td style={{padding: '10px'}}>{new Date(ex.recorded_at).toLocaleDateString()}</td> <td style={{padding: '10px', textAlign: 'right'}}>₹{ex.amount}</td> </tr> ))} </tbody> </table> <div style={{textAlign: 'right', marginTop: '20px'}}><h3>Total Due: ₹{totalDue}</h3></div> <div style={{marginTop: '60px', borderTop: '1px solid #000', width: '200px', textAlign: 'center', paddingTop: '5px'}}>Signature</div> </div> </div> ); }
+  return ( <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}> <div style={cardStyle}> <h2>🛒 Record Expense</h2> <form onSubmit={handleSubmit} style={{display:'flex', flexDirection:'column', gap:'15px'}}> <select style={inputStyle} onChange={e => setCourseId(e.target.value)} required> <option value="">-- 1. Select Course --</option> {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)} </select> <select style={inputStyle} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} required> <option value="">-- 2. Select Student --</option> {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)} </select> <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px'}}> <div> <label>Item / Type</label> <input list="expense-types" style={inputStyle} value={expenseType} onChange={e => setExpenseType(e.target.value)} required /> <datalist id="expense-types"><option value="Laundry Token" /><option value="Medicine" /><option value="Store Item" /><option value="Donation" /></datalist> </div> <div><label>Amount (₹)</label><input type="number" style={inputStyle} value={amount} onChange={e => setAmount(e.target.value)} required /></div> </div> <div style={{display:'flex', gap:'5px'}}> <button type="button" onClick={() => {setExpenseType('Laundry Token'); setAmount('50')}} style={quickBtnStyle(false)}>🧺 Laundry (50)</button> <button type="button" onClick={() => {setExpenseType('Soap'); setAmount('30')}} style={quickBtnStyle(false)}>🧼 Soap (30)</button> </div> <button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Save Record</button> {status && <p>{status}</p>} </form> </div> <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'2px solid #eee', paddingBottom:'10px', marginBottom:'10px'}}> <h3 style={{margin:0}}>History</h3> {selectedStudentId && <button onClick={() => setShowInvoice(true)} style={quickBtnStyle(true)}>🖨️ Print Invoice</button>} </div> {history.length === 0 ? ( <p style={{color:'#888'}}>No expenses recorded.</p> ) : ( <div style={{maxHeight:'300px', overflowY:'auto'}}> <table style={{width:'100%', fontSize:'14px', borderCollapse:'collapse'}}> <thead><tr style={{background:'#f9f9f9', textAlign:'left'}}><th>Item</th><th>Date</th><th>₹</th></tr></thead> <tbody> {history.map(h => ( <tr key={h.expense_id} style={{borderBottom:'1px solid #eee'}}> <td style={{padding:'8px'}}>{h.expense_type}</td> <td style={{padding:'8px', color:'#666'}}>{new Date(h.recorded_at).toLocaleDateString()}</td> <td style={{padding:'8px', fontWeight:'bold'}}>₹{h.amount}</td> </tr> ))} </tbody> </table> <div style={{textAlign:'right', marginTop:'10px', fontSize:'16px', fontWeight:'bold', color:'#2e7d32'}}> Total Due: ₹{totalDue} </div> </div> )} </div> </div> );
+}
+
+// --- 5. CHECK-IN FORM (Strict Validation + Conf No) ---
+function CheckInForm({ courses }) {
+  const [participants, setParticipants] = useState([]); const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '' }); const [status, setStatus] = useState('');
+  useEffect(() => { if (formData.courseId) { fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); } }, [formData.courseId]);
+  const studentsPending = participants.filter(p => p.status !== 'Arrived');
+  const handleSubmit = async (e) => {
+    e.preventDefault(); setStatus('Submitting...');
+    try {
+      const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error checking in");
+      setStatus('✅ Success!'); setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '' }));
+      fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data));
+    } catch (err) { setStatus(`❌ ${err.message}`); }
+  };
   return (
     <div style={cardStyle}>
       <h2>Participant Check-In</h2>
@@ -125,24 +280,10 @@ function CheckInForm({ courses }) {
   );
 }
 
-// --- KEEP OTHER COMPONENTS BELOW (ParticipantList, ExpenseTracker, Dashboard, UploadParticipants, CreateCourseForm) ---
-// (Paste the rest of the previous code here for these functions)
-
-function ParticipantList({ courses }) {
-  const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [search, setSearch] = useState(''); const [editingStudent, setEditingStudent] = useState(null); const [showDiningSheet, setShowDiningSheet] = useState(false);
-  const loadStudents = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
-  useEffect(loadStudents, [courseId]);
-  const handleDelete = async (id) => { if (!window.confirm("Delete this student?")) return; await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); };
-  const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingStudent) }); setEditingStudent(null); loadStudents(); };
-  const filtered = participants.filter(p => p.full_name.toLowerCase().includes(search.toLowerCase())); const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || 'Course';
-  if (showDiningSheet) { const sortedDining = [...participants].sort((a,b) => (a.dining_seat_no || 'Z').localeCompare(b.dining_seat_no || 'Z')); return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setShowDiningSheet(false)} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Sheet</button> </div> <div style={{textAlign:'center'}}><h1>Dining Seating Chart</h1><h3>{selectedCourseName}</h3></div> <table style={{width:'100%', borderCollapse:'collapse', fontSize:'16px'}}> <thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Lang</th></tr></thead> <tbody> {sortedDining.filter(p=>p.status==='Arrived').map(p=>( <tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}> <td style={{padding:'12px', fontWeight:'bold'}}>{p.dining_seat_no}</td><td style={{padding:'12px'}}>{p.full_name}</td><td style={{padding:'12px'}}>{p.room_no}</td><td style={{padding:'12px'}}>{p.pagoda_cell_no}</td><td style={{padding:'12px'}}>{p.discourse_language}</td> </tr> ))} </tbody> </table> </div> ); }
-  return ( <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <h2 style={{margin:0}}>Manage Students</h2> <div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><button onClick={() => setShowDiningSheet(true)} disabled={!courseId} style={{...btnStyle(false), background:'#6c757d', color:'white'}}>🖨️ Dining Sheet</button></div> </div> <div style={{marginBottom:'15px'}}><input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div> <div style={{overflowX:'auto'}}> <table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}> <thead><tr style={{background:'#f1f1f1', textAlign:'left'}}><th style={tdStyle}>Name</th><th style={tdStyle}>Conf No</th><th style={tdStyle}>Seat</th><th style={tdStyle}>Room</th><th style={tdStyle}>Pagoda</th><th style={tdStyle}>Actions</th></tr></thead> <tbody> {filtered.map(p => ( <tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}> <td style={tdStyle}><strong>{p.full_name}</strong></td><td style={tdStyle}>{p.conf_no||'-'}</td><td style={tdStyle}>{p.dining_seat_no||'-'}</td><td style={tdStyle}>{p.room_no||'-'}</td><td style={tdStyle}>{p.pagoda_cell_no||'-'}</td> <td style={tdStyle}><button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button></td> </tr> ))} </tbody> </table> </div> {editingStudent && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center'}}> <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'400px'}}> <h3>Edit Student</h3> <form onSubmit={handleEditSave} style={{display:'flex', flexDirection:'column', gap:'10px'}}> <label>Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e => setEditingStudent({...editingStudent, full_name: e.target.value})} /> <label>Conf No</label><input style={inputStyle} value={editingStudent.conf_no||''} onChange={e => setEditingStudent({...editingStudent, conf_no: e.target.value})} /> <div style={{display:'flex', gap:'10px'}}> <div><label>Room</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e => setEditingStudent({...editingStudent, room_no: e.target.value})} /></div> <div><label>Dining Seat</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div> </div> <label>Pagoda Cell</label><input style={inputStyle} value={editingStudent.pagoda_cell_no||''} onChange={e => setEditingStudent({...editingStudent, pagoda_cell_no: e.target.value})} /> <div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div> </form> </div> </div> )} </div> );
-}
-
-function ExpenseTracker({ courses }) { const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [selectedStudentId, setSelectedStudentId] = useState(''); const [expenseType, setExpenseType] = useState('Laundry Token'); const [amount, setAmount] = useState(''); const [history, setHistory] = useState([]); const [status, setStatus] = useState(''); const [showInvoice, setShowInvoice] = useState(false); const [reportMode, setReportMode] = useState(''); const [financialData, setFinancialData] = useState([]); useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data)?data:[])).catch(console.error); }, [courseId]); useEffect(() => { if (selectedStudentId) { fetch(`${API_URL}/participants/${selectedStudentId}/expenses`).then(res => res.json()).then(data => setHistory(Array.isArray(data)?data:[])).catch(console.error); } else { setHistory([]); } }, [selectedStudentId]); const loadFinancialReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => setFinancialData(Array.isArray(data) ? data : [])); setReportMode('summary'); }; const handleSubmit = async (e) => { e.preventDefault(); setStatus('Saving...'); try { const res = await fetch(`${API_URL}/expenses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ courseId, participantId: selectedStudentId, type: expenseType, amount }) }); if (!res.ok) throw new Error("Failed"); setStatus('✅ Saved!'); setAmount(''); const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); const histData = await histRes.json(); setHistory(histData); } catch (err) { setStatus('❌ Error'); } }; const totalDue = history.reduce((sum, item) => sum + parseFloat(item.amount), 0); const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || ''; const currentStudent = participants.find(p => p.participant_id == selectedStudentId); if (reportMode === 'invoice' && currentStudent) { return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button> </div> <div className="print-area" style={{maxWidth: '800px', margin: '0 auto', border: '1px solid #eee', padding: '40px'}}> <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}> <div><h1 style={{margin: 0}}>INVOICE</h1><p style={{color: '#666'}}>Date: {new Date().toLocaleDateString()}</p></div> <div style={{textAlign: 'right'}}><h3>{currentStudent.full_name}</h3><p>Room: {currentStudent.room_no}</p><p>{selectedCourseName}</p></div> </div> <table style={{width: '100%', borderCollapse: 'collapse', marginBottom: '30px'}}> <thead><tr style={{background: '#f9f9f9', borderBottom: '2px solid #333'}}><th style={{textAlign: 'left', padding: '10px'}}>Description</th><th style={{textAlign: 'left', padding: '10px'}}>Date</th><th style={{textAlign: 'right', padding: '10px'}}>Amount</th></tr></thead> <tbody> {history.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}> <td style={{padding: '10px'}}>{ex.expense_type}</td> <td style={{padding: '10px'}}>{new Date(ex.recorded_at).toLocaleDateString()}</td> <td style={{padding: '10px', textAlign: 'right'}}>₹{ex.amount}</td> </tr> ))} </tbody> </table> <div style={{textAlign: 'right', marginTop: '20px'}}><h3>Total Due: ₹{totalDue}</h3></div> <div style={{marginTop: '60px', borderTop: '1px solid #000', width: '200px', textAlign: 'center', paddingTop: '5px'}}>Signature</div> </div> </div> ); } if (reportMode === 'summary') { return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Report</button> </div> <div className="print-area"> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Expenses Summary</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black'}}><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Total Due (₹)</th></tr></thead><tbody>{financialData.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '10px'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td><td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_due}</td></tr>))} <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px'}}><td colSpan={3} style={{padding:'15px', textAlign:'right'}}>GRAND TOTAL:</td><td style={{padding:'15px', textAlign:'right'}}>₹{financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0)}</td></tr> </tbody></table> </div> </div> ); } return ( <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}> <div style={cardStyle}> <h2>🛒 Record Expense</h2> <form onSubmit={handleSubmit} style={{display:'flex', flexDirection:'column', gap:'15px'}}> <select style={inputStyle} onChange={e => setCourseId(e.target.value)} required> <option value="">-- 1. Select Course --</option> {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)} </select> <select style={inputStyle} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} required> <option value="">-- 2. Select Student --</option> {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)} </select> <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px'}}> <div> <label>Item / Type</label> <input list="expense-types" style={inputStyle} value={expenseType} onChange={e => setExpenseType(e.target.value)} required /> <datalist id="expense-types"><option value="Laundry Token" /><option value="Medicine" /><option value="Store Item" /><option value="Donation" /></datalist> </div> <div><label>Amount (₹)</label><input type="number" style={inputStyle} value={amount} onChange={e => setAmount(e.target.value)} required /></div> </div> <div style={{display:'flex', gap:'5px'}}> <button type="button" onClick={() => {setExpenseType('Laundry Token'); setAmount('50')}} style={quickBtnStyle(false)}>🧺 Laundry (50)</button> <button type="button" onClick={() => {setExpenseType('Soap'); setAmount('30')}} style={quickBtnStyle(false)}>🧼 Soap (30)</button> </div> <button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Save Record</button> {status && <p>{status}</p>} </form> </div> <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'2px solid #eee', paddingBottom:'10px', marginBottom:'10px'}}> <h3 style={{margin:0}}>History</h3> <div style={{display:'flex', gap:'5px'}}> {selectedStudentId && <button onClick={() => setReportMode('invoice')} style={quickBtnStyle(true)}>🖨️ Invoice</button>} {courseId && <button onClick={loadFinancialReport} style={quickBtnStyle(true)}>💰 Summary</button>} </div> </div> {history.length === 0 ? ( <p style={{color:'#888'}}>No expenses recorded.</p> ) : ( <div style={{maxHeight:'300px', overflowY:'auto'}}> <table style={{width:'100%', fontSize:'14px', borderCollapse:'collapse'}}> <thead><tr style={{background:'#f9f9f9', textAlign:'left'}}><th>Item</th><th>Date</th><th>₹</th></tr></thead> <tbody> {history.map(h => ( <tr key={h.expense_id} style={{borderBottom:'1px solid #eee'}}> <td style={{padding:'8px'}}>{h.expense_type}</td> <td style={{padding:'8px', color:'#666'}}>{new Date(h.recorded_at).toLocaleDateString()}</td> <td style={{padding:'8px', fontWeight:'bold'}}>₹{h.amount}</td> </tr> ))} </tbody> </table> <div style={{textAlign:'right', marginTop:'10px', fontSize:'16px', fontWeight:'bold', color:'#2e7d32'}}> Total Due: ₹{totalDue} </div> </div> )} </div> </div> ); }
-
-function Dashboard({ courses }) { const safeCourses = Array.isArray(courses) ? courses : []; const statusData = [{ name: 'Arrived', value: 12 }, { name: 'Expected', value: 5 }]; const COLORS = ['#0088FE', '#FFBB28']; return ( <div><h2 style={{marginBottom: '20px', color: '#333'}}>Summary Dashboard</h2><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}><div style={cardStyle}><h3 style={{marginTop:0}}>Active Courses</h3><p style={{ fontSize: '32px', fontWeight: 'bold', margin: '10px 0', color: '#007bff' }}>{safeCourses.length}</p><ul style={{marginTop: '10px', paddingLeft: '20px', color: '#666'}}>{safeCourses.map(c => <li key={c.course_id}>{c.course_name}</li>)}</ul></div><div style={cardStyle}><h3 style={{marginTop:0}}>Arrival Status</h3><PieChart width={250} height={200}><Pie data={statusData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} dataKey="value">{statusData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></div></div></div> ); }
+// --- 6. CREATE COURSE (Unchanged) ---
 function CreateCourseForm({ refreshCourses, setView }) { const [formData, setFormData] = useState({ courseName: '', teacherName: '', startDate: '', endDate: '' }); const [status, setStatus] = useState(''); const handleSubmit = async (e) => { e.preventDefault(); setStatus('Saving...'); try { const res = await fetch(`${API_URL}/courses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(formData)}); if (!res.ok) throw new Error("Failed"); setStatus('✅ Created!'); refreshCourses(); setTimeout(() => setView('dashboard'), 1500); } catch (err) { setStatus('❌ ' + err.message); } }; return ( <div style={cardStyle}><h2>Create New Course</h2><form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '500px' }}><input style={inputStyle} placeholder="Course Name" required onChange={e => setFormData({...formData, courseName: e.target.value})} /><input style={inputStyle} placeholder="Teacher Name" required onChange={e => setFormData({...formData, teacherName: e.target.value})} /><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><input type="date" style={inputStyle} required onChange={e => setFormData({...formData, startDate: e.target.value})} /><input type="date" style={inputStyle} required onChange={e => setFormData({...formData, endDate: e.target.value})} /></div><button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Create Course</button>{status && <p>{status}</p>}</form></div> ); }
+
+// --- 7. UPLOAD PARTICIPANTS (Unchanged) ---
 function UploadParticipants({ courses, setView }) { const [courseId, setCourseId] = useState(''); const [csvFile, setCsvFile] = useState(null); const [preview, setPreview] = useState([]); const [status, setStatus] = useState(''); const [debugLines, setDebugLines] = useState([]); const [showDebug, setShowDebug] = useState(false); const handleFileChange = (e) => { const file = e.target.files[0]; if (!file) return; setCsvFile(file); setStatus(''); setPreview([]); setShowDebug(false); const reader = new FileReader(); reader.onload = (event) => { const text = event.target.result; const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== ''); setDebugLines(lines.slice(0, 5)); let headerIndex = -1; let headers = []; for (let i = 0; i < Math.min(lines.length, 20); i++) { const rowLower = lines[i].toLowerCase(); if (rowLower.includes('name') || rowLower.includes('student') || rowLower.includes('participant')) { headerIndex = i; const delimiter = lines[i].includes(';') ? ';' : ','; headers = lines[i].split(delimiter).map(h => h.trim().replace(/^"|"$/g, '').toLowerCase()); break; } } if (headerIndex === -1) { setStatus("⚠️ Error: No header found."); setShowDebug(true); return; } const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('participant')); const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile')); const emailIdx = headers.findIndex(h => h.includes('email')); if (nameIdx === -1) { setStatus("⚠️ Error: No Name column."); setShowDebug(true); return; } const dataRows = lines.slice(headerIndex + 1); const delimiter = lines[headerIndex].includes(';') ? ';' : ','; const parsedData = dataRows.map(row => { const cols = row.split(new RegExp(`${delimiter}(?=(?:(?:[^"]*"){2})*[^"]*$)`)).map(c => c.trim().replace(/^"|"$/g, '')); if (cols.length <= nameIdx) return null; return { name: cols[nameIdx], phone: phoneIdx !== -1 ? cols[phoneIdx] : '', email: emailIdx !== -1 ? cols[emailIdx] : '' }; }).filter(r => r && r.name && r.name.length > 1); setPreview(parsedData); setStatus(`✅ Ready! Found ${parsedData.length} students.`); }; reader.readAsText(file); }; const handleUpload = async () => { if (!courseId) return alert("Select course"); setStatus('Uploading...'); try { const res = await fetch(`${API_URL}/courses/${courseId}/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ students: preview }) }); if (!res.ok) throw new Error("Failed"); setStatus(`✅ Added ${preview.length} students.`); setTimeout(() => setView('checkin'), 2000); } catch (err) { setStatus("❌ " + err.message); setShowDebug(true); } }; return ( <div style={cardStyle}><h2>📂 Upload Student Data</h2><div style={{maxWidth:'600px'}}><div style={{marginBottom:'10px'}}><label>1. Target Course:</label><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div><div style={{marginBottom:'10px'}}><label>2. File (CSV):</label><input type="file" accept=".csv" onChange={handleFileChange} /></div>{status && <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'4px', marginBottom:'10px'}}>{status}</div>}<button onClick={handleUpload} disabled={!csvFile || !courseId || preview.length===0} style={{...btnStyle(true), width:'100%', background: preview.length>0?'#28a745':'#ccc'}}>Upload</button>{showDebug && <div style={{marginTop:'10px', background:'#333', color:'#0f0', padding:'10px', fontSize:'10px'}}><pre>{debugLines.join('\n')}</pre></div>}</div></div> ); }
 
 // --- STYLES ---
