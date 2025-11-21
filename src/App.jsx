@@ -5,6 +5,9 @@ import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, Resp
 const API_URL = "https://course-manager-backend-cd1m.onrender.com";
 const ADMIN_PASSCODE = "1234"; 
 
+// CONFIG: Protected rooms list for UI safety
+const PROTECTED_ROOMS = new Set(["301AI","301BI","302AI","302BI","303AI","303BI","304AI","304BI","305AI","305BI","306AI","306BI","307AW","307BW","308AW","308BW","309AW","309BW","310AW","310BW","311AW","311BW","312AW","312BW","313AW","313BW","314AW","314BW","315AW","315BW","316AW","316BW","317AI","317BI","318AI","318BI","319AI","319BI","320AI","320BI","321AW","321BW","322AW","322BW","323AW","323BW","324AW","324BW","325AW","325BW","326AW","326BW","327AW","327BW","328AW","328BW","329AI","329BI","330AI","330BI","331AI","331BI","332AI","332BI","333AI","333BI","334AI","334BI","335AI","335BI","336AI","336BI","337AW","337BW","338AW","338BW","339AW","339BW","340AW","340BW","341AW","341BW","342AW","342BW","343AW","343BW","201AI","201BI","202AI","202BI","203AI","203BI","213AW","213BW","214AW","214BW","215AW","215BW","216AW","216BW","217AW","217BW","218AW","218BW","219AW","219BW","220AW","220BW","221AW","221BW","222AW","222BW","223AW","223BW","224AW","224BW","225AW","225BW","226AW","226BW","227AW","227BW","228AI","228BI","229AI","229BI","230AI","230BI","231AW","231BW","232AW","232BW","233AW","233BW","234AW","234BW","235AW","235BW","236AW","236BW","237AW","237BW","238AW","238BW","239AW","239BW","240AW","240BW","241AW","241BW","242AW","242BW","243AW","243BW","244AW","244BW","245AW","245BW","246AW","246BW","247AW","247BW","248AW","248BW","DF1","DF2","DF3","DF4","DF5","DF6","FRC61W","FRC62W","FRC63W","FRC64W","FRC65W","FRC66W"]);
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -88,137 +91,7 @@ export default function App() {
   );
 }
 
-// --- 1. ZERO DAY DASHBOARD ---
-function Dashboard({ courses }) {
-  const [selectedCourse, setSelectedCourse] = useState(null);
-  const [stats, setStats] = useState(null);
-
-  useEffect(() => { if (courses.length > 0 && !selectedCourse) setSelectedCourse(courses[0].course_id); }, [courses]);
-
-  useEffect(() => {
-    if (selectedCourse) {
-      fetch(`${API_URL}/courses/${selectedCourse}/stats`)
-        .then(res => res.json())
-        .then(data => setStats(data))
-        .catch(console.error);
-    }
-  }, [selectedCourse]);
-
-  const arrivalData = stats ? [
-    { name: 'Arrived', Male: stats.arrived_m || 0, Female: stats.arrived_f || 0 },
-    { name: 'Pending', Male: stats.pending_m || 0, Female: stats.pending_f || 0 },
-    { name: 'Cancelled', Male: stats.cancelled_m || 0, Female: stats.cancelled_f || 0 }
-  ] : [];
-
-  const typeData = stats ? [
-    { name: 'Old Students', Male: stats.om, Female: stats.of },
-    { name: 'New Students', Male: stats.nm, Female: stats.nf },
-    { name: 'Servers', Male: stats.sm, Female: stats.sf }
-  ] : [];
-
-  return (
-    <div>
-      <h2 style={{marginBottom: '20px', color: '#333'}}>Zero Day Dashboard</h2>
-      {courses.length === 0 ? <p>No courses found.</p> : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-          {courses.map(c => {
-             const isSelected = selectedCourse == c.course_id;
-             return (
-              <div key={c.course_id} onClick={() => setSelectedCourse(c.course_id)} 
-                style={{...cardStyle, cursor:'pointer', border: isSelected ? '2px solid #007bff' : '1px solid transparent', background: isSelected ? '#f0f8ff' : 'white', transition: '0.2s'}}>
-                <h3 style={{margin: '0 0 5px 0', color: '#007bff', fontSize:'16px'}}>{c.course_name}</h3>
-                <p style={{fontSize:'12px', color:'#666', margin:0}}> {new Date(c.start_date).toLocaleDateString()} </p>
-                <div style={{display:'flex', justifyContent:'space-between', marginTop:'15px', fontSize:'13px'}}>
-                  <span>✅ {c.arrived||0} Arrived</span><span>⏳ {c.pending||0} Pend</span>
-                </div>
-              </div>
-             );
-          })}
-        </div>
-      )}
-
-      {stats && selectedCourse && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', animation: 'fadeIn 0.5s' }}>
-          
-          {/* Status Bar Chart */}
-          <div style={cardStyle}>
-            <h3 style={{marginTop:0}}>Status Overview (M/F)</h3>
-            <div style={{height:'250px', width:'100%'}}>
-               <ResponsiveContainer width="100%" height="100%">
-                 <BarChart data={arrivalData}>
-                   <CartesianGrid strokeDasharray="3 3" />
-                   <XAxis dataKey="name" />
-                   <YAxis />
-                   <Tooltip />
-                   <Legend />
-                   <Bar dataKey="Male" fill="#007bff" stackId="a" />
-                   <Bar dataKey="Female" fill="#e91e63" stackId="a" />
-                 </BarChart>
-               </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Applicant Types Bar Chart */}
-          <div style={cardStyle}>
-            <h3 style={{marginTop:0}}>Applicant Types (M/F)</h3>
-            <div style={{height:'250px', width:'100%'}}>
-               <ResponsiveContainer width="100%" height="100%">
-                 <BarChart data={typeData}>
-                   <CartesianGrid strokeDasharray="3 3" />
-                   <XAxis dataKey="name" />
-                   <YAxis />
-                   <Tooltip />
-                   <Legend />
-                   <Bar dataKey="Male" fill="#007bff" stackId="a" />
-                   <Bar dataKey="Female" fill="#e91e63" stackId="a" />
-                 </BarChart>
-               </ResponsiveContainer>
-            </div>
-          </div>
-          
-          <div style={{display:'grid', gap:'20px'}}>
-             {/* Live Counts Table */}
-             <div style={cardStyle}>
-                <h3 style={{marginTop:0}}>Live Counts</h3>
-                <table style={{width:'100%', fontSize:'14px'}}>
-                  <tbody>
-                    <tr><td>Old Male (OM)</td><td><strong>{stats.om}</strong></td><td>Old Female (OF)</td><td><strong>{stats.of}</strong></td></tr>
-                    <tr><td>New Male (NM)</td><td><strong>{stats.nm}</strong></td><td>New Female (NF)</td><td><strong>{stats.nf}</strong></td></tr>
-                    <tr><td>Server Male (SM)</td><td><strong>{stats.sm}</strong></td><td>Server Female (SF)</td><td><strong>{stats.sf}</strong></td></tr>
-                    <tr style={{borderTop:'1px solid #ddd'}}><td colSpan={2} style={{paddingTop:'5px'}}>Total Male: <strong>{stats.om+stats.nm+stats.sm}</strong></td><td colSpan={2} style={{paddingTop:'5px'}}>Total Female: <strong>{stats.of+stats.nf+stats.sf}</strong></td></tr>
-                  </tbody>
-                </table>
-             </div>
-             
-             {/* Discourse Count Table */}
-             <div style={cardStyle}>
-                <h3 style={{marginTop:0}}>Discourse Count</h3>
-                {stats.languages && stats.languages.length > 0 ? (
-                  <div style={{maxHeight:'150px', overflowY:'auto'}}>
-                  <table style={{width:'100%', fontSize:'13px'}}>
-                    <thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Language</th><th>M</th><th>F</th><th style={{textAlign:'right'}}>Total</th></tr></thead>
-                    <tbody>
-                      {stats.languages.map((l, i) => (
-                        <tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}>
-                          <td style={{padding:'8px 0'}}>{l.discourse_language || 'Unknown'}</td>
-                          <td style={{padding:'8px 0', color:'#007bff'}}>{l.male_count}</td>
-                          <td style={{padding:'8px 0', color:'#e91e63'}}>{l.female_count}</td>
-                          <td style={{padding:'8px 0', textAlign:'right', fontWeight:'bold'}}>{l.total}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  </div>
-                ) : <p style={{color:'#888'}}>No data.</p>}
-             </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// --- 2. GLOBAL ACCOMMODATION MANAGER ---
+// --- 1. GLOBAL ACCOMMODATION MANAGER ---
 function GlobalAccommodationManager({ courses, onRoomClick }) {
   const [rooms, setRooms] = useState([]);
   const [occupancy, setOccupancy] = useState([]);
@@ -243,10 +116,8 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     setNewRoom({ ...newRoom, roomNo: '' });
     loadData();
   };
-  // Protected rooms hardcoded for UI safety
-  const PROTECTED = new Set(["301AI","301BI","302AI","302BI","303AI","303BI","304AI","304BI","305AI","305BI","306AI","306BI","307AW","307BW","308AW","308BW","309AW","309BW","310AW","310BW","311AW","311BW","312AW","312BW","313AW","313BW","314AW","314BW","315AW","315BW","316AW","316BW","317AI","317BI","318AI","318BI","319AI","319BI","320AI","320BI","321AW","321BW","322AW","322BW","323AW","323BW","324AW","324BW","325AW","325BW","326AW","326BW","327AW","327BW","328AW","328BW","329AI","329BI","330AI","330BI","331AI","331BI","332AI","332BI","333AI","333BI","334AI","334BI","335AI","335BI","336AI","336BI","337AW","337BW","338AW","338BW","339AW","339BW","340AW","340BW","341AW","341BW","342AW","342BW","343AW","343BW","201AI","201BI","202AI","202BI","203AI","203BI","213AW","213BW","214AW","214BW","215AW","215BW","216AW","216BW","217AW","217BW","218AW","218BW","219AW","219BW","220AW","220BW","221AW","221BW","222AW","222BW","223AW","223BW","224AW","224BW","225AW","225BW","226AW","226BW","227AW","227BW","228AI","228BI","229AI","229BI","230AI","230BI","231AW","231BW","232AW","232BW","233AW","233BW","234AW","234BW","235AW","235BW","236AW","236BW","237AW","237BW","238AW","238BW","239AW","239BW","240AW","240BW","241AW","241BW","242AW","242BW","243AW","243BW","244AW","244BW","245AW","245BW","246AW","246BW","247AW","247BW","248AW","248BW","DF1","DF2","DF3","DF4","DF5","DF6","FRC61W","FRC62W","FRC63W","FRC64W","FRC65W","FRC66W"]);
   const handleDeleteRoom = async (id, name) => { 
-    if (PROTECTED.has(name)) return alert("🚫 Cannot delete original room!");
+    if (PROTECTED_ROOMS.has(name)) return alert("🚫 Cannot delete original room!");
     if(window.confirm("Delete this room?")) { await fetch(`${API_URL}/rooms/${id}`, { method: 'DELETE' }); loadData(); } 
   };
   const handleSwapSave = async () => {
@@ -292,7 +163,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     const isArrived = isOccupied && occupant.status === 'Arrived';
 
     return (
-      <div key={room.room_id} onClick={() => isOccupied && setEditingRoom({ p: occupant, newRoomNo: room.room_no })}
+      <div key={room.room_id} onClick={() => isOccupied ? setEditingRoom({ p: occupant, newRoomNo: room.room_no }) : onRoomClick(room.room_no)}
         style={{
           border: isOccupied ? (isArrived ? '1px solid #ef9a9a' : '1px solid #ffcc80') : '1px solid #a5d6a7',
           background: isOccupied ? (isArrived ? '#ffebee' : '#fff3e0') : '#e8f5e9',
@@ -309,14 +180,8 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
             <div style={{fontSize:'9px', color:'#555', marginTop:'2px', fontStyle:'italic'}}>{occupant.course_name ? occupant.course_name.substring(0,12)+'..' : ''}</div>
             <div style={{fontSize:'8px', background: 'rgba(255,255,255,0.5)', borderRadius:'4px', marginTop:'2px'}}>🔄 Swap</div>
           </div>
-        ) : (
-            <div>
-                <div style={{fontSize:'9px', color:'#4caf50', marginTop:'4px'}}>FREE</div>
-                <button onClick={(e)=>{e.stopPropagation(); onRoomClick(room.room_no)}} style={{marginTop:'2px', fontSize:'9px', display:'block', margin:'2px auto', background:'#4caf50', color:'white', border:'none', borderRadius:'2px', cursor:'pointer', width:'100%'}}>Assign</button>
-            </div>
-        )}
-        
-        {!isOccupied && !PROTECTED.has(room.room_no) && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id, room.room_no)}} style={{position:'absolute', top:'2px', right:'2px', color:'#ccc', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>}
+        ) : <div style={{fontSize:'9px', color:'#4caf50', marginTop:'4px'}}>FREE <button onClick={(e)=>{e.stopPropagation(); onRoomClick(room.room_no)}} style={{marginTop:'2px', fontSize:'9px', display:'block', margin:'2px auto', background:'#4caf50', color:'white', border:'none', borderRadius:'2px', cursor:'pointer', width:'100%'}}>Assign</button></div>}
+        {!isOccupied && !PROTECTED_ROOMS.has(room.room_no) && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id, room.room_no)}} style={{position:'absolute', top:'2px', right:'2px', color:'#ccc', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>}
       </div>
     );
   };
@@ -331,21 +196,21 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
         </div>
       </div>
 
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'15px', marginBottom:'20px'}}>
-        <div style={{padding:'12px', background:'#e3f2fd', borderRadius:'8px', borderLeft:'5px solid #1565c0'}}>
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#1565c0', marginBottom:'5px'}}>MALE WING</div>
-          <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px'}}><span>Occupied: <strong>{maleOcc}</strong></span><span>Free: <strong>{maleFree}</strong></span></div>
+      {/* Stats Bar */}
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'15px', marginBottom:'20px'}}>
+        <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'6px'}}>
+          <div style={{fontSize:'12px', color:'#1565c0'}}>Male Free</div>
+          <div style={{fontSize:'20px', fontWeight:'bold', color:'#1565c0'}}>{maleRooms.length - maleOcc} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {maleRooms.length}</span></div>
           <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>Old: <strong>{maleOld}</strong> | New: <strong>{maleNew}</strong></div>
         </div>
-        <div style={{padding:'12px', background:'#fce4ec', borderRadius:'8px', borderLeft:'5px solid #ad1457'}}>
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#ad1457', marginBottom:'5px'}}>FEMALE WING</div>
-          <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px'}}><span>Occupied: <strong>{femaleOcc}</strong></span><span>Free: <strong>{femaleFree}</strong></span></div>
+        <div style={{padding:'10px', background:'#fce4ec', borderRadius:'6px'}}>
+          <div style={{fontSize:'12px', color:'#ad1457'}}>Female Free</div>
+          <div style={{fontSize:'20px', fontWeight:'bold', color:'#ad1457'}}>{femaleRooms.length - femaleOcc} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {femaleRooms.length}</span></div>
           <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>Old: <strong>{femaleOld}</strong> | New: <strong>{femaleNew}</strong></div>
         </div>
-        <div style={{padding:'12px', background:'#e8f5e9', borderRadius:'8px', borderLeft:'5px solid #2e7d32'}}>
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#2e7d32', marginBottom:'5px'}}>TOTAL SUMMARY</div>
-          <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px'}}><span>Total Occ: <strong>{maleOcc + femaleOcc}</strong></span><span>Total Free: <strong>{maleFree + femaleFree}</strong></span></div>
-          <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>Total Rooms: <strong>{rooms.length}</strong></div>
+        <div style={{padding:'10px', background:'#e8f5e9', borderRadius:'6px'}}>
+          <div style={{fontSize:'12px', color:'#2e7d32'}}>Total Occupied</div>
+          <div style={{fontSize:'20px', fontWeight:'bold', color:'#2e7d32'}}>{maleOcc + femaleOcc}</div>
         </div>
       </div>
 
@@ -361,6 +226,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
         </div>
       )}
 
+      {/* Add Room */}
       <div className="no-print" style={{marginBottom:'20px', padding:'10px', background:'#f9f9f9', borderRadius:'6px', display:'flex', gap:'10px', alignItems:'center', border:'1px solid #eee'}}>
         <span style={{fontSize:'12px', fontWeight:'bold'}}>ADD ROOM:</span>
         <input style={{...inputStyle, width:'150px', padding:'8px'}} placeholder="Room No" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} />
@@ -383,6 +249,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
          </div>
       </div>
 
+      {/* Edit/Swap Modal */}
       {editingRoom && (
         <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}>
           <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px', boxShadow:'0 5px 15px rgba(0,0,0,0.3)'}}>
@@ -404,14 +271,79 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
   );
 }
 
-// --- 3. ONBOARDING FORM ---
+// --- 2. DASHBOARD ---
+function Dashboard({ courses }) {
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => { if (courses.length > 0 && !selectedCourse) setSelectedCourse(courses[0].course_id); }, [courses]);
+
+  useEffect(() => {
+    if (selectedCourse) {
+      fetch(`${API_URL}/courses/${selectedCourse}/stats`)
+        .then(res => res.json())
+        .then(data => setStats(data))
+        .catch(console.error);
+    }
+  }, [selectedCourse]);
+
+  const arrivalData = stats ? [
+    { name: 'Arrived', Male: stats.arrived_m || 0, Female: stats.arrived_f || 0 },
+    { name: 'Pending', Male: stats.pending_m || 0, Female: stats.pending_f || 0 },
+    { name: 'Cancelled', Male: stats.cancelled_m || 0, Female: stats.cancelled_f || 0 }
+  ] : [];
+
+  const typeData = stats ? [ { name: 'Old Students', value: parseInt(stats.old_students), color: '#8884d8' }, { name: 'New Students', value: parseInt(stats.new_students), color: '#82ca9d' }, { name: 'Servers', value: parseInt(stats.servers), color: '#ffc658' } ] : [];
+
+  return (
+    <div>
+      <h2 style={{marginBottom: '20px', color: '#333'}}>Zero Day Dashboard</h2>
+      {courses.length === 0 ? <p>No courses found.</p> : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '30px' }}>
+          {courses.map(c => {
+             const isSelected = selectedCourse == c.course_id;
+             return (
+              <div key={c.course_id} onClick={() => setSelectedCourse(c.course_id)} style={{...cardStyle, cursor:'pointer', border: isSelected ? '2px solid #007bff' : '1px solid transparent', background: isSelected ? '#f0f8ff' : 'white', transition: '0.2s'}}>
+                <h3 style={{margin: '0 0 5px 0', color: '#007bff', fontSize:'16px'}}>{c.course_name}</h3>
+                <p style={{fontSize:'12px', color:'#666', margin:0}}> {new Date(c.start_date).toLocaleDateString()} </p>
+                <div style={{display:'flex', justifyContent:'space-between', marginTop:'15px', fontSize:'13px'}}><span>✅ {c.arrived||0} Arrived</span><span>⏳ {c.pending||0} Pend</span></div>
+              </div>
+             );
+          })}
+        </div>
+      )}
+
+      {stats && selectedCourse && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', animation: 'fadeIn 0.5s' }}>
+          <div style={cardStyle}>
+            <h3 style={{marginTop:0}}>Status Overview (M/F)</h3>
+            <div style={{height:'250px', width:'100%'}}><ResponsiveContainer width="100%" height="100%"><BarChart data={arrivalData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Legend /><Bar dataKey="Male" fill="#007bff" stackId="a" /><Bar dataKey="Female" fill="#e91e63" stackId="a" /></BarChart></ResponsiveContainer></div>
+          </div>
+          <div style={cardStyle}><h3 style={{marginTop:0}}>Applicant Types</h3><div style={{height:'250px', width:'100%'}}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={typeData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label>{typeData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div></div>
+          <div style={{display:'grid', gap:'20px'}}>
+             <div style={cardStyle}>
+                <h3 style={{marginTop:0}}>Live Counts</h3>
+                <table style={{width:'100%', fontSize:'14px'}}><tbody><tr><td>Old Male (OM)</td><td><strong>{stats.om}</strong></td><td>Old Female (OF)</td><td><strong>{stats.of}</strong></td></tr><tr><td>New Male (NM)</td><td><strong>{stats.nm}</strong></td><td>New Female (NF)</td><td><strong>{stats.nf}</strong></td></tr><tr><td>Server Male (SM)</td><td><strong>{stats.sm}</strong></td><td>Server Female (SF)</td><td><strong>{stats.sf}</strong></td></tr><tr style={{borderTop:'1px solid #ddd'}}><td colSpan={2} style={{paddingTop:'5px'}}>Total Male: <strong>{stats.om+stats.nm+stats.sm}</strong></td><td colSpan={2} style={{paddingTop:'5px'}}>Total Female: <strong>{stats.of+stats.nf+stats.sf}</strong></td></tr></tbody></table>
+             </div>
+             <div style={cardStyle}>
+                <h3 style={{marginTop:0}}>Discourse Count</h3>
+                {stats.languages && stats.languages.length > 0 ? ( <table style={{width:'100%', fontSize:'14px'}}><thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Language</th><th>M</th><th>F</th><th style={{textAlign:'right'}}>Total</th></tr></thead><tbody>{stats.languages.map((l, i) => (<tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}><td style={{padding:'8px 0'}}>{l.discourse_language || 'Unknown'}</td><td style={{padding:'8px 0', color:'#007bff'}}>{l.male_count}</td><td style={{padding:'8px 0', color:'#e91e63'}}>{l.female_count}</td><td style={{padding:'8px 0', textAlign:'right', fontWeight:'bold'}}>{l.total}</td></tr>))}</tbody></table> ) : <p style={{color:'#888'}}>No data.</p>}
+             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- 3. ONBOARDING FORM (Smart Room Filtering) ---
 function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [occupancy, setOccupancy] = useState([]); 
-  const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', diningSeatType: 'Floor' });
+  const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'Chair' });
   const [status, setStatus] = useState('');
-
+  
   useEffect(() => { 
     fetch(`${API_URL}/rooms`).then(res=>res.json()).then(data => setRooms(Array.isArray(data)?data:[]));
     fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(Array.isArray(data)?data:[]));
@@ -420,48 +352,25 @@ function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
   useEffect(() => { if (preSelectedRoom) { setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); } }, [preSelectedRoom, courses]);
   useEffect(() => { if (formData.courseId) { fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); } }, [formData.courseId]);
   
-  // Filter Rooms
   const occupiedSet = new Set(occupancy.map(p => p.room_no ? p.room_no.replace(/\s+/g, '').toUpperCase() : ''));
   const availableRooms = rooms.filter(r => !occupiedSet.has(r.room_no.replace(/\s+/g, '').toUpperCase()));
   
   const studentsPending = participants.filter(p => p.status !== 'Arrived');
-
-  const handleStudentChange = (e) => { 
-    const selectedId = e.target.value; 
-    const student = participants.find(p => p.participant_id == selectedId); 
-    setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); 
-  };
+  const handleStudentChange = (e) => { const selectedId = e.target.value; const student = participants.find(p => p.participant_id == selectedId); setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); };
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); 
-    setStatus('Submitting...');
-    
-    const payload = { ...formData, diningSeatType: formData.diningSeatType }; 
-
+    e.preventDefault(); setStatus('Submitting...');
+    const payload = { ...formData, diningSeatType: formData.seatType }; 
     try {
-      const res = await fetch(`${API_URL}/check-in`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(payload) 
-      });
-      
+      const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Unknown Error");
-      }
-
+      if (!res.ok) throw new Error(data.error || "Error");
       setStatus('✅ Success!');
-      setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', diningSeatType: 'Floor' }));
-      
-      // Refresh Data
+      setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'Chair' }));
       clearRoom();
       fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data));
       fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(data));
-
-    } catch (err) { 
-      setStatus(`❌ ${err.message}`); 
-    }
+    } catch (err) { setStatus(`❌ ${err.message}`); }
   };
 
   return (
@@ -469,22 +378,22 @@ function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
       <h2>📝 Onboarding Form</h2>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '900px' }}>
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}>
-          <div><label style={labelStyle}>Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} required><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div>
-          <div><label style={labelStyle}>Student (Pending)</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}</select></div>
+          <div><label style={labelStyle}>Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div>
+          <div><label style={labelStyle}>Student (Pending)</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId}><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}</select></div>
         </div>
         <hr style={{border:'0', borderTop:'1px solid #eee'}} />
         <div style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:'10px'}}>
           <div><label style={labelStyle}>Conf No</label><input style={{...inputStyle, background:'#f9f9f9'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="Auto-fills" /></div>
-          <div style={{gridColumn: 'span 2', display:'flex', gap:'5px'}}>
-             <div style={{flex:1}}><label style={labelStyle}>Type</label><select style={inputStyle} value={formData.diningSeatType} onChange={e => setFormData({...formData, diningSeatType: e.target.value})}><option>Floor</option><option>Chair</option></select></div>
-             <div style={{flex:2}}><label style={labelStyle}>Dining Seat</label><input style={inputStyle} value={formData.seatNo} onChange={e => setFormData({...formData, seatNo: e.target.value})} placeholder="e.g. 12" required /></div>
+          <div style={{gridColumn: 'span 2', display:'flex', gap:'5px'}}> 
+             <div style={{flex:1}}><label style={labelStyle}>Type</label><select style={inputStyle} value={formData.seatType} onChange={e => setFormData({...formData, seatType: e.target.value})}><option value="Chair">Chair</option><option value="Floor">Floor</option></select></div>
+             <div style={{flex:2}}><label style={labelStyle}>Dining Seat</label><input style={inputStyle} value={formData.seatNo} onChange={e => setFormData({...formData, seatNo: e.target.value})} placeholder="e.g. 12" required /></div> 
           </div>
           <div><label style={labelStyle}>Dhamma Seat</label><input style={inputStyle} value={formData.dhammaSeat} onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} placeholder="or NA" /></div>
         </div>
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
           <div>
             <label style={labelStyle}>Room No</label>
-            <select style={{...inputStyle}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required>
+            <select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required>
               <option value="">-- Select Free Room --</option>
               {preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}
               {availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}
@@ -500,8 +409,7 @@ function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
            <div><label style={labelStyle}>Special (Hidden)</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div>
            <div><label style={labelStyle}>Discourse Language</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>Odia</option><option>Bengali</option><option>Mandarin Chinese</option><option>Spanish</option><option>French</option><option>Portuguese</option><option>Russian</option><option>German</option><option>Vietnamese</option><option>Thai</option><option>Japanese</option></select></div>
         </div>
-        <button type="submit" style={{...btnStyle(true), background:'#007bff', color:'white', padding:'15px', marginTop:'10px'}}>Confirm Onboarding</button> 
-        {status && <p style={{ fontWeight: 'bold', color: status.includes('Success') ? 'green' : 'red', marginTop: '10px' }}>{status}</p>}
+        <button type="submit" style={{...btnStyle(true), background:'#007bff', color:'white', padding:'15px', marginTop:'10px'}}>Confirm Onboarding</button> {status && <p style={{ fontWeight: 'bold', color: status.includes('Success') ? 'green' : 'red', marginTop: '10px' }}>{status}</p>}
       </form>
     </div>
   );
