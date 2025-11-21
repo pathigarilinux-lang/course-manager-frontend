@@ -4,275 +4,125 @@ import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, Resp
 const API_URL = "https://course-manager-backend-cd1m.onrender.com";
 const ADMIN_PASSCODE = "1234"; 
 
+// --- CONFIG ---
+const MALE_ROOMS = ["301AI","301BI","302AI","302BI","303AI","303BI","304AI","304BI","305AI","305BI","306AI","306BI","307AW","307BW","308AW","308BW","309AW","309BW","310AW","310BW","311AW","311BW","312AW","312BW","313AW","313BW","314AW","314BW","315AW","315BW","316AW","316BW","317AI","317BI","318AI","318BI","319AI","319BI","320AI","320BI","321AW","321BW","322AW","322BW","323AW","323BW","324AW","324BW","325AW","325BW","326AW","326BW","327AW","327BW","328AW","328BW","329AI","329BI","330AI","330BI","331AI","331BI","332AI","332BI","333AI","333BI","334AI","334BI","335AI","335BI","336AI","336BI","337AW","337BW","338AW","338BW","339AW","339BW","340AW","340BW","341AW","341BW","342AW","342BW","343AW","343BW"];
+const FEMALE_ROOMS = ["201AI","201BI","202AI","202BI","203AI","203BI","213AW","213BW","214AW","214BW","215AW","215BW","216AW","216BW","217AW","217BW","218AW","218BW","219AW","219BW","220AW","220BW","221AW","221BW","222AW","222BW","223AW","223BW","224AW","224BW","225AW","225BW","226AW","226BW","227AW","227BW","228AI","228BI","229AI","229BI","230AI","230BI","231AW","231BW","232AW","232BW","233AW","233BW","234AW","234BW","235AW","235BW","236AW","236BW","237AW","237BW","238AW","238BW","239AW","239BW","240AW","240BW","241AW","241BW","242AW","242BW","243AW","243BW","244AW","244BW","245AW","245BW","246AW","246BW","247AW","247BW","248AW","248BW","DF1","DF2","DF3","DF4","DF5","DF6","FRC61W","FRC62W","FRC63W","FRC64W","FRC65W","FRC66W"];
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState('');
-  const [loginError, setLoginError] = useState('');
   const [view, setView] = useState('dashboard');
   const [courses, setCourses] = useState([]);
-  const [error, setError] = useState('');
+  const [preSelectedRoom, setPreSelectedRoom] = useState('');
 
   useEffect(() => {
-    const savedAuth = localStorage.getItem('admin_auth');
-    if (savedAuth === 'true') setIsAuthenticated(true);
-    fetchCourses();
+    if (localStorage.getItem('admin_auth') === 'true') setIsAuthenticated(true);
+    fetch(`${API_URL}/courses`).then(res=>res.json()).then(data=>setCourses(Array.isArray(data)?data:[]));
   }, []);
 
-  const handleLogin = (e) => { e.preventDefault(); if (pinInput === ADMIN_PASSCODE) { setIsAuthenticated(true); localStorage.setItem('admin_auth', 'true'); } else { setLoginError('❌ Incorrect Passcode'); setPinInput(''); } };
-  const handleLogout = () => { setIsAuthenticated(false); localStorage.removeItem('admin_auth'); setView('dashboard'); };
-  const fetchCourses = () => { fetch(`${API_URL}/courses`).then(res => res.ok ? res.json() : []).then(data => Array.isArray(data) ? setCourses(data) : setCourses([])).catch(err => { console.error(err); setError("Connection Error"); }); };
+  const handleLogin = (e) => { e.preventDefault(); if (pinInput === ADMIN_PASSCODE) { setIsAuthenticated(true); localStorage.setItem('admin_auth', 'true'); } else alert('Wrong PIN'); };
+  const handleLogout = () => { setIsAuthenticated(false); localStorage.removeItem('admin_auth'); };
+  const refreshCourses = () => fetch(`${API_URL}/courses`).then(res=>res.json()).then(data=>setCourses(Array.isArray(data)?data:[]));
 
-  if (!isAuthenticated) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}> <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}> <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Center Admin</h1> <form onSubmit={handleLogin}> <input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} /> <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button> </form> {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>} </div> </div>;
+  if (!isAuthenticated) return <div style={{height:'100vh', display:'flex', justifyContent:'center', alignItems:'center', background:'#f0f2f5'}}><form onSubmit={handleLogin} style={{background:'white', padding:'40px', borderRadius:'10px', boxShadow:'0 4px 12px rgba(0,0,0,0.1)', textAlign:'center'}}><h2>Center Admin</h2><input type="password" value={pinInput} onChange={e=>setPinInput(e.target.value)} placeholder="Passcode" style={{padding:'10px', width:'100%', marginBottom:'15px', border:'1px solid #ccc', borderRadius:'5px'}} /><button style={{width:'100%', padding:'10px', background:'#007bff', color:'white', border:'none', borderRadius:'5px'}}>Login</button></form></div>;
 
   return (
-    <div className="app-container" style={{ fontFamily: 'Segoe UI, sans-serif', padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
+    <div className="app-container" style={{fontFamily:'Segoe UI, sans-serif', background:'#f8f9fa', minHeight:'100vh', padding:'20px'}}>
       <style>{`@media print { .no-print { display: none !important; } .app-container { background: white !important; padding: 0 !important; } body { font-size: 12pt; } }`}</style>
-      <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button onClick={() => setView('dashboard')} style={btnStyle(view === 'dashboard')}>📊 Dashboard</button>
-          <button onClick={() => setView('room-view')} style={btnStyle(view === 'room-view')}>🛏️ Room View</button>
-          <button onClick={() => setView('onboarding')} style={btnStyle(view === 'onboarding')}>📝 Onboarding</button>
-          <button onClick={() => setView('participants')} style={btnStyle(view === 'participants')}>👥 Manage Students</button>
-          <button onClick={() => setView('expenses')} style={btnStyle(view === 'expenses')}>🛒 Store & Finance</button>
-          <button onClick={() => setView('course-admin')} style={btnStyle(view === 'course-admin')}>⚙️ Course Admin</button>
+      
+      <nav className="no-print" style={{display:'flex', justifyContent:'space-between', background:'white', padding:'15px', borderRadius:'10px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}>
+        <div style={{display:'flex', gap:'10px', flexWrap:'wrap'}}>
+           <button onClick={()=>setView('dashboard')} style={btnStyle(view==='dashboard')}>📊 Dashboard</button>
+           <button onClick={()=>setView('room-view')} style={btnStyle(view==='room-view')}>🛏️ Global Accommodation</button>
+           <button onClick={()=>setView('onboarding')} style={btnStyle(view==='onboarding')}>📝 Onboarding Form</button>
+           <button onClick={()=>setView('participants')} style={btnStyle(view==='participants')}>👥 Manage Students</button>
+           <button onClick={()=>setView('expenses')} style={btnStyle(view==='expenses')}>🛒 Store & Finance</button>
+           <button onClick={()=>setView('course-admin')} style={btnStyle(view==='course-admin')}>⚙️ Course Admin</button>
         </div>
-        <button onClick={handleLogout} style={{ ...btnStyle(false), border: '1px solid #dc3545', color: '#dc3545' }}>🔒 Logout</button>
+        <button onClick={handleLogout} style={{...btnStyle(false), border:'1px solid #dc3545', color:'#dc3545'}}>Logout</button>
       </nav>
-      {error && <div className="no-print" style={{ padding: '12px', background: '#ffebee', color: '#c62828', borderRadius: '5px', marginBottom: '20px' }}>⚠️ {error}</div>}
+
       {view === 'dashboard' && <Dashboard courses={courses} />}
-      {view === 'room-view' && <GlobalAccommodationManager courses={courses} />}
-      {view === 'onboarding' && <OnboardingForm courses={courses} />}
+      {view === 'room-view' && <GlobalAccommodationManager courses={courses} onRoomClick={(r)=>{setPreSelectedRoom(r); setView('onboarding');}} />}
+      {view === 'onboarding' && <OnboardingForm courses={courses} preSelectedRoom={preSelectedRoom} clearRoom={()=>setPreSelectedRoom('')} />}
       {view === 'expenses' && <ExpenseTracker courses={courses} />}
-      {view === 'participants' && <ParticipantList courses={courses} refreshCourses={fetchCourses} />}
-      {view === 'course-admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} setView={setView} />}
+      {view === 'participants' && <ParticipantList courses={courses} refreshCourses={refreshCourses} />}
+      {view === 'course-admin' && <CourseAdmin courses={courses} refreshCourses={refreshCourses} setView={setView} />}
     </div>
   );
 }
 
-// --- 1. GLOBAL ACCOMMODATION MANAGER (Renamed & Upgraded) ---
-function GlobalAccommodationManager({ courses }) {
-  const [rooms, setRooms] = useState([]);
-  const [occupancy, setOccupancy] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [newRoom, setNewRoom] = useState({ roomNo: '', type: 'Male' });
-  const [editingRoom, setEditingRoom] = useState(null);
-
-  const loadData = () => {
-    setLoading(true);
-    fetch(`${API_URL}/rooms`).then(res => res.json()).then(data => setRooms(Array.isArray(data) ? data : []));
-    fetch(`${API_URL}/rooms/occupancy`).then(res => res.json()).then(data => {
-      setOccupancy(Array.isArray(data) ? data : []);
-      setLoading(false);
-    });
-  };
-
-  useEffect(loadData, []);
-
-  const handleAddRoom = async () => {
-    if (!newRoom.roomNo) return alert("Enter Room Number");
-    await fetch(`${API_URL}/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newRoom) });
-    setNewRoom({ ...newRoom, roomNo: '' });
-    loadData();
-  };
-
-  const handleDeleteRoom = async (id) => { if(window.confirm("Delete this room?")) { await fetch(`${API_URL}/rooms/${id}`, { method: 'DELETE' }); loadData(); } };
-
-  const handleSwapSave = async () => {
-    if (!editingRoom || !editingRoom.p) return;
-    await fetch(`${API_URL}/participants/${editingRoom.p.participant_id || editingRoom.p.id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...editingRoom.p, room_no: editingRoom.newRoomNo })
-    });
-    setEditingRoom(null);
-    loadData();
-  };
-
-  // Mappings & Logic
-  const normalize = (str) => str ? str.replace(/\s+/g, '').toUpperCase() : '';
-  const occupiedMap = {};
-  
-  // Breakdown stats
-  const courseBreakdown = {}; 
-  
-  occupancy.forEach(p => { 
-    if(p.room_no) {
-      occupiedMap[normalize(p.room_no)] = p; 
-      // Count by course
-      const cName = p.course_name || 'Unknown';
-      courseBreakdown[cName] = (courseBreakdown[cName] || 0) + 1;
-    }
-  });
-
-  const maleRooms = rooms.filter(r => r.gender_type === 'Male');
-  const femaleRooms = rooms.filter(r => r.gender_type === 'Female');
-  const maleOcc = maleRooms.filter(r => occupiedMap[normalize(r.room_no)]).length;
-  const femaleOcc = femaleRooms.filter(r => occupiedMap[normalize(r.room_no)]).length;
-
-  const renderRoom = (room) => {
-    const occupant = occupiedMap[normalize(room.room_no)];
-    const isOccupied = !!occupant;
-    const isArrived = isOccupied && occupant.status === 'Arrived';
-
-    return (
-      <div key={room.room_id} onClick={() => isOccupied && setEditingRoom({ p: occupant, newRoomNo: room.room_no })}
-        style={{
-          border: isOccupied ? (isArrived ? '1px solid #ef9a9a' : '1px solid #ffcc80') : '1px solid #a5d6a7',
-          background: isOccupied ? (isArrived ? '#ffebee' : '#fff3e0') : '#e8f5e9',
-          borderRadius: '6px', padding: '8px', textAlign: 'center', minHeight: '80px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column', justifyContent:'center',
-          cursor: isOccupied ? 'pointer' : 'default', position: 'relative'
-        }}
-      >
-        <div style={{fontWeight:'bold', fontSize:'13px', color:'#333'}}>{room.room_no}</div>
-        {isOccupied ? (
-          <div style={{fontSize:'11px', color: isArrived ? '#c62828' : '#ef6c00', marginTop:'4px'}}>
-            <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'90px'}}>{occupant.full_name}</div>
-            <div style={{fontWeight:'bold', fontSize:'9px'}}>({occupant.conf_no || '-'})</div>
-            <div style={{fontSize:'9px', color:'#555', marginTop:'2px', fontStyle:'italic'}}>{occupant.course_name ? occupant.course_name.substring(0,12)+'..' : ''}</div>
-            <div style={{fontSize:'8px', background: 'rgba(255,255,255,0.5)', borderRadius:'4px', marginTop:'2px'}}>🔄 Swap</div>
-          </div>
-        ) : <div style={{fontSize:'9px', color:'#4caf50', marginTop:'4px'}}>FREE</div>}
-        
-        {!isOccupied && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id)}} style={{position:'absolute', top:'2px', right:'2px', color:'#ccc', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>}
-      </div>
-    );
-  };
-
-  return (
-    <div style={cardStyle}>
-      <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center', flexWrap:'wrap', gap:'10px'}}>
-        <h2 style={{margin:0}}>🛏️ Global Accommodation Manager</h2>
-        <div style={{display:'flex', gap:'10px'}}>
-           <button onClick={loadData} style={{...btnStyle(false), fontSize:'12px'}}>↻ Refresh</button>
-           <button onClick={() => window.print()} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Status</button>
-        </div>
-      </div>
-
-      {/* Stats Bar */}
-      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr', gap:'15px', marginBottom:'20px'}}>
-        <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'6px'}}>
-          <div style={{fontSize:'12px', color:'#1565c0'}}>Male Free</div>
-          <div style={{fontSize:'20px', fontWeight:'bold', color:'#1565c0'}}>{maleRooms.length - maleOcc} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {maleRooms.length}</span></div>
-        </div>
-        <div style={{padding:'10px', background:'#fce4ec', borderRadius:'6px'}}>
-          <div style={{fontSize:'12px', color:'#ad1457'}}>Female Free</div>
-          <div style={{fontSize:'20px', fontWeight:'bold', color:'#ad1457'}}>{femaleRooms.length - femaleOcc} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {femaleRooms.length}</span></div>
-        </div>
-        <div style={{padding:'10px', background:'#e8f5e9', borderRadius:'6px'}}>
-          <div style={{fontSize:'12px', color:'#2e7d32'}}>Total Occupied by Course</div>
-          <div style={{fontSize:'11px', color:'#333', marginTop:'5px', display:'flex', flexWrap:'wrap', gap:'10px'}}>
-             {Object.entries(courseBreakdown).length > 0 ? Object.entries(courseBreakdown).map(([name, count]) => (
-                <span key={name} style={{background:'white', padding:'2px 6px', borderRadius:'4px', border:'1px solid #ccc'}}>
-                   {name.substring(0,15)}.. : <strong>{count}</strong>
-                </span>
-             )) : "No occupancy"}
-          </div>
-        </div>
-      </div>
-
-      {/* Add Room Form (Hidden on Print) */}
-      <div className="no-print" style={{marginBottom:'20px', padding:'10px', background:'#f9f9f9', borderRadius:'6px', display:'flex', gap:'10px', alignItems:'center', border:'1px solid #eee'}}>
-        <span style={{fontSize:'12px', fontWeight:'bold'}}>ADD ROOM:</span>
-        <input style={{...inputStyle, width:'150px', padding:'8px'}} placeholder="Room No" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} />
-        <select style={{...inputStyle, width:'100px', padding:'8px'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select>
-        <button onClick={handleAddRoom} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>Add</button>
-      </div>
-
-      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
-         <div style={{border:'1px solid #90caf9', borderRadius:'8px', padding:'10px'}}>
-            <h3 style={{textAlign:'center', background:'#e3f2fd', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>MALE WING</h3>
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}>
-               {maleRooms.map(renderRoom)}
-            </div>
-         </div>
-         <div style={{border:'1px solid #f48fb1', borderRadius:'8px', padding:'10px'}}>
-            <h3 style={{textAlign:'center', background:'#fce4ec', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>FEMALE WING</h3>
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}>
-               {femaleRooms.map(renderRoom)}
-            </div>
-         </div>
-      </div>
-
-      {/* Edit/Swap Modal */}
-      {editingRoom && (
-        <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}>
-          <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px', boxShadow:'0 5px 15px rgba(0,0,0,0.3)'}}>
-            <h3>🔄 Change/Swap Room</h3>
-            <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}>
-              <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name}</strong></p>
-              <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p>
-              <p style={{margin:'5px 0', fontSize:'12px'}}>Course: {editingRoom.p.course_name}</p>
-            </div>
-            <label style={labelStyle}>New Room Number:</label>
-            <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter free room no" />
-            <div style={{marginTop:'20px', display:'flex', gap:'10px'}}>
-              <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Confirm Swap</button>
-              <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// --- 2. DASHBOARD ---
+// --- 1. ZERO DAY DASHBOARD (Renamed & Enhanced) ---
 function Dashboard({ courses }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [stats, setStats] = useState(null);
-
+  
   useEffect(() => { if (courses.length > 0 && !selectedCourse) setSelectedCourse(courses[0].course_id); }, [courses]);
+  useEffect(() => { if(selectedCourse) fetch(`${API_URL}/courses/${selectedCourse}/stats`).then(res=>res.json()).then(setStats); }, [selectedCourse]);
 
-  useEffect(() => {
-    if (selectedCourse) {
-      fetch(`${API_URL}/courses/${selectedCourse}/stats`)
-        .then(res => res.json())
-        .then(data => setStats(data))
-        .catch(console.error);
-    }
-  }, [selectedCourse]);
-
-  const arrivalData = stats ? [
-    { name: 'Arrived', Male: stats.arrived_m || 0, Female: stats.arrived_f || 0 },
-    { name: 'Pending', Male: stats.pending_m || 0, Female: stats.pending_f || 0 },
-    { name: 'Cancelled', Male: stats.cancelled_m || 0, Female: stats.cancelled_f || 0 }
-  ] : [];
-
-  const typeData = stats ? [ { name: 'Old Students', value: parseInt(stats.old_students), color: '#8884d8' }, { name: 'New Students', value: parseInt(stats.new_students), color: '#82ca9d' }, { name: 'Servers', value: parseInt(stats.servers), color: '#ffc658' } ] : [];
-
+  const arrivalData = stats ? [ { name: 'Arrived', Male: stats.arrived_m, Female: stats.arrived_f }, { name: 'Pending', Male: stats.pending_m, Female: stats.pending_f } ] : [];
+  
   return (
     <div>
-      <h2 style={{marginBottom: '20px', color: '#333'}}>Summary Dashboard</h2>
-      {courses.length === 0 ? <p>No courses found.</p> : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-          {courses.map(c => {
-             const isSelected = selectedCourse == c.course_id;
-             return (
-              <div key={c.course_id} onClick={() => setSelectedCourse(c.course_id)} style={{...cardStyle, cursor:'pointer', border: isSelected ? '2px solid #007bff' : '1px solid transparent', background: isSelected ? '#f0f8ff' : 'white', transition: '0.2s'}}>
-                <h3 style={{margin: '0 0 5px 0', color: '#007bff', fontSize:'16px'}}>{c.course_name}</h3>
-                <p style={{fontSize:'12px', color:'#666', margin:0}}> {new Date(c.start_date).toLocaleDateString()} </p>
-                <div style={{display:'flex', justifyContent:'space-between', marginTop:'15px', fontSize:'13px'}}><span>✅ {c.arrived||0} Arrived</span><span>⏳ {c.pending||0} Pend</span></div>
-              </div>
-             );
-          })}
-        </div>
-      )}
-
-      {stats && selectedCourse && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', animation: 'fadeIn 0.5s' }}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+        <h2 style={{margin:0, color:'#333'}}>Zero Day Dashboard</h2>
+        <select style={{padding:'8px', borderRadius:'6px', border:'1px solid #ccc'}} onChange={e=>setSelectedCourse(e.target.value)} value={selectedCourse}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+      </div>
+      
+      {stats && (
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:'20px'}}>
+          
+          {/* STATUS OVERVIEW */}
           <div style={cardStyle}>
-            <h3 style={{marginTop:0}}>Status Overview (M/F)</h3>
-            <div style={{height:'250px', width:'100%'}}><ResponsiveContainer width="100%" height="100%"><BarChart data={arrivalData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Legend /><Bar dataKey="Male" fill="#007bff" stackId="a" /><Bar dataKey="Female" fill="#e91e63" stackId="a" /></BarChart></ResponsiveContainer></div>
+            <h3 style={{marginTop:0, color:'#555'}}>Status Overview</h3>
+            <div style={{height:'220px'}}>
+              <ResponsiveContainer width="100%" height="100%"><BarChart data={arrivalData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name"/><YAxis/><Tooltip/><Legend/><Bar dataKey="Male" fill="#007bff" stackId="a"/><Bar dataKey="Female" fill="#e91e63" stackId="a"/></BarChart></ResponsiveContainer>
+            </div>
           </div>
-          <div style={cardStyle}><h3 style={{marginTop:0}}>Applicant Types</h3><div style={{height:'250px', width:'100%'}}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={typeData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label>{typeData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div></div>
+
+          {/* OCCUPANCY BREAKDOWN (NEW REQUEST) */}
+          <div style={cardStyle}>
+             <h3 style={{marginTop:0, color:'#555'}}>Occupancy Breakdown</h3>
+             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginTop:'20px'}}>
+               <div style={{background:'#e8f5e9', padding:'15px', borderRadius:'10px', textAlign:'center'}}>
+                 <div style={{fontSize:'24px', fontWeight:'bold', color:'#2e7d32'}}>{stats.old_students}</div>
+                 <div style={{fontSize:'12px', color:'#666'}}>OLD STUDENTS</div>
+               </div>
+               <div style={{background:'#fff3e0', padding:'15px', borderRadius:'10px', textAlign:'center'}}>
+                 <div style={{fontSize:'24px', fontWeight:'bold', color:'#ef6c00'}}>{stats.new_students}</div>
+                 <div style={{fontSize:'12px', color:'#666'}}>NEW STUDENTS</div>
+               </div>
+               <div style={{background:'#e3f2fd', padding:'15px', borderRadius:'10px', textAlign:'center'}}>
+                 <div style={{fontSize:'24px', fontWeight:'bold', color:'#1565c0'}}>{stats.servers}</div>
+                 <div style={{fontSize:'12px', color:'#666'}}>SERVERS (DS)</div>
+               </div>
+               <div style={{background:'#f3e5f5', padding:'15px', borderRadius:'10px', textAlign:'center'}}>
+                 <div style={{fontSize:'24px', fontWeight:'bold', color:'#7b1fa2'}}>{stats.arrived}</div>
+                 <div style={{fontSize:'12px', color:'#666'}}>TOTAL ARRIVED</div>
+               </div>
+             </div>
+          </div>
+
+          {/* LANGUAGE & LIVE COUNTS */}
           <div style={{display:'grid', gap:'20px'}}>
              <div style={cardStyle}>
-                <h3 style={{marginTop:0}}>Live Counts</h3>
-                <table style={{width:'100%', fontSize:'14px'}}><tbody><tr><td>Old Male (OM)</td><td><strong>{stats.om}</strong></td><td>Old Female (OF)</td><td><strong>{stats.of}</strong></td></tr><tr><td>New Male (NM)</td><td><strong>{stats.nm}</strong></td><td>New Female (NF)</td><td><strong>{stats.nf}</strong></td></tr><tr><td>Server Male (SM)</td><td><strong>{stats.sm}</strong></td><td>Server Female (SF)</td><td><strong>{stats.sf}</strong></td></tr><tr style={{borderTop:'1px solid #ddd'}}><td colSpan={2} style={{paddingTop:'5px'}}>Total Male: <strong>{stats.om+stats.nm+stats.sm}</strong></td><td colSpan={2} style={{paddingTop:'5px'}}>Total Female: <strong>{stats.of+stats.nf+stats.sf}</strong></td></tr></tbody></table>
+                <h3 style={{marginTop:0, color:'#555'}}>Live Counts (M/F)</h3>
+                <table style={{width:'100%', fontSize:'13px'}}>
+                  <tbody>
+                    <tr><td>Old (OM/OF)</td><td><strong>{stats.om}</strong> / <strong>{stats.of}</strong></td></tr>
+                    <tr><td>New (NM/NF)</td><td><strong>{stats.nm}</strong> / <strong>{stats.nf}</strong></td></tr>
+                    <tr><td>Server (SM/SF)</td><td><strong>{stats.sm}</strong> / <strong>{stats.sf}</strong></td></tr>
+                  </tbody>
+                </table>
              </div>
              <div style={cardStyle}>
-                <h3 style={{marginTop:0}}>Discourse Count</h3>
-                {stats.languages && stats.languages.length > 0 ? ( <table style={{width:'100%', fontSize:'14px'}}><thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Language</th><th>M</th><th>F</th><th style={{textAlign:'right'}}>Total</th></tr></thead><tbody>{stats.languages.map((l, i) => (<tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}><td style={{padding:'8px 0'}}>{l.discourse_language || 'Unknown'}</td><td style={{padding:'8px 0', color:'#007bff'}}>{l.male_count}</td><td style={{padding:'8px 0', color:'#e91e63'}}>{l.female_count}</td><td style={{padding:'8px 0', textAlign:'right', fontWeight:'bold'}}>{l.total}</td></tr>))}</tbody></table> ) : <p style={{color:'#888'}}>No data.</p>}
+                <h3 style={{marginTop:0, color:'#555'}}>Discourse Count</h3>
+                {stats.languages && stats.languages.length>0 ? (
+                  <table style={{width:'100%', fontSize:'13px'}}>
+                    <thead><tr style={{textAlign:'left'}}><th>Lang</th><th>M</th><th>F</th><th style={{textAlign:'right'}}>Total</th></tr></thead>
+                    <tbody>{stats.languages.map((l,i)=><tr key={i} style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'5px 0'}}>{l.discourse_language}</td><td style={{color:'#007bff'}}>{l.male_count}</td><td style={{color:'#e91e63'}}>{l.female_count}</td><td style={{textAlign:'right', fontWeight:'bold'}}>{l.total}</td></tr>)}</tbody>
+                  </table>
+                ) : <p style={{color:'#ccc'}}>No data</p>}
              </div>
           </div>
         </div>
@@ -281,50 +131,91 @@ function Dashboard({ courses }) {
   );
 }
 
-// --- 3. ONBOARDING FORM (With Room Suggestions) ---
+// --- 2. ONBOARDING FORM (Enhanced UI) ---
 function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'F' });
   const [status, setStatus] = useState('');
-  
+
   useEffect(() => { fetch(`${API_URL}/rooms`).then(res=>res.json()).then(data => setRooms(Array.isArray(data)?data:[])); }, []);
   useEffect(() => { if (preSelectedRoom) { setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); } }, [preSelectedRoom, courses]);
   useEffect(() => { if (formData.courseId) { fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); } }, [formData.courseId]);
+  
   const studentsPending = participants.filter(p => p.status !== 'Arrived');
   const handleStudentChange = (e) => { const selectedId = e.target.value; const student = participants.find(p => p.participant_id == selectedId); setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); };
-  const handleSubmit = async (e) => { e.preventDefault(); setStatus('Submitting...'); const finalSeatNo = formData.seatType && formData.seatNo ? `${formData.seatType}-${formData.seatNo}` : formData.seatNo; const payload = { ...formData, seatNo: finalSeatNo }; try { const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const data = await res.json(); if (!res.ok) throw new Error(data.error || "Error"); setStatus('✅ Success!'); setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'F' })); clearRoom(); fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); } catch (err) { setStatus(`❌ ${err.message}`); } };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault(); setStatus('Submitting...');
+    const finalSeatNo = formData.seatType && formData.seatNo ? `${formData.seatType}-${formData.seatNo}` : formData.seatNo;
+    try {
+      const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({...formData, seatNo: finalSeatNo}) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error");
+      setStatus('✅ Success!');
+      setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'F' }));
+      clearRoom();
+      fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data));
+    } catch (err) { setStatus(`❌ ${err.message}`); }
+  };
+
+  const sectionHeader = (title) => <div style={{fontSize:'14px', fontWeight:'bold', color:'#007bff', borderBottom:'1px solid #eee', paddingBottom:'5px', marginTop:'15px', marginBottom:'10px'}}>{title}</div>;
 
   return (
     <div style={cardStyle}>
-      <h2>📝 Onboarding Form</h2>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '900px' }}>
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px'}}>
-          <div><label style={labelStyle}>Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div>
-          <div><label style={labelStyle}>Student (Pending)</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId}><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}</select></div>
+      <h2 style={{marginBottom:'20px'}}>📝 Student Onboarding</h2>
+      <form onSubmit={handleSubmit} style={{ maxWidth: '900px' }}>
+        
+        <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
+             <div><label style={labelStyle}>1. Select Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div>
+             <div><label style={labelStyle}>2. Select Student</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId}><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}</select></div>
+          </div>
         </div>
-        <hr style={{border:'0', borderTop:'1px solid #eee'}} />
-        <div style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:'10px'}}>
-          <div><label style={labelStyle}>Conf No</label><input style={{...inputStyle, background:'#f9f9f9'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="Auto-fills" /></div>
-          <div style={{gridColumn: 'span 2', display:'flex', gap:'5px'}}> <div style={{flex:1}}><label style={labelStyle}>Type</label><select style={inputStyle} value={formData.seatType} onChange={e => setFormData({...formData, seatType: e.target.value})}><option value="F">Floor</option><option value="C">Chair</option></select></div> <div style={{flex:2}}><label style={labelStyle}>Seat No</label><input style={inputStyle} value={formData.seatNo} onChange={e => setFormData({...formData, seatNo: e.target.value})} placeholder="e.g. 10" required /></div> </div>
-          <div><label style={labelStyle}>Dhamma Seat</label><input style={inputStyle} value={formData.dhammaSeat} onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} placeholder="or NA" /></div>
+
+        {sectionHeader("📍 Allocation Details")}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}>
+           <div><label style={labelStyle}>🆔 Conf No</label><input style={{...inputStyle, background:'#f0f0f0'}} value={formData.confNo} readOnly /></div>
+           <div><label style={labelStyle}>🛏️ Room No</label><input list="room-list" style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required /><datalist id="room-list">{[...MALE_ROOMS, ...FEMALE_ROOMS].map(r=><option key={r} value={r}/>)}</datalist></div>
+           <div><label style={labelStyle}>🍽️ Dining Seat</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'80px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option value="F">Floor</option><option value="C">Chair</option></select><input style={inputStyle} value={formData.seatNo} onChange={e=>setFormData({...formData, seatNo:e.target.value})} placeholder="10" required /></div></div>
         </div>
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
-          <div><label style={labelStyle}>Room No</label><input list="room-list" style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required /><datalist id="room-list">{rooms.map(r=><option key={r.room_id} value={r.room_no}/>)}</datalist></div>
-          <div><label style={labelStyle}>Mob Locker</label><input style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})} placeholder="or NA" /></div>
-          <div><label style={labelStyle}>Val Locker</label><input style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})} placeholder="or NA" /></div>
-          <div><label style={labelStyle}>Laundry Tk</label><input style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})} placeholder="or NA" /></div>
+
+        {sectionHeader("🧘 Hall & Meditation")}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}>
+           <div><label style={labelStyle}>🧘 Dhamma Seat</label><input style={inputStyle} value={formData.dhammaSeat} onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} placeholder="Optional" /></div>
+           <div><label style={labelStyle}>🛖 Pagoda Cell</label><input style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})} placeholder="Optional" /></div>
+           <div><label style={labelStyle}>🗣️ Discourse Lang</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>Odia</option><option>Bengali</option><option>Mandarin Chinese</option><option>Spanish</option><option>French</option><option>Portuguese</option><option>Russian</option><option>German</option><option>Vietnamese</option><option>Thai</option><option>Japanese</option></select></div>
         </div>
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
-           <div><label style={labelStyle}>Laptop</label><input style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})} placeholder="Details/NA" /></div>
-           <div><label style={labelStyle}>Pagoda</label><input style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})} placeholder="or NA" /></div>
-           <div><label style={labelStyle}>Special (Hidden)</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div>
-           <div><label style={labelStyle}>Discourse Language</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>Odia</option><option>Bengali</option><option>Mandarin Chinese</option><option>Spanish</option><option>French</option><option>Portuguese</option><option>Russian</option><option>German</option><option>Vietnamese</option><option>Thai</option><option>Japanese</option></select></div>
+
+        {sectionHeader("🔐 Lockers & Other")}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}>
+           <div><label style={labelStyle}>📱 Mobile Locker</label><input style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})} /></div>
+           <div><label style={labelStyle}>💍 Valuables Locker</label><input style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})} /></div>
+           <div><label style={labelStyle}>🧺 Laundry Token</label><input style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})} /></div>
+           <div><label style={labelStyle}>💻 Laptop</label><input style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})} /></div>
         </div>
-        <button type="submit" style={{...btnStyle(true), background:'#007bff', color:'white', padding:'15px', marginTop:'10px'}}>Confirm Onboarding</button> {status && <p style={{ fontWeight: 'bold', color: status.includes('Success') ? 'green' : 'red', marginTop: '10px' }}>{status}</p>}
+
+        <div style={{marginTop:'30px', textAlign:'right'}}>
+           <button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', fontSize:'16px', cursor:'pointer', boxShadow:'0 4px 6px rgba(0,123,255,0.2)'}}>Confirm & Save</button>
+        </div>
+        {status && <div style={{marginTop:'15px', padding:'10px', borderRadius:'6px', background: status.includes('Success') ? '#d4edda' : '#f8d7da', color: status.includes('Success') ? '#155724' : '#721c24', textAlign:'center', fontWeight:'bold'}}>{status}</div>}
       </form>
     </div>
   );
+}
+
+// --- 3. GLOBAL ACCOMMODATION MANAGER ---
+function GlobalAccommodationManager({ courses, onRoomClick }) {
+  const [rooms, setRooms] = useState([]); const [occupancy, setOccupancy] = useState([]); const [loading, setLoading] = useState(false); const [newRoom, setNewRoom] = useState({ roomNo: '', type: 'Male' }); const [editingRoom, setEditingRoom] = useState(null);
+  const loadData = () => { setLoading(true); fetch(`${API_URL}/rooms`).then(res => res.json()).then(data => setRooms(Array.isArray(data) ? data : [])); fetch(`${API_URL}/rooms/occupancy`).then(res => res.json()).then(data => { setOccupancy(Array.isArray(data) ? data : []); setLoading(false); }); };
+  useEffect(loadData, []);
+  const handleAddRoom = async () => { if (!newRoom.roomNo) return alert("Enter Room Number"); await fetch(`${API_URL}/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newRoom) }); setNewRoom({ ...newRoom, roomNo: '' }); loadData(); };
+  const handleDeleteRoom = async (id) => { if(window.confirm("Delete this room?")) { await fetch(`${API_URL}/rooms/${id}`, { method: 'DELETE' }); loadData(); } };
+  const handleSwapSave = async () => { if (!editingRoom || !editingRoom.p) return; await fetch(`${API_URL}/participants/${editingRoom.p.participant_id || editingRoom.p.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...editingRoom.p, room_no: editingRoom.newRoomNo }) }); setEditingRoom(null); loadData(); };
+  const normalize = (str) => str ? str.replace(/\s+/g, '').toUpperCase() : ''; const occupiedMap = {}; occupancy.forEach(p => { if(p.room_no) occupiedMap[normalize(p.room_no)] = p; });
+  const maleRooms = rooms.filter(r => r.gender_type === 'Male'); const femaleRooms = rooms.filter(r => r.gender_type === 'Female'); const maleOcc = maleRooms.filter(r => occupiedMap[normalize(r.room_no)]).length; const femaleOcc = femaleRooms.filter(r => occupiedMap[normalize(r.room_no)]).length;
+  const renderRoom = (room) => { const occupant = occupiedMap[normalize(room.room_no)]; const isOccupied = !!occupant; const isArrived = isOccupied && occupant.status === 'Arrived'; return ( <div key={room.room_id} onClick={() => isOccupied ? setEditingRoom({ p: occupant, newRoomNo: room.room_no }) : onRoomClick(room.room_no)} style={{ border: isOccupied ? (isArrived ? '1px solid #ef9a9a' : '1px solid #ffcc80') : '1px solid #a5d6a7', background: isOccupied ? (isArrived ? '#ffebee' : '#fff3e0') : '#e8f5e9', borderRadius: '6px', padding: '8px', textAlign: 'center', minHeight: '80px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column', justifyContent:'center', cursor: 'pointer', position: 'relative' }}> <div style={{fontWeight:'bold', fontSize:'13px', color:'#333'}}>{room.room_no}</div> {isOccupied ? ( <div style={{fontSize:'11px', color: isArrived ? '#c62828' : '#ef6c00', marginTop:'4px'}}> <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'90px'}}>{occupant.full_name}</div> <div style={{fontWeight:'bold', fontSize:'9px'}}>({occupant.conf_no || '-'})</div> <div style={{fontSize:'9px', color:'#555', marginTop:'2px', fontStyle:'italic'}}>{occupant.course_name ? occupant.course_name.substring(0,12)+'..' : ''}</div> <div style={{fontSize:'8px', background: 'rgba(255,255,255,0.5)', borderRadius:'4px', marginTop:'2px'}}>🔄 Swap</div> </div> ) : <div style={{fontSize:'9px', color:'#4caf50', marginTop:'4px'}}>FREE</div>} {!isOccupied && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id)}} style={{position:'absolute', top:'2px', right:'2px', color:'#ccc', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>} </div> ); };
+  return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center', flexWrap:'wrap', gap:'10px'}}> <h2 style={{margin:0}}>🛏️ Global Accommodation Manager</h2> <div style={{display:'flex', gap:'10px'}}> <button onClick={loadData} style={{...btnStyle(false), fontSize:'12px'}}>↻ Refresh</button> <button onClick={() => window.print()} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Status</button> </div> </div> <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'15px', marginBottom:'20px'}}> <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'6px'}}> <div style={{fontSize:'12px', color:'#1565c0'}}>Male Free</div> <div style={{fontSize:'20px', fontWeight:'bold', color:'#1565c0'}}>{maleRooms.length - maleOcc} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {maleRooms.length}</span></div> </div> <div style={{padding:'10px', background:'#fce4ec', borderRadius:'6px'}}> <div style={{fontSize:'12px', color:'#ad1457'}}>Female Free</div> <div style={{fontSize:'20px', fontWeight:'bold', color:'#ad1457'}}>{femaleRooms.length - femaleOcc} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {femaleRooms.length}</span></div> </div> <div style={{padding:'10px', background:'#e8f5e9', borderRadius:'6px'}}> <div style={{fontSize:'12px', color:'#2e7d32'}}>Total Occupied</div> <div style={{fontSize:'20px', fontWeight:'bold', color:'#2e7d32'}}>{maleOcc + femaleOcc}</div> </div> </div> <div className="no-print" style={{marginBottom:'20px', padding:'10px', background:'#f9f9f9', borderRadius:'6px', display:'flex', gap:'10px', alignItems:'center', border:'1px solid #eee'}}> <span style={{fontSize:'12px', fontWeight:'bold'}}>ADD ROOM:</span> <input style={{...inputStyle, width:'150px', padding:'8px'}} placeholder="Room No" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} /> <select style={{...inputStyle, width:'100px', padding:'8px'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select> <button onClick={handleAddRoom} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>Add</button> </div> <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}> <div style={{border:'1px solid #90caf9', borderRadius:'8px', padding:'10px'}}> <h3 style={{textAlign:'center', background:'#e3f2fd', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>MALE WING</h3> <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}> {maleRooms.map(renderRoom)} </div> </div> <div style={{border:'1px solid #f48fb1', borderRadius:'8px', padding:'10px'}}> <h3 style={{textAlign:'center', background:'#fce4ec', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>FEMALE WING</h3> <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}> {femaleRooms.map(renderRoom)} </div> </div> </div> {editingRoom && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px', boxShadow:'0 5px 15px rgba(0,0,0,0.3)'}}> <h3>🔄 Change/Swap Room</h3> <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}> <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name}</strong></p> <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p> <p style={{margin:'5px 0', fontSize:'12px'}}>Course: {editingRoom.p.course_name}</p> </div> <label style={labelStyle}>New Room Number:</label> <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter free room no" /> <div style={{marginTop:'20px', display:'flex', gap:'10px'}}> <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Confirm Swap</button> <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button> </div> </div> </div> )} </div> );
 }
 
 // --- 4. MANAGE STUDENTS ---
@@ -388,7 +279,7 @@ function ExpenseTracker({ courses }) {
   );
 }
 
-// --- 6. COURSE ADMIN (Create + Upload + Manual) ---
+// --- 6. COURSE ADMIN (Unchanged) ---
 function CourseAdmin({ courses, refreshCourses, setView }) {
   const [activeTab, setActiveTab] = useState('create');
   return (
@@ -429,14 +320,6 @@ function ManualStudentForm({ courses, setView }) {
        <button type="submit" disabled={!formData.courseId} style={{...btnStyle(true), background:'#28a745', color:'white'}}>Add Student</button>{status && <p>{status}</p>}
     </form>
   );
-}
-
-// --- OTHER COMPONENTS (Unchanged) ---
-function CreateCourseForm({ refreshCourses, setView }) { const [formData, setFormData] = useState({ courseName: '', teacherName: '', startDate: '', endDate: '' }); const [status, setStatus] = useState(''); const handleSubmit = async (e) => { e.preventDefault(); setStatus('Saving...'); try { const res = await fetch(`${API_URL}/courses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(formData)}); if (!res.ok) throw new Error("Failed"); setStatus('✅ Created!'); refreshCourses(); setTimeout(() => setView('dashboard'), 1500); } catch (err) { setStatus('❌ ' + err.message); } }; return ( <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '500px' }}> <h3>Course Details</h3> <input style={inputStyle} placeholder="Course Name" required onChange={e => setFormData({...formData, courseName: e.target.value})} /><input style={inputStyle} placeholder="Teacher Name" required onChange={e => setFormData({...formData, teacherName: e.target.value})} /><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><input type="date" style={inputStyle} required onChange={e => setFormData({...formData, startDate: e.target.value})} /><input type="date" style={inputStyle} required onChange={e => setFormData({...formData, endDate: e.target.value})} /></div><button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Create Course</button>{status && <p>{status}</p>}</form> ); }
-function UploadParticipants({ courses, setView }) { const [courseId, setCourseId] = useState(''); const [csvFile, setCsvFile] = useState(null); const [preview, setPreview] = useState([]); const [status, setStatus] = useState(''); 
-  const handleFileChange = (e) => { const file = e.target.files[0]; if (!file) return; setCsvFile(file); setStatus(''); setPreview([]); const reader = new FileReader(); reader.onload = (event) => { const text = event.target.result; const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== ''); let headerIndex = -1; let headers = []; for (let i = 0; i < Math.min(lines.length, 20); i++) { if (lines[i].toLowerCase().includes('name')) { headerIndex = i; headers = lines[i].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase()); break; } } if (headerIndex === -1) { setStatus("⚠️ Error: No header found."); return; } const nameIdx = headers.findIndex(h => h.includes('name')); const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile')); const emailIdx = headers.findIndex(h => h.includes('email')); const ageIdx = headers.findIndex(h => h === 'age'); const genderIdx = headers.findIndex(h => h === 'gender'); const coursesIdx = headers.findIndex(h => h.includes('courses')); const confIdx = headers.findIndex(h => h.includes('conf')); const dataRows = lines.slice(headerIndex + 1); const parsedData = dataRows.map(row => { const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, '')); if (cols.length <= nameIdx) return null; return { name: cols[nameIdx], phone: phoneIdx!==-1?cols[phoneIdx]:'', email: emailIdx!==-1?cols[emailIdx]:'', age: ageIdx!==-1?cols[ageIdx]:'', gender: genderIdx!==-1?cols[genderIdx]:'', courses: coursesIdx!==-1?cols[coursesIdx]:'', confNo: confIdx!==-1?cols[confIdx]:'' }; }).filter(r => r && r.name); setPreview(parsedData); setStatus(`✅ Ready! Found ${parsedData.length} students.`); }; reader.readAsText(file); };
-  const handleUpload = async () => { if (!courseId) return alert("Select course"); setStatus('Uploading...'); try { const res = await fetch(`${API_URL}/courses/${courseId}/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ students: preview }) }); if (!res.ok) throw new Error("Failed"); setStatus(`✅ Added ${preview.length} students.`); setTimeout(() => setView('onboarding'), 2000); } catch (err) { setStatus("❌ " + err.message); } };
-  return ( <div><h3>Upload CSV</h3><div style={{maxWidth:'500px'}}><div style={{marginBottom:'10px'}}><label>Select Course:</label><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div><div style={{marginBottom:'10px'}}><input type="file" accept=".csv" onChange={handleFileChange} /></div>{status && <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'4px', marginBottom:'10px'}}>{status}</div>}<button onClick={handleUpload} disabled={!csvFile || !courseId || preview.length===0} style={{...btnStyle(true), width:'100%', background: preview.length>0?'#28a745':'#ccc'}}>Upload</button></div></div> );
 }
 
 // --- STYLES ---
