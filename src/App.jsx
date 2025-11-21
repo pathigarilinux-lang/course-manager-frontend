@@ -18,40 +18,11 @@ export default function App() {
     fetchCourses();
   }, []);
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    if (pinInput === ADMIN_PASSCODE) {
-      setIsAuthenticated(true);
-      localStorage.setItem('admin_auth', 'true');
-    } else {
-      setLoginError('❌ Incorrect Passcode');
-      setPinInput('');
-    }
-  };
-
+  const handleLogin = (e) => { e.preventDefault(); if (pinInput === ADMIN_PASSCODE) { setIsAuthenticated(true); localStorage.setItem('admin_auth', 'true'); } else { setLoginError('❌ Incorrect Passcode'); setPinInput(''); } };
   const handleLogout = () => { setIsAuthenticated(false); localStorage.removeItem('admin_auth'); setView('dashboard'); };
-  
-  const fetchCourses = () => { 
-    fetch(`${API_URL}/courses`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => Array.isArray(data) ? setCourses(data) : setCourses([]))
-      .catch(err => { console.error(err); setError("Connection Error: Could not load courses."); }); 
-  };
+  const fetchCourses = () => { fetch(`${API_URL}/courses`).then(res => res.ok ? res.json() : []).then(data => Array.isArray(data) ? setCourses(data) : setCourses([])).catch(err => { console.error(err); setError("Connection Error"); }); };
 
-  if (!isAuthenticated) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}>
-        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
-          <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Center Admin</h1>
-          <form onSubmit={handleLogin}>
-            <input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} />
-            <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button>
-          </form>
-          {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>}
-        </div>
-      </div>
-    );
-  }
+  if (!isAuthenticated) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}> <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}> <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Center Admin</h1> <form onSubmit={handleLogin}> <input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} /> <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button> </form> {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>} </div> </div>;
 
   return (
     <div className="app-container" style={{ fontFamily: 'Segoe UI, sans-serif', padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
@@ -69,7 +40,7 @@ export default function App() {
       </nav>
       {error && <div className="no-print" style={{ padding: '12px', background: '#ffebee', color: '#c62828', borderRadius: '5px', marginBottom: '20px' }}>⚠️ {error}</div>}
       {view === 'dashboard' && <Dashboard courses={courses} />}
-      {view === 'room-view' && <RoomDashboard />}
+      {view === 'room-view' && <GlobalAccommodationManager courses={courses} />}
       {view === 'onboarding' && <OnboardingForm courses={courses} />}
       {view === 'expenses' && <ExpenseTracker courses={courses} />}
       {view === 'participants' && <ParticipantList courses={courses} refreshCourses={fetchCourses} />}
@@ -78,19 +49,17 @@ export default function App() {
   );
 }
 
-// --- 1. ROOM DASHBOARD (DYNAMIC + ADD + EDIT) ---
-function RoomDashboard() {
+// --- 1. GLOBAL ACCOMMODATION MANAGER (Renamed & Upgraded) ---
+function GlobalAccommodationManager({ courses }) {
   const [rooms, setRooms] = useState([]);
   const [occupancy, setOccupancy] = useState([]);
   const [loading, setLoading] = useState(false);
   const [newRoom, setNewRoom] = useState({ roomNo: '', type: 'Male' });
-  const [editingRoom, setEditingRoom] = useState(null); // For Swap
+  const [editingRoom, setEditingRoom] = useState(null);
 
   const loadData = () => {
     setLoading(true);
-    // 1. Fetch Rooms from DB
     fetch(`${API_URL}/rooms`).then(res => res.json()).then(data => setRooms(Array.isArray(data) ? data : []));
-    // 2. Fetch Occupancy from DB
     fetch(`${API_URL}/rooms/occupancy`).then(res => res.json()).then(data => {
       setOccupancy(Array.isArray(data) ? data : []);
       setLoading(false);
@@ -99,7 +68,6 @@ function RoomDashboard() {
 
   useEffect(loadData, []);
 
-  // -- ACTIONS --
   const handleAddRoom = async () => {
     if (!newRoom.roomNo) return alert("Enter Room Number");
     await fetch(`${API_URL}/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newRoom) });
@@ -107,50 +75,38 @@ function RoomDashboard() {
     loadData();
   };
 
-  const handleDeleteRoom = async (id) => {
-    if (window.confirm("Delete this room?")) {
-      await fetch(`${API_URL}/rooms/${id}`, { method: 'DELETE' });
-      loadData();
-    }
-  };
+  const handleDeleteRoom = async (id) => { if(window.confirm("Delete this room?")) { await fetch(`${API_URL}/rooms/${id}`, { method: 'DELETE' }); loadData(); } };
 
-  const handleSwapSave = async (e) => {
-    e.preventDefault();
-    // Update participant with new room
-    await fetch(`${API_URL}/participants/${editingRoom.p.participant_id || editingRoom.p.id}`, { // Handle ID discrepancy if any
-      method: 'PUT', 
-      headers: { 'Content-Type': 'application/json' },
-      // We need to send full object update, so we merge existing p with new room
+  const handleSwapSave = async () => {
+    if (!editingRoom || !editingRoom.p) return;
+    await fetch(`${API_URL}/participants/${editingRoom.p.participant_id || editingRoom.p.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...editingRoom.p, room_no: editingRoom.newRoomNo })
     });
     setEditingRoom(null);
     loadData();
   };
 
-  // -- LOGIC --
+  // Mappings & Logic
   const normalize = (str) => str ? str.replace(/\s+/g, '').toUpperCase() : '';
   const occupiedMap = {};
   
-  // Map occupants to room numbers
+  // Breakdown stats
+  const courseBreakdown = {}; 
+  
   occupancy.forEach(p => { 
-    if(p.room_no) occupiedMap[normalize(p.room_no)] = p; 
+    if(p.room_no) {
+      occupiedMap[normalize(p.room_no)] = p; 
+      // Count by course
+      const cName = p.course_name || 'Unknown';
+      courseBreakdown[cName] = (courseBreakdown[cName] || 0) + 1;
+    }
   });
 
-  // Filter Rooms
   const maleRooms = rooms.filter(r => r.gender_type === 'Male');
   const femaleRooms = rooms.filter(r => r.gender_type === 'Female');
-
-  // Stats Calculation
-  const countOccupied = (list) => list.filter(r => occupiedMap[normalize(r.room_no)]).length;
-  const maleOcc = countOccupied(maleRooms);
-  const femaleOcc = countOccupied(femaleRooms);
-  
-  // Advanced Stats (Old/New)
-  let oldOcc = 0, newOcc = 0;
-  Object.values(occupiedMap).forEach(p => {
-    if (p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S'))) oldOcc++;
-    else newOcc++;
-  });
+  const maleOcc = maleRooms.filter(r => occupiedMap[normalize(r.room_no)]).length;
+  const femaleOcc = femaleRooms.filter(r => occupiedMap[normalize(r.room_no)]).length;
 
   const renderRoom = (room) => {
     const occupant = occupiedMap[normalize(room.room_no)];
@@ -162,44 +118,38 @@ function RoomDashboard() {
         style={{
           border: isOccupied ? (isArrived ? '1px solid #ef9a9a' : '1px solid #ffcc80') : '1px solid #a5d6a7',
           background: isOccupied ? (isArrived ? '#ffebee' : '#fff3e0') : '#e8f5e9',
-          borderRadius: '6px', padding: '8px', textAlign: 'center', minHeight: '70px',
+          borderRadius: '6px', padding: '8px', textAlign: 'center', minHeight: '80px',
           boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column', justifyContent:'center',
           cursor: isOccupied ? 'pointer' : 'default', position: 'relative'
         }}
       >
-        <div style={{fontWeight:'bold', fontSize:'13px', color:'#333'}}>
-          {room.room_no}
-          {!isOccupied && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id)}} style={{marginLeft:'5px', color:'red', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>}
-        </div>
-        
+        <div style={{fontWeight:'bold', fontSize:'13px', color:'#333'}}>{room.room_no}</div>
         {isOccupied ? (
           <div style={{fontSize:'11px', color: isArrived ? '#c62828' : '#ef6c00', marginTop:'4px'}}>
             <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'90px'}}>{occupant.full_name}</div>
             <div style={{fontWeight:'bold', fontSize:'9px'}}>({occupant.conf_no || '-'})</div>
-            <div style={{fontSize:'8px', color:'#666'}}>{occupant.course_name ? occupant.course_name.substring(0,10)+'...' : ''}</div>
+            <div style={{fontSize:'9px', color:'#555', marginTop:'2px', fontStyle:'italic'}}>{occupant.course_name ? occupant.course_name.substring(0,12)+'..' : ''}</div>
+            <div style={{fontSize:'8px', background: 'rgba(255,255,255,0.5)', borderRadius:'4px', marginTop:'2px'}}>🔄 Swap</div>
           </div>
         ) : <div style={{fontSize:'9px', color:'#4caf50', marginTop:'4px'}}>FREE</div>}
+        
+        {!isOccupied && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id)}} style={{position:'absolute', top:'2px', right:'2px', color:'#ccc', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>}
       </div>
     );
   };
 
   return (
     <div style={cardStyle}>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-        <h2 style={{margin:0}}>🛏️ Room Manager</h2>
-        <button onClick={loadData} style={{...btnStyle(false), fontSize:'12px'}}>↻ Refresh</button>
+      <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center', flexWrap:'wrap', gap:'10px'}}>
+        <h2 style={{margin:0}}>🛏️ Global Accommodation Manager</h2>
+        <div style={{display:'flex', gap:'10px'}}>
+           <button onClick={loadData} style={{...btnStyle(false), fontSize:'12px'}}>↻ Refresh</button>
+           <button onClick={() => window.print()} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Status</button>
+        </div>
       </div>
 
-      {/* ADD ROOM BAR */}
-      <div style={{background:'#f8f9fa', padding:'15px', borderRadius:'8px', marginBottom:'20px', display:'flex', gap:'10px', alignItems:'center', border:'1px solid #eee'}}>
-        <span style={{fontWeight:'bold', fontSize:'14px'}}>➕ Add Room:</span>
-        <input placeholder="Room No (e.g. 401AW)" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} style={{...inputStyle, width:'150px', padding:'8px'}} />
-        <select value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})} style={{...inputStyle, width:'100px', padding:'8px'}}><option>Male</option><option>Female</option></select>
-        <button onClick={handleAddRoom} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>Add</button>
-      </div>
-
-      {/* STATS BAR */}
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'15px', marginBottom:'20px'}}>
+      {/* Stats Bar */}
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr', gap:'15px', marginBottom:'20px'}}>
         <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'6px'}}>
           <div style={{fontSize:'12px', color:'#1565c0'}}>Male Free</div>
           <div style={{fontSize:'20px', fontWeight:'bold', color:'#1565c0'}}>{maleRooms.length - maleOcc} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {maleRooms.length}</span></div>
@@ -209,37 +159,54 @@ function RoomDashboard() {
           <div style={{fontSize:'20px', fontWeight:'bold', color:'#ad1457'}}>{femaleRooms.length - femaleOcc} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {femaleRooms.length}</span></div>
         </div>
         <div style={{padding:'10px', background:'#e8f5e9', borderRadius:'6px'}}>
-          <div style={{fontSize:'12px', color:'#2e7d32'}}>Occupied (Old/New)</div>
-          <div style={{fontSize:'20px', fontWeight:'bold', color:'#2e7d32'}}>{oldOcc} <span style={{fontSize:'12px', fontWeight:'normal', color:'#666'}}>/ {newOcc}</span></div>
+          <div style={{fontSize:'12px', color:'#2e7d32'}}>Total Occupied by Course</div>
+          <div style={{fontSize:'11px', color:'#333', marginTop:'5px', display:'flex', flexWrap:'wrap', gap:'10px'}}>
+             {Object.entries(courseBreakdown).length > 0 ? Object.entries(courseBreakdown).map(([name, count]) => (
+                <span key={name} style={{background:'white', padding:'2px 6px', borderRadius:'4px', border:'1px solid #ccc'}}>
+                   {name.substring(0,15)}.. : <strong>{count}</strong>
+                </span>
+             )) : "No occupancy"}
+          </div>
         </div>
       </div>
 
-      {/* ROOM GRIDS */}
+      {/* Add Room Form (Hidden on Print) */}
+      <div className="no-print" style={{marginBottom:'20px', padding:'10px', background:'#f9f9f9', borderRadius:'6px', display:'flex', gap:'10px', alignItems:'center', border:'1px solid #eee'}}>
+        <span style={{fontSize:'12px', fontWeight:'bold'}}>ADD ROOM:</span>
+        <input style={{...inputStyle, width:'150px', padding:'8px'}} placeholder="Room No" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} />
+        <select style={{...inputStyle, width:'100px', padding:'8px'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select>
+        <button onClick={handleAddRoom} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>Add</button>
+      </div>
+
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
          <div style={{border:'1px solid #90caf9', borderRadius:'8px', padding:'10px'}}>
             <h3 style={{textAlign:'center', background:'#e3f2fd', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>MALE WING</h3>
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'10px'}}>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}>
                {maleRooms.map(renderRoom)}
             </div>
          </div>
          <div style={{border:'1px solid #f48fb1', borderRadius:'8px', padding:'10px'}}>
             <h3 style={{textAlign:'center', background:'#fce4ec', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>FEMALE WING</h3>
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'10px'}}>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}>
                {femaleRooms.map(renderRoom)}
             </div>
          </div>
       </div>
 
-      {/* EDIT MODAL */}
+      {/* Edit/Swap Modal */}
       {editingRoom && (
         <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}>
           <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px', boxShadow:'0 5px 15px rgba(0,0,0,0.3)'}}>
-            <h3>Change Room</h3>
-            <p style={{marginBottom:'15px'}}>Student: <strong>{editingRoom.p.full_name}</strong></p>
+            <h3>🔄 Change/Swap Room</h3>
+            <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}>
+              <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name}</strong></p>
+              <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p>
+              <p style={{margin:'5px 0', fontSize:'12px'}}>Course: {editingRoom.p.course_name}</p>
+            </div>
             <label style={labelStyle}>New Room Number:</label>
-            <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} />
+            <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter free room no" />
             <div style={{marginTop:'20px', display:'flex', gap:'10px'}}>
-              <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Update</button>
+              <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Confirm Swap</button>
               <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button>
             </div>
           </div>
@@ -314,18 +281,19 @@ function Dashboard({ courses }) {
   );
 }
 
-// --- 3. ONBOARDING FORM ---
-function OnboardingForm({ courses }) {
+// --- 3. ONBOARDING FORM (With Room Suggestions) ---
+function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'F' });
   const [status, setStatus] = useState('');
   
   useEffect(() => { fetch(`${API_URL}/rooms`).then(res=>res.json()).then(data => setRooms(Array.isArray(data)?data:[])); }, []);
+  useEffect(() => { if (preSelectedRoom) { setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); } }, [preSelectedRoom, courses]);
   useEffect(() => { if (formData.courseId) { fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); } }, [formData.courseId]);
   const studentsPending = participants.filter(p => p.status !== 'Arrived');
   const handleStudentChange = (e) => { const selectedId = e.target.value; const student = participants.find(p => p.participant_id == selectedId); setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); };
-  const handleSubmit = async (e) => { e.preventDefault(); setStatus('Submitting...'); const finalSeatNo = formData.seatType && formData.seatNo ? `${formData.seatType}-${formData.seatNo}` : formData.seatNo; const payload = { ...formData, seatNo: finalSeatNo }; try { const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const data = await res.json(); if (!res.ok) throw new Error(data.error || "Error"); setStatus('✅ Success!'); setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'F' })); fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); } catch (err) { setStatus(`❌ ${err.message}`); } };
+  const handleSubmit = async (e) => { e.preventDefault(); setStatus('Submitting...'); const finalSeatNo = formData.seatType && formData.seatNo ? `${formData.seatType}-${formData.seatNo}` : formData.seatNo; const payload = { ...formData, seatNo: finalSeatNo }; try { const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const data = await res.json(); if (!res.ok) throw new Error(data.error || "Error"); setStatus('✅ Success!'); setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'F' })); clearRoom(); fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); } catch (err) { setStatus(`❌ ${err.message}`); } };
 
   return (
     <div style={cardStyle}>
@@ -342,7 +310,7 @@ function OnboardingForm({ courses }) {
           <div><label style={labelStyle}>Dhamma Seat</label><input style={inputStyle} value={formData.dhammaSeat} onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} placeholder="or NA" /></div>
         </div>
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
-          <div><label style={labelStyle}>Room No</label><input list="room-list" style={inputStyle} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required /><datalist id="room-list">{rooms.map(r=><option key={r.room_id} value={r.room_no}/>)}</datalist></div>
+          <div><label style={labelStyle}>Room No</label><input list="room-list" style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required /><datalist id="room-list">{rooms.map(r=><option key={r.room_id} value={r.room_no}/>)}</datalist></div>
           <div><label style={labelStyle}>Mob Locker</label><input style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})} placeholder="or NA" /></div>
           <div><label style={labelStyle}>Val Locker</label><input style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})} placeholder="or NA" /></div>
           <div><label style={labelStyle}>Laundry Tk</label><input style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})} placeholder="or NA" /></div>
