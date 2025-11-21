@@ -4,28 +4,8 @@ import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, Resp
 const API_URL = "https://course-manager-backend-cd1m.onrender.com";
 const ADMIN_PASSCODE = "1234"; 
 
-// --- CONFIG: ROOM LISTS ---
-const MALE_ROOMS_LIST = [
-  "301AI", "301BI", "302AI", "302BI", "303AI", "303BI", "304AI", "304BI", "305AI", "305BI", "306AI", "306BI",
-  "307AW", "307BW", "308AW", "308BW", "309AW", "309BW", "310AW", "310BW", "311AW", "311BW", "312AW", "312BW", "313AW", "313BW",
-  "314AW", "314BW", "315AW", "315BW", "316AW", "316BW", "317AI", "317BI", "318AI", "318BI", "319AI", "319BI", "320AI", "320BI",
-  "321AW", "321BW", "322AW", "322BW", "323AW", "323BW", "324AW", "324BW", "325AW", "325BW", "326AW", "326BW", "327AW", "327BW",
-  "328AW", "328BW", "329AI", "329BI", "330AI", "330BI", "331AI", "331BI", "332AI", "332BI", "333AI", "333BI", "334AI", "334BI",
-  "335AI", "335BI", "336AI", "336BI", "337AW", "337BW", "338AW", "338BW", "339AW", "339BW", "340AW", "340BW", "341AW", "341BW",
-  "342AW", "342BW", "343AW", "343BW"
-];
-
-const FEMALE_ROOMS_LIST = [
-  "201AI", "201BI", "202AI", "202BI", "203AI", "203BI",
-  "213AW", "213BW", "214AW", "214BW", "215AW", "215BW", "216AW", "216BW", "217AW", "217BW", "218AW", "218BW", "219AW", "219BW",
-  "220AW", "220BW", "221AW", "221BW", "222AW", "222BW", "223AW", "223BW", "224AW", "224BW", "225AW", "225BW", "226AW", "226BW",
-  "227AW", "227BW", "228AI", "228BI", "229AI", "229BI", "230AI", "230BI", "231AW", "231BW", "232AW", "232BW", "233AW", "233BW",
-  "234AW", "234BW", "235AW", "235BW", "236AW", "236BW", "237AW", "237BW", "238AW", "238BW", "239AW", "239BW", "240AW", "240BW",
-  "241AW", "241BW", "242AW", "242BW", "243AW", "243BW", "244AW", "244BW", "245AW", "245BW", "246AW", "246BW", "247AW", "247BW",
-  "248AW", "248BW", "DF1", "DF2", "DF3", "DF4", "DF5", "DF6", "FRC61W", "FRC62W", "FRC63W", "FRC64W", "FRC65W", "FRC66W"
-];
-
-const PROTECTED_ROOMS = new Set([...MALE_ROOMS_LIST, ...FEMALE_ROOMS_LIST]);
+// Protected rooms list for UI safety
+const PROTECTED_ROOMS = new Set(["301AI","301BI","302AI","302BI","303AI","303BI","304AI","304BI","305AI","305BI","306AI","306BI","307AW","307BW","308AW","308BW","309AW","309BW","310AW","310BW","311AW","311BW","312AW","312BW","313AW","313BW","314AW","314BW","315AW","315BW","316AW","316BW","317AI","317BI","318AI","318BI","319AI","319BI","320AI","320BI","321AW","321BW","322AW","322BW","323AW","323BW","324AW","324BW","325AW","325BW","326AW","326BW","327AW","327BW","328AW","328BW","329AI","329BI","330AI","330BI","331AI","331BI","332AI","332BI","333AI","333BI","334AI","334BI","335AI","335BI","336AI","336BI","337AW","337BW","338AW","338BW","339AW","339BW","340AW","340BW","341AW","341BW","342AW","342BW","343AW","343BW","201AI","201BI","202AI","202BI","203AI","203BI","213AW","213BW","214AW","214BW","215AW","215BW","216AW","216BW","217AW","217BW","218AW","218BW","219AW","219BW","220AW","220BW","221AW","221BW","222AW","222BW","223AW","223BW","224AW","224BW","225AW","225BW","226AW","226BW","227AW","227BW","228AI","228BI","229AI","229BI","230AI","230BI","231AW","231BW","232AW","232BW","233AW","233BW","234AW","234BW","235AW","235BW","236AW","236BW","237AW","237BW","238AW","238BW","239AW","239BW","240AW","240BW","241AW","241BW","242AW","242BW","243AW","243BW","244AW","244BW","245AW","245BW","246AW","246BW","247AW","247BW","248AW","248BW","DF1","DF2","DF3","DF4","DF5","DF6","FRC61W","FRC62W","FRC63W","FRC64W","FRC65W","FRC66W"]);
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -110,7 +90,7 @@ export default function App() {
   );
 }
 
-// --- 1. ZERO DAY DASHBOARD ---
+// --- 1. ZERO DAY DASHBOARD (UPDATED LAYOUT) ---
 function Dashboard({ courses }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [stats, setStats] = useState(null);
@@ -154,8 +134,9 @@ function Dashboard({ courses }) {
       </div>
 
       {stats && selectedCourse ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', animation: 'fadeIn 0.5s' }}>
-          {/* Status Bar Chart */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', animation: 'fadeIn 0.5s' }}>
+          
+          {/* LEFT: Status Bar Chart */}
           <div style={cardStyle}>
             <h3 style={{marginTop:0}}>Status Overview (M/F)</h3>
             <div style={{height:'250px', width:'100%'}}>
@@ -173,7 +154,48 @@ function Dashboard({ courses }) {
             </div>
           </div>
 
-          {/* Applicant Types Bar Chart */}
+          {/* MIDDLE: Occupancy Breakdown + Discourse Count */}
+          <div style={{display:'grid', gridTemplateRows: 'auto 1fr', gap:'20px'}}>
+             <div style={cardStyle}>
+                <h3 style={{marginTop:0}}>Occupancy Breakdown</h3>
+                <div style={{display:'flex', justifyContent:'space-around', alignItems:'center', height:'120px'}}>
+                   <ResponsiveContainer width="40%" height="100%">
+                     <PieChart>
+                       <Pie data={occData} cx="50%" cy="50%" innerRadius={30} outerRadius={50} dataKey="value" label>{occData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie>
+                       <Tooltip />
+                     </PieChart>
+                   </ResponsiveContainer>
+                   <div style={{fontSize:'12px'}}>
+                      <div style={{color:'#2e7d32'}}>Old: <strong>{stats.old_students}</strong></div>
+                      <div style={{color:'#ef6c00'}}>New: <strong>{stats.new_students}</strong></div>
+                      <div style={{color:'#1565c0'}}>Servers: <strong>{stats.servers}</strong></div>
+                   </div>
+                </div>
+             </div>
+             
+             <div style={cardStyle}>
+                <h3 style={{marginTop:0}}>Discourse Count</h3>
+                {stats.languages && stats.languages.length > 0 ? (
+                  <div style={{maxHeight:'150px', overflowY:'auto'}}>
+                  <table style={{width:'100%', fontSize:'13px'}}>
+                    <thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Lang</th><th>M</th><th>F</th><th style={{textAlign:'right'}}>Total</th></tr></thead>
+                    <tbody>
+                      {stats.languages.map((l, i) => (
+                        <tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}>
+                          <td style={{padding:'8px 0'}}>{l.discourse_language || 'Unknown'}</td>
+                          <td style={{padding:'8px 0', color:'#007bff'}}>{l.male_count}</td>
+                          <td style={{padding:'8px 0', color:'#e91e63'}}>{l.female_count}</td>
+                          <td style={{padding:'8px 0', textAlign:'right', fontWeight:'bold'}}>{l.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  </div>
+                ) : <p style={{color:'#888'}}>No data.</p>}
+             </div>
+          </div>
+
+          {/* RIGHT: Applicant Types Bar Chart */}
           <div style={cardStyle}>
             <h3 style={{marginTop:0}}>Applicant Types (M/F)</h3>
             <div style={{height:'250px', width:'100%'}}>
@@ -191,54 +213,13 @@ function Dashboard({ courses }) {
             </div>
           </div>
           
-          <div style={{display:'grid', gap:'20px'}}>
-             {/* Occupancy Pie */}
-             <div style={cardStyle}>
-                <h3 style={{marginTop:0}}>Occupancy Breakdown</h3>
-                <div style={{display:'flex', justifyContent:'space-around', alignItems:'center', height:'120px'}}>
-                   <ResponsiveContainer width="100%" height="100%">
-                     <PieChart>
-                       <Pie data={occData} cx="50%" cy="50%" innerRadius={40} outerRadius={60} dataKey="value" label>{occData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie>
-                       <Tooltip />
-                     </PieChart>
-                   </ResponsiveContainer>
-                   <div style={{fontSize:'12px'}}>
-                      <div style={{color:'#2e7d32'}}>Old: <strong>{stats.old_students}</strong></div>
-                      <div style={{color:'#ef6c00'}}>New: <strong>{stats.new_students}</strong></div>
-                      <div style={{color:'#1565c0'}}>Servers: <strong>{stats.servers}</strong></div>
-                   </div>
-                </div>
-             </div>
-             
-             {/* Discourse Count Table */}
-             <div style={cardStyle}>
-                <h3 style={{marginTop:0}}>Discourse Count</h3>
-                {stats.languages && stats.languages.length > 0 ? (
-                  <div style={{maxHeight:'150px', overflowY:'auto'}}>
-                  <table style={{width:'100%', fontSize:'13px'}}>
-                    <thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Language</th><th>M</th><th>F</th><th style={{textAlign:'right'}}>Total</th></tr></thead>
-                    <tbody>
-                      {stats.languages.map((l, i) => (
-                        <tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}>
-                          <td style={{padding:'8px 0'}}>{l.discourse_language || 'Unknown'}</td>
-                          <td style={{padding:'8px 0', color:'#007bff'}}>{l.male_count}</td>
-                          <td style={{padding:'8px 0', color:'#e91e63'}}>{l.female_count}</td>
-                          <td style={{padding:'8px 0', textAlign:'right', fontWeight:'bold'}}>{l.total}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  </div>
-                ) : <p style={{color:'#888'}}>No data.</p>}
-             </div>
-          </div>
         </div>
       ) : <p style={{padding:'40px', textAlign:'center', color:'#888'}}>Select a course to view stats.</p>}
     </div>
   );
 }
 
-// --- 2. GLOBAL ACCOMMODATION MANAGER ---
+// --- 2. GLOBAL ACCOMMODATION MANAGER (Crash Fix & Features) ---
 function GlobalAccommodationManager({ courses, onRoomClick }) {
   const [rooms, setRooms] = useState([]);
   const [occupancy, setOccupancy] = useState([]);
@@ -263,10 +244,12 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     setNewRoom({ ...newRoom, roomNo: '' });
     loadData();
   };
+  
   const handleDeleteRoom = async (id, name) => { 
     if (PROTECTED_ROOMS.has(name)) return alert("🚫 Cannot delete original room!");
     if(window.confirm("Delete this room?")) { await fetch(`${API_URL}/rooms/${id}`, { method: 'DELETE' }); loadData(); } 
   };
+  
   const handleSwapSave = async () => {
     if (!editingRoom || !editingRoom.p) return;
     await fetch(`${API_URL}/participants/${editingRoom.p.participant_id || editingRoom.p.id}`, {
@@ -279,10 +262,13 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
   const normalize = (str) => str ? str.replace(/[\s-]+/g, '').toUpperCase() : '';
   const occupiedMap = {}; 
   const unmappedParticipants = [];
-  const validRoomSet = new Set((rooms || []).map(r => normalize(r.room_no)));
+  
+  // Ensure rooms is an array to prevent crash
+  const safeRooms = rooms || [];
+  const validRoomSet = new Set(safeRooms.map(r => normalize(r.room_no)));
   const courseBreakdown = {};
 
-  occupancy.forEach(p => { 
+  (occupancy || []).forEach(p => { 
     if(p.room_no) {
       const normRoom = normalize(p.room_no);
       if (validRoomSet.has(normRoom)) occupiedMap[normRoom] = p; 
@@ -292,10 +278,14 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     }
   });
 
+  // Define filtered lists at TOP LEVEL of component
+  const maleRooms = safeRooms.filter(r => r.gender_type === 'Male');
+  const femaleRooms = safeRooms.filter(r => r.gender_type === 'Female');
+
   let maleFree = 0, maleOcc = 0, maleOld = 0, maleNew = 0;
   let femaleFree = 0, femaleOcc = 0, femaleOld = 0, femaleNew = 0;
 
-  (rooms || []).forEach(r => {
+  safeRooms.forEach(r => {
     const p = occupiedMap[normalize(r.room_no)];
     const isMaleRoom = r.gender_type === 'Male';
     if (p) {
@@ -345,8 +335,8 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     <div style={cardStyle}>
       <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center', flexWrap:'wrap', gap:'10px'}}>
         <h2 style={{margin:0}}>🛏️ Global Accommodation Manager</h2>
-        {/* ADD ROOM MOVED HERE - Top Right */}
         <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+           {/* ADD ROOM */}
            <div style={{display:'flex', gap:'5px', alignItems:'center', background:'#f9f9f9', padding:'5px', borderRadius:'5px', border:'1px solid #eee'}}>
               <input style={{...inputStyle, width:'60px', padding:'5px'}} placeholder="No" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} />
               <select style={{...inputStyle, width:'70px', padding:'5px'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select>
@@ -359,18 +349,19 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
 
       {/* Stats Bar */}
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'15px', marginBottom:'20px'}}>
-        <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'6px'}}>
-          <div style={{fontSize:'12px', color:'#1565c0'}}>Male Free</div>
-          <div style={{fontSize:'20px', fontWeight:'bold', color:'#1565c0'}}>{maleFree} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {maleRooms.length}</span></div>
-          <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>Occ: <strong>{maleOcc}</strong> (Old:{maleOld}/New:{maleNew})</div>
+        <div style={{padding:'12px', background:'#e3f2fd', borderRadius:'8px', borderLeft:'5px solid #1565c0'}}>
+          <div style={{fontSize:'14px', fontWeight:'bold', color:'#1565c0', marginBottom:'5px'}}>MALE WING</div>
+          <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px'}}><span>Occupied: <strong>{maleOcc}</strong></span><span>Free: <strong>{maleFree}</strong></span></div>
+          <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>Old: <strong>{maleOld}</strong> | New: <strong>{maleNew}</strong></div>
         </div>
-        <div style={{padding:'10px', background:'#fce4ec', borderRadius:'6px'}}>
-          <div style={{fontSize:'12px', color:'#ad1457'}}>Female Free</div>
-          <div style={{fontSize:'20px', fontWeight:'bold', color:'#ad1457'}}>{femaleFree} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {femaleRooms.length}</span></div>
-          <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>Occ: <strong>{femaleOcc}</strong> (Old:{femaleOld}/New:{femaleNew})</div>
+        <div style={{padding:'12px', background:'#fce4ec', borderRadius:'8px', borderLeft:'5px solid #ad1457'}}>
+          <div style={{fontSize:'14px', fontWeight:'bold', color:'#ad1457', marginBottom:'5px'}}>FEMALE WING</div>
+          <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px'}}><span>Occupied: <strong>{femaleOcc}</strong></span><span>Free: <strong>{femaleFree}</strong></span></div>
+          <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>Old: <strong>{femaleOld}</strong> | New: <strong>{femaleNew}</strong></div>
         </div>
-        <div style={{padding:'10px', background:'#e8f5e9', borderRadius:'6px'}}>
-          <div style={{fontSize:'12px', color:'#2e7d32'}}>Course Occupancy</div>
+        <div style={{padding:'12px', background:'#e8f5e9', borderRadius:'8px', borderLeft:'5px solid #2e7d32'}}>
+          <div style={{fontSize:'14px', fontWeight:'bold', color:'#2e7d32', marginBottom:'5px'}}>TOTAL SUMMARY</div>
+          <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px'}}><span>Total Occ: <strong>{maleOcc + femaleOcc}</strong></span><span>Total Free: <strong>{maleFree + femaleFree}</strong></span></div>
           <div style={{fontSize:'11px', color:'#333', marginTop:'5px', display:'flex', flexWrap:'wrap', gap:'10px'}}>
              {Object.entries(courseBreakdown).length > 0 ? Object.entries(courseBreakdown).map(([name, count]) => (
                 <span key={name} style={{background:'white', padding:'2px 6px', borderRadius:'4px', border:'1px solid #ccc'}}>
@@ -434,7 +425,7 @@ function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [occupancy, setOccupancy] = useState([]); 
-  const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'Floor' });
+  const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'Chair' });
   const [status, setStatus] = useState('');
 
   useEffect(() => { 
@@ -477,7 +468,7 @@ function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
       }
 
       setStatus('✅ Success!');
-      setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'Floor' }));
+      setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'Chair' }));
       
       // Refresh Data
       clearRoom();
@@ -488,7 +479,7 @@ function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
       setStatus(`❌ ${err.message}`); 
     }
   };
-
+  
   const sectionHeader = (title) => <div style={{fontSize:'14px', fontWeight:'bold', color:'#007bff', borderBottom:'1px solid #eee', paddingBottom:'5px', marginTop:'15px', marginBottom:'10px'}}>{title}</div>;
 
   return (
@@ -505,7 +496,7 @@ function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}>
            <div><label style={labelStyle}>🆔 Conf No</label><input style={{...inputStyle, background:'#f0f0f0'}} value={formData.confNo} readOnly /></div>
            <div><label style={labelStyle}>🛏️ Room No</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Select Free Room --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div>
-           <div><label style={labelStyle}>🍽️ Dining Seat</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'80px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Floor</option><option>Chair</option></select><input style={inputStyle} value={formData.seatNo} onChange={e=>setFormData({...formData, seatNo:e.target.value})} placeholder="10" required /></div></div>
+           <div><label style={labelStyle}>🍽️ Dining Seat</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'80px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><input style={inputStyle} value={formData.seatNo} onChange={e=>setFormData({...formData, seatNo:e.target.value})} placeholder="10" required /></div></div>
         </div>
         {sectionHeader("🧘 Hall & Meditation")}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}>
@@ -555,7 +546,7 @@ function ParticipantList({ courses, refreshCourses }) {
 
   return ( <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}><div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div><div style={{display:'flex', gap:'5px'}}><button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button><button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining Sheet</button><button onClick={() => setViewMode('seating')} disabled={!courseId} style={quickBtnStyle(true)}>🧘 Dhamma Plan</button></div></div>
   {courseId && (<div style={{background:'#fff5f5', border:'1px solid #feb2b2', padding:'10px', borderRadius:'5px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}><span style={{color:'#c53030', fontWeight:'bold', fontSize:'13px'}}>⚠️ Admin Zone:</span><div><button onClick={handleResetCourse} style={{background:'#e53e3e', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', marginRight:'10px', fontSize:'12px'}}>Reset Data</button><button onClick={handleDeleteCourse} style={{background:'red', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Delete Course</button></div></div>)}
-  <div style={{overflowX:'auto'}}><table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}><thead><tr style={{background:'#f1f1f1', textAlign:'left'}}>{['full_name','conf_no','courses_info','age','gender','dining_seat_no','dining_seat_type','room_no','pagoda_cell_no'].map(k=><th key={k} style={{...tdStyle, cursor:'pointer'}} onClick={()=>handleSort(k)}>{k.replace('_',' ').toUpperCase()}{sortConfig.key===k?(sortConfig.direction==='asc'?'▲':'▼'):''}</th>)}<th style={tdStyle}>ACTIONS</th></tr></thead><tbody>{sortedList.map(p => (<tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}><td style={tdStyle}><strong>{p.full_name}</strong></td><td style={tdStyle}>{p.conf_no||'-'}</td><td style={{...tdStyle, fontSize:'12px'}}>{p.courses_info||'-'}</td><td style={tdStyle}>{p.age||'-'}</td><td style={tdStyle}>{p.gender||'-'}</td><td style={tdStyle}>{p.dining_seat_no||'-'}</td><td style={tdStyle}>{p.dining_seat_type==='C'?'Chair':'Floor'}</td><td style={tdStyle}>{p.room_no||'-'}</td><td style={tdStyle}>{p.pagoda_cell_no||'-'}</td><td style={tdStyle}><button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button></td></tr>))}</tbody></table></div>
+  <div style={{overflowX:'auto'}}><table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}><thead><tr style={{background:'#f1f1f1', textAlign:'left'}}>{['full_name','conf_no','courses_info','age','gender','dining_seat_no','dining_seat_type','room_no','pagoda_cell_no'].map(k=><th key={k} style={{...tdStyle, cursor:'pointer'}} onClick={()=>handleSort(k)}>{k.replace('_',' ').toUpperCase()}{sortConfig.key===k?(sortConfig.direction==='asc'?'▲':'▼'):''}</th>)}<th style={tdStyle}>ACTIONS</th></tr></thead><tbody>{sortedList.map(p => (<tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}><td style={tdStyle}><strong>{p.full_name}</strong></td><td style={tdStyle}>{p.conf_no||'-'}</td><td style={{...tdStyle, fontSize:'12px'}}>{p.courses_info||'-'}</td><td style={tdStyle}>{p.age||'-'}</td><td style={tdStyle}>{p.gender||'-'}</td><td style={tdStyle}>{p.dining_seat_no||'-'}</td><td style={tdStyle}>{p.dining_seat_type==='Chair'?'Chair':'Floor'}</td><td style={tdStyle}>{p.room_no||'-'}</td><td style={tdStyle}>{p.pagoda_cell_no||'-'}</td><td style={tdStyle}><button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button></td></tr>))}</tbody></table></div>
   {editingStudent && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center'}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'500px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave} style={{display:'flex', flexDirection:'column', gap:'10px'}}><label>Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e => setEditingStudent({...editingStudent, full_name: e.target.value})} /><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Conf No</label><input style={inputStyle} value={editingStudent.conf_no||''} onChange={e => setEditingStudent({...editingStudent, conf_no: e.target.value})} /></div><div><label>Lang</label><input style={inputStyle} value={editingStudent.discourse_language||''} onChange={e => setEditingStudent({...editingStudent, discourse_language: e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Dining</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div><div><label>Dhamma</label><input style={inputStyle} value={editingStudent.dhamma_hall_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dhamma_hall_seat_no: e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Room</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e => setEditingStudent({...editingStudent, room_no: e.target.value})} /></div><div><label>Pagoda</label><input style={inputStyle} value={editingStudent.pagoda_cell_no||''} onChange={e => setEditingStudent({...editingStudent, pagoda_cell_no: e.target.value})} /></div></div><label>Seating Type</label><select style={inputStyle} value={editingStudent.special_seating||''} onChange={e => setEditingStudent({...editingStudent, special_seating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select><div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div></form></div></div>)}</div> );
 }
 
