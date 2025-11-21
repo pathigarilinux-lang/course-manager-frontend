@@ -4,27 +4,6 @@ import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, Resp
 const API_URL = "https://course-manager-backend-cd1m.onrender.com";
 const ADMIN_PASSCODE = "1234"; 
 
-// --- CONFIG: ROOM LISTS ---
-const MALE_ROOMS = [
-  "301AI", "301BI", "302AI", "302BI", "303AI", "303BI", "304AI", "304BI", "305AI", "305BI", "306AI", "306BI",
-  "307AW", "307BW", "308AW", "308BW", "309AW", "309BW", "310AW", "310BW", "311AW", "311BW", "312AW", "312BW", "313AW", "313BW",
-  "314AW", "314BW", "315AW", "315BW", "316AW", "316BW", "317AI", "317BI", "318AI", "318BI", "319AI", "319BI", "320AI", "320BI",
-  "321AW", "321BW", "322AW", "322BW", "323AW", "323BW", "324AW", "324BW", "325AW", "325BW", "326AW", "326BW", "327AW", "327BW",
-  "328AW", "328BW", "329AI", "329BI", "330AI", "330BI", "331AI", "331BI", "332AI", "332BI", "333AI", "333BI", "334AI", "334BI",
-  "335AI", "335BI", "336AI", "336BI", "337AW", "337BW", "338AW", "338BW", "339AW", "339BW", "340AW", "340BW", "341AW", "341BW",
-  "342AW", "342BW", "343AW", "343BW"
-];
-
-const FEMALE_ROOMS = [
-  "201AI", "201BI", "202AI", "202BI", "203AI", "203BI",
-  "213AW", "213BW", "214AW", "214BW", "215AW", "215BW", "216AW", "216BW", "217AW", "217BW", "218AW", "218BW", "219AW", "219BW",
-  "220AW", "220BW", "221AW", "221BW", "222AW", "222BW", "223AW", "223BW", "224AW", "224BW", "225AW", "225BW", "226AW", "226BW",
-  "227AW", "227BW", "228AI", "228BI", "229AI", "229BI", "230AI", "230BI", "231AW", "231BW", "232AW", "232BW", "233AW", "233BW",
-  "234AW", "234BW", "235AW", "235BW", "236AW", "236BW", "237AW", "237BW", "238AW", "238BW", "239AW", "239BW", "240AW", "240BW",
-  "241AW", "241BW", "242AW", "242BW", "243AW", "243BW", "244AW", "244BW", "245AW", "245BW", "246AW", "246BW", "247AW", "247BW",
-  "248AW", "248BW", "DF1", "DF2", "DF3", "DF4", "DF5", "DF6", "FRC61W", "FRC62W", "FRC63W", "FRC64W", "FRC65W", "FRC66W"
-];
-
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -32,7 +11,6 @@ export default function App() {
   const [view, setView] = useState('dashboard');
   const [courses, setCourses] = useState([]);
   const [error, setError] = useState('');
-  const [preSelectedRoom, setPreSelectedRoom] = useState('');
 
   useEffect(() => {
     const savedAuth = localStorage.getItem('admin_auth');
@@ -52,38 +30,14 @@ export default function App() {
   };
 
   const handleLogout = () => { setIsAuthenticated(false); localStorage.removeItem('admin_auth'); setView('dashboard'); };
-  
-  const fetchCourses = () => { 
-    fetch(`${API_URL}/courses`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => Array.isArray(data) ? setCourses(data) : setCourses([]))
-      .catch(err => { console.error(err); setError("Connection Error: Could not load courses."); }); 
-  };
+  const fetchCourses = () => { fetch(`${API_URL}/courses`).then(res => res.ok ? res.json() : []).then(data => Array.isArray(data) ? setCourses(data) : setCourses([])).catch(err => { console.error(err); setError("Connection Error"); }); };
+  const handleRoomClick = (roomNo) => { setView('onboarding'); }; // Placeholder, improved below
 
-  const handleRoomClick = (roomNo) => {
-    setPreSelectedRoom(roomNo);
-    setView('onboarding');
-  };
-
-  if (!isAuthenticated) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}>
-        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
-          <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Center Admin</h1>
-          <form onSubmit={handleLogin}>
-            <input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} />
-            <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button>
-          </form>
-          {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>}
-        </div>
-      </div>
-    );
-  }
+  if (!isAuthenticated) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}> <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}> <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Center Admin</h1> <form onSubmit={handleLogin}> <input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} /> <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button> </form> {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>} </div> </div>;
 
   return (
     <div className="app-container" style={{ fontFamily: 'Segoe UI, sans-serif', padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
       <style>{`@media print { .no-print { display: none !important; } .app-container { background: white !important; padding: 0 !important; } body { font-size: 12pt; } }`}</style>
-
       <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={() => setView('dashboard')} style={btnStyle(view === 'dashboard')}>📊 Dashboard</button>
@@ -95,12 +49,10 @@ export default function App() {
         </div>
         <button onClick={handleLogout} style={{ ...btnStyle(false), border: '1px solid #dc3545', color: '#dc3545' }}>🔒 Logout</button>
       </nav>
-
       {error && <div className="no-print" style={{ padding: '12px', background: '#ffebee', color: '#c62828', borderRadius: '5px', marginBottom: '20px' }}>⚠️ {error}</div>}
-
       {view === 'dashboard' && <Dashboard courses={courses} />}
-      {view === 'room-view' && <RoomDashboard onRoomClick={handleRoomClick} />}
-      {view === 'onboarding' && <OnboardingForm courses={courses} preSelectedRoom={preSelectedRoom} clearRoom={() => setPreSelectedRoom('')} />}
+      {view === 'room-view' && <RoomDashboard onRoomClick={(r) => { alert("Room selected: "+r); setView('onboarding'); }} />}
+      {view === 'onboarding' && <OnboardingForm courses={courses} />}
       {view === 'expenses' && <ExpenseTracker courses={courses} />}
       {view === 'participants' && <ParticipantList courses={courses} refreshCourses={fetchCourses} />}
       {view === 'course-admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} setView={setView} />}
@@ -108,117 +60,84 @@ export default function App() {
   );
 }
 
-// --- 1. ROOM VISUALIZER (GLOBAL VIEW) ---
+// --- 1. ROOM VISUALIZER (FULLY DYNAMIC) ---
 function RoomDashboard({ onRoomClick }) {
+  const [rooms, setRooms] = useState([]);
   const [occupancy, setOccupancy] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Fetch Global Occupancy (All Courses)
   useEffect(() => {
     setLoading(true);
-    fetch(`${API_URL}/rooms/occupancy`)
-      .then(res => res.json())
-      .then(data => {
-        setOccupancy(Array.isArray(data) ? data : []);
-        setLoading(false);
-      });
+    // Fetch Rooms (Your inserted list)
+    fetch(`${API_URL}/rooms`).then(res=>res.json()).then(data => setRooms(Array.isArray(data)?data:[]));
+    // Fetch Occupancy (All Assigned)
+    fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => {
+      setOccupancy(Array.isArray(data)?data:[]);
+      setLoading(false);
+    });
   }, []);
 
-  // Map for quick lookup
-  const occupiedRooms = {};
-  occupancy.forEach(p => { if(p.room_no) occupiedRooms[p.room_no.trim().toUpperCase()] = p; });
+  const normalize = (str) => str ? str.replace(/\s+/g, '').toUpperCase() : '';
+  const occupiedMap = {};
+  occupancy.forEach(p => { if(p.room_no) occupiedMap[normalize(p.room_no)] = p; });
 
-  const countOccupied = (list) => list.filter(r => occupiedRooms[r.replace(/\s+/g, '').toUpperCase()]).length;
-  const maleOcc = countOccupied(MALE_ROOMS);
-  const maleFree = MALE_ROOMS.length - maleOcc;
-  const femaleOcc = countOccupied(FEMALE_ROOMS);
-  const femaleFree = FEMALE_ROOMS.length - femaleOcc;
+  // Logic: Use the 'rooms' from DB to render the grid, NOT hardcoded lists
+  const maleRooms = rooms.filter(r => r.gender_type === 'Male');
+  const femaleRooms = rooms.filter(r => r.gender_type === 'Female');
+
+  const maleOcc = maleRooms.filter(r => occupiedMap[normalize(r.room_no)]).length;
+  const femaleOcc = femaleRooms.filter(r => occupiedMap[normalize(r.room_no)]).length;
 
   const renderRoom = (room) => {
-    const normalizedRoom = room.replace(/\s+/g, '').toUpperCase();
-    const occupant = occupiedRooms[normalizedRoom];
+    const occupant = occupiedMap[normalize(room.room_no)];
     const isOccupied = !!occupant;
+    const isArrived = isOccupied && occupant.status === 'Arrived';
     
     return (
-      <div key={room} onClick={() => !isOccupied && onRoomClick(room)}
+      <div key={room.room_id}
         style={{
-          border: isOccupied ? '1px solid #ef9a9a' : '1px solid #a5d6a7',
-          background: isOccupied ? '#ffebee' : '#e8f5e9',
-          borderRadius: '6px', padding: '10px', textAlign: 'center',
-          cursor: isOccupied ? 'default' : 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-          minHeight: '70px', display: 'flex', flexDirection: 'column', justifyContent: 'center'
+          border: isOccupied ? (isArrived ? '1px solid #ef9a9a' : '1px solid #ffcc80') : '1px solid #a5d6a7',
+          background: isOccupied ? (isArrived ? '#ffebee' : '#fff3e0') : '#e8f5e9',
+          borderRadius: '6px', padding: '8px', textAlign: 'center', minHeight: '60px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column', justifyContent:'center'
         }}
       >
-        <div style={{fontWeight:'bold', fontSize:'14px', color: isOccupied ? '#c62828' : '#2e7d32'}}>{room}</div>
+        <div style={{fontWeight:'bold', fontSize:'13px', color:'#333'}}>{room.room_no}</div>
         {isOccupied ? (
-          <div style={{fontSize:'11px', color:'#b71c1c', marginTop:'4px'}}>
-            <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'100%'}}>
-              {occupant.full_name.split(' ')[0]} 
-            </div>
-            <div style={{fontWeight:'bold', fontSize:'10px', color:'#d32f2f', marginTop:'2px'}}>
-              {occupant.conf_no || '-'}
-            </div>
-            <div style={{fontSize:'9px', color:'#666', marginTop:'2px'}}>
-              {occupant.course_name ? occupant.course_name.substring(0,15)+'...' : 'Unknown'}
-            </div>
+          <div style={{fontSize:'11px', color: isArrived ? '#c62828' : '#ef6c00'}}>
+            <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'80px'}}>{occupant.full_name.split(' ')[0]}</div>
+            <div style={{fontWeight:'bold', fontSize:'9px'}}>({occupant.conf_no || '?'})</div>
+            {!isArrived && <div style={{fontSize:'8px'}}>PENDING</div>}
           </div>
-        ) : <div style={{fontSize:'9px', color:'#4caf50', marginTop:'4px'}}>EMPTY</div>}
+        ) : <div style={{fontSize:'9px', color:'#4caf50'}}>FREE</div>}
       </div>
     );
   };
 
   return (
     <div style={cardStyle}>
-      <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center'}}>
-        <h2 style={{margin:0}}>🛏️ Global Accommodation View</h2>
-        <button onClick={() => window.print()} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Status</button>
-      </div>
-
-      {/* Split Stats Bar */}
-      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}>
-         <div style={{display:'flex', gap:'10px', alignItems:'center', background:'#e3f2fd', padding:'10px', borderRadius:'8px'}}>
-            <span style={{fontSize:'20px'}}>🚹</span>
-            <div>
-              <div style={{fontSize:'12px', color:'#1565c0'}}>Male Free</div>
-              <div style={{fontSize:'18px', fontWeight:'bold', color:'#1565c0'}}>{maleFree}</div>
-            </div>
-            <div style={{borderLeft:'1px solid #90caf9', paddingLeft:'10px', marginLeft:'auto'}}>
-              <div style={{fontSize:'12px', color:'#c62828'}}>Occupied</div>
-              <div style={{fontSize:'18px', fontWeight:'bold', color:'#c62828'}}>{maleOcc}</div>
-            </div>
-         </div>
-         <div style={{display:'flex', gap:'10px', alignItems:'center', background:'#fce4ec', padding:'10px', borderRadius:'8px'}}>
-            <span style={{fontSize:'20px'}}>🚺</span>
-            <div>
-              <div style={{fontSize:'12px', color:'#ad1457'}}>Female Free</div>
-              <div style={{fontSize:'18px', fontWeight:'bold', color:'#ad1457'}}>{femaleFree}</div>
-            </div>
-            <div style={{borderLeft:'1px solid #f48fb1', paddingLeft:'10px', marginLeft:'auto'}}>
-              <div style={{fontSize:'12px', color:'#c62828'}}>Occupied</div>
-              <div style={{fontSize:'18px', fontWeight:'bold', color:'#c62828'}}>{femaleOcc}</div>
-            </div>
-         </div>
-      </div>
-
-      {loading ? <p>Loading rooms...</p> : (
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
-          {/* MALE SECTION */}
-          <div style={{border:'1px solid #90caf9', borderRadius:'8px', padding:'10px'}}>
-             <h3 style={{textAlign:'center', color:'#1565c0', background:'#e3f2fd', padding:'8px', borderRadius:'4px', marginTop:0}}>MALE WING</h3>
-             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}>
-                {MALE_ROOMS.map(renderRoom)}
-             </div>
-          </div>
-
-          {/* FEMALE SECTION */}
-          <div style={{border:'1px solid #f48fb1', borderRadius:'8px', padding:'10px'}}>
-             <h3 style={{textAlign:'center', color:'#ad1457', background:'#fce4ec', padding:'8px', borderRadius:'4px', marginTop:0}}>FEMALE WING</h3>
-             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}>
-                {FEMALE_ROOMS.map(renderRoom)}
-             </div>
-          </div>
+      <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
+        <h2 style={{margin:0}}>🛏️ Room Dashboard</h2>
+        <div style={{display:'flex', gap:'10px'}}>
+           <div style={{background:'#fff3e0', padding:'5px 10px', borderRadius:'4px', border:'1px solid #ffcc80', fontSize:'12px'}}>Yellow = Assigned (Pending)</div>
+           <div style={{background:'#ffebee', padding:'5px 10px', borderRadius:'4px', border:'1px solid #ef9a9a', fontSize:'12px'}}>Red = Checked In</div>
         </div>
-      )}
+      </div>
+      
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}>
+         <div style={{padding:'15px', background:'#e3f2fd', borderRadius:'8px'}}>
+            <h3 style={{margin:'0 0 10px 0', color:'#1565c0'}}>MALE ({maleRooms.length - maleOcc} Free)</h3>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(70px, 1fr))', gap:'8px'}}>
+               {maleRooms.map(renderRoom)}
+            </div>
+         </div>
+         <div style={{padding:'15px', background:'#fce4ec', borderRadius:'8px'}}>
+            <h3 style={{margin:'0 0 10px 0', color:'#ad1457'}}>FEMALE ({femaleRooms.length - femaleOcc} Free)</h3>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(70px, 1fr))', gap:'8px'}}>
+               {femaleRooms.map(renderRoom)}
+            </div>
+         </div>
+      </div>
     </div>
   );
 }
@@ -288,12 +207,14 @@ function Dashboard({ courses }) {
   );
 }
 
-// --- 3. ONBOARDING FORM (Unchanged) ---
+// --- 3. ONBOARDING FORM ---
 function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]);
+  const [rooms, setRooms] = useState([]);
   const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: '', confNo: '', dhammaSeat: '', specialSeating: '', seatType: 'F' });
   const [status, setStatus] = useState('');
   
+  useEffect(() => { fetch(`${API_URL}/rooms`).then(res=>res.json()).then(data => setRooms(Array.isArray(data)?data:[])); }, []);
   useEffect(() => { if (preSelectedRoom) { setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); } }, [preSelectedRoom, courses]);
   useEffect(() => { if (formData.courseId) { fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); } }, [formData.courseId]);
   const studentsPending = participants.filter(p => p.status !== 'Arrived');
@@ -315,7 +236,7 @@ function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
           <div><label style={labelStyle}>Dhamma Seat</label><input style={inputStyle} value={formData.dhammaSeat} onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} placeholder="or NA" /></div>
         </div>
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
-          <div><label style={labelStyle}>Room No</label><input list="room-list" style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required /><datalist id="room-list">{[...MALE_ROOMS, ...FEMALE_ROOMS].map(r=><option key={r} value={r}/>)}</datalist></div>
+          <div><label style={labelStyle}>Room No</label><input list="room-list" style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required /><datalist id="room-list">{rooms.map(r=><option key={r.room_id} value={r.room_no}/>)}</datalist></div>
           <div><label style={labelStyle}>Mob Locker</label><input style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})} placeholder="or NA" /></div>
           <div><label style={labelStyle}>Val Locker</label><input style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})} placeholder="or NA" /></div>
           <div><label style={labelStyle}>Laundry Tk</label><input style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})} placeholder="or NA" /></div>
@@ -376,19 +297,28 @@ function ExpenseTracker({ courses }) {
   if (reportMode === 'invoice' && currentStudent) { return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button> </div> <div className="print-area" style={{maxWidth: '800px', margin: '0 auto', border: '1px solid #eee', padding: '40px'}}> <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}> <div><h1 style={{margin: 0}}>INVOICE</h1><p style={{color: '#666'}}>Date: {new Date().toLocaleDateString()}</p></div> <div style={{textAlign: 'right'}}><h3>{currentStudent.full_name}</h3><p>Room: {currentStudent.room_no}</p><p>{selectedCourseName}</p></div> </div> <table style={{width: '100%', borderCollapse: 'collapse', marginBottom: '30px'}}> <thead><tr style={{background: '#f9f9f9', borderBottom: '2px solid #333'}}><th style={{textAlign: 'left', padding: '10px'}}>Description</th><th style={{textAlign: 'left', padding: '10px'}}>Date</th><th style={{textAlign: 'right', padding: '10px'}}>Amount</th></tr></thead> <tbody> {history.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}> <td style={{padding: '10px'}}>{ex.expense_type}</td> <td style={{padding: '10px'}}>{new Date(ex.recorded_at).toLocaleDateString()}</td> <td style={{padding: '10px', textAlign: 'right'}}>₹{ex.amount}</td> </tr> ))} </tbody> </table> <div style={{textAlign: 'right', marginTop: '20px'}}><h3>Total Due: ₹{totalDue}</h3></div> <div style={{marginTop: '60px', borderTop: '1px solid #000', width: '200px', textAlign: 'center', paddingTop: '5px'}}>Signature</div> </div> </div> ); }
   if (reportMode === 'summary') { return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Report</button> </div> <div className="print-area"> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Expenses Summary Report</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black'}}><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Total Due (₹)</th></tr></thead><tbody>{financialData.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '10px'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td><td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_due}</td></tr>))} <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px'}}><td colSpan={3} style={{padding:'15px', textAlign:'right'}}>GRAND TOTAL:</td><td style={{padding:'15px', textAlign:'right'}}>₹{financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0)}</td></tr> </tbody></table> </div> </div> ); }
   return (
-    <div style={cardStyle}>
-      <h2>{editingId ? '✏️ Edit Expense' : '🛒 Record Expense'}</h2>
-      <form onSubmit={handleSubmit} style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-        <select style={inputStyle} onChange={e => setCourseId(e.target.value)} required> <option value="">-- 1. Select Course --</option> {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)} </select>
-        <select style={inputStyle} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} required> <option value="">-- 2. Select Student --</option> {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)} </select>
-        <div style={{background:'#f0f2f5', padding:'10px', borderRadius:'6px', border:'1px solid #ddd'}}> <label style={{fontSize:'12px', color:'#666', fontWeight:'bold'}}>ASSIGNED LAUNDRY TOKEN:</label> <div style={{fontSize:'18px', fontWeight:'bold', color:'#007bff'}}>{studentToken || '-'}</div> </div>
-        <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px'}}>
-          <div><label>Item / Type</label><input list="expense-types" style={inputStyle} value={expenseType} onChange={e => setExpenseType(e.target.value)} required /><datalist id="expense-types"><option value="Laundry Token" /><option value="Medicine" /><option value="Store Item" /><option value="Donation" /></datalist></div>
-          <div><label>Amount (₹)</label><input type="number" style={inputStyle} value={amount} onChange={e => setAmount(e.target.value)} required /></div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+      <div style={cardStyle}>
+        <h2>{editingId ? '✏️ Edit Expense' : '🛒 Record Expense'}</h2>
+        <form onSubmit={handleSubmit} style={{display:'flex', flexDirection:'column', gap:'15px'}}>
+          <select style={inputStyle} onChange={e => setCourseId(e.target.value)} required> <option value="">-- 1. Select Course --</option> {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)} </select>
+          <select style={inputStyle} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} required> <option value="">-- 2. Select Student --</option> {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)} </select>
+          <div style={{background:'#f0f2f5', padding:'10px', borderRadius:'6px', border:'1px solid #ddd'}}> <label style={{fontSize:'12px', color:'#666', fontWeight:'bold'}}>ASSIGNED LAUNDRY TOKEN:</label> <div style={{fontSize:'18px', fontWeight:'bold', color:'#007bff'}}>{studentToken || '-'}</div> </div>
+          <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px'}}>
+            <div><label>Item / Type</label><input list="expense-types" style={inputStyle} value={expenseType} onChange={e => setExpenseType(e.target.value)} required /><datalist id="expense-types"><option value="Laundry Token" /><option value="Medicine" /><option value="Store Item" /><option value="Donation" /></datalist></div>
+            <div><label>Amount (₹)</label><input type="number" style={inputStyle} value={amount} onChange={e => setAmount(e.target.value)} required /></div>
+          </div>
+          <div style={{display:'flex', gap:'5px'}}> <button type="button" onClick={handleLaundryClick} style={quickBtnStyle(false)}>🧺 Laundry (50)</button> <button type="button" onClick={() => {setExpenseType('Soap'); setAmount('30')}} style={quickBtnStyle(false)}>🧼 Soap (30)</button> </div>
+          <div style={{display:'flex', gap:'10px'}}> <button type="submit" style={{...btnStyle(true), flex:1, background: editingId ? '#ffc107' : '#28a745', color: editingId ? 'black' : 'white'}}> {editingId ? 'Update Record' : 'Save Record'} </button> {editingId && <button type="button" onClick={() => {setEditingId(null); setAmount(''); setExpenseType('Laundry Token');}} style={{...btnStyle(false), background:'#6c757d', color:'white'}}>Cancel</button>} </div> {status && <p>{status}</p>}
+        </form>
+      </div>
+      <div style={cardStyle}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'2px solid #eee', paddingBottom:'10px', marginBottom:'10px'}}>
+          <h3 style={{margin:0}}>History</h3>
+          <div style={{display:'flex', gap:'5px'}}> {selectedStudentId && <button onClick={() => setReportMode('invoice')} style={quickBtnStyle(true)}>🖨️ Invoice</button>} {courseId && <button onClick={loadFinancialReport} style={quickBtnStyle(true)}>💰 Summary Report</button>} </div>
         </div>
-        <div style={{display:'flex', gap:'5px'}}> <button type="button" onClick={handleLaundryClick} style={quickBtnStyle(false)}>🧺 Laundry (50)</button> <button type="button" onClick={() => {setExpenseType('Soap'); setAmount('30')}} style={quickBtnStyle(false)}>🧼 Soap (30)</button> </div>
-        <div style={{display:'flex', gap:'10px'}}> <button type="submit" style={{...btnStyle(true), flex:1, background: editingId ? '#ffc107' : '#28a745', color: editingId ? 'black' : 'white'}}> {editingId ? 'Update Record' : 'Save Record'} </button> {editingId && <button type="button" onClick={() => {setEditingId(null); setAmount(''); setExpenseType('Laundry Token');}} style={{...btnStyle(false), background:'#6c757d', color:'white'}}>Cancel</button>} </div> {status && <p>{status}</p>}
-      </form>
+        {history.length === 0 ? ( <p style={{color:'#888'}}>No expenses recorded.</p> ) : ( <div style={{maxHeight:'300px', overflowY:'auto'}}> <table style={{width:'100%', fontSize:'14px', borderCollapse:'collapse'}}> <thead><tr style={{background:'#f9f9f9', textAlign:'left'}}><th>Item</th><th>Date</th><th>₹</th><th></th></tr></thead> <tbody> {history.map(h => ( <tr key={h.expense_id} style={{borderBottom: '1px solid #eee'}}> <td style={{padding:'8px'}}>{h.expense_type}</td> <td style={{padding:'8px', color:'#666'}}>{new Date(h.recorded_at).toLocaleDateString()}</td> <td style={{padding:'8px', fontWeight:'bold'}}>₹{h.amount}</td> <td style={{padding:'8px', textAlign:'right'}}><button onClick={()=>handleEditClick(h)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={()=>handleDeleteExpense(h.expense_id)} style={{color:'red', border:'none', background:'none', cursor:'pointer'}}>🗑️</button></td> </tr> ))} </tbody> </table> <div style={{textAlign:'right', marginTop:'10px', fontSize:'16px', fontWeight:'bold', color:'#2e7d32'}}> Total Due: ₹{totalDue} </div> </div> )}
+      </div>
     </div>
   );
 }
