@@ -1,11 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid } from 'recharts';
 
+// --- API CONFIGURATION ---
 const API_URL = "https://course-manager-backend-cd1m.onrender.com";
 const ADMIN_PASSCODE = "1234"; 
 
-// Protected rooms list (Prevents deleting base rooms)
-const PROTECTED_ROOMS = new Set(["301AI","301BI","302AI","302BI","303AI","303BI","304AI","304BI","305AI","305BI","306AI","306BI","307AW","307BW","308AW","308BW","309AW","309BW","310AW","310BW","311AW","311BW","312AW","312BW","313AW","313BW","314AW","314BW","315AW","315BW","316AW","316BW","317AI","317BI","318AI","318BI","319AI","319BI","320AI","320BI","321AW","321BW","322AW","322BW","323AW","323BW","324AW","324BW","325AW","325BW","326AW","326BW","327AW","327BW","328AW","328BW","329AI","329BI","330AI","330BI","331AI","331BI","332AI","332BI","333AI","333BI","334AI","334BI","335AI","335BI","336AI","336BI","337AW","337BW","338AW","338BW","339AW","339BW","340AW","340BW","341AW","341BW","342AW","342BW","343AW","343BW","201AI","201BI","202AI","202BI","203AI","203BI","213AW","213BW","214AW","214BW","215AW","215BW","216AW","216BW","217AW","217BW","218AW","218BW","219AW","219BW","220AW","220BW","221AW","221BW","222AW","222BW","223AW","223BW","224AW","224BW","225AW","225BW","226AW","226BW","227AW","227BW","228AI","228BI","229AI","229BI","230AI","230BI","231AW","231BW","232AW","232BW","233AW","233BW","234AW","234BW","235AW","235BW","236AW","236BW","237AW","237BW","238AW","238BW","239AW","239BW","240AW","240BW","241AW","241BW","242AW","242BW","243AW","243BW","244AW","244BW","245AW","245BW","246AW","246BW","247AW","247BW","248AW","248BW","DF1","DF2","DF3","DF4","DF5","DF6","FRC61W","FRC62W","FRC63W","FRC64W","FRC65W","FRC66W"]);
+// --- ROOM CONSTANTS (For Onboarding Suggestions & Safety) ---
+const MALE_ROOMS_LIST = [
+  "301AI", "301BI", "302AI", "302BI", "303AI", "303BI", "304AI", "304BI", "305AI", "305BI", "306AI", "306BI",
+  "307AW", "307BW", "308AW", "308BW", "309AW", "309BW", "310AW", "310BW", "311AW", "311BW", "312AW", "312BW",
+  "313AW", "313BW", "314AW", "314BW", "315AW", "315BW", "316AW", "316BW", "317AI", "317BI", "318AI", "318BI",
+  "319AI", "319BI", "320AI", "320BI", "321AW", "321BW", "322AW", "322BW", "323AW", "323BW", "324AW", "324BW",
+  "325AW", "325BW", "326AW", "326BW", "327AW", "327BW", "328AW", "328BW", "329AI", "329BI", "330AI", "330BI",
+  "331AI", "331BI", "332AI", "332BI", "333AI", "333BI", "334AI", "334BI", "335AI", "335BI", "336AI", "336BI",
+  "337AW", "337BW", "338AW", "338BW", "339AW", "339BW", "340AW", "340BW", "341AW", "341BW", "342AW", "342BW",
+  "343AW", "343BW"
+];
+
+const FEMALE_ROOMS_LIST = [
+  "201AI", "201BI", "202AI", "202BI", "203AI", "203BI",
+  "213AW", "213BW", "214AW", "214BW", "215AW", "215BW", "216AW", "216BW", "217AW", "217BW", "218AW", "218BW",
+  "219AW", "219BW", "220AW", "220BW", "221AW", "221BW", "222AW", "222BW", "223AW", "223BW", "224AW", "224BW",
+  "225AW", "225BW", "226AW", "226BW", "227AW", "227BW", "228AI", "228BI", "229AI", "229BI", "230AI", "230BI",
+  "231AW", "231BW", "232AW", "232BW", "233AW", "233BW", "234AW", "234BW", "235AW", "235BW", "236AW", "236BW",
+  "237AW", "237BW", "238AW", "238BW", "239AW", "239BW", "240AW", "240BW", "241AW", "241BW", "242AW", "242BW",
+  "243AW", "243BW", "244AW", "244BW", "245AW", "245BW", "246AW", "246BW", "247AW", "247BW", "248AW", "248BW",
+  "DF1", "DF2", "DF3", "DF4", "DF5", "DF6", "FRC61W", "FRC62W", "FRC63W", "FRC64W", "FRC65W", "FRC66W"
+];
+
+const PROTECTED_ROOMS = new Set([...MALE_ROOMS_LIST, ...FEMALE_ROOMS_LIST]);
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -90,7 +113,215 @@ export default function App() {
   );
 }
 
-// --- 1. DASHBOARD ---
+// --- 1. GLOBAL ACCOMMODATION MANAGER ---
+function GlobalAccommodationManager({ courses, onRoomClick }) {
+  const [rooms, setRooms] = useState([]);
+  const [occupancy, setOccupancy] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [newRoom, setNewRoom] = useState({ roomNo: '', type: 'Male' });
+  const [editingRoom, setEditingRoom] = useState(null);
+
+  const loadData = () => {
+    setLoading(true);
+    fetch(`${API_URL}/rooms`).then(res => res.json()).then(data => setRooms(Array.isArray(data) ? data : []));
+    fetch(`${API_URL}/rooms/occupancy`).then(res => res.json()).then(data => {
+      setOccupancy(Array.isArray(data) ? data : []);
+      setLoading(false);
+    });
+  };
+
+  useEffect(loadData, []);
+
+  const handleAddRoom = async () => {
+    if (!newRoom.roomNo) return alert("Enter Room Number");
+    await fetch(`${API_URL}/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newRoom) });
+    setNewRoom({ ...newRoom, roomNo: '' });
+    loadData();
+  };
+  
+  const handleDeleteRoom = async (id, name) => { 
+    if (PROTECTED_ROOMS.has(name)) return alert("🚫 Cannot delete original room!");
+    if(window.confirm("Delete this room?")) { await fetch(`${API_URL}/rooms/${id}`, { method: 'DELETE' }); loadData(); } 
+  };
+  
+  const handleSwapSave = async () => {
+    if (!editingRoom || !editingRoom.p) return;
+    await fetch(`${API_URL}/participants/${editingRoom.p.participant_id || editingRoom.p.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...editingRoom.p, room_no: editingRoom.newRoomNo })
+    });
+    setEditingRoom(null); loadData();
+  };
+
+  // --- DATA PROCESSING ---
+  const normalize = (str) => str ? str.replace(/[\s-]+/g, '').toUpperCase() : '';
+  const occupiedMap = {}; 
+  const courseBreakdown = {};
+  const unmappedParticipants = [];
+
+  // Create Occupancy Map
+  occupancy.forEach(p => { 
+    if(p.room_no) {
+      const normRoom = normalize(p.room_no);
+      // Check if room exists in our room list
+      const isValidRoom = rooms.some(r => normalize(r.room_no) === normRoom);
+      
+      if (isValidRoom) {
+        occupiedMap[normRoom] = p; 
+        const cName = p.course_name || 'Unknown';
+        courseBreakdown[cName] = (courseBreakdown[cName] || 0) + 1;
+      } else {
+        unmappedParticipants.push(p);
+      }
+    }
+  });
+
+  // --- DERIVE STATS ---
+  // Filter rooms list into Male/Female
+  const maleRooms = rooms.filter(r => r.gender_type === 'Male');
+  const femaleRooms = rooms.filter(r => r.gender_type === 'Female');
+
+  // Count logic
+  let maleOcc = 0, maleOld = 0, maleNew = 0;
+  let femaleOcc = 0, femaleOld = 0, femaleNew = 0;
+
+  rooms.forEach(r => {
+    const p = occupiedMap[normalize(r.room_no)];
+    const isMaleRoom = r.gender_type === 'Male';
+    if (p) {
+      const isOld = p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S'));
+      if (isMaleRoom) { maleOcc++; if(isOld) maleOld++; else maleNew++; } 
+      else { femaleOcc++; if(isOld) femaleOld++; else femaleNew++; }
+    }
+  });
+
+  const maleFree = maleRooms.length - maleOcc;
+  const femaleFree = femaleRooms.length - femaleOcc;
+
+  const renderRoom = (room) => {
+    const occupant = occupiedMap[normalize(room.room_no)];
+    const isOccupied = !!occupant;
+    const isArrived = isOccupied && occupant.status === 'Arrived';
+
+    return (
+      <div key={room.room_id} onClick={() => isOccupied && setEditingRoom({ p: occupant, newRoomNo: room.room_no })}
+        style={{
+          border: isOccupied ? (isArrived ? '1px solid #ef9a9a' : '1px solid #ffcc80') : '1px solid #a5d6a7',
+          background: isOccupied ? (isArrived ? '#ffebee' : '#fff3e0') : '#e8f5e9',
+          borderRadius: '6px', padding: '8px', textAlign: 'center', minHeight: '80px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column', justifyContent:'center',
+          cursor: isOccupied ? 'pointer' : 'default', position: 'relative'
+        }}
+      >
+        <div style={{fontWeight:'bold', fontSize:'13px', color:'#333'}}>{room.room_no}</div>
+        {isOccupied ? (
+          <div style={{fontSize:'11px', color: isArrived ? '#c62828' : '#ef6c00', marginTop:'4px'}}>
+            <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'90px'}}>{(occupant.full_name || 'Unknown').split(' ')[0]}</div>
+            <div style={{fontWeight:'bold', fontSize:'9px'}}>({occupant.conf_no || '-'})</div>
+            <div style={{fontSize:'9px', color:'#555', marginTop:'2px', fontStyle:'italic'}}>{occupant.course_name ? occupant.course_name.substring(0,12)+'..' : ''}</div>
+            <div style={{fontSize:'8px', background: 'rgba(255,255,255,0.5)', borderRadius:'4px', marginTop:'2px'}}>🔄 Swap</div>
+          </div>
+        ) : (
+            <div>
+                <div style={{fontSize:'9px', color:'#4caf50', marginTop:'4px'}}>FREE</div>
+                <button onClick={(e)=>{e.stopPropagation(); onRoomClick(room.room_no)}} style={{marginTop:'2px', fontSize:'9px', display:'block', margin:'2px auto', background:'#4caf50', color:'white', border:'none', borderRadius:'2px', cursor:'pointer', width:'100%'}}>Assign</button>
+            </div>
+        )}
+        {!isOccupied && !PROTECTED_ROOMS.has(room.room_no) && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id, room.room_no)}} style={{position:'absolute', top:'2px', right:'2px', color:'#ccc', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>}
+      </div>
+    );
+  };
+
+  return (
+    <div style={cardStyle}>
+      <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center', flexWrap:'wrap', gap:'10px'}}>
+        <h2 style={{margin:0}}>🛏️ Global Accommodation Manager</h2>
+        <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+           <div style={{display:'flex', gap:'5px', alignItems:'center', background:'#f9f9f9', padding:'5px', borderRadius:'5px', border:'1px solid #eee'}}>
+              <input style={{...inputStyle, width:'60px', padding:'5px'}} placeholder="No" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} />
+              <select style={{...inputStyle, width:'70px', padding:'5px'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select>
+              <button onClick={handleAddRoom} style={{...quickBtnStyle(true), background:'#007bff', color:'white', padding:'5px 10px', fontSize:'11px'}}>+ Add</button>
+           </div>
+           <button onClick={loadData} style={{...btnStyle(false), fontSize:'12px'}}>↻ Refresh</button>
+           <button onClick={() => window.print()} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Status</button>
+        </div>
+      </div>
+
+      {/* Stats Bar */}
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'15px', marginBottom:'20px'}}>
+        <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'6px'}}>
+          <div style={{fontSize:'12px', color:'#1565c0'}}>Male Free</div>
+          <div style={{fontSize:'20px', fontWeight:'bold', color:'#1565c0'}}>{maleFree} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {maleRooms.length}</span></div>
+          <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>Occ: <strong>{maleOcc}</strong> (Old:{maleOld}/New:{maleNew})</div>
+        </div>
+        <div style={{padding:'10px', background:'#fce4ec', borderRadius:'6px'}}>
+          <div style={{fontSize:'12px', color:'#ad1457'}}>Female Free</div>
+          <div style={{fontSize:'20px', fontWeight:'bold', color:'#ad1457'}}>{femaleFree} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {femaleRooms.length}</span></div>
+          <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>Occ: <strong>{femaleOcc}</strong> (Old:{femaleOld}/New:{femaleNew})</div>
+        </div>
+        <div style={{padding:'10px', background:'#e8f5e9', borderRadius:'6px'}}>
+          <div style={{fontSize:'12px', color:'#2e7d32'}}>Course Occupancy</div>
+          <div style={{fontSize:'11px', color:'#333', marginTop:'5px', display:'flex', flexWrap:'wrap', gap:'10px'}}>
+             {Object.entries(courseBreakdown).length > 0 ? Object.entries(courseBreakdown).map(([name, count]) => (
+                <span key={name} style={{background:'white', padding:'2px 6px', borderRadius:'4px', border:'1px solid #ccc'}}>
+                   {name.substring(0,10)}.. : <strong>{count}</strong>
+                </span>
+             )) : "No occupancy"}
+          </div>
+        </div>
+      </div>
+
+      {/* Unmapped Warning */}
+      {unmappedParticipants.length > 0 && (
+        <div style={{marginBottom:'20px', padding:'15px', background:'#fff3e0', borderRadius:'8px', border:'1px solid #ffcc80'}}>
+          <h3 style={{margin:'0 0 10px 0', color:'#ef6c00'}}>⚠️ {unmappedParticipants.length} Students with Invalid Room Numbers</h3>
+          <div style={{maxHeight:'100px', overflowY:'auto', fontSize:'12px'}}>
+             <table style={{width:'100%'}}>
+               <thead><tr style={{textAlign:'left'}}><th>Name</th><th>Bad Room No</th><th>Action</th></tr></thead>
+               <tbody>{unmappedParticipants.map((p, i) => (<tr key={i}><td>{p.full_name}</td><td style={{fontWeight:'bold', color:'red'}}>{p.room_no}</td><td><button onClick={() => setEditingRoom({ p, newRoomNo: '' })} style={{cursor:'pointer'}}>Fix</button></td></tr>))}</tbody>
+             </table>
+          </div>
+        </div>
+      )}
+
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
+         <div style={{border:'1px solid #90caf9', borderRadius:'8px', padding:'10px'}}>
+            <h3 style={{textAlign:'center', background:'#e3f2fd', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>MALE WING</h3>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}>
+               {maleRooms.map(renderRoom)}
+            </div>
+         </div>
+         <div style={{border:'1px solid #f48fb1', borderRadius:'8px', padding:'10px'}}>
+            <h3 style={{textAlign:'center', background:'#fce4ec', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>FEMALE WING</h3>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}>
+               {femaleRooms.map(renderRoom)}
+            </div>
+         </div>
+      </div>
+
+      {/* Edit/Swap Modal */}
+      {editingRoom && (
+        <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}>
+          <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px', boxShadow:'0 5px 15px rgba(0,0,0,0.3)'}}>
+            <h3>🔄 Change/Swap Room</h3>
+            <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}>
+              <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name || 'Unknown'}</strong></p>
+              <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p>
+            </div>
+            <label style={labelStyle}>New Room Number:</label>
+            <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter free room no" />
+            <div style={{marginTop:'20px', display:'flex', gap:'10px'}}>
+              <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Update</button>
+              <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- 2. ZERO DAY DASHBOARD ---
 function Dashboard({ courses }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [stats, setStats] = useState(null);
@@ -119,9 +350,9 @@ function Dashboard({ courses }) {
   ] : [];
 
   const occData = stats ? [
-    { name: 'Old', value: stats.old_students, color: '#2e7d32' },
-    { name: 'New', value: stats.new_students, color: '#ef6c00' },
-    { name: 'Servers', value: stats.servers, color: '#1565c0' }
+    { name: 'Old', value: parseInt(stats.old_students), color: '#2e7d32' },
+    { name: 'New', value: parseInt(stats.new_students), color: '#ef6c00' },
+    { name: 'Servers', value: parseInt(stats.servers), color: '#1565c0' }
   ] : [];
 
   return (
@@ -219,199 +450,7 @@ function Dashboard({ courses }) {
   );
 }
 
-// --- 2. GLOBAL ACCOMMODATION MANAGER ---
-function GlobalAccommodationManager({ courses, onRoomClick }) {
-  const [rooms, setRooms] = useState([]);
-  const [occupancy, setOccupancy] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [newRoom, setNewRoom] = useState({ roomNo: '', type: 'Male' });
-  const [editingRoom, setEditingRoom] = useState(null);
-
-  const loadData = () => {
-    setLoading(true);
-    fetch(`${API_URL}/rooms`).then(res => res.json()).then(data => setRooms(Array.isArray(data) ? data : []));
-    fetch(`${API_URL}/rooms/occupancy`).then(res => res.json()).then(data => {
-      setOccupancy(Array.isArray(data) ? data : []);
-      setLoading(false);
-    });
-  };
-
-  useEffect(loadData, []);
-
-  const handleAddRoom = async () => {
-    if (!newRoom.roomNo) return alert("Enter Room Number");
-    await fetch(`${API_URL}/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newRoom) });
-    setNewRoom({ ...newRoom, roomNo: '' });
-    loadData();
-  };
-  
-  const handleDeleteRoom = async (id, name) => { 
-    if (PROTECTED_ROOMS.has(name)) return alert("🚫 Cannot delete original room!");
-    if(window.confirm("Delete this room?")) { await fetch(`${API_URL}/rooms/${id}`, { method: 'DELETE' }); loadData(); } 
-  };
-  
-  const handleSwapSave = async () => {
-    if (!editingRoom || !editingRoom.p) return;
-    await fetch(`${API_URL}/participants/${editingRoom.p.participant_id || editingRoom.p.id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...editingRoom.p, room_no: editingRoom.newRoomNo })
-    });
-    setEditingRoom(null); loadData();
-  };
-
-  const normalize = (str) => str ? str.replace(/[\s-]+/g, '').toUpperCase() : '';
-  const occupiedMap = {}; 
-  const unmappedParticipants = [];
-  const validRoomSet = new Set(rooms.map(r => normalize(r.room_no)));
-  const courseBreakdown = {};
-
-  occupancy.forEach(p => { 
-    if(p.room_no) {
-      const normRoom = normalize(p.room_no);
-      if (validRoomSet.has(normRoom)) occupiedMap[normRoom] = p; 
-      else unmappedParticipants.push(p); 
-      const cName = p.course_name || 'Unknown';
-      courseBreakdown[cName] = (courseBreakdown[cName] || 0) + 1;
-    }
-  });
-
-  let maleFree = 0, maleOcc = 0, maleOld = 0, maleNew = 0;
-  let femaleFree = 0, femaleOcc = 0, femaleOld = 0, femaleNew = 0;
-
-  rooms.forEach(r => {
-    const p = occupiedMap[normalize(r.room_no)];
-    const isMaleRoom = r.gender_type === 'Male';
-    if (p) {
-      const isOld = p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S'));
-      if (isMaleRoom) { maleOcc++; if(isOld) maleOld++; else maleNew++; } 
-      else { femaleOcc++; if(isOld) femaleOld++; else femaleNew++; }
-    } else {
-      if (isMaleRoom) maleFree++; else femaleFree++;
-    }
-  });
-
-  const renderRoom = (room) => {
-    const occupant = occupiedMap[normalize(room.room_no)];
-    const isOccupied = !!occupant;
-    const isArrived = isOccupied && occupant.status === 'Arrived';
-
-    return (
-      <div key={room.room_id} onClick={() => isOccupied && setEditingRoom({ p: occupant, newRoomNo: room.room_no })}
-        style={{
-          border: isOccupied ? (isArrived ? '1px solid #ef9a9a' : '1px solid #ffcc80') : '1px solid #a5d6a7',
-          background: isOccupied ? (isArrived ? '#ffebee' : '#fff3e0') : '#e8f5e9',
-          borderRadius: '6px', padding: '8px', textAlign: 'center', minHeight: '80px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column', justifyContent:'center',
-          cursor: isOccupied ? 'pointer' : 'default', position: 'relative'
-        }}
-      >
-        <div style={{fontWeight:'bold', fontSize:'13px', color:'#333'}}>{room.room_no}</div>
-        {isOccupied ? (
-          <div style={{fontSize:'11px', color: isArrived ? '#c62828' : '#ef6c00', marginTop:'4px'}}>
-            <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'90px'}}>{(occupant.full_name || 'Unknown').split(' ')[0]}</div>
-            <div style={{fontWeight:'bold', fontSize:'9px'}}>({occupant.conf_no || '-'})</div>
-            <div style={{fontSize:'9px', color:'#555', marginTop:'2px', fontStyle:'italic'}}>{occupant.course_name ? occupant.course_name.substring(0,12)+'..' : ''}</div>
-            <div style={{fontSize:'8px', background: 'rgba(255,255,255,0.5)', borderRadius:'4px', marginTop:'2px'}}>🔄 Swap</div>
-          </div>
-        ) : (
-            <div>
-                <div style={{fontSize:'9px', color:'#4caf50', marginTop:'4px'}}>FREE</div>
-                <button onClick={(e)=>{e.stopPropagation(); onRoomClick(room.room_no)}} style={{marginTop:'2px', fontSize:'9px', display:'block', margin:'2px auto', background:'#4caf50', color:'white', border:'none', borderRadius:'2px', cursor:'pointer', width:'100%'}}>Assign</button>
-            </div>
-        )}
-        {!isOccupied && !PROTECTED_ROOMS.has(room.room_no) && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id, room.room_no)}} style={{position:'absolute', top:'2px', right:'2px', color:'#ccc', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>}
-      </div>
-    );
-  };
-
-  return (
-    <div style={cardStyle}>
-      <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center', flexWrap:'wrap', gap:'10px'}}>
-        <h2 style={{margin:0}}>🛏️ Global Accommodation Manager</h2>
-        <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
-           <div style={{display:'flex', gap:'5px', alignItems:'center', background:'#f9f9f9', padding:'5px', borderRadius:'5px', border:'1px solid #eee'}}>
-              <input style={{...inputStyle, width:'60px', padding:'5px'}} placeholder="No" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} />
-              <select style={{...inputStyle, width:'70px', padding:'5px'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select>
-              <button onClick={handleAddRoom} style={{...quickBtnStyle(true), background:'#007bff', color:'white', padding:'5px 10px', fontSize:'11px'}}>+ Add</button>
-           </div>
-           <button onClick={loadData} style={{...btnStyle(false), fontSize:'12px'}}>↻ Refresh</button>
-           <button onClick={() => window.print()} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Status</button>
-        </div>
-      </div>
-
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'15px', marginBottom:'20px'}}>
-        <div style={{padding:'12px', background:'#e3f2fd', borderRadius:'8px', borderLeft:'5px solid #1565c0'}}>
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#1565c0', marginBottom:'5px'}}>MALE WING</div>
-          <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px'}}><span>Occupied: <strong>{maleOcc}</strong></span><span>Free: <strong>{maleFree}</strong></span></div>
-          <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>Old: <strong>{maleOld}</strong> | New: <strong>{maleNew}</strong></div>
-        </div>
-        <div style={{padding:'12px', background:'#fce4ec', borderRadius:'8px', borderLeft:'5px solid #ad1457'}}>
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#ad1457', marginBottom:'5px'}}>FEMALE WING</div>
-          <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px'}}><span>Occupied: <strong>{femaleOcc}</strong></span><span>Free: <strong>{femaleFree}</strong></span></div>
-          <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>Old: <strong>{femaleOld}</strong> | New: <strong>{femaleNew}</strong></div>
-        </div>
-        <div style={{padding:'12px', background:'#e8f5e9', borderRadius:'8px', borderLeft:'5px solid #2e7d32'}}>
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#2e7d32', marginBottom:'5px'}}>TOTAL SUMMARY</div>
-          <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px'}}><span>Total Occ: <strong>{maleOcc + femaleOcc}</strong></span><span>Total Free: <strong>{maleFree + femaleFree}</strong></span></div>
-          <div style={{fontSize:'11px', color:'#333', marginTop:'5px', display:'flex', flexWrap:'wrap', gap:'10px'}}>
-             {Object.entries(courseBreakdown).length > 0 ? Object.entries(courseBreakdown).map(([name, count]) => (
-                <span key={name} style={{background:'white', padding:'2px 6px', borderRadius:'4px', border:'1px solid #ccc'}}>
-                   {name.substring(0,10)}.. : <strong>{count}</strong>
-                </span>
-             )) : "No occupancy"}
-          </div>
-        </div>
-      </div>
-
-      {unmappedParticipants.length > 0 && (
-        <div style={{marginBottom:'20px', padding:'15px', background:'#fff3e0', borderRadius:'8px', border:'1px solid #ffcc80'}}>
-          <h3 style={{margin:'0 0 10px 0', color:'#ef6c00'}}>⚠️ {unmappedParticipants.length} Students with Invalid Room Numbers</h3>
-          <div style={{maxHeight:'100px', overflowY:'auto', fontSize:'12px'}}>
-             <table style={{width:'100%'}}>
-               <thead><tr style={{textAlign:'left'}}><th>Name</th><th>Bad Room No</th><th>Action</th></tr></thead>
-               <tbody>{unmappedParticipants.map((p, i) => (<tr key={i}><td>{p.full_name}</td><td style={{fontWeight:'bold', color:'red'}}>{p.room_no}</td><td><button onClick={() => setEditingRoom({ p, newRoomNo: '' })} style={{cursor:'pointer'}}>Fix</button></td></tr>))}</tbody>
-             </table>
-          </div>
-        </div>
-      )}
-
-      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
-         <div style={{border:'1px solid #90caf9', borderRadius:'8px', padding:'10px'}}>
-            <h3 style={{textAlign:'center', background:'#e3f2fd', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>MALE WING</h3>
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}>
-               {maleRooms.map(renderRoom)}
-            </div>
-         </div>
-         <div style={{border:'1px solid #f48fb1', borderRadius:'8px', padding:'10px'}}>
-            <h3 style={{textAlign:'center', background:'#fce4ec', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>FEMALE WING</h3>
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}>
-               {femaleRooms.map(renderRoom)}
-            </div>
-         </div>
-      </div>
-
-      {editingRoom && (
-        <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}>
-          <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px', boxShadow:'0 5px 15px rgba(0,0,0,0.3)'}}>
-            <h3>🔄 Change/Swap Room</h3>
-            <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}>
-              <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name || 'Unknown'}</strong></p>
-              <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p>
-            </div>
-            <label style={labelStyle}>New Room Number:</label>
-            <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter free room no" />
-            <div style={{marginTop:'20px', display:'flex', gap:'10px'}}>
-              <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Update</button>
-              <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// --- 3. ONBOARDING FORM (Smart Dropdown + Split Seat) ---
+// --- 3. ONBOARDING FORM ---
 function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -427,11 +466,16 @@ function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
   useEffect(() => { if (preSelectedRoom) { setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); } }, [preSelectedRoom, courses]);
   useEffect(() => { if (formData.courseId) { fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); } }, [formData.courseId]);
   
-  const occupiedSet = new Set(occupancy.map(p => p.room_no ? p.room_no.replace(/\s+/g, '').toUpperCase() : ''));
-  const availableRooms = rooms.filter(r => !occupiedSet.has(r.room_no.replace(/\s+/g, '').toUpperCase()));
+  const occupiedSet = new Set(occupancy.map(p => p.room_no ? p.room_no.replace(/[\s-]+/g, '').toUpperCase() : ''));
+  const availableRooms = rooms.filter(r => !occupiedSet.has(r.room_no.replace(/[\s-]+/g, '').toUpperCase()));
   
   const studentsPending = participants.filter(p => p.status !== 'Arrived');
-  const handleStudentChange = (e) => { const selectedId = e.target.value; const student = participants.find(p => p.participant_id == selectedId); setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); };
+
+  const handleStudentChange = (e) => { 
+    const selectedId = e.target.value; 
+    const student = participants.find(p => p.participant_id == selectedId); 
+    setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); 
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault(); 
@@ -463,7 +507,7 @@ function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
       setStatus(`❌ ${err.message}`); 
     }
   };
-
+  
   const sectionHeader = (title) => <div style={{fontSize:'14px', fontWeight:'bold', color:'#007bff', borderBottom:'1px solid #eee', paddingBottom:'5px', marginTop:'15px', marginBottom:'10px'}}>{title}</div>;
 
   return (
@@ -526,7 +570,12 @@ function ParticipantList({ courses, refreshCourses }) {
     const sorted = [...participants].sort((a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return (a.dining_seat_no || 'Z').localeCompare(b.dining_seat_no || 'Z'); });
     return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Sheet</button></div><div style={{textAlign:'center'}}><h1>Dining Seating Chart</h1><h3>{selectedCourseName}</h3></div><table style={{width:'100%', borderCollapse:'collapse', fontSize:'16px'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Seat</th><th style={thPrint}>Type</th><th style={thPrint}>Cat</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Lang</th></tr></thead><tbody>{sorted.filter(p=>p.status==='Arrived').map(p=>(<tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}><td style={{padding:'12px', fontWeight:'bold'}}>{p.dining_seat_no}</td><td style={{padding:'12px'}}>{p.dining_seat_type === 'F' ? 'Floor' : 'Chair'}</td><td style={{padding:'12px'}}>{getCategory(p.conf_no)}</td><td style={{padding:'12px'}}>{p.full_name}</td><td style={{padding:'12px'}}>{p.room_no}</td><td style={{padding:'12px'}}>{p.pagoda_cell_no}</td><td style={{padding:'12px'}}>{p.discourse_language}</td></tr>))}</tbody></table></div> );
   }
-  if (viewMode === 'seating') { const sorted = participants.filter(p => p.dhamma_hall_seat_no).sort((a,b) => (a.dhamma_hall_seat_no || 'Z').localeCompare(b.dhamma_hall_seat_no || 'Z')); return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Plan</button></div><div style={{textAlign:'center', marginBottom:'20px'}}><h1>Dhamma Hall Seating</h1><h3>{selectedCourseName}</h3></div>{sorted.length===0?<p style={{textAlign:'center',color:'red'}}>No Dhamma Seats assigned.</p>:<div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:'10px', marginTop:'20px'}}>{sorted.map(p => (<div key={p.participant_id} style={{border:'1px solid #333', padding:'10px', textAlign:'center', borderRadius:'5px', background:'#f9f9f9'}}><div style={{fontWeight:'bold', fontSize:'18px', marginBottom:'5px'}}>{p.dhamma_hall_seat_no}</div><div style={{fontSize:'13px'}}>{p.full_name}</div></div>))}</div>}</div> ); }
+  if (viewMode === 'seating') { 
+    const males = participants.filter(p => p.gender && p.gender.toLowerCase() === 'male').sort((a, b) => getSeniorityScore(b) - getSeniorityScore(a));
+    const females = participants.filter(p => p.gender && p.gender.toLowerCase() === 'female').sort((a, b) => getSeniorityScore(b) - getSeniorityScore(a));
+    const SeatCard = ({ p, rank }) => (<div style={{border:'1px solid #ccc', padding:'8px', background:'white', borderRadius:'4px', fontSize:'12px', marginBottom:'5px'}}><div style={{fontWeight:'bold', color:'#007bff'}}>{rank}. {p.full_name}</div><div>{p.conf_no || '-'} <span style={{color:'#888'}}>| {p.courses_info || 'New'}</span></div><div style={{marginTop:'2px'}}>Seat: <strong>{p.dhamma_hall_seat_no || '__'}</strong></div></div>);
+    return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Plan</button></div><div style={{textAlign:'center', marginBottom:'20px'}}><h1>Dhamma Hall Seating</h1><h3>{selectedCourseName}</h3><p>Sorted by Seniority</p></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'40px'}}><div><h3 style={{background:'#e3f2fd', padding:'10px', textAlign:'center'}}>MALE ({males.length})</h3>{males.map((p, i) => <SeatCard key={p.participant_id} p={p} rank={i+1} />)}</div><div><h3 style={{background:'#fce4ec', padding:'10px', textAlign:'center'}}>FEMALE ({females.length})</h3>{females.map((p, i) => <SeatCard key={p.participant_id} p={p} rank={i+1} />)}</div></div></div> ); 
+  }
 
   return ( <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}><div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div><div style={{display:'flex', gap:'5px'}}><button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button><button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining Sheet</button><button onClick={() => setViewMode('seating')} disabled={!courseId} style={quickBtnStyle(true)}>🧘 Dhamma Plan</button></div></div>
   {courseId && (<div style={{background:'#fff5f5', border:'1px solid #feb2b2', padding:'10px', borderRadius:'5px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}><span style={{color:'#c53030', fontWeight:'bold', fontSize:'13px'}}>⚠️ Admin Zone:</span><div><button onClick={handleResetCourse} style={{background:'#e53e3e', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', marginRight:'10px', fontSize:'12px'}}>Reset Data</button><button onClick={handleDeleteCourse} style={{background:'red', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Delete Course</button></div></div>)}
