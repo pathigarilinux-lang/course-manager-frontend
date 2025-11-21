@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid } from 'recharts';
 
+// YOUR BACKEND URL
 const API_URL = "https://course-manager-backend-cd1m.onrender.com";
 const ADMIN_PASSCODE = "1234"; 
 
@@ -87,7 +88,7 @@ export default function App() {
       <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={() => setView('dashboard')} style={btnStyle(view === 'dashboard')}>📊 Dashboard</button>
-          <button onClick={() => setView('room-view')} style={btnStyle(view === 'room-view')}>🛏️ Room View</button>
+          <button onClick={() => setView('room-view')} style={btnStyle(view === 'room-view')}>🛏️ Global Accommodation</button>
           <button onClick={() => setView('onboarding')} style={btnStyle(view === 'onboarding')}>📝 Onboarding</button>
           <button onClick={() => setView('participants')} style={btnStyle(view === 'participants')}>👥 Manage Students</button>
           <button onClick={() => setView('expenses')} style={btnStyle(view === 'expenses')}>🛒 Store & Finance</button>
@@ -108,7 +109,110 @@ export default function App() {
   );
 }
 
-// --- 1. GLOBAL ACCOMMODATION MANAGER (UPDATED: DETAILED STATS) ---
+// --- 1. DASHBOARD (RESTORED: MODERN LAYOUT) ---
+function Dashboard({ courses }) {
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => { if (courses.length > 0 && !selectedCourse) setSelectedCourse(courses[0].course_id); }, [courses]);
+
+  useEffect(() => {
+    if (selectedCourse) {
+      fetch(`${API_URL}/courses/${selectedCourse}/stats`)
+        .then(res => res.json())
+        .then(data => setStats(data))
+        .catch(console.error);
+    }
+  }, [selectedCourse]);
+
+  const arrivalData = stats ? [
+    { name: 'Arrived', Male: stats.arrived_m || 0, Female: stats.arrived_f || 0 },
+    { name: 'Pending', Male: stats.pending_m || 0, Female: stats.pending_f || 0 },
+    { name: 'Cancelled', Male: stats.cancelled_m || 0, Female: stats.cancelled_f || 0 }
+  ] : [];
+
+  const typeData = stats ? [ { name: 'Old Students', value: parseInt(stats.old_students), color: '#8884d8' }, { name: 'New Students', value: parseInt(stats.new_students), color: '#82ca9d' }, { name: 'Servers', value: parseInt(stats.servers), color: '#ffc658' } ] : [];
+
+  return (
+    <div>
+      <h2 style={{marginBottom: '20px', color: '#333'}}>Zero Day Dashboard</h2>
+      {courses.length === 0 ? <p>No courses found.</p> : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '30px' }}>
+          {courses.map(c => {
+             const isSelected = selectedCourse == c.course_id;
+             return (
+              <div key={c.course_id} onClick={() => setSelectedCourse(c.course_id)} 
+                style={{...cardStyle, cursor:'pointer', border: isSelected ? '2px solid #007bff' : '1px solid transparent', background: isSelected ? '#f0f8ff' : 'white', transition: '0.2s'}}>
+                <h3 style={{margin: '0 0 5px 0', color: '#007bff', fontSize:'16px'}}>{c.course_name}</h3>
+                <p style={{fontSize:'12px', color:'#666', margin:0}}> {new Date(c.start_date).toLocaleDateString()} </p>
+                <div style={{display:'flex', justifyContent:'space-between', marginTop:'15px', fontSize:'13px'}}><span>✅ {c.arrived||0} Arrived</span><span>⏳ {c.pending||0} Pend</span></div>
+              </div>
+             );
+          })}
+        </div>
+      )}
+
+      {stats && selectedCourse && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', animation: 'fadeIn 0.5s' }}>
+          
+          {/* Status Bar Chart */}
+          <div style={cardStyle}>
+            <h3 style={{marginTop:0}}>Status Overview (M/F)</h3>
+            <div style={{height:'250px', width:'100%'}}>
+               <ResponsiveContainer width="100%" height="100%">
+                 <BarChart data={arrivalData}>
+                   <CartesianGrid strokeDasharray="3 3" />
+                   <XAxis dataKey="name" />
+                   <YAxis />
+                   <Tooltip />
+                   <Legend />
+                   <Bar dataKey="Male" fill="#007bff" stackId="a" />
+                   <Bar dataKey="Female" fill="#e91e63" stackId="a" />
+                 </BarChart>
+               </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Applicant Types Pie */}
+          <div style={cardStyle}>
+            <h3 style={{marginTop:0}}>Applicant Types (Checked-In)</h3>
+            <div style={{height:'250px', width:'100%'}}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={typeData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label>{typeData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div>
+          </div>
+          
+          <div style={{display:'grid', gap:'20px'}}>
+             <div style={cardStyle}>
+                <h3 style={{marginTop:0}}>Live Counts</h3>
+                <table style={{width:'100%', fontSize:'14px'}}><tbody><tr><td>Old Male (OM)</td><td><strong>{stats.om}</strong></td><td>Old Female (OF)</td><td><strong>{stats.of}</strong></td></tr><tr><td>New Male (NM)</td><td><strong>{stats.nm}</strong></td><td>New Female (NF)</td><td><strong>{stats.nf}</strong></td></tr><tr><td>Server Male (SM)</td><td><strong>{stats.sm}</strong></td><td>Server Female (SF)</td><td><strong>{stats.sf}</strong></td></tr><tr style={{borderTop:'1px solid #ddd'}}><td colSpan={2} style={{paddingTop:'5px'}}>Total Male: <strong>{stats.om+stats.nm+stats.sm}</strong></td><td colSpan={2} style={{paddingTop:'5px'}}>Total Female: <strong>{stats.of+stats.nf+stats.sf}</strong></td></tr></tbody></table>
+             </div>
+             
+             <div style={cardStyle}>
+                <h3 style={{marginTop:0}}>Discourse Count</h3>
+                {stats.languages && stats.languages.length > 0 ? (
+                  <div style={{maxHeight:'150px', overflowY:'auto'}}>
+                  <table style={{width:'100%', fontSize:'13px'}}>
+                    <thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Lang</th><th>M</th><th>F</th><th style={{textAlign:'right'}}>Total</th></tr></thead>
+                    <tbody>
+                      {stats.languages.map((l, i) => (
+                        <tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}>
+                          <td style={{padding:'8px 0'}}>{l.discourse_language || 'Unknown'}</td>
+                          <td style={{padding:'8px 0', color:'#007bff'}}>{l.male_count}</td>
+                          <td style={{padding:'8px 0', color:'#e91e63'}}>{l.female_count}</td>
+                          <td style={{padding:'8px 0', textAlign:'right', fontWeight:'bold'}}>{l.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  </div>
+                ) : <p style={{color:'#888'}}>No data.</p>}
+             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- 2. GLOBAL ACCOMMODATION MANAGER (FIXED: Unmapped Rooms + Smart Match) ---
 function GlobalAccommodationManager({ courses, onRoomClick }) {
   const [rooms, setRooms] = useState([]);
   const [occupancy, setOccupancy] = useState([]);
@@ -143,43 +247,34 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     setEditingRoom(null); loadData();
   };
 
-  // Smart Matching
+  // --- SMART MATCHING LOGIC ---
+  // Normalizes room strings: "301-AI" -> "301AI", " 301 ai " -> "301AI"
   const normalize = (str) => str ? str.replace(/[\s-]+/g, '').toUpperCase() : '';
-  const occupiedMap = {}; 
-  const unmappedParticipants = [];
+  
+  const occupiedMap = {}; // Maps Normalized Room -> Participant
+  const unmappedParticipants = []; // Stores students with invalid room numbers
+  const courseBreakdown = {}; // Stores course counts
+
+  // 1. Map Valid Rooms
   const validRoomSet = new Set(rooms.map(r => normalize(r.room_no)));
 
   occupancy.forEach(p => { 
     if(p.room_no) {
       const normRoom = normalize(p.room_no);
-      if (validRoomSet.has(normRoom)) occupiedMap[normRoom] = p; 
-      else unmappedParticipants.push(p); 
-    }
-  });
-
-  // --- CALCULATE DETAILED STATS ---
-  let maleFree = 0, maleOcc = 0, maleOld = 0, maleNew = 0;
-  let femaleFree = 0, femaleOcc = 0, femaleOld = 0, femaleNew = 0;
-
-  rooms.forEach(r => {
-    const p = occupiedMap[normalize(r.room_no)];
-    const isMaleRoom = r.gender_type === 'Male';
-
-    if (p) {
-      // Occupied
-      const isOld = p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S')); // Old or Server
-      if (isMaleRoom) {
-        maleOcc++;
-        if(isOld) maleOld++; else maleNew++;
+      if (validRoomSet.has(normRoom)) {
+        occupiedMap[normRoom] = p; 
+        const cName = p.course_name || 'Unknown';
+        courseBreakdown[cName] = (courseBreakdown[cName] || 0) + 1;
       } else {
-        femaleOcc++;
-        if(isOld) femaleOld++; else femaleNew++;
+        unmappedParticipants.push(p); // Room doesn't exist in DB
       }
-    } else {
-      // Free
-      if (isMaleRoom) maleFree++; else femaleFree++;
     }
   });
+
+  const maleRooms = rooms.filter(r => r.gender_type === 'Male');
+  const femaleRooms = rooms.filter(r => r.gender_type === 'Female');
+  const maleOcc = maleRooms.filter(r => occupiedMap[normalize(r.room_no)]).length;
+  const femaleOcc = femaleRooms.filter(r => occupiedMap[normalize(r.room_no)]).length;
 
   const renderRoom = (room) => {
     const occupant = occupiedMap[normalize(room.room_no)];
@@ -199,13 +294,12 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
         <div style={{fontWeight:'bold', fontSize:'13px', color:'#333'}}>{room.room_no}</div>
         {isOccupied ? (
           <div style={{fontSize:'11px', color: isArrived ? '#c62828' : '#ef6c00', marginTop:'4px'}}>
-            <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'90px'}}>{occupant.full_name.split(' ')[0]}</div>
+            <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'90px'}}>{occupant.full_name}</div>
             <div style={{fontWeight:'bold', fontSize:'9px'}}>({occupant.conf_no || '-'})</div>
             <div style={{fontSize:'9px', color:'#555', marginTop:'2px', fontStyle:'italic'}}>{occupant.course_name ? occupant.course_name.substring(0,12)+'..' : ''}</div>
             <div style={{fontSize:'8px', background: 'rgba(255,255,255,0.5)', borderRadius:'4px', marginTop:'2px'}}>🔄 Swap</div>
           </div>
         ) : <div style={{fontSize:'9px', color:'#4caf50', marginTop:'4px'}}>FREE</div>}
-        
         {!isOccupied && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id)}} style={{position:'absolute', top:'2px', right:'2px', color:'#ccc', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>}
       </div>
     );
@@ -221,41 +315,24 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
         </div>
       </div>
 
-      {/* Detailed Stats Bar */}
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'15px', marginBottom:'20px'}}>
-        {/* MALE CARD */}
-        <div style={{padding:'12px', background:'#e3f2fd', borderRadius:'8px', borderLeft:'5px solid #1565c0'}}>
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#1565c0', marginBottom:'5px'}}>MALE WING</div>
-          <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px'}}>
-             <span>Occupied: <strong>{maleOcc}</strong></span>
-             <span>Free: <strong>{maleFree}</strong></span>
-          </div>
-          <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>
-             Old: <strong>{maleOld}</strong> | New: <strong>{maleNew}</strong>
-          </div>
+      {/* Stats Bar */}
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'15px', marginBottom:'20px'}}>
+        <div style={{padding:'10px', background:'#e3f2fd', borderRadius:'6px'}}>
+          <div style={{fontSize:'12px', color:'#1565c0'}}>Male Free</div>
+          <div style={{fontSize:'20px', fontWeight:'bold', color:'#1565c0'}}>{maleRooms.length - maleOcc} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {maleRooms.length}</span></div>
         </div>
-
-        {/* FEMALE CARD */}
-        <div style={{padding:'12px', background:'#fce4ec', borderRadius:'8px', borderLeft:'5px solid #ad1457'}}>
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#ad1457', marginBottom:'5px'}}>FEMALE WING</div>
-          <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px'}}>
-             <span>Occupied: <strong>{femaleOcc}</strong></span>
-             <span>Free: <strong>{femaleFree}</strong></span>
-          </div>
-          <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>
-             Old: <strong>{femaleOld}</strong> | New: <strong>{femaleNew}</strong>
-          </div>
+        <div style={{padding:'10px', background:'#fce4ec', borderRadius:'6px'}}>
+          <div style={{fontSize:'12px', color:'#ad1457'}}>Female Free</div>
+          <div style={{fontSize:'20px', fontWeight:'bold', color:'#ad1457'}}>{femaleRooms.length - femaleOcc} <span style={{fontSize:'12px', fontWeight:'normal'}}>/ {femaleRooms.length}</span></div>
         </div>
-
-        {/* TOTALS CARD */}
-        <div style={{padding:'12px', background:'#e8f5e9', borderRadius:'8px', borderLeft:'5px solid #2e7d32'}}>
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#2e7d32', marginBottom:'5px'}}>TOTAL SUMMARY</div>
-          <div style={{display:'flex', justifyContent:'space-between', fontSize:'13px'}}>
-             <span>Total Occ: <strong>{maleOcc + femaleOcc}</strong></span>
-             <span>Total Free: <strong>{maleFree + femaleFree}</strong></span>
-          </div>
-          <div style={{fontSize:'11px', color:'#555', marginTop:'4px'}}>
-             Total Rooms: <strong>{rooms.length}</strong>
+        <div style={{padding:'10px', background:'#e8f5e9', borderRadius:'6px'}}>
+          <div style={{fontSize:'12px', color:'#2e7d32'}}>Course Occupancy</div>
+          <div style={{fontSize:'11px', color:'#333', marginTop:'5px', display:'flex', flexWrap:'wrap', gap:'10px'}}>
+             {Object.entries(courseBreakdown).length > 0 ? Object.entries(courseBreakdown).map(([name, count]) => (
+                <span key={name} style={{background:'white', padding:'2px 6px', borderRadius:'4px', border:'1px solid #ccc'}}>
+                   {name.substring(0,15)}.. : <strong>{count}</strong>
+                </span>
+             )) : "No occupancy"}
           </div>
         </div>
       </div>
@@ -288,13 +365,13 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
          <div style={{border:'1px solid #90caf9', borderRadius:'8px', padding:'10px'}}>
             <h3 style={{textAlign:'center', background:'#e3f2fd', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>MALE WING</h3>
             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}>
-               {rooms.filter(r=>r.gender_type==='Male').map(renderRoom)}
+               {maleRooms.map(renderRoom)}
             </div>
          </div>
          <div style={{border:'1px solid #f48fb1', borderRadius:'8px', padding:'10px'}}>
             <h3 style={{textAlign:'center', background:'#fce4ec', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>FEMALE WING</h3>
             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}>
-               {rooms.filter(r=>r.gender_type==='Female').map(renderRoom)}
+               {femaleRooms.map(renderRoom)}
             </div>
          </div>
       </div>
@@ -312,7 +389,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
             <label style={labelStyle}>New Room Number:</label>
             <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter free room no" />
             <div style={{marginTop:'20px', display:'flex', gap:'10px'}}>
-              <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Confirm Swap</button>
+              <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Update</button>
               <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button>
             </div>
           </div>
@@ -322,72 +399,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
   );
 }
 
-// --- 2. DASHBOARD ---
-function Dashboard({ courses }) {
-  const [selectedCourse, setSelectedCourse] = useState(null);
-  const [stats, setStats] = useState(null);
-
-  useEffect(() => { if (courses.length > 0 && !selectedCourse) setSelectedCourse(courses[0].course_id); }, [courses]);
-
-  useEffect(() => {
-    if (selectedCourse) {
-      fetch(`${API_URL}/courses/${selectedCourse}/stats`)
-        .then(res => res.json())
-        .then(data => setStats(data))
-        .catch(console.error);
-    }
-  }, [selectedCourse]);
-
-  const arrivalData = stats ? [
-    { name: 'Arrived', Male: stats.arrived_m || 0, Female: stats.arrived_f || 0 },
-    { name: 'Pending', Male: stats.pending_m || 0, Female: stats.pending_f || 0 },
-    { name: 'Cancelled', Male: stats.cancelled_m || 0, Female: stats.cancelled_f || 0 }
-  ] : [];
-
-  const typeData = stats ? [ { name: 'Old Students', value: parseInt(stats.old_students), color: '#8884d8' }, { name: 'New Students', value: parseInt(stats.new_students), color: '#82ca9d' }, { name: 'Servers', value: parseInt(stats.servers), color: '#ffc658' } ] : [];
-
-  return (
-    <div>
-      <h2 style={{marginBottom: '20px', color: '#333'}}>Summary Dashboard</h2>
-      {courses.length === 0 ? <p>No courses found.</p> : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-          {courses.map(c => {
-             const isSelected = selectedCourse == c.course_id;
-             return (
-              <div key={c.course_id} onClick={() => setSelectedCourse(c.course_id)} style={{...cardStyle, cursor:'pointer', border: isSelected ? '2px solid #007bff' : '1px solid transparent', background: isSelected ? '#f0f8ff' : 'white', transition: '0.2s'}}>
-                <h3 style={{margin: '0 0 5px 0', color: '#007bff', fontSize:'16px'}}>{c.course_name}</h3>
-                <p style={{fontSize:'12px', color:'#666', margin:0}}> {new Date(c.start_date).toLocaleDateString()} </p>
-                <div style={{display:'flex', justifyContent:'space-between', marginTop:'15px', fontSize:'13px'}}><span>✅ {c.arrived||0} Arrived</span><span>⏳ {c.pending||0} Pend</span></div>
-              </div>
-             );
-          })}
-        </div>
-      )}
-
-      {stats && selectedCourse && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', animation: 'fadeIn 0.5s' }}>
-          <div style={cardStyle}>
-            <h3 style={{marginTop:0}}>Status Overview (M/F)</h3>
-            <div style={{height:'250px', width:'100%'}}><ResponsiveContainer width="100%" height="100%"><BarChart data={arrivalData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Legend /><Bar dataKey="Male" fill="#007bff" stackId="a" /><Bar dataKey="Female" fill="#e91e63" stackId="a" /></BarChart></ResponsiveContainer></div>
-          </div>
-          <div style={cardStyle}><h3 style={{marginTop:0}}>Applicant Types</h3><div style={{height:'250px', width:'100%'}}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={typeData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label>{typeData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div></div>
-          <div style={{display:'grid', gap:'20px'}}>
-             <div style={cardStyle}>
-                <h3 style={{marginTop:0}}>Live Counts</h3>
-                <table style={{width:'100%', fontSize:'14px'}}><tbody><tr><td>Old Male (OM)</td><td><strong>{stats.om}</strong></td><td>Old Female (OF)</td><td><strong>{stats.of}</strong></td></tr><tr><td>New Male (NM)</td><td><strong>{stats.nm}</strong></td><td>New Female (NF)</td><td><strong>{stats.nf}</strong></td></tr><tr><td>Server Male (SM)</td><td><strong>{stats.sm}</strong></td><td>Server Female (SF)</td><td><strong>{stats.sf}</strong></td></tr><tr style={{borderTop:'1px solid #ddd'}}><td colSpan={2} style={{paddingTop:'5px'}}>Total Male: <strong>{stats.om+stats.nm+stats.sm}</strong></td><td colSpan={2} style={{paddingTop:'5px'}}>Total Female: <strong>{stats.of+stats.nf+stats.sf}</strong></td></tr></tbody></table>
-             </div>
-             <div style={cardStyle}>
-                <h3 style={{marginTop:0}}>Discourse Count</h3>
-                {stats.languages && stats.languages.length > 0 ? ( <table style={{width:'100%', fontSize:'14px'}}><thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Language</th><th>M</th><th>F</th><th style={{textAlign:'right'}}>Total</th></tr></thead><tbody>{stats.languages.map((l, i) => (<tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}><td style={{padding:'8px 0'}}>{l.discourse_language || 'Unknown'}</td><td style={{padding:'8px 0', color:'#007bff'}}>{l.male_count}</td><td style={{padding:'8px 0', color:'#e91e63'}}>{l.female_count}</td><td style={{padding:'8px 0', textAlign:'right', fontWeight:'bold'}}>{l.total}</td></tr>))}</tbody></table> ) : <p style={{color:'#888'}}>No data.</p>}
-             </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// --- 3. ONBOARDING FORM ---
+// --- 3. ONBOARDING FORM (With Room Suggestions) ---
 function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -433,7 +445,7 @@ function OnboardingForm({ courses, preSelectedRoom, clearRoom }) {
   );
 }
 
-// --- 4. MANAGE STUDENTS ---
+// --- 4. MANAGE STUDENTS (Restored Dhamma Grid + Dining + Delete/Edit) ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [search, setSearch] = useState(''); const [editingStudent, setEditingStudent] = useState(null); const [viewMode, setViewMode] = useState('list'); const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const loadStudents = () => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
@@ -448,14 +460,42 @@ function ParticipantList({ courses, refreshCourses }) {
   const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || 'Course';
   const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = seatNo.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF')) return 'Old'; if (s.startsWith('NM') || s.startsWith('NF')) return 'New'; if (s.startsWith('SM') || s.startsWith('SF')) return 'DS'; return 'New'; };
   const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = confNo.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 1; return 2; };
+  
+  // Dhamma Grid Helper
+  const SeatBox = ({ p }) => (<div style={{border:'1px solid #ccc', padding:'8px', background:'white', borderRadius:'4px', fontSize:'10px', marginBottom:'5px', textAlign:'center', minHeight:'50px', display:'flex', flexDirection:'column', justifyContent:'center'}}><div style={{fontWeight:'bold', color:'#007bff', fontSize:'14px'}}>{p.dhamma_hall_seat_no}</div><div>{p.full_name.split(' ')[0]}</div><div>{p.conf_no}</div></div>);
+  const renderGrid = (students, cols) => { const rows = Math.ceil(students.length / cols); let grid = []; for (let r = 0; r < rows; r++) { let rowCells = []; const rowChar = String.fromCharCode(65 + r); for (let c = 0; c < cols; c++) { const seatLabel = `${rowChar}${c+1}`; const student = students.find(s => s.dhamma_hall_seat_no === seatLabel); rowCells.push(student ? <SeatBox key={seatLabel} p={student} /> : <div key={seatLabel} style={{border:'1px dashed #eee', height:'50px'}}></div>); } grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:'5px', marginBottom:'5px'}}>{rowCells}</div>); } return grid; };
+
+  const FEMALE_COLS = 6; const MALE_COLS = 10;
   const parseCourses = (str) => { if (!str) return { s: 0, l: 0, seva: 0 }; const s = str.match(/S:\s*(\d+)/); const l = str.match(/L:\s*(\d+)/); const sv = str.match(/Seva:\s*(\d+)/); return { s: s ? parseInt(s[1]) : 0, l: l ? parseInt(l[1]) : 0, seva: sv ? parseInt(sv[1]) : 0 }; };
   const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info); return (c.l * 10000) + (c.s * 10) + (c.seva * 0.1); };
+  const handleAutoAssign = async () => {
+    if (!window.confirm("⚡ Overwrite Dhamma Hall Seats?")) return;
+    let males = participants.filter(p => p.gender && p.gender.toLowerCase() === 'male');
+    let females = participants.filter(p => p.gender && p.gender.toLowerCase() === 'female');
+    const sortGroup = (group) => {
+      const oldS = group.filter(p => p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S')));
+      const newS = group.filter(p => !p.conf_no || p.conf_no.startsWith('N'));
+      oldS.sort((a,b) => getSeniorityScore(b) - getSeniorityScore(a));
+      newS.sort((a,b) => (parseInt(b.age)||0) - (parseInt(a.age)||0));
+      return [...oldS, ...newS];
+    };
+    males = sortGroup(males); females = sortGroup(females);
+    const updates = [];
+    males.forEach((p, i) => { updates.push({ ...p, dhamma_hall_seat_no: `${String.fromCharCode(65 + Math.floor(i/MALE_COLS))}${ (i%MALE_COLS)+1 }` }); });
+    females.forEach((p, i) => { updates.push({ ...p, dhamma_hall_seat_no: `${String.fromCharCode(65 + Math.floor(i/FEMALE_COLS))}${ (i%FEMALE_COLS)+1 }` }); });
+    for (const p of updates) { await fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }); }
+    alert("✅ Seats Assigned!"); loadStudents();
+  };
 
   if (viewMode === 'dining') {
     const sorted = [...participants].sort((a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return (a.dining_seat_no || 'Z').localeCompare(b.dining_seat_no || 'Z'); });
     return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Sheet</button></div><div style={{textAlign:'center'}}><h1>Dining Seating Chart</h1><h3>{selectedCourseName}</h3></div><table style={{width:'100%', borderCollapse:'collapse', fontSize:'16px'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Seat</th><th style={thPrint}>Cat</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Lang</th></tr></thead><tbody>{sorted.filter(p=>p.status==='Arrived').map(p=>(<tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}><td style={{padding:'12px', fontWeight:'bold'}}>{p.dining_seat_no}</td><td style={{padding:'12px'}}>{getCategory(p.conf_no)}</td><td style={{padding:'12px'}}>{p.full_name}</td><td style={{padding:'12px'}}>{p.room_no}</td><td style={{padding:'12px'}}>{p.pagoda_cell_no}</td><td style={{padding:'12px'}}>{p.discourse_language}</td></tr>))}</tbody></table></div> );
   }
-  if (viewMode === 'seating') { const sorted = participants.filter(p => p.dhamma_hall_seat_no).sort((a,b) => (a.dhamma_hall_seat_no || 'Z').localeCompare(b.dhamma_hall_seat_no || 'Z')); return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Plan</button></div><div style={{textAlign:'center', marginBottom:'20px'}}><h1>Dhamma Hall Seating</h1><h3>{selectedCourseName}</h3></div>{sorted.length===0?<p style={{textAlign:'center',color:'red'}}>No Dhamma Seats assigned.</p>:<div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:'10px', marginTop:'20px'}}>{sorted.map(p => (<div key={p.participant_id} style={{border:'1px solid #333', padding:'10px', textAlign:'center', borderRadius:'5px', background:'#f9f9f9'}}><div style={{fontWeight:'bold', fontSize:'18px', marginBottom:'5px'}}>{p.dhamma_hall_seat_no}</div><div style={{fontSize:'13px'}}>{p.full_name}</div></div>))}</div>}</div> ); }
+  if (viewMode === 'seating') { 
+    const males = participants.filter(p => p.gender==='Male' && p.dhamma_hall_seat_no);
+    const females = participants.filter(p => p.gender==='Female' && p.dhamma_hall_seat_no);
+    return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><div style={{display:'flex', gap:'10px'}}><button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800', color:'white'}}>⚡ Auto-Assign Seats</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Plan</button></div></div><div className="print-area"><div style={{textAlign:'center', marginBottom:'20px', borderBottom:'2px solid #333', paddingBottom:'10px'}}><h1>DHAMMA HALL SEATING</h1><h3>{selectedCourseName}</h3><div style={{display:'flex', justifyContent:'center', gap:'50px', fontSize:'14px'}}><span><strong>FEMALE (Left)</strong>: 6 Cols</span><span><strong>TEACHER</strong></span><span><strong>MALE (Right)</strong>: 10 Cols</span></div></div><div style={{display:'flex', gap:'40px'}}><div style={{flex:'0 0 35%'}}><h3 style={{textAlign:'center', background:'#fce4ec', padding:'5px'}}>FEMALE</h3>{renderGrid(females, FEMALE_COLS)}</div><div style={{flex:'0 0 5%', display:'flex', alignItems:'center', justifyContent:'center', borderLeft:'1px dashed #ccc', borderRight:'1px dashed #ccc'}}><div style={{writingMode:'vertical-rl', textOrientation:'upright', letterSpacing:'5px', color:'#ccc', fontWeight:'bold'}}>AISLE</div></div><div style={{flex:'0 0 55%'}}><h3 style={{textAlign:'center', background:'#e3f2fd', padding:'5px'}}>MALE</h3>{renderGrid(males, MALE_COLS)}</div></div></div></div> ); 
+  }
 
   return ( <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}><div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div><div style={{display:'flex', gap:'5px'}}><button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button><button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining Sheet</button><button onClick={() => setViewMode('seating')} disabled={!courseId} style={quickBtnStyle(true)}>🧘 Dhamma Plan</button></div></div>
   {courseId && (<div style={{background:'#fff5f5', border:'1px solid #feb2b2', padding:'10px', borderRadius:'5px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}><span style={{color:'#c53030', fontWeight:'bold', fontSize:'13px'}}>⚠️ Admin Zone:</span><div><button onClick={handleResetCourse} style={{background:'#e53e3e', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', marginRight:'10px', fontSize:'12px'}}>Reset Data</button><button onClick={handleDeleteCourse} style={{background:'red', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Delete Course</button></div></div>)}
