@@ -78,13 +78,12 @@ export default function App() {
   return (
     <div className="app-container" style={{ fontFamily: 'Segoe UI, sans-serif', padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
       <style>{`@media print { .no-print { display: none !important; } .app-container { background: white !important; padding: 0 !important; } body { font-size: 10pt; } }`}</style>
-
       <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={() => setView('dashboard')} style={btnStyle(view === 'dashboard')}>📊 Zero Day Dashboard</button>
           <button onClick={() => setView('ta-panel')} style={btnStyle(view === 'ta-panel')}>AT Panel</button>
           <button onClick={() => setView('room-view')} style={btnStyle(view === 'room-view')}>🛏️ Global Accommodation</button>
-          <button onClick={() => setView('onboarding')} style={btnStyle(view === 'onboarding')}>📝 Student Onboarding</button>
+          <button onClick={() => setView('onboarding')} style={btnStyle(view === 'onboarding')}>📝 Student Onboarding Form</button>
           <button onClick={() => setView('participants')} style={btnStyle(view === 'participants')}>👥 Manage Students</button>
           <button onClick={() => setView('expenses')} style={btnStyle(view === 'expenses')}>🛒 Store</button>
           <button onClick={() => setView('course-admin')} style={btnStyle(view === 'course-admin')}>⚙️ Course Admin</button>
@@ -105,7 +104,7 @@ export default function App() {
   );
 }
 
-// --- 0. AT PANEL (Simplified) ---
+// --- 0. AT PANEL ---
 function ATPanel({ courses }) {
   const [courseId, setCourseId] = useState('');
   const [participants, setParticipants] = useState([]);
@@ -189,7 +188,7 @@ function ATPanel({ courses }) {
   );
 }
 
-// --- 1. ZERO DAY DASHBOARD (Cleaned) ---
+// --- 1. ZERO DAY DASHBOARD ---
 function Dashboard({ courses }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [stats, setStats] = useState(null);
@@ -199,7 +198,7 @@ function Dashboard({ courses }) {
 
   const arrivalData = stats ? [{ name: 'Arrived', Male: stats.arrived_m, Female: stats.arrived_f }, { name: 'Pending', Male: stats.pending_m, Female: stats.pending_f }, { name: 'Cancelled', Male: stats.cancelled_m, Female: stats.cancelled_f }] : [];
   const typeData = stats ? [{ name: 'Old', Male: stats.om, Female: stats.of }, { name: 'New', Male: stats.nm, Female: stats.nf }, { name: 'Server', Male: stats.sm, Female: stats.sf }] : [];
-
+  
   return (
     <div>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
@@ -207,6 +206,7 @@ function Dashboard({ courses }) {
         <select style={{padding:'10px', borderRadius:'6px', border:'1px solid #ccc', fontSize:'14px', minWidth:'200px'}} onChange={e=>setSelectedCourse(e.target.value)} value={selectedCourse || ''}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
       </div>
 
+      {/* SCROLLING MARQUEE */}
       <div style={{background:'#e3f2fd', color:'#333', padding:'8px', marginBottom:'20px', overflow:'hidden', whiteSpace:'nowrap', borderRadius:'4px', border:'1px solid #90caf9'}}>
           <marquee>📢 Welcome! Please check medical alerts. Auto-flag "No Shows" at 7 PM.</marquee>
       </div>
@@ -215,16 +215,23 @@ function Dashboard({ courses }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', animation: 'fadeIn 0.5s' }}>
           <div style={cardStyle}><h3 style={{marginTop:0}}>Status Overview</h3><div style={{height:'250px'}}><ResponsiveContainer><BarChart data={arrivalData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name"/><YAxis/><Tooltip/><Legend/><Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar><Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar></BarChart></ResponsiveContainer></div></div>
           
-          <div style={{cardStyle, padding:'20px', background:'white', borderRadius:'12px', boxShadow:'0 4px 6px rgba(0,0,0,0.05)'}}>
-              <h3 style={{marginTop:0}}>Discourse</h3>
-              {stats.languages && stats.languages.length > 0 ? (
-                <div style={{maxHeight:'200px', overflowY:'auto'}}>
-                <table style={{width:'100%', fontSize:'13px'}}>
-                  <thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Lang</th><th>M</th><th>F</th><th style={{textAlign:'right'}}>Total</th></tr></thead>
-                  <tbody>{stats.languages.map((l, i) => (<tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}><td style={{padding:'4px 0'}}>{l.discourse_language}</td><td style={{padding:'4px 0', color:'#007bff'}}>{l.male_count}</td><td style={{padding:'4px 0', color:'#e91e63'}}>{l.female_count}</td><td style={{padding:'4px 0', textAlign:'right'}}>{l.total}</td></tr>))}</tbody>
-                </table>
-                </div>
-              ) : <p style={{color:'#888'}}>No data.</p>}
+          {/* MIDDLE: Discourse Count Only */}
+          <div style={cardStyle}>
+                <h3 style={{marginTop:0}}>Discourse Count</h3>
+                {stats.languages && stats.languages.length > 0 ? (
+                  <div style={{maxHeight:'250px', overflowY:'auto'}}>
+                  <table style={{width:'100%', fontSize:'13px'}}>
+                    <thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Lang</th><th style={{width:'30px'}}>M</th><th style={{width:'30px'}}>F</th><th style={{textAlign:'right'}}>Tot</th></tr></thead>
+                    <tbody>
+                      {stats.languages.map((l, i) => (
+                        <tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}>
+                          <td style={{padding:'4px 0'}}>{l.discourse_language}</td><td style={{padding:'4px 0', color:'#007bff'}}>{l.male_count}</td><td style={{padding:'4px 0', color:'#e91e63'}}>{l.female_count}</td><td style={{padding:'4px 0', textAlign:'right'}}>{l.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  </div>
+                ) : <p style={{color:'#888'}}>No data.</p>}
           </div>
 
           <div style={cardStyle}><h3 style={{marginTop:0}}>Live Counts</h3><div style={{height:'250px'}}><ResponsiveContainer><BarChart data={typeData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name"/><YAxis/><Tooltip/><Legend/><Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar><Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar></BarChart></ResponsiveContainer></div></div>
@@ -277,7 +284,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
 
 // --- 3. STUDENT FORM ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
-  const [participants, setParticipants] = useState([]); const [rooms, setRooms] = useState([]); const [occupancy, setOccupancy] = useState([]); const [selectedStudent, setSelectedStudent] = useState(null); const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor' }); const [status, setStatus] = useState('');
+  const [participants, setParticipants] = useState([]); const [rooms, setRooms] = useState([]); const [occupancy, setOccupancy] = useState([]); const [selectedStudent, setSelectedStudent] = useState(null); const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Chair' }); const [status, setStatus] = useState('');
   useEffect(() => { fetch(`${API_URL}/rooms`).then(res=>res.json()).then(data => setRooms(Array.isArray(data)?data:[])); fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(Array.isArray(data)?data:[])); }, []);
   useEffect(() => { if (preSelectedRoom) { setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); } }, [preSelectedRoom, courses]);
   useEffect(() => { if (formData.courseId) { fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); } }, [formData.courseId]);
@@ -320,14 +327,16 @@ function ParticipantList({ courses, refreshCourses }) {
   const parseCourses = (str) => { if (!str) return { s: 0, l: 0, seva: 0 }; const s = str.match(/S:\s*(\d+)/); const l = str.match(/L:\s*(\d+)/); const sv = str.match(/Seva:\s*(\d+)/); return { s: s ? parseInt(s[1]) : 0, l: l ? parseInt(l[1]) : 0, seva: sv ? parseInt(sv[1]) : 0 }; };
   const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info); return (c.l * 10000) + (c.s * 10) + (c.seva * 0.1); };
   
-  // --- AUTO-ASSIGN LOGIC (Male 10x8 Left-to-Right) ---
+  // --- AUTO-ASSIGN (Male 10x8 Right-to-Left Fill A1->J1) ---
   const FEMALE_COLS = 7; const FEMALE_ROWS = 7; const MALE_COLS = 10; const MALE_ROWS = 8;
   const handleAutoAssign = async () => {
     if (!window.confirm("⚡ Overwrite Dhamma Hall Seats? (Servers Skipped)")) return;
-    // Exclude Servers
-    let males = participants.filter(p => p.gender && p.gender.toLowerCase() === 'male' && p.status === 'Arrived' && !p.conf_no.toUpperCase().startsWith('SM'));
-    let females = participants.filter(p => p.gender && p.gender.toLowerCase() === 'female' && p.status === 'Arrived' && !p.conf_no.toUpperCase().startsWith('SF'));
     
+    // Filter out Servers (SM/SF) and only include Arrived
+    let males = participants.filter(p => p.gender && p.gender.toLowerCase() === 'male' && !p.conf_no.toUpperCase().startsWith('SM')); // Removed Arrived Check for Bulk Assign
+    let females = participants.filter(p => p.gender && p.gender.toLowerCase() === 'female' && !p.conf_no.toUpperCase().startsWith('SF'));
+
+    // Sorting Logic
     const sortGroup = (group) => {
       const oldS = group.filter(p => p.conf_no && (p.conf_no.startsWith('O'))).sort((a,b) => getSeniorityScore(b) - getSeniorityScore(a));
       const newS = group.filter(p => !p.conf_no || p.conf_no.startsWith('N')).sort((a,b) => (parseInt(b.age)||0) - (parseInt(a.age)||0)); 
@@ -337,17 +346,17 @@ function ParticipantList({ courses, refreshCourses }) {
     males = sortGroup(males); females = sortGroup(females);
     const updates = [];
     
-    // Male: Fill A1, B1... J1, then A2... J2
+    // Male: Fill Row 1 (A1->J1) Left-to-Right (visually Right-to-Left because A is on Right)
     males.forEach((p, i) => { 
         if (i < MALE_COLS * MALE_ROWS) {
-            const rowIdx = Math.floor(i / MALE_COLS) + 1; // 1, 1, 1...
-            const colIdx = i % MALE_COLS; // 0, 1, 2...
-            const colChar = String.fromCharCode(65 + colIdx); // A, B, C...
+            const rowIdx = Math.floor(i / MALE_COLS) + 1; // 1, 1, 1
+            const colIdx = i % MALE_COLS; // 0, 1, 2
+            const colChar = String.fromCharCode(65 + colIdx); // A, B, C
             updates.push({ ...p, dhamma_hall_seat_no: `${colChar}${rowIdx}` }); 
         }
     });
     
-    // Female: A1... G1
+    // Female: Fill Row 1 (A1->G1)
     females.forEach((p, i) => { 
         if (i < FEMALE_COLS * FEMALE_ROWS) {
             const rowIdx = Math.floor(i / FEMALE_COLS) + 1;
@@ -369,20 +378,30 @@ function ParticipantList({ courses, refreshCourses }) {
     const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p);
     const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
     const SeatBox = ({ p, label }) => { const isOld = p && p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S')); return ( <div onClick={() => setSwappingSeat({ p, label })} style={{border:'1px solid #ccc', background: p ? (isOld ? '#fff9c4' : 'white') : '#f0f0f0', height:'60px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontSize:'10px', textAlign:'center', cursor:'pointer'}}> {p ? (<><div style={{fontWeight:'bold', fontSize:'13px', color:'#007bff'}}>{p.dhamma_hall_seat_no}</div><div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width:'90%'}}>{(p.full_name || '').substring(0, 10)}</div><div style={{fontSize:'9px'}}>{p.conf_no}</div><div style={{fontSize:'8px', color:'#666'}}>P:{p.pagoda_cell_no} D:{p.dining_seat_no}</div></>) : <span style={{color:'#ccc'}}>{label}</span>} </div> ); };
-    const renderGrid = (map, cols, rows) => { let grid = []; for (let r = 0; r < rows; r++) { let rowCells = []; const rowChar = String.fromCharCode(65 + r); for (let c = 0; c < cols; c++) { const seatLabel = `${rowChar}${c+1}`; const student = map[seatLabel]; rowCells.push(<SeatBox key={seatLabel} p={student} label={seatLabel} />); } grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:'5px', marginBottom:'5px'}}>{rowCells}</div>); } return grid; };
-    return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><div style={{display:'flex', gap:'10px'}}><button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800', color:'white'}}>⚡ Auto-Assign Seats</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Plan (A3)</button></div></div><div className="print-area"><div style={{textAlign:'center', marginBottom:'20px', borderBottom:'2px solid #333', paddingBottom:'10px'}}><h1>DHAMMA HALL SEATING</h1><h3>{selectedCourseName}</h3></div><div style={{display:'flex', gap:'40px'}}><div style={{flex:'0 0 55%'}}><h3 style={{textAlign:'center', background:'#e3f2fd', padding:'5px', margin:'0 0 10px 0'}}>MALE SIDE</h3>{renderGrid(maleMap, MALE_COLS, MALE_ROWS)}<div style={{marginTop:'15px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}><h4 style={{textAlign:'center', margin:'5px'}}>Chowky/Chair (Special)</h4>
-    {/* SPECIAL ROW K (1-8) */}
-    <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>
-       {Array.from({length:8}, (_, i) => { const label=`K${i+1}`; return <SeatBox key={label} p={maleMap[label]} label={label} /> })}
-    </div>
-    </div></div><div style={{flex:'0 0 5%', display:'flex', alignItems:'center', justifyContent:'center', borderLeft:'1px dashed #ccc', borderRight:'1px dashed #ccc'}}><div style={{writingMode:'vertical-rl', textOrientation:'upright', letterSpacing:'5px', color:'#ccc', fontWeight:'bold'}}>AISLE</div></div><div style={{flex:'0 0 40%'}}><h3 style={{textAlign:'center', background:'#fce4ec', padding:'5px', margin:'0 0 10px 0'}}>FEMALE SIDE</h3>{renderGrid(femaleMap, FEMALE_COLS, FEMALE_ROWS)}</div></div></div>{swappingSeat && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}><h3>💺 Seat Manager</h3>{swappingSeat.p ? (<div><p><strong>Student:</strong> {swappingSeat.p.full_name}</p><p><strong>Current Seat:</strong> {swappingSeat.label}</p></div>) : <p><strong>Empty Seat:</strong> {swappingSeat.label}</p>}<div style={{marginTop:'15px'}}><label style={labelStyle}>Assign/Change to Seat No:</label><input style={inputStyle} value={newSeatNo} onChange={e=>setNewSeatNo(e.target.value)} placeholder="e.g. C5" /></div><div style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={handleSeatSwapSave} disabled={!swappingSeat.p} style={{...btnStyle(true), background: swappingSeat.p ? '#28a745' : '#ccc', color:'white', flex:1}}>Update</button><button onClick={() => {setSwappingSeat(null); setNewSeatNo('');}} style={{...btnStyle(false), flex:1}}>Close</button></div></div></div>)}</div> );
+    const renderGrid = (map, cols, rows, isMale) => { let grid = []; for (let r = 0; r < rows; r++) { let rowCells = []; const rowNum = r+1; for (let c = 0; c < cols; c++) { 
+        // Male Logic: J is Left (Col 0), A is Right (Col 9)
+        // But seat is A1..J1. So Col 0 should be J1? 
+        // User said: "align visually as J...A" -> Leftmost = J, Rightmost = A.
+        let colChar;
+        if (isMale) {
+            // Col 0 = J (ASCII 74), Col 9 = A (ASCII 65)
+            colChar = String.fromCharCode(74 - c); 
+        } else {
+            colChar = String.fromCharCode(65 + c); 
+        }
+        const seatLabel = `${colChar}${rowNum}`; const student = map[seatLabel]; rowCells.push(<SeatBox key={seatLabel} p={student} label={seatLabel} />); 
+    } grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:'5px', marginBottom:'5px'}}>{rowCells}</div>); } return grid; };
+    return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><div style={{display:'flex', gap:'10px'}}><button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800', color:'white'}}>⚡ Auto-Assign Seats</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Plan (A3)</button></div></div><div className="print-area"><div style={{textAlign:'center', marginBottom:'20px', borderBottom:'2px solid #333', paddingBottom:'10px'}}><h1>DHAMMA HALL SEATING</h1><h3>{selectedCourseName}</h3></div><div style={{display:'flex', gap:'40px'}}><div style={{flex:'0 0 55%'}}><h3 style={{textAlign:'center', background:'#e3f2fd', padding:'5px', margin:'0 0 10px 0'}}>MALE SIDE (J - A)</h3>{renderGrid(maleMap, MALE_COLS, MALE_ROWS, true)}<div style={{marginTop:'15px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}><h4 style={{textAlign:'center', margin:'5px'}}>Chowky/Chair (Special)</h4>
+    <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`K${i+1}`; return <SeatBox key={label} p={maleMap[label]} label={label} /> })}</div>
+    <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`L${i+1}`; return <SeatBox key={label} p={maleMap[label]} label={label} /> })}</div>
+    </div></div><div style={{flex:'0 0 5%', display:'flex', alignItems:'center', justifyContent:'center', borderLeft:'1px dashed #ccc', borderRight:'1px dashed #ccc'}}><div style={{writingMode:'vertical-rl', textOrientation:'upright', letterSpacing:'5px', color:'#ccc', fontWeight:'bold'}}>AISLE</div></div><div style={{flex:'0 0 40%'}}><h3 style={{textAlign:'center', background:'#fce4ec', padding:'5px', margin:'0 0 10px 0'}}>FEMALE SIDE (A - G)</h3>{renderGrid(femaleMap, FEMALE_COLS, FEMALE_ROWS, false)}</div></div></div>{swappingSeat && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}><h3>💺 Seat Manager</h3>{swappingSeat.p ? (<div><p><strong>Student:</strong> {swappingSeat.p.full_name}</p><p><strong>Current Seat:</strong> {swappingSeat.label}</p></div>) : <p><strong>Empty Seat:</strong> {swappingSeat.label}</p>}<div style={{marginTop:'15px'}}><label style={labelStyle}>Assign/Change to Seat No:</label><input style={inputStyle} value={newSeatNo} onChange={e=>setNewSeatNo(e.target.value)} placeholder="e.g. C5" /></div><div style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={handleSeatSwapSave} disabled={!swappingSeat.p} style={{...btnStyle(true), background: swappingSeat.p ? '#28a745' : '#ccc', color:'white', flex:1}}>Update</button><button onClick={() => {setSwappingSeat(null); setNewSeatNo('');}} style={{...btnStyle(false), flex:1}}>Close</button></div></div></div>)}</div> );
   }
 
-  return ( <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}><div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div><div style={{display:'flex', gap:'5px'}}><button onClick={handleAutoNoShow} disabled={!courseId} style={{...quickBtnStyle(true), background:'#d32f2f', color:'white'}}>🚫 Auto-Flag No-Shows</button><button onClick={handleSendReminders} disabled={!courseId} style={{...quickBtnStyle(true), background:'#ff9800', color:'white'}}>📢 Send Reminders</button><button onClick={() => setViewAllMode(true)} disabled={!courseId} style={{...quickBtnStyle(true), background:'#6c757d', color:'white'}}>👁️ View All</button><button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button><button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining Sheet</button><button onClick={() => setViewMode('seating')} disabled={!courseId} style={quickBtnStyle(true)}>🧘 Dhamma Plan</button></div></div>
+  return ( <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}><div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div><div style={{display:'flex', gap:'5px'}}><button onClick={() => setViewAllMode(true)} disabled={!courseId} style={{...quickBtnStyle(true), background:'#6c757d', color:'white'}}>👁️ View All</button><button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button><button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining Sheet</button><button onClick={() => setViewMode('seating')} disabled={!courseId} style={quickBtnStyle(true)}>🧘 Dhamma Plan</button></div></div>
   {courseId && (<div style={{background:'#fff5f5', border:'1px solid #feb2b2', padding:'10px', borderRadius:'5px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}><span style={{color:'#c53030', fontWeight:'bold', fontSize:'13px'}}>⚠️ Admin Zone:</span><div><button onClick={handleResetCourse} style={{background:'#e53e3e', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', marginRight:'10px', fontSize:'12px'}}>Reset Data</button><button onClick={handleDeleteCourse} style={{background:'red', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Delete Course</button></div></div>)}
   <div style={{overflowX:'auto'}}><table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}><thead><tr style={{background:'#f1f1f1', textAlign:'left'}}>{['full_name','conf_no','courses_info','age','gender','dining_seat_no','dining_seat_type','room_no','pagoda_cell_no','status'].map(k=><th key={k} style={{...tdStyle, cursor:'pointer'}} onClick={()=>handleSort(k)}>{k.replace('_',' ').toUpperCase()}{sortConfig.key===k?(sortConfig.direction==='asc'?'▲':'▼'):''}</th>)}<th style={tdStyle}>ACTIONS</th></tr></thead><tbody>{sortedList.map(p => (<tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}><td style={tdStyle}><strong>{p.full_name}</strong></td><td style={tdStyle}>{p.conf_no||'-'}</td><td style={{...tdStyle, fontSize:'11px'}}>{p.courses_info||'-'}</td><td style={tdStyle}>{p.age||'-'}</td><td style={tdStyle}>{p.gender||'-'}</td><td style={tdStyle}>{p.dining_seat_no||'-'}</td><td style={tdStyle}>{p.dining_seat_type}</td><td style={tdStyle}>{p.room_no||'-'}</td><td style={tdStyle}>{p.pagoda_cell_no||'-'}</td><td style={{...tdStyle, color: p.status==='Arrived'?'green':'orange'}}>{p.status}</td><td style={tdStyle}><button onClick={() => setViewingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>👁️</button><button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={() => handleCancelStudent(p)} style={{marginRight:'5px', cursor:'pointer', color:'orange'}}>🚫</button><button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button></td></tr>))}</tbody></table></div>
   {viewingStudent && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'400px'}}> <h3>👤 Student Details</h3> <p><strong>Name:</strong> {viewingStudent.full_name}</p> <p><strong>Conf No:</strong> {viewingStudent.conf_no}</p> <p><strong>Status:</strong> {viewingStudent.status}</p> <p><strong>Room:</strong> {viewingStudent.room_no}</p> <p><strong>Dining:</strong> {viewingStudent.dining_seat_no} ({viewingStudent.dining_seat_type})</p> <button onClick={()=>setViewingStudent(null)} style={{marginTop:'20px', width:'100%', padding:'10px', background:'#007bff', color:'white', border:'none', borderRadius:'5px'}}>Close</button> </div> </div> )}
-  {editingStudent && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'500px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave} style={{display:'flex', flexDirection:'column', gap:'10px'}}><label>Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e => setEditingStudent({...editingStudent, full_name: e.target.value})} /><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Conf No</label><input style={inputStyle} value={editingStudent.conf_no||''} onChange={e => setEditingStudent({...editingStudent, conf_no: e.target.value})} /></div><div><label>Lang</label><input style={inputStyle} value={editingStudent.discourse_language||''} onChange={e => setEditingStudent({...editingStudent, discourse_language: e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Dining Seat</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div><div><label>Dining Type</label><select style={inputStyle} value={editingStudent.dining_seat_type||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_type: e.target.value})}><option value="F">Floor</option><option value="C">Chair</option></select></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Room</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e => setEditingStudent({...editingStudent, room_no: e.target.value})} /></div><div><label>Pagoda</label><input style={inputStyle} value={editingStudent.pagoda_cell_no||''} onChange={e => setEditingStudent({...editingStudent, pagoda_cell_no: e.target.value})} /></div></div><label>Seating Type</label><select style={inputStyle} value={editingStudent.special_seating||''} onChange={e => setEditingStudent({...editingStudent, special_seating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select><div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div></form></div></div>)}</div> );
+  {editingStudent && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'500px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave} style={{display:'flex', flexDirection:'column', gap:'10px'}}><label>Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e => setEditingStudent({...editingStudent, full_name: e.target.value})} /><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Conf No</label><input style={inputStyle} value={editingStudent.conf_no||''} onChange={e => setEditingStudent({...editingStudent, conf_no: e.target.value})} /></div><div><label>Lang</label><input style={inputStyle} value={editingStudent.discourse_language||''} onChange={e => setEditingStudent({...editingStudent, discourse_language: e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Dining Seat</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div><div><label>Dining Type</label><select style={inputStyle} value={editingStudent.dining_seat_type||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_type: e.target.value})}><option value="Floor">Floor</option><option value="Chair">Chair</option></select></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Room</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e => setEditingStudent({...editingStudent, room_no: e.target.value})} /></div><div><label>Pagoda</label><input style={inputStyle} value={editingStudent.pagoda_cell_no||''} onChange={e => setEditingStudent({...editingStudent, pagoda_cell_no: e.target.value})} /></div></div><label>Seating Type</label><select style={inputStyle} value={editingStudent.special_seating||''} onChange={e => setEditingStudent({...editingStudent, special_seating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select><div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div></form></div></div>)}</div> );
 }
 
 // --- 5. STORE & FINANCE (Unchanged) ---
