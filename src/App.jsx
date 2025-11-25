@@ -4,6 +4,28 @@ import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, Resp
 const API_URL = "https://course-manager-backend-cd1m.onrender.com";
 const ADMIN_PASSCODE = "1234"; 
 
+// --- CONFIG: USERS & ROLES ---
+const USERS = {
+  "1234": { name: "Super Admin", role: "ADMIN" },
+  "1001": { name: "Arrival Desk", role: "ARRIVAL" },
+  "1002": { name: "Briefing/Teacher", role: "PROCESS" },
+  "1003": { name: "Onboarding", role: "ONBOARDING" }
+};
+
+const PERMISSIONS = {
+  ADMIN:      ['dashboard', 'flow', 'arrival', 'process', 'onboarding', 'room-view', 'participants', 'expenses', 'course-admin', 'ta-panel'],
+  ARRIVAL:    ['arrival', 'flow'],
+  PROCESS:    ['process', 'flow', 'ta-panel'],
+  ONBOARDING: ['onboarding', 'room-view', 'flow']
+};
+
+const DEFAULT_VIEWS = { 
+  ADMIN: 'dashboard', 
+  ARRIVAL: 'arrival', 
+  PROCESS: 'process', 
+  ONBOARDING: 'onboarding' 
+};
+
 // --- UTILS ---
 const NUMBER_OPTIONS = Array.from({length: 200}, (_, i) => i + 1);
 const PROTECTED_ROOMS = new Set(["301AI","301BI","302AI","302BI","303AI","303BI","304AI","304BI","305AI","305BI","306AI","306BI","307AW","307BW","308AW","308BW","309AW","309BW","310AW","310BW","311AW","311BW","312AW","312BW","313AW","313BW","314AW","314BW","315AW","315BW","316AW","316BW","317AI","317BI","318AI","318BI","319AI","319BI","320AI","320BI","321AW","321BW","322AW","322BW","323AW","323BW","324AW","324BW","325AW","325BW","326AW","326BW","327AW","327BW","328AW","328BW","329AI","329BI","330AI","330BI","331AI","331BI","332AI","332BI","333AI","333BI","334AI","334BI","335AI","335BI","336AI","336BI","337AW","337BW","338AW","338BW","339AW","339BW","340AW","340BW","341AW","341BW","342AW","342BW","343AW","343BW","201AI","201BI","202AI","202BI","203AI","203BI","213AW","213BW","214AW","214BW","215AW","215BW","216AW","216BW","217AW","217BW","218AW","218BW","219AW","219BW","220AW","220BW","221AW","221BW","222AW","222BW","223AW","223BW","224AW","224BW","225AW","225BW","226AW","226BW","227AW","227BW","228AI","228BI","229AI","229BI","230AI","230BI","231AW","231BW","232AW","232BW","233AW","233BW","234AW","234BW","235AW","235BW","236AW","236BW","237AW","237BW","238AW","238BW","239AW","239BW","240AW","240BW","241AW","241BW","242AW","242BW","243AW","243BW","244AW","244BW","245AW","245BW","246AW","246BW","247AW","247BW","248AW","248BW","DF1","DF2","DF3","DF4","DF5","DF6","FRC61W","FRC62W","FRC63W","FRC64W","FRC65W","FRC66W"]);
@@ -29,64 +51,42 @@ const labelStyle = { fontSize: '14px', color: '#555', fontWeight: 'bold', margin
 const thPrint = { textAlign: 'left', padding: '10px', borderBottom: '1px solid #000' };
 const tdStyle = { padding: '12px', borderBottom: '1px solid #eee' };
 
+// --- MAIN COMPONENT ---
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
   const [pinInput, setPinInput] = useState('');
-  const [loginError, setLoginError] = useState('');
   const [view, setView] = useState('dashboard');
   const [courses, setCourses] = useState([]);
-  const [error, setError] = useState('');
   const [preSelectedRoom, setPreSelectedRoom] = useState('');
 
   useEffect(() => {
-    const savedAuth = localStorage.getItem('admin_auth');
-    if (savedAuth === 'true') setIsAuthenticated(true);
+    const savedUser = localStorage.getItem('course_user');
+    if (savedUser) { try { setUser(JSON.parse(savedUser)); } catch(e) {} }
     fetchCourses();
   }, []);
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (pinInput === ADMIN_PASSCODE) {
-      setIsAuthenticated(true);
-      localStorage.setItem('admin_auth', 'true');
-    } else {
-      setLoginError('❌ Incorrect Passcode');
-      setPinInput('');
-    }
+    const u = USERS[pinInput];
+    if (u) { setUser(u); localStorage.setItem('course_user', JSON.stringify(u)); setView(DEFAULT_VIEWS[u.role]); }
+    else alert("❌ Invalid Passcode");
   };
+  const handleLogout = () => { setUser(null); localStorage.removeItem('course_user'); setPinInput(''); };
+  const fetchCourses = () => { fetch(`${API_URL}/courses`).then(res=>res.ok?res.json():[]).then(setCourses).catch(console.error); };
+  const can = (f) => user && PERMISSIONS[user.role]?.includes(f);
+  const handleRoomClick = (r) => { setPreSelectedRoom(r); setView('onboarding'); };
 
-  const handleLogout = () => { setIsAuthenticated(false); localStorage.removeItem('admin_auth'); setView('dashboard'); };
-  
-  const fetchCourses = () => { 
-    fetch(`${API_URL}/courses`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => Array.isArray(data) ? setCourses(data) : setCourses([]))
-      .catch(err => { console.error(err); setError("Connection Error: Could not load courses."); }); 
-  };
-
-  const handleRoomClick = (roomNo) => {
-    setPreSelectedRoom(roomNo);
-    setView('onboarding');
-  };
-
-  if (!isAuthenticated) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}>
-        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
-          <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Center Admin</h1>
-          <form onSubmit={handleLogin}>
-            <input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} />
-            <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button>
-          </form>
-          {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>}
-        </div>
-      </div>
-    );
-  }
+  if (!user) return <div style={{height:'100vh', display:'flex', justifyContent:'center', alignItems:'center', background:'#f0f2f5'}}><div style={{background:'white', padding:'40px', borderRadius:'10px', textAlign:'center', boxShadow:'0 4px 10px rgba(0,0,0,0.1)'}}><h1>Course Manager</h1><input type="password" placeholder="Passcode" value={pinInput} onChange={e=>setPinInput(e.target.value)} style={inputStyle} /><br/><br/><button onClick={handleLogin} style={{...btnStyle(true), width:'100%', background:'#007bff', color:'white'}}>Login</button></div></div>;
 
   return (
-    <div className="app-container" style={{ fontFamily: 'Segoe UI, sans-serif', padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
-      <style>{`@media print { .no-print { display: none !important; } .app-container { background: white !important; padding: 0 !important; } body { font-size: 10pt; } .print-hide { display: none; } .print-male-only .female-section { display: none; } .print-female-only .male-section { display: none; } }`}</style>
+    <div className="app-container" style={{fontFamily:'Segoe UI', padding:'20px', background:'#f4f7f6', minHeight:'100vh'}}>
+      <style>{`@media print { 
+         .no-print { display: none !important; } 
+         .app-container { background: white !important; padding: 0 !important; } 
+         body { font-size: 10pt; } 
+         .print-male-only .female-section { display: none; }
+         .print-female-only .male-section { display: none; }
+      }`}</style>
       <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button onClick={() => setView('dashboard')} style={btnStyle(view === 'dashboard')}>📊 Zero Day Dashboard</button>
@@ -100,19 +100,19 @@ export default function App() {
         <button onClick={handleLogout} style={{ ...btnStyle(false), border: '1px solid #dc3545', color: '#dc3545' }}>🔒 Logout</button>
       </nav>
 
-      {error && <div className="no-print" style={{ padding: '12px', background: '#ffebee', color: '#c62828', borderRadius: '5px', marginBottom: '20px' }}>⚠️ {error}</div>}
-
       {view === 'dashboard' && <Dashboard courses={courses} />}
       {view === 'ta-panel' && <ATPanel courses={courses} />}
-      {view === 'room-view' && <GlobalAccommodationManager courses={courses} onRoomClick={handleRoomClick} />}
+      {view === 'flow' && <ProcessFlowDashboard courses={courses} />}
+      {view === 'arrival' && <ArrivalDesk courses={courses} />}
+      {view === 'process' && <ProcessDesk courses={courses} />}
       {view === 'onboarding' && <StudentForm courses={courses} preSelectedRoom={preSelectedRoom} clearRoom={() => setPreSelectedRoom('')} />}
-      {view === 'expenses' && <ExpenseTracker courses={courses} />}
+      {view === 'room-view' && <GlobalAccommodationManager courses={courses} onRoomClick={handleRoomClick} />}
       {view === 'participants' && <ParticipantList courses={courses} refreshCourses={fetchCourses} />}
+      {view === 'expenses' && <ExpenseTracker courses={courses} />}
       {view === 'course-admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} setView={setView} />}
     </div>
   );
 }
-// --- SUB-COMPONENTS (PART 2) ---
 
 function ATPanel({ courses }) {
   const [courseId, setCourseId] = useState('');
@@ -309,10 +309,7 @@ function ParticipantList({ courses, refreshCourses }) {
     const [swappingSeat, setSwappingSeat] = useState(null); const [newSeatNo, setNewSeatNo] = useState(''); const [draggedStudent, setDraggedStudent] = useState(null);
     const loadStudents = () => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
     useEffect(loadStudents, [courseId]);
-    const handleDrop = async (targetSeat, targetStudent) => { if (!draggedStudent) return; if (targetStudent) { if(!window.confirm(`Swap ${draggedStudent.full_name} with ${targetStudent.full_name}?`)) return; const seatA = draggedStudent.dhamma_hall_seat_no; const seatB = targetSeat; await fetch(`${API_URL}/participants/${draggedStudent.participant_id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...draggedStudent, dhamma_hall_seat_no: seatB}) }); await fetch(`${API_URL}/participants/${targetStudent.participant_id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...targetStudent, dhamma_hall_seat_no: seatA}) }); } else { await fetch(`${API_URL}/participants/${draggedStudent.participant_id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...draggedStudent, dhamma_hall_seat_no: targetSeat}) }); } setDraggedStudent(null); loadStudents(); };
-    const handleSeatSwapSave = async () => { if (!swappingSeat || !swappingSeat.p) return; await fetch(`${API_URL}/participants/${swappingSeat.p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...swappingSeat.p, dhamma_hall_seat_no: newSeatNo }) }); setSwappingSeat(null); fetch(`${API_URL}/courses/${courseId}/participants`).then(r=>r.json()).then(setParticipants); };
-    const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag all pending students as No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); fetch(`${API_URL}/courses/${courseId}/participants`).then(r=>r.json()).then(setParticipants); alert("✅ Processed No-Shows."); };
-    const handleSendReminders = async () => { if (!window.confirm("📢 Send SMS/Email to all Pending students?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); alert("✅ Reminders Queued!"); };
+    const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
     const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Seat"]; const rows = participants.map(p => [`"${p.full_name}"`, p.conf_no, p.dhamma_hall_seat_no]); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `students_course_${courseId}.csv`); document.body.appendChild(link); link.click(); };
 
     const parseCourses = (str) => { if (!str) return { s: 0, l: 0, seva: 0 }; const s = str.match(/S:\s*(\d+)/); const l = str.match(/L:\s*(\d+)/); const sv = str.match(/Seva:\s*(\d+)/); return { s: s ? parseInt(s[1]) : 0, l: l ? parseInt(l[1]) : 0, seva: sv ? parseInt(sv[1]) : 0 }; };
@@ -359,7 +356,9 @@ function ParticipantList({ courses, refreshCourses }) {
                  <div>{p.conf_no}</div>
                  <div style={{fontSize:'8px', color:'#666'}}>P:{p.pagoda_cell_no} D:{p.dining_seat_no}</div>
                 </>
-             ) : <span style={{color:'#ccc'}}>{label}</span>}
+             ) : (
+                 <span style={{color:'#ccc'}}>{label}</span>
+             )}
         </div>
     );
 
