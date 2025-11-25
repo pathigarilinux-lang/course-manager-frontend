@@ -142,20 +142,69 @@ function ATPanel({ courses }) {
 }
 
 // --- DESK OPERATIONS ---
+// --- STEP 1: ARRIVAL DESK (DEBUG MODE) ---
 function ArrivalDesk({ courses }) {
-    const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [search, setSearch] = useState('');
+    const [courseId, setCourseId] = useState(''); 
+    const [participants, setParticipants] = useState([]); 
+    const [search, setSearch] = useState('');
+    
     useEffect(() => { if(courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(r=>r.json()).then(setParticipants); }, [courseId]);
-    const handleArrival = async (p) => { if (!window.confirm(`Confirm Arrival: ${p.full_name}?`)) return; await fetch(`${API_URL}/process/arrival`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ participantId: p.participant_id, courseId }) }); fetch(`${API_URL}/courses/${courseId}/participants`).then(r=>r.json()).then(setParticipants); };
+    
+    const handleArrival = async (p) => {
+        if (!window.confirm(`Mark ${p.full_name} as Arrived & Generate Token?`)) return;
+        
+        try {
+            console.log("Sending request to:", `${API_URL}/process/arrival`);
+            const res = await fetch(`${API_URL}/process/arrival`, { 
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({ participantId: p.participant_id, courseId }) 
+            });
+
+            // 1. READ RAW TEXT FIRST (To see if it's an HTML error or crash)
+            const rawText = await res.text();
+            console.log("Server Response:", rawText);
+
+            if (!res.ok) {
+                // If the server returned an error (404, 500), show it
+                alert(`❌ Server Error (${res.status}):\n${rawText}`);
+                return;
+            }
+
+            // 2. If we got here, it's valid JSON
+            const data = JSON.parse(rawText); 
+            
+            if (data.token_number) {
+                alert(`✅ Token Generated: #${data.token_number}`);
+                fetch(`${API_URL}/courses/${courseId}/participants`).then(r=>r.json()).then(setParticipants);
+            }
+        } catch (err) {
+            console.error(err);
+            alert(`❌ CRASH: ${err.message}\n\nCheck console for details.`);
+        }
+    };
+
     const filtered = participants.filter(p => !p.token_number && p.full_name.toLowerCase().includes(search.toLowerCase()));
-    return ( <div style={cardStyle}> <h2>1️⃣ Arrival Desk</h2> <div style={{display:'flex', gap:'10px', marginBottom:'10px'}}> <select style={inputStyle} onChange={e=>setCourseId(e.target.value)}><option>Select Course</option>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select> <input style={inputStyle} placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} /> </div> <div style={{maxHeight:'400px', overflowY:'auto'}}><table style={{width:'100%'}}><tbody>{filtered.map(p => ( <tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}> <td style={{padding:'10px'}}><strong>{p.full_name}</strong></td> <td style={{textAlign:'right'}}><button onClick={()=>handleArrival(p)} style={{...quickBtnStyle(true), background:'#2196f3', color:'white'}}>🖨️ Issue Token</button></td> </tr> ))}</tbody></table></div> </div> );
-}
-function ProcessDesk({ courses }) {
-    const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [tokenInput, setTokenInput] = useState('');
-    const refresh = () => { if(courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(r=>r.json()).then(setParticipants); };
-    useEffect(refresh, [courseId]);
-    const handleProcess = async (p, nextStage) => { await fetch(`${API_URL}/process/update-stage`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ participantId: p.participant_id, stage: nextStage }) }); refresh(); setTokenInput(''); };
-    const activeStudent = participants.find(p => p.token_number == tokenInput);
-    return ( <div style={cardStyle}> <h2>2️⃣ 3️⃣ Process Desk</h2> <div style={{marginBottom:'20px'}}><select style={inputStyle} onChange={e=>setCourseId(e.target.value)}><option>Select Course</option>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:'20px'}}> <input autoFocus style={{...inputStyle, fontSize:'30px', textAlign:'center', width:'200px', fontWeight:'bold'}} placeholder="Token #" value={tokenInput} onChange={e=>setTokenInput(e.target.value)} /> {activeStudent ? ( <div style={{border:'2px solid #2196f3', padding:'20px', borderRadius:'10px', textAlign:'center', width:'100%', maxWidth:'400px'}}> <h1>#{activeStudent.token_number}</h1> <h3>{activeStudent.full_name}</h3> <p>Stage: {activeStudent.process_stage}</p> <div style={{display:'flex', gap:'10px', justifyContent:'center', marginTop:'20px'}}> {activeStudent.process_stage === 1 && <button onClick={()=>handleProcess(activeStudent, 2)} style={{...btnStyle(true), background:'#ff9800'}}>Mark Briefing Done</button>} {activeStudent.process_stage === 2 && <button onClick={()=>handleProcess(activeStudent, 3)} style={{...btnStyle(true), background:'#9c27b0'}}>Mark Interview Done</button>} </div> </div> ) : <p style={{color:'#888'}}>Scan Token...</p>} </div> </div> );
+
+    return (
+        <div style={cardStyle}>
+            <h2>1️⃣ Arrival Desk (Generate Tokens)</h2>
+            <div style={{display:'flex', gap:'10px', marginBottom:'10px'}}>
+                <select style={inputStyle} onChange={e=>setCourseId(e.target.value)}><option>Select Course</option>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+                <input style={inputStyle} placeholder="Search Name / Conf No..." value={search} onChange={e=>setSearch(e.target.value)} />
+            </div>
+            <div style={{maxHeight:'400px', overflowY:'auto'}}>
+                <table style={{width:'100%'}}>
+                    <tbody>{filtered.map(p => (
+                        <tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}>
+                            <td style={{padding:'10px'}}><strong>{p.full_name}</strong> ({p.conf_no})</td>
+                            <td style={{textAlign:'right'}}><button onClick={()=>handleArrival(p)} style={{...quickBtnStyle(true), background:'#2196f3', color:'white'}}>🖨️ Issue Token</button></td>
+                        </tr>
+                    ))}</tbody>
+                </table>
+            </div>
+        </div>
+    );
 }
 
 // --- STUDENT ONBOARDING (Final Step) ---
