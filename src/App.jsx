@@ -277,11 +277,99 @@ function ProcessFlowDashboard({ courses }) {
     return ( <div> <div style={{display:'flex', gap:'10px', marginBottom:'20px'}}> <select style={inputStyle} onChange={e=>setCourseId(e.target.value)}><option value="">Select Course</option>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select> <button onClick={refresh} style={quickBtnStyle(true)}>↻ Refresh</button> </div> <div style={{display:'flex', gap:'15px', overflowX:'auto'}}> <Col title="Expected" list={data.filter(p=>!p.token_number)} color="#999" /> <Col title="1. Arrived" list={data.filter(p=>p.process_stage===1)} color="#2196f3" /> <Col title="2. Briefing" list={data.filter(p=>p.process_stage===2)} color="#ff9800" /> <Col title="3. Teacher" list={data.filter(p=>p.process_stage===3)} color="#9c27b0" /> <Col title="4. Onboarded" list={data.filter(p=>p.process_stage===4)} color="#4caf50" /> </div> </div> );
 }
 function ArrivalDesk({ courses }) {
-    const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [search, setSearch] = useState('');
-    useEffect(() => { if(courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(r=>r.json()).then(setParticipants); }, [courseId]);
-    const handleArrival = async (p) => { if (!window.confirm(`Confirm Arrival: ${p.full_name}?`)) return; await fetch(`${API_URL}/process/arrival`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ participantId: p.participant_id, courseId }) }); fetch(`${API_URL}/courses/${courseId}/participants`).then(r=>r.json()).then(setParticipants); };
-    const filtered = participants.filter(p => !p.token_number && p.full_name.toLowerCase().includes(search.toLowerCase()));
-    return ( <div style={cardStyle}> <h2>1️⃣ Arrival Desk</h2> <div style={{display:'flex', gap:'10px', marginBottom:'10px'}}> <select style={inputStyle} onChange={e=>setCourseId(e.target.value)}><option>Select Course</option>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select> <input style={inputStyle} placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} /> </div> <div style={{maxHeight:'400px', overflowY:'auto'}}><table style={{width:'100%'}}><tbody>{filtered.map(p => ( <tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}> <td style={{padding:'10px'}}><strong>{p.full_name}</strong></td> <td style={{textAlign:'right'}}><button onClick={()=>handleArrival(p)} style={{...quickBtnStyle(true), background:'#2196f3', color:'white'}}>🖨️ Issue Token</button></td> </tr> ))}</tbody></table></div> </div> );
+  const [courseId, setCourseId] = useState('');
+  const [participants, setParticipants] = useState([]);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    if (!courseId) {
+      setParticipants([]); // clear when no course selected
+      return;
+    }
+    fetch(`${API_URL}/courses/${courseId}/participants`)
+      .then(r => r.json())
+      .then(setParticipants)
+      .catch(err => {
+        console.error('Failed to load participants', err);
+        setParticipants([]);
+      });
+  }, [courseId]);
+
+  const handleArrival = async (p) => {
+    if (!window.confirm(`Confirm Arrival: ${p.full_name}?`)) return;
+    await fetch(`${API_URL}/process/arrival`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participantId: p.participant_id, courseId })
+    });
+    // refresh list
+    fetch(`${API_URL}/courses/${courseId}/participants`)
+      .then(r => r.json())
+      .then(setParticipants)
+      .catch(() => {});
+  };
+
+  const filtered = participants
+    .filter(p => !p.token_number && p.full_name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div style={cardStyle}>
+      <h2>1️⃣ Arrival Desk</h2>
+
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+        <select
+          style={inputStyle}
+          value={courseId}
+          onChange={e => setCourseId(e.target.value)}
+        >
+          <option value="">Select Course</option>
+          {courses.map(c =>
+            <option key={c.course_id} value={c.course_id}>
+              {c.course_name}
+            </option>
+          )}
+        </select>
+
+        <input
+          style={inputStyle}
+          placeholder="Search..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+
+      <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+        <table style={{ width: '100%' }}>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td style={{ padding: '10px' }} colSpan="2">
+                  {courseId ? 'No participants found.' : 'Please select a course.'}
+                </td>
+              </tr>
+            ) : (
+              filtered.map(p => (
+                // NOTE: no leading whitespace/newline before <tr> — return it directly
+                <tr key={p.participant_id} style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '10px' }}>
+                    <strong>{p.full_name}</strong>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      onClick={() => handleArrival(p)}
+                      style={{ ...quickBtnStyle(true), background: '#2196f3', color: 'white' }}
+                    >
+                      🖨️ Issue Token
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 function ProcessDesk({ courses }) {
     const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [tokenInput, setTokenInput] = useState('');
