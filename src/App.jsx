@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
 
 // --- CONFIGURATION ---
@@ -356,6 +356,7 @@ function ParticipantList({ courses, refreshCourses }) {
             let females = all.filter(p => p.gender && p.gender.toLowerCase() === 'female' && p.status !== 'Cancelled' && !p.conf_no.toUpperCase().startsWith('SF'));
             const sortGroup = (group) => { const oldS = group.filter(p => p.conf_no && (p.conf_no.startsWith('O'))).sort((a,b) => getSeniorityScore(b) - getSeniorityScore(a)); const newS = group.filter(p => !p.conf_no || p.conf_no.startsWith('N')).sort((a,b) => (parseInt(b.age)||0) - (parseInt(a.age)||0)); return [...oldS, ...newS]; };
             males = sortGroup(males); females = sortGroup(females);
+
             const updates = [];
             // MALE: Fill A1...J1 (Right to Left visual). A1 is at Col 9.
             males.forEach((p, i) => {
@@ -397,6 +398,7 @@ function ParticipantList({ courses, refreshCourses }) {
         const renderMaleGrid = () => {
             let rows = [];
             let headerCells = [<div key="e"></div>]; 
+            // Visual: J (Left) ... A (Right)
             for(let c=MALE_COLS-1; c>=0; c--) headerCells.push(<div key={c} style={{textAlign:'center', fontWeight:'bold'}}>{String.fromCharCode(65+c)}</div>);
             rows.push(<div key="head" style={{display:'grid', gridTemplateColumns:`20px repeat(${MALE_COLS}, 1fr)`, gap:'2px', marginBottom:'5px'}}>{headerCells}</div>);
             for(let r=1; r<=MALE_ROWS; r++) {
