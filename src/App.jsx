@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Activity, Users, Home, Clipboard, Upload, Settings, UserCheck, Coffee, HeartPulse, MessageSquare } from 'lucide-react';
+import { Activity, Users, Home, Upload, UserCheck, Trash2 } from 'lucide-react';
 
-const API_URL = "http://localhost:5000/api"; // CHANGE THIS TO YOUR RENDER URL IN PRODUCTION
+// POINT THIS TO YOUR LIVE RENDER BACKEND
+const API_URL = "https://course-manager-backend-cd1m.onrender.com/api"; 
 
 export default function App() {
   const [view, setView] = useState('dashboard');
@@ -54,6 +55,15 @@ export default function App() {
 
   // --- ACTIONS ---
 
+  const handleDeleteCourse = async () => {
+    if (!window.confirm("Are you sure? This will delete ALL data for this course (students, expenses, room allocations).")) return;
+    try {
+        await fetch(`${API_URL}/courses/${selectedCourse}`, { method: 'DELETE' });
+        alert("Course Deleted");
+        window.location.reload();
+    } catch (err) { alert("Error deleting course"); }
+  };
+
   const handleAssignToken = async (participantId) => {
     try {
       const res = await fetch(`${API_URL}/assign-token`, {
@@ -67,7 +77,6 @@ export default function App() {
 
   const updateStage = async (p, newStage) => {
     const updated = { ...p, process_stage: newStage };
-    // Optimistic update
     setParticipants(prev => prev.map(item => item.participant_id === p.participant_id ? updated : item));
     
     await fetch(`${API_URL}/participants/${p.participant_id}`, {
@@ -75,7 +84,7 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updated)
     });
-    fetchParticipants(); // Refresh to be safe
+    fetchParticipants();
   };
 
   return (
@@ -109,6 +118,12 @@ export default function App() {
           <NavItem icon={<Home size={18} />} label="Room Allocation" active={view === 'rooms'} onClick={() => setView('rooms')} />
           <NavItem icon={<Upload size={18} />} label="Data Import" active={view === 'import'} onClick={() => setView('import')} />
         </nav>
+        
+        <div className="p-4 border-t border-slate-800">
+             <button onClick={handleDeleteCourse} className="w-full flex items-center justify-center space-x-2 text-red-400 hover:text-red-300 text-xs transition-colors">
+                <Trash2 size={14} /> <span>Delete Current Course</span>
+             </button>
+        </div>
       </div>
 
       {/* MAIN CONTENT */}
@@ -129,7 +144,7 @@ export default function App() {
               {view === 'participants' && <ParticipantsView participants={participants} fetchParticipants={fetchParticipants} />}
               {view === 'zeroday' && <ZeroDayView participants={participants} onAssignToken={handleAssignToken} onUpdateStage={updateStage} />}
               {view === 'import' && <ImportView courseId={selectedCourse} onUploadSuccess={fetchParticipants} />}
-              {view === 'rooms' && <div className="text-gray-500">Room Allocation Visualizer (Coming Soon in V2)</div>}
+              {view === 'rooms' && <div className="text-gray-500 text-center mt-20">Room Allocation Visualizer (Coming Soon in V2)</div>}
             </>
           )}
         </main>
