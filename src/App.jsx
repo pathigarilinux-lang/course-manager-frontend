@@ -402,7 +402,7 @@ function ParticipantList({ courses, refreshCourses }) {
 
     const SeatBox = ({ p, label }) => (
         <div draggable={!!p} onDragStart={()=>setDraggedStudent(p)} onDragOver={e=>e.preventDefault()} onDrop={()=>handleDrop(label, p)} onClick={() => setSwappingSeat({ p, label })}
-             style={{border:'1px solid #ccc', background: p ? (p.conf_no.startsWith('O')?'#fff9c4':'white') : '#f0f0f0', height:'55px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontSize:'10px', cursor:p?'grab':'pointer'}}>
+             style={{border:'1px solid #ccc', background: p ? (p.conf_no?.startsWith('O')?'#fff9c4':'white') : '#f0f0f0', height:'55px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontSize:'10px', cursor:p?'grab':'pointer'}}>
              {p ? (
                 <>
                  <b style={{color:'blue'}}>{p.dhamma_hall_seat_no}</b>
@@ -454,7 +454,7 @@ function ParticipantList({ courses, refreshCourses }) {
 
         return ( <div style={cardStyle} className={printClass}> 
            <div className="no-print" style={{marginBottom:'10px', display:'flex', gap:'10px'}}>
-              <button onClick={()=>setViewMode('list')} style={btnStyle(false)}>Back</button>
+              <button onClick={()=>setViewMode('list')} style={btnStyle(false)}>← Back</button>
               <button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800'}}>⚡ Auto Assign (All)</button>
               <button onClick={()=>setPrintMode('male')} style={quickBtnStyle(printMode==='male')}>Print Male</button>
               <button onClick={()=>setPrintMode('female')} style={quickBtnStyle(printMode==='female')}>Print Female</button>
@@ -491,9 +491,7 @@ function ParticipantList({ courses, refreshCourses }) {
         const diningMap = {}; 
         participants.forEach(p => { 
             if (p.dining_seat_no) {
-                // Determine gender for coloring/grouping
                 const gender = p.gender && p.gender.toLowerCase() === 'male' ? 'Male' : 'Female';
-                // Group by dining seat number
                 diningMap[p.dining_seat_no] = {
                     p: p,
                     gender: gender
@@ -501,14 +499,12 @@ function ParticipantList({ courses, refreshCourses }) {
             }
         });
 
-        // Generate table header
         const tableRows = [];
         const sortedSeats = Object.keys(diningMap).sort((a, b) => parseInt(a) - parseInt(b));
 
         if (sortedSeats.length === 0) {
             tableRows.push(<tr key="no-data"><td colSpan="5" style={{textAlign: 'center', padding: '20px'}}>No students assigned to dining seats yet.</td></tr>);
         } else {
-             // Dining Sheet Header
              tableRows.push(
                 <tr key="header" style={{background:'#f9f9f9', borderBottom:'2px solid #333'}}>
                     <th style={{padding:'10px'}}>Seat No</th>
@@ -625,7 +621,7 @@ function ExpenseTracker({ courses }) {
         <h3 style={{marginTop:0, color:'#555'}}>Tools & Reports</h3>
         <div style={{display:'flex', gap:'10px'}}>
           <button onClick={() => setReportMode('invoice')} disabled={!selectedStudentId} style={{...quickBtnStyle(!!selectedStudentId), background: selectedStudentId ? '#17a2b8' : '#e2e6ea', color: selectedStudentId ? 'white' : '#999', cursor: selectedStudentId ? 'pointer' : 'not-allowed'}}>🖨️ Print Invoice</button>
-          <button onClick={loadFinancialReport} disabled={!courseId} style={{...quickBtnStyle(!!courseId), background: courseId ? '#28a745' : '#e2e6ea', color: courseId ? 'white' : '#999', cursor: courseId ? 'pointer' : 'not-allowed'}}>💰 Course Summary</button>
+          <button onClick={loadFinancialReport} disabled={!courseId} style={quickBtnStyle(true)}>💰 Course Summary</button>
         </div>
       </div>
       <div style={{marginTop:'20px'}}>
