@@ -250,6 +250,7 @@ function Dashboard({ courses }) {
   );
 }
 
+// --- 2. GLOBAL ACCOMMODATION MANAGER ---
 function GlobalAccommodationManager({ courses, onRoomClick }) {
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
@@ -278,8 +279,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
   let maleFree = 0, maleOcc = 0, femaleFree = 0, femaleOcc = 0;
   
   safeRooms.forEach(r => { const p = occupiedMap[normalize(r.room_no)]; const isMale = r.gender_type === 'Male'; if (p) { if(isMale) maleOcc++; else femaleOcc++; } else { if(isMale) maleFree++; else femaleFree++; } });
-  const courseData = Object.entries(courseBreakdown).map(([name, count]) => ({ name: name.substring(0,15), count }));
-
+  
   // --- NEW MAINTENANCE TOGGLE ---
   const toggleMaintenance = async (room, e) => {
     e.stopPropagation(); 
@@ -298,7 +298,6 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     }
   };
 
-  // --- RENDER SINGLE ROOM ---
   const renderRoom = (room, gender) => {
     const occupant = occupiedMap[normalize(room.room_no)];
     const isOccupied = !!occupant;
@@ -354,7 +353,6 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     );
   };
 
-  // --- THIS IS THE PART YOU WERE MISSING ---
   return ( 
     <div style={cardStyle}> 
       <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center', flexWrap:'wrap', gap:'10px'}}> 
@@ -369,8 +367,6 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
           <button onClick={() => window.print()} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Status</button> 
         </div> 
       </div> 
-      
-      {/* Summary Stats */}
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'15px', marginBottom:'20px'}}> 
         <div style={{padding:'12px', background:'#e3f2fd', borderRadius:'8px', borderLeft:'5px solid #1565c0'}}> 
           <div style={{fontSize:'14px', fontWeight:'bold', color:'#1565c0', marginBottom:'5px'}}>MALE WING (Free: {maleFree})</div> 
@@ -381,8 +377,6 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
           <div style={{fontSize:'11px', color:'#333', display:'flex', flexWrap:'wrap', gap:'5px'}}> {Object.entries(femaleBreakdown).length > 0 ? Object.entries(femaleBreakdown).map(([name, count]) => <span key={name} style={{background:'white', padding:'2px 5px', borderRadius:'3px'}}>{name}: <b>{count}</b></span>) : "Empty"} </div> 
         </div> 
       </div>
-
-      {/* Main Grid */}
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}> 
         <div style={{border:'1px solid #90caf9', borderRadius:'8px', padding:'10px'}}> 
           <h3 style={{textAlign:'center', background:'#e3f2fd', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>MALE WING</h3> 
@@ -393,8 +387,6 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
           <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}> {femaleRooms.map(r => renderRoom(r, 'Female'))} </div> 
         </div> 
       </div>
-      
-      {/* Swap/Edit Modal */}
       {editingRoom && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}> <h3>🔄 Change/Swap Room</h3> <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}> <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name || 'Unknown'}</strong></p> <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p> </div> <label style={labelStyle}>New Room Number:</label> <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter free room no" /> <div style={{marginTop:'20px', display:'flex', gap:'10px'}}> <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Update</button> <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button> </div> </div> </div> )} 
     </div> 
   );
