@@ -286,24 +286,77 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
       alert("Error updating status");
     }
   };
+const toggleMaintenance = async (room, e) => {
+    e.stopPropagation(); 
+    const newStatus = room.status === 'Maintenance' ? 'Active' : 'Maintenance';
+    if(!window.confirm(`Mark room ${room.room_no} as ${newStatus}?`)) return;
+
+    try {
+      await fetch(`${API_URL}/rooms/${room.room_id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      loadData(); 
+    } catch (err) {
+      alert("Error updating status");
+    }
+  };
 
   const renderRoom = (room, gender) => {
-      // ... code ...
-      return ( 
-        // ... JSX ...
-      );
-  }; // <--- MAKE SURE THIS CLOSING BRACE & SEMICOLON EXIST
+    const occupant = occupiedMap[normalize(room.room_no)];
+    const isOccupied = !!occupant;
+    const isMaintenance = room.status === 'Maintenance';
+    
+    // COLOR LOGIC
+    let bgColor = gender === 'Male' ? '#e3f2fd' : '#fce4ec'; 
+    let borderColor = gender === 'Male' ? '#90caf9' : '#f48fb1';
+    
+    if (isMaintenance) {
+        bgColor = '#e0e0e0'; // Gray
+        borderColor = '#9e9e9e'; 
+    } else if (isOccupied) {
+        const isArrived = occupant.status === 'Arrived';
+        const isOld = occupant.conf_no && (occupant.conf_no.startsWith('O') || occupant.conf_no.startsWith('S'));
+        bgColor = isOld ? '#e1bee7' : '#c8e6c9'; 
+        borderColor = isOld ? '#8e24aa' : '#2e7d32';
+        if (!isArrived) { bgColor = '#fff3e0'; borderColor = '#ffb74d'; }
+    }
 
-  // 2. THIS IS THE MISSING PART?
-  // You need the main 'return' statement for the component here.
-  return (
-    <div style={cardStyle}>
-      {/* ... The rest of your JSX code ... */}
-      {/* ... Grid of rooms ... */}
-    </div>
-  );
-} //
+    return ( 
+      <div key={room.room_id} 
+           onClick={() => !isMaintenance && (isOccupied ? setEditingRoom({ p: occupant, newRoomNo: room.room_no }) : onRoomClick(room.room_no))} 
+           style={{ border: `1px solid ${borderColor}`, background: bgColor, borderRadius: '6px', padding: '8px', textAlign: 'center', minHeight: '80px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column', justifyContent:'center', cursor: (isOccupied || !isMaintenance) ? 'pointer' : 'not-allowed', position: 'relative', opacity: isMaintenance ? 0.7 : 1 }}> 
+           
+           <div style={{fontWeight:'bold', fontSize:'13px', color:'#333'}}>
+             {room.room_no} 
+             {isMaintenance && <span style={{display:'block', fontSize:'9px', color:'red'}}>🛠️ MAINT</span>}
+           </div>
 
+           {isOccupied && !isMaintenance ? ( 
+             <div style={{fontSize:'11px', color: '#333', marginTop:'4px'}}> 
+               <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'90px'}}>{(occupant.full_name || '').split(' ')[0]}</div> 
+             </div> 
+           ) : null}
+
+           {!isOccupied && !isMaintenance && (
+             <div style={{fontSize:'9px', color: gender==='Male'?'#1565c0':'#ad1457', marginTop:'4px'}}>FREE</div>
+           )}
+
+           <button onClick={(e) => toggleMaintenance(room, e)} 
+                   title="Toggle Maintenance"
+                   style={{position:'absolute', bottom:'2px', right:'2px', fontSize:'10px', background:'none', border:'none', cursor:'pointer', opacity:0.5}}>
+             🛠️
+           </button>
+           
+           {!isOccupied && !PROTECTED_ROOMS.has(room.room_no) && 
+             <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id, room.room_no)}} 
+                     style={{position:'absolute', top:'2px', right:'2px', color:'#ccc', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>
+           } 
+      </div> 
+    );
+  };
+  
 // --- 3. STUDENT FORM ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); const [rooms, setRooms] = useState([]); const [occupancy, setOccupancy] = useState([]); const [selectedStudent, setSelectedStudent] = useState(null); const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Chair' }); const [status, setStatus] = useState('');
