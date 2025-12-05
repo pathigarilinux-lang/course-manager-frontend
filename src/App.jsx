@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
 
-const API_URL = "https://course-manager-backend-cd1m.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 const ADMIN_PASSCODE = "1234"; 
 
 // --- UTILS ---
