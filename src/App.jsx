@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
 
 const API_URL = "https://course-manager-backend-cd1m.onrender.com";
-const ADMIN_PASSCODE = "1234"; 
+const ADMIN_PASSCODE = "1111"; 
 
 // --- UTILS ---
 const NUMBER_OPTIONS = Array.from({length: 200}, (_, i) => i + 1);
