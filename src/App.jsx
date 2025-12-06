@@ -280,28 +280,36 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
   
   safeRooms.forEach(r => { const p = occupiedMap[normalize(r.room_no)]; const isMale = r.gender_type === 'Male'; if (p) { if(isMale) maleOcc++; else femaleOcc++; } else { if(isMale) maleFree++; else femaleFree++; } });
   
-  // --- NEW MAINTENANCE TOGGLE ---
+  // --- FIXED MAINTENANCE TOGGLE ---
   const toggleMaintenance = async (room, e) => {
     e.stopPropagation(); 
-    const newStatus = room.status === 'Maintenance' ? 'Active' : 'Maintenance';
-    if(!window.confirm(`Mark room ${room.room_no} as ${newStatus}?`)) return;
+    
+    // 1. Determine new boolean state (invert current)
+    const newIsMaintenance = !room.is_maintenance;
+    const actionText = newIsMaintenance ? "Maintenance Mode" : "Available";
+
+    if(!window.confirm(`Mark room ${room.room_no} as ${actionText}?`)) return;
 
     try {
-      await fetch(`${API_URL}/rooms/${room.room_id}/status`, {
+      // 2. Send Boolean to Backend
+      // NOTE: Ensure your backend PUT /rooms/:id accepts 'is_maintenance' in body
+      await fetch(`${API_URL}/rooms/${room.room_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ is_maintenance: newIsMaintenance })
       });
       loadData(); 
     } catch (err) {
+      console.error(err);
       alert("Error updating status");
     }
   };
 
-  const occupant = occupiedMap[normalize(room.room_no)];
+  const renderRoom = (room, gender) => {
+    const occupant = occupiedMap[normalize(room.room_no)];
     const isOccupied = !!occupant;
     
-    // FIX: Check the boolean flag from the DB
+    // FIXED: Check the boolean flag from the DB
     const isMaintenance = room.is_maintenance === true;
     
     // COLOR LOGIC
@@ -341,7 +349,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
            )}
 
            <button onClick={(e) => toggleMaintenance(room, e)} 
-                   title="Toggle Maintenance"
+                   title={isMaintenance ? "Set to Available" : "Set to Maintenance"}
                    style={{position:'absolute', bottom:'2px', right:'2px', fontSize:'10px', background:'none', border:'none', cursor:'pointer', opacity:0.5}}>
              🛠️
            </button>
@@ -392,6 +400,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     </div> 
   );
 }
+
 // --- 3. STUDENT FORM ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); const [rooms, setRooms] = useState([]); const [occupancy, setOccupancy] = useState([]); const [selectedStudent, setSelectedStudent] = useState(null); const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Chair' }); const [status, setStatus] = useState('');
