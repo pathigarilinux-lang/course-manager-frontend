@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
 
-const API_URL = "https://course-manager-backend-cd1m.onrender.com";
-const ADMIN_PASSCODE = "1111"; 
+const API_URL = "https://course-manager-backend-staging.onrender.com"; // Ensure this matches your Staging Backend URL
+const ADMIN_PASSCODE = "11111"; 
 
 // --- UTILS ---
 const NUMBER_OPTIONS = Array.from({length: 200}, (_, i) => i + 1);
@@ -316,6 +316,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     let bgColor = gender === 'Male' ? '#e3f2fd' : '#fce4ec'; 
     let borderColor = gender === 'Male' ? '#90caf9' : '#f48fb1';
     
+    // PRIORITY: Maintenance overrides Occupied
     if (isMaintenance) {
         bgColor = '#e0e0e0'; // Gray
         borderColor = '#9e9e9e'; 
