@@ -298,10 +298,11 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     }
   };
 
-  const renderRoom = (room, gender) => {
-    const occupant = occupiedMap[normalize(room.room_no)];
+  const occupant = occupiedMap[normalize(room.room_no)];
     const isOccupied = !!occupant;
-    const isMaintenance = room.status === 'Maintenance';
+    
+    // FIX: Check the boolean flag from the DB
+    const isMaintenance = room.is_maintenance === true;
     
     // COLOR LOGIC
     let bgColor = gender === 'Male' ? '#e3f2fd' : '#fce4ec'; 
