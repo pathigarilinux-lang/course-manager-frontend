@@ -275,8 +275,7 @@ function Dashboard({ courses }) {
     </div>
   );
 }
-
-// --- 2. GLOBAL ACCOMMODATION MANAGER (Fixed Swap UX) ---
+// --- 2. GLOBAL ACCOMMODATION MANAGER (Fixed Swap with Delay) ---
 function GlobalAccommodationManager({ courses, onRoomClick }) {
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
@@ -298,10 +297,8 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
 
   // --- SMART SWAP LOGIC ---
   const updateParticipantRoom = async (student, roomNo) => {
-      // Robust ID Check
       const id = student.participant_id || student.id;
       if (!id) throw new Error("Missing Participant ID. Cannot update.");
-      
       await fetch(`${API_URL}/participants/${id}`, { 
           method: 'PUT', 
           headers: { 'Content-Type': 'application/json' }, 
@@ -323,26 +320,35 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
           return;
       }
 
-      // Check if target is occupied (Global Check)
+      // Global Occupancy Check
       const targetOccupant = occupancy.find(p => p.room_no && normalize(p.room_no) === targetNorm);
       const currentStudent = editingRoom.p;
       
-      // Prevent recursive swap if data is stale
       if(targetOccupant && (targetOccupant.participant_id === currentStudent.participant_id)) { 
           setEditingRoom(null); return; 
       }
 
       try {
           if (targetOccupant) {
-              // CASE 1: SWAP (Occupied Target)
               if(!window.confirm(`⚠️ Room ${targetRoomNo} is occupied by ${targetOccupant.full_name}.\n\nConfirm SWAP between:\n1. ${currentStudent.full_name}\n2. ${targetOccupant.full_name}?`)) return;
 
-              // 3-Step Swap: A->Null, B->A_Old, A->B_Old
+              // Step 1: Temporarily remove current student (Free up Room A)
               await updateParticipantRoom(currentStudent, null);
+              
+              // Wait 500ms to ensure DB processing
+              await new Promise(r => setTimeout(r, 500));
+
+              // Step 2: Move Target to Room A
               await updateParticipantRoom(targetOccupant, currentStudent.room_no);
+
+              // Wait 500ms
+              await new Promise(r => setTimeout(r, 500));
+
+              // Step 3: Move Current Student to Room B
               await updateParticipantRoom(currentStudent, targetRoomNo);
+
           } else {
-              // CASE 2: MOVE (Empty Target)
+              // Simple Move (Empty Room)
               await updateParticipantRoom(currentStudent, targetRoomNo);
           }
           setEditingRoom(null); 
@@ -363,7 +369,6 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
   const maleRooms = safeRooms.filter(r => r.gender_type === 'Male'); 
   const femaleRooms = safeRooms.filter(r => r.gender_type === 'Female');
   
-  // Calculate Stats
   let maleFree = 0, maleOcc = 0, maleOther = 0;
   let femaleFree = 0, femaleOcc = 0, femaleOther = 0;
   
@@ -391,13 +396,11 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     const isOccupied = !!occupant;
     const isMaintenance = room.is_maintenance === true;
     
-    // Filter Dimming Logic
     let isDimmed = false;
     if (filterCourseId && isOccupied) {
         if (occupant.course_id != filterCourseId) isDimmed = true;
     }
 
-    // Colors
     let bgColor = gender === 'Male' ? '#e3f2fd' : '#fce4ec'; 
     let borderColor = gender === 'Male' ? '#90caf9' : '#f48fb1';
     
@@ -410,7 +413,6 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
         if (isDimmed) { bgColor = '#f5f5f5'; borderColor = '#ddd'; }
     }
 
-    // Extracted Style Object
     const boxStyle = {
         border: `1px solid ${borderColor}`,
         background: bgColor,
@@ -487,7 +489,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     </div> 
   );
 }
-// --- 3. STUDENT FORM (Fixed: Global Duplicates Check) ---
+// --- 3. STUDENT FORM (Fixed: Robust Gender & Global Duplicates) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
@@ -523,22 +525,29 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   // --- LOGIC: GLOBAL RESOURCE FILTERING ---
   
-  // 1. Filter Rooms (Global Check)
-  const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? p.room_no.replace(/[\s-]+/g, '').toUpperCase() : ''));
-  let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(r.room_no.replace(/[\s-]+/g, '').toUpperCase()) && r.is_maintenance !== true );
-
-  // 2. Filter Seats/Lockers (Global Gender Aware Check)
-  // We use 'occupancy' (Global List) to prevent cross-course duplicates
+  // 1. Helpers
+  const normalize = (str) => str ? str.replace(/[\s-]+/g, '').toUpperCase() : '';
   
-  const currentGender = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
+  // 2. Build Room Gender Map (RoomNo -> Gender)
+  // This ensures we know that '301AI' is Male without guessing
+  const roomGenderMap = {};
+  rooms.forEach(r => {
+      roomGenderMap[normalize(r.room_no)] = r.gender_type; // 'Male' or 'Female'
+  });
 
-  // Get all occupied numbers in the facility (Global) that match the student's gender
-  // (We filter out the student's own current assignment if they are already in the list to allow re-assignment)
+  // 3. Filter Rooms (Global Check)
+  const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
+  let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)) && r.is_maintenance !== true );
+
+  // 4. Filter Seats/Lockers (Gender Aware)
+  const currentGender = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
+  
+  // Filter occupancy to find PEERS of the same gender
   const relevantOccupancy = occupancy.filter(p => {
-      // Try to determine gender from the room or the record
-      // If gender is missing in occupancy, we assume it checks against all
-      const pGender = p.gender || (p.room_no && (p.room_no.includes('BI') || p.room_no.includes('BW')) ? 'Male' : 'Female'); 
-      return pGender && pGender.toLowerCase().startsWith(currentGender === 'male' ? 'm' : 'f');
+      if (!p.room_no) return false;
+      const rGender = roomGenderMap[normalize(p.room_no)];
+      // Match if room gender matches student gender (Case insensitive)
+      return rGender && rGender.toLowerCase() === currentGender;
   });
 
   const usedDining = new Set(relevantOccupancy.map(p => String(p.dining_seat_no || '')));
@@ -553,6 +562,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const availableMobileOpts = getAvailableOptions(usedMobile);
   const availableValuablesOpts = getAvailableOptions(usedValuables);
 
+  // Filter Room Dropdown by Gender
   if (currentGender === 'male') availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (currentGender === 'female') availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
   
@@ -621,7 +631,6 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
     </div> 
   );
 }
-
 // --- 4. MANAGE STUDENTS ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [search, setSearch] = useState(''); const [editingStudent, setEditingStudent] = useState(null); const [viewingStudent, setViewingStudent] = useState(null); const [viewAllMode, setViewAllMode] = useState(false); const [viewMode, setViewMode] = useState('list'); const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
