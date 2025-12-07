@@ -276,13 +276,16 @@ function Dashboard({ courses }) {
   );
 }
 
-// --- 2. GLOBAL ACCOMMODATION MANAGER ---
+// --- 2. GLOBAL ACCOMMODATION MANAGER (Fixed Swap & Added Filters) ---
 function GlobalAccommodationManager({ courses, onRoomClick }) {
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
   const [loading, setLoading] = useState(false); 
   const [newRoom, setNewRoom] = useState({ roomNo: '', type: 'Male' }); 
   const [editingRoom, setEditingRoom] = useState(null);
+  
+  // NEW: Filter State
+  const [filterCourseId, setFilterCourseId] = useState('');
 
   const loadData = () => { 
     setLoading(true); 
@@ -294,74 +297,158 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
 
   const handleAddRoom = async () => { if (!newRoom.roomNo) return alert("Enter Room Number"); await fetch(`${API_URL}/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newRoom) }); setNewRoom({ ...newRoom, roomNo: '' }); loadData(); };
   const handleDeleteRoom = async (id, name) => { if (PROTECTED_ROOMS.has(name)) return alert("🚫 Cannot delete original room!"); if(window.confirm("Delete this room?")) { await fetch(`${API_URL}/rooms/${id}`, { method: 'DELETE' }); loadData(); } };
-  const handleSwapSave = async () => { if (!editingRoom || !editingRoom.p) return; await fetch(`${API_URL}/participants/${editingRoom.p.participant_id || editingRoom.p.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...editingRoom.p, room_no: editingRoom.newRoomNo }) }); setEditingRoom(null); loadData(); };
 
+  // --- NEW: SMART SWAP LOGIC ---
+  const updateParticipantRoom = async (student, roomNo) => {
+      const id = student.participant_id || student.id;
+      await fetch(`${API_URL}/participants/${id}`, { 
+          method: 'PUT', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ ...student, room_no: roomNo }) 
+      });
+  };
+
+  const handleSwapSave = async () => { 
+      if (!editingRoom || !editingRoom.p) return;
+      
+      const targetRoomNo = editingRoom.newRoomNo.trim();
+      if(!targetRoomNo) return alert("Enter Room No");
+
+      const normalize = (s) => s ? s.replace(/[\s-]+/g, '').toUpperCase() : '';
+      const targetNorm = normalize(targetRoomNo);
+
+      // Check if target is occupied
+      const targetOccupant = occupancy.find(p => p.room_no && normalize(p.room_no) === targetNorm);
+      const currentStudent = editingRoom.p;
+      const currentRoomNo = currentStudent.room_no;
+
+      // Prevent same-room swap
+      if(targetOccupant && (targetOccupant.participant_id === currentStudent.participant_id)) {
+          setEditingRoom(null); return; 
+      }
+
+      try {
+          if (targetOccupant) {
+              // CASE 1: SWAP (Occupied Target)
+              if(!window.confirm(`⚠️ Room ${targetRoomNo} is occupied by ${targetOccupant.full_name}.\n\nConfirm SWAP between:\n1. ${currentStudent.full_name}\n2. ${targetOccupant.full_name}?`)) return;
+
+              // Step A: Move Current -> NULL (Temp Vacate to avoid constraint issues)
+              await updateParticipantRoom(currentStudent, null);
+              
+              // Step B: Move Target -> Old Room
+              await updateParticipantRoom(targetOccupant, currentRoomNo);
+
+              // Step C: Move Current -> New Room
+              await updateParticipantRoom(currentStudent, targetRoomNo);
+
+          } else {
+              // CASE 2: MOVE (Empty Target)
+              await updateParticipantRoom(currentStudent, targetRoomNo);
+          }
+          setEditingRoom(null);
+          loadData();
+      } catch (err) {
+          console.error(err);
+          alert("Error processing request. Check console.");
+          loadData(); // Safety refresh
+      }
+  };
+
+  // --- STATS & RENDERING ---
   const normalize = (str) => str ? str.replace(/[\s-]+/g, '').toUpperCase() : '';
-  const occupiedMap = {}; const courseBreakdown = {}; const maleBreakdown = {}; const femaleBreakdown = {}; const unmappedParticipants = [];
+  const occupiedMap = {}; 
+  const courseBreakdown = {}; 
   const safeRooms = rooms || []; 
   
-  (occupancy || []).forEach(p => { if(p.room_no) { const n = normalize(p.room_no); const rObj = safeRooms.find(r => normalize(r.room_no)===n); if (rObj) { occupiedMap[n] = p; const c = getShortCourseName(p.course_name); if(rObj.gender_type==='Male') maleBreakdown[c]=(maleBreakdown[c]||0)+1; else femaleBreakdown[c]=(femaleBreakdown[c]||0)+1; } else unmappedParticipants.push(p); } });
-  const maleRooms = safeRooms.filter(r => r.gender_type === 'Male'); const femaleRooms = safeRooms.filter(r => r.gender_type === 'Female');
-  let maleFree = 0, maleOcc = 0, femaleFree = 0, femaleOcc = 0;
+  // 1. Map Global Occupancy
+  (occupancy || []).forEach(p => { 
+      if(p.room_no) { 
+          occupiedMap[normalize(p.room_no)] = p; 
+      } 
+  });
+
+  // 2. Calculate Stats based on Filter
+  const maleRooms = safeRooms.filter(r => r.gender_type === 'Male'); 
+  const femaleRooms = safeRooms.filter(r => r.gender_type === 'Female');
   
-  safeRooms.forEach(r => { const p = occupiedMap[normalize(r.room_no)]; const isMale = r.gender_type === 'Male'; if (p) { if(isMale) maleOcc++; else femaleOcc++; } else { if(isMale) maleFree++; else femaleFree++; } });
+  let maleFree = 0, maleOcc = 0, maleOther = 0;
+  let femaleFree = 0, femaleOcc = 0, femaleOther = 0;
   
-  // --- MAINTENANCE TOGGLE ---
+  safeRooms.forEach(r => { 
+      const n = normalize(r.room_no);
+      const occupant = occupiedMap[n];
+      const isMale = r.gender_type === 'Male';
+      
+      if (!occupant) {
+          if(isMale) maleFree++; else femaleFree++;
+      } else {
+          // Check Filter Match
+          // Matches if: No filter set OR (CourseID matches OR CourseName matches)
+          const isMatch = !filterCourseId || (occupant.course_id == filterCourseId);
+
+          if (isMatch) {
+              if(isMale) maleOcc++; else femaleOcc++;
+              // Add to visual breakdown text
+              const c = getShortCourseName(occupant.course_name); 
+              if(isMale) courseBreakdown[c]=(courseBreakdown[c]||0)+1; 
+              // Note: We are mixing genders in courseBreakdown for simplicity or need separate? 
+              // Let's keep existing logic but just for valid matches.
+          } else {
+              if(isMale) maleOther++; else femaleOther++;
+          }
+      }
+  });
+  
   const toggleMaintenance = async (room, e) => {
     e.stopPropagation(); 
     const newIsMaintenance = !room.is_maintenance;
-    const actionText = newIsMaintenance ? "Maintenance Mode" : "Available";
-
-    if(!window.confirm(`Mark room ${room.room_no} as ${actionText}?`)) return;
-
+    if(!window.confirm(`Mark room ${room.room_no} as ${newIsMaintenance ? "Maintenance" : "Available"}?`)) return;
     try {
-      await fetch(`${API_URL}/rooms/${room.room_id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_maintenance: newIsMaintenance })
-      });
+      await fetch(`${API_URL}/rooms/${room.room_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_maintenance: newIsMaintenance }) });
       loadData(); 
-    } catch (err) {
-      console.error(err);
-      alert("Error updating status");
-    }
+    } catch (err) { console.error(err); alert("Error"); }
   };
 
   const renderRoom = (room, gender) => {
     const occupant = occupiedMap[normalize(room.room_no)];
     const isOccupied = !!occupant;
-    
-    // Check the boolean flag from the DB
     const isMaintenance = room.is_maintenance === true;
     
-    // COLOR LOGIC
+    // Filter Logic for Visuals
+    let isDimmed = false;
+    if (filterCourseId && isOccupied) {
+        const isMatch = (occupant.course_id == filterCourseId);
+        if (!isMatch) isDimmed = true;
+    }
+
+    // Colors
     let bgColor = gender === 'Male' ? '#e3f2fd' : '#fce4ec'; 
     let borderColor = gender === 'Male' ? '#90caf9' : '#f48fb1';
     
-    // PRIORITY: Maintenance overrides Occupied
     if (isMaintenance) {
-        bgColor = '#e0e0e0'; // Gray
-        borderColor = '#9e9e9e'; 
+        bgColor = '#e0e0e0'; borderColor = '#9e9e9e'; 
     } else if (isOccupied) {
         const isArrived = occupant.status === 'Arrived';
         const isOld = occupant.conf_no && (occupant.conf_no.startsWith('O') || occupant.conf_no.startsWith('S'));
         bgColor = isOld ? '#e1bee7' : '#c8e6c9'; 
         borderColor = isOld ? '#8e24aa' : '#2e7d32';
         if (!isArrived) { bgColor = '#fff3e0'; borderColor = '#ffb74d'; }
+        
+        if (isDimmed) { bgColor = '#f5f5f5'; borderColor = '#ddd'; } // Gray out non-selected course
     }
 
     return ( 
       <div key={room.room_id} 
            onClick={() => !isMaintenance && (isOccupied ? setEditingRoom({ p: occupant, newRoomNo: room.room_no }) : onRoomClick(room.room_no))} 
-           style={{ border: `1px solid ${borderColor}`, background: bgColor, borderRadius: '6px', padding: '8px', textAlign: 'center', minHeight: '80px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column', justifyContent:'center', cursor: (isOccupied || !isMaintenance) ? 'pointer' : 'not-allowed', position: 'relative', opacity: isMaintenance ? 0.7 : 1 }}> 
+           style={{ border: `1px solid ${borderColor}`, background: bgColor, borderRadius: '6px', padding: '8px', textAlign: 'center', minHeight: '80px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display:'flex', flexDirection:'column', justifyContent:'center', cursor: (isOccupied || !isMaintenance) ? 'pointer' : 'not-allowed', position: 'relative', opacity: isMaintenance || isDimmed ? 0.6 : 1 }}> 
            
-           <div style={{fontWeight:'bold', fontSize:'13px', color:'#333'}}>
+           <div style={{fontWeight:'bold', fontSize:'13px', color: isDimmed ? '#999' : '#333'}}>
              {room.room_no} 
              {isMaintenance && <span style={{display:'block', fontSize:'9px', color:'red'}}>🛠️ MAINT</span>}
            </div>
 
-           {isOccupied && !isMaintenance ? ( 
-             <div style={{fontSize:'11px', color: '#333', marginTop:'4px'}}> 
+           {isOccupied && !isMaintenance && ( 
+             <div style={{fontSize:'11px', color: isDimmed ? '#999' : '#333', marginTop:'4px'}}> 
                <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'90px'}}>{(occupant.full_name || '').split(' ')[0]}</div> 
                <div style={{fontWeight:'bold', fontSize:'9px'}}>({occupant.conf_no})</div>
              </div> 
@@ -371,16 +458,8 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
              <div style={{fontSize:'9px', color: gender==='Male'?'#1565c0':'#ad1457', marginTop:'4px'}}>FREE</div>
            )}
 
-           <button onClick={(e) => toggleMaintenance(room, e)} 
-                   title={isMaintenance ? "Set to Available" : "Set to Maintenance"}
-                   style={{position:'absolute', bottom:'2px', right:'2px', fontSize:'10px', background:'none', border:'none', cursor:'pointer', opacity:0.5}}>
-             🛠️
-           </button>
-           
-           {!isOccupied && !PROTECTED_ROOMS.has(room.room_no) && 
-             <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id, room.room_no)}} 
-                     style={{position:'absolute', top:'2px', right:'2px', color:'#ccc', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>
-           } 
+           <button onClick={(e) => toggleMaintenance(room, e)} style={{position:'absolute', bottom:'2px', right:'2px', fontSize:'10px', background:'none', border:'none', cursor:'pointer', opacity:0.5}}>🛠️</button>
+           {!isOccupied && !PROTECTED_ROOMS.has(room.room_no) && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id, room.room_no)}} style={{position:'absolute', top:'2px', right:'2px', color:'#ccc', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>} 
       </div> 
     );
   };
@@ -388,7 +467,14 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
   return ( 
     <div style={cardStyle}> 
       <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center', flexWrap:'wrap', gap:'10px'}}> 
-        <h2 style={{margin:0}}>🛏️ Global Accommodation Manager</h2> 
+        <h2 style={{margin:0}}>🛏️ Global Accommodation</h2> 
+        
+        {/* NEW: COURSE FILTER DROPDOWN */}
+        <select style={{...inputStyle, width:'200px', fontWeight:'bold', border:'2px solid #007bff'}} value={filterCourseId} onChange={e => setFilterCourseId(e.target.value)}>
+            <option value="">-- SHOW ALL COURSES --</option>
+            {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
+        </select>
+
         <div style={{display:'flex', gap:'10px', alignItems:'center'}}> 
           <div style={{display:'flex', gap:'5px', alignItems:'center', background:'#f9f9f9', padding:'5px', borderRadius:'5px', border:'1px solid #eee'}}> 
             <input style={{...inputStyle, width:'60px', padding:'5px'}} placeholder="No" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} /> 
@@ -396,19 +482,21 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
             <button onClick={handleAddRoom} style={{...quickBtnStyle(true), background:'#007bff', color:'white', padding:'5px 10px', fontSize:'11px'}}>+ Add</button> 
           </div> 
           <button onClick={loadData} style={{...btnStyle(false), fontSize:'12px'}}>↻ Refresh</button> 
-          <button onClick={() => window.print()} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Status</button> 
         </div> 
       </div> 
+      
+      {/* STATS PANEL */}
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'15px', marginBottom:'20px'}}> 
         <div style={{padding:'12px', background:'#e3f2fd', borderRadius:'8px', borderLeft:'5px solid #1565c0'}}> 
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#1565c0', marginBottom:'5px'}}>MALE WING (Free: {maleFree})</div> 
-          <div style={{fontSize:'11px', color:'#333', display:'flex', flexWrap:'wrap', gap:'5px'}}> {Object.entries(maleBreakdown).length > 0 ? Object.entries(maleBreakdown).map(([name, count]) => <span key={name} style={{background:'white', padding:'2px 5px', borderRadius:'3px'}}>{name}: <b>{count}</b></span>) : "Empty"} </div> 
+          <div style={{fontSize:'14px', fontWeight:'bold', color:'#1565c0', marginBottom:'5px'}}>MALE WING</div> 
+          <div style={{fontSize:'12px'}}>Free: <b>{maleFree}</b> | Occupied: <b>{maleOcc}</b> {maleOther > 0 && <span style={{color:'#888'}}>(+ {maleOther} other)</span>}</div>
         </div> 
         <div style={{padding:'12px', background:'#fce4ec', borderRadius:'8px', borderLeft:'5px solid #ad1457'}}> 
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#ad1457', marginBottom:'5px'}}>FEMALE WING (Free: {femaleFree})</div> 
-          <div style={{fontSize:'11px', color:'#333', display:'flex', flexWrap:'wrap', gap:'5px'}}> {Object.entries(femaleBreakdown).length > 0 ? Object.entries(femaleBreakdown).map(([name, count]) => <span key={name} style={{background:'white', padding:'2px 5px', borderRadius:'3px'}}>{name}: <b>{count}</b></span>) : "Empty"} </div> 
+          <div style={{fontSize:'14px', fontWeight:'bold', color:'#ad1457', marginBottom:'5px'}}>FEMALE WING</div> 
+          <div style={{fontSize:'12px'}}>Free: <b>{femaleFree}</b> | Occupied: <b>{femaleOcc}</b> {femaleOther > 0 && <span style={{color:'#888'}}>(+ {femaleOther} other)</span>}</div>
         </div> 
       </div>
+
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}> 
         <div style={{border:'1px solid #90caf9', borderRadius:'8px', padding:'10px'}}> 
           <h3 style={{textAlign:'center', background:'#e3f2fd', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>MALE WING</h3> 
@@ -419,7 +507,8 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
           <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}> {femaleRooms.map(r => renderRoom(r, 'Female'))} </div> 
         </div> 
       </div>
-      {editingRoom && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}> <h3>🔄 Change/Swap Room</h3> <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}> <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name || 'Unknown'}</strong></p> <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p> </div> <label style={labelStyle}>New Room Number:</label> <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter free room no" /> <div style={{marginTop:'20px', display:'flex', gap:'10px'}}> <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Update</button> <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button> </div> </div> </div> )} 
+      
+      {editingRoom && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}> <h3>🔄 Change/Swap Room</h3> <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}> <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name || 'Unknown'}</strong></p> <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p> </div> <label style={labelStyle}>New Room Number:</label> <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter room no (Free or Occupied)" /> <div style={{marginTop:'20px', display:'flex', gap:'10px'}}> <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Update / Swap</button> <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button> </div> </div> </div> )} 
     </div> 
   );
 }
