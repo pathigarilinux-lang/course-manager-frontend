@@ -276,7 +276,7 @@ function Dashboard({ courses }) {
   );
 }
 
-// --- 2. GLOBAL ACCOMMODATION MANAGER (Fixed Syntax) ---
+// --- 2. GLOBAL ACCOMMODATION MANAGER (Fixed Swap UX) ---
 function GlobalAccommodationManager({ courses, onRoomClick }) {
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
@@ -298,33 +298,60 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
 
   // --- SMART SWAP LOGIC ---
   const updateParticipantRoom = async (student, roomNo) => {
+      // Robust ID Check
       const id = student.participant_id || student.id;
-      await fetch(`${API_URL}/participants/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...student, room_no: roomNo }) });
+      if (!id) throw new Error("Missing Participant ID. Cannot update.");
+      
+      await fetch(`${API_URL}/participants/${id}`, { 
+          method: 'PUT', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ ...student, room_no: roomNo }) 
+      });
   };
 
   const handleSwapSave = async () => { 
       if (!editingRoom || !editingRoom.p) return;
       const targetRoomNo = editingRoom.newRoomNo.trim();
-      if(!targetRoomNo) return alert("Enter Room No");
+      if(!targetRoomNo) return alert("Please enter the Target Room Number.");
       
       const normalize = (s) => s ? s.replace(/[\s-]+/g, '').toUpperCase() : '';
       const targetNorm = normalize(targetRoomNo);
+      const currentNorm = normalize(editingRoom.p.room_no);
+
+      if (targetNorm === currentNorm) {
+          alert("Target room is the same as current room!");
+          return;
+      }
+
+      // Check if target is occupied (Global Check)
       const targetOccupant = occupancy.find(p => p.room_no && normalize(p.room_no) === targetNorm);
       const currentStudent = editingRoom.p;
       
-      if(targetOccupant && (targetOccupant.participant_id === currentStudent.participant_id)) { setEditingRoom(null); return; }
+      // Prevent recursive swap if data is stale
+      if(targetOccupant && (targetOccupant.participant_id === currentStudent.participant_id)) { 
+          setEditingRoom(null); return; 
+      }
 
       try {
           if (targetOccupant) {
+              // CASE 1: SWAP (Occupied Target)
               if(!window.confirm(`⚠️ Room ${targetRoomNo} is occupied by ${targetOccupant.full_name}.\n\nConfirm SWAP between:\n1. ${currentStudent.full_name}\n2. ${targetOccupant.full_name}?`)) return;
+
+              // 3-Step Swap: A->Null, B->A_Old, A->B_Old
               await updateParticipantRoom(currentStudent, null);
               await updateParticipantRoom(targetOccupant, currentStudent.room_no);
               await updateParticipantRoom(currentStudent, targetRoomNo);
           } else {
+              // CASE 2: MOVE (Empty Target)
               await updateParticipantRoom(currentStudent, targetRoomNo);
           }
-          setEditingRoom(null); loadData();
-      } catch (err) { console.error(err); alert("Error processing request."); loadData(); }
+          setEditingRoom(null); 
+          loadData();
+      } catch (err) { 
+          console.error(err); 
+          alert("Error processing request: " + err.message); 
+          loadData(); 
+      }
   };
 
   // --- RENDERING HELPERS ---
@@ -383,7 +410,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
         if (isDimmed) { bgColor = '#f5f5f5'; borderColor = '#ddd'; }
     }
 
-    // Extracted Style Object to prevent Syntax Errors
+    // Extracted Style Object
     const boxStyle = {
         border: `1px solid ${borderColor}`,
         background: bgColor,
@@ -401,7 +428,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     };
 
     return ( 
-      <div key={room.room_id} onClick={() => !isMaintenance && (isOccupied ? setEditingRoom({ p: occupant, newRoomNo: room.room_no }) : onRoomClick(room.room_no))} style={boxStyle}> 
+      <div key={room.room_id} onClick={() => !isMaintenance && (isOccupied ? setEditingRoom({ p: occupant, newRoomNo: '' }) : onRoomClick(room.room_no))} style={boxStyle}> 
            <div style={{fontWeight:'bold', fontSize:'13px', color: isDimmed ? '#999' : '#333'}}>
              {room.room_no} 
              {isMaintenance && <span style={{display:'block', fontSize:'9px', color:'red'}}>🛠️ MAINT</span>}
@@ -456,18 +483,17 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
           <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}> {femaleRooms.map(r => renderRoom(r, 'Female'))} </div> 
         </div> 
       </div>
-      {editingRoom && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}> <h3>🔄 Change/Swap Room</h3> <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}> <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name || 'Unknown'}</strong></p> <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p> </div> <label style={labelStyle}>New Room Number:</label> <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter room no" /> <div style={{marginTop:'20px', display:'flex', gap:'10px'}}> <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Update / Swap</button> <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button> </div> </div> </div> )} 
+      {editingRoom && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}> <h3>🔄 Change/Swap Room</h3> <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}> <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name || 'Unknown'}</strong></p> <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p> </div> <label style={labelStyle}>New Room Number:</label> <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter target room no" /> <div style={{marginTop:'20px', display:'flex', gap:'10px'}}> <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Update / Swap</button> <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button> </div> </div> </div> )} 
     </div> 
   );
 }
-// --- 3. STUDENT FORM (Fixed: Gender-Based Uniqueness Filter) ---
+// --- 3. STUDENT FORM (Fixed: Global Duplicates Check) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
   const [selectedStudent, setSelectedStudent] = useState(null); 
   
-  // Form State
   const [formData, setFormData] = useState({ 
     courseId: '', participantId: '', roomNo: '', seatNo: '', 
     laundryToken: '', mobileLocker: '', valuablesLocker: '', 
@@ -482,7 +508,6 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
     fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(Array.isArray(data)?data:[])); 
   }, []);
 
-  // Pre-select Room if clicked from Global Manager
   useEffect(() => { 
     if (preSelectedRoom) { 
       setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); 
@@ -490,41 +515,37 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
     } 
   }, [preSelectedRoom, courses]);
 
-  // Load Students when Course Selected
   useEffect(() => { 
     if (formData.courseId) { 
       fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); 
     } 
   }, [formData.courseId]);
 
-  // --- LOGIC: Filter Available Resources ---
+  // --- LOGIC: GLOBAL RESOURCE FILTERING ---
   
   // 1. Filter Rooms (Global Check)
-  // Rooms are physical and gender-typed in the DB, so we use global occupancy
   const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? p.room_no.replace(/[\s-]+/g, '').toUpperCase() : ''));
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(r.room_no.replace(/[\s-]+/g, '').toUpperCase()) && r.is_maintenance !== true );
 
-  // 2. Filter Seats/Lockers (Gender Aware Check)
-  // We use 'participants' because it definitely contains the Dining/Locker data for this course.
+  // 2. Filter Seats/Lockers (Global Gender Aware Check)
+  // We use 'occupancy' (Global List) to prevent cross-course duplicates
   
-  // A. Determine Gender Context
   const currentGender = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
 
-  // B. Get list of peers (Same Gender only) to check for duplicates
-  // We exclude 'Cancelled' students so their seats become free again.
-  const relevantPeers = participants.filter(p => 
-    p.status !== 'Cancelled' && 
-    p.gender && p.gender.toLowerCase() === currentGender
-  );
+  // Get all occupied numbers in the facility (Global) that match the student's gender
+  // (We filter out the student's own current assignment if they are already in the list to allow re-assignment)
+  const relevantOccupancy = occupancy.filter(p => {
+      // Try to determine gender from the room or the record
+      // If gender is missing in occupancy, we assume it checks against all
+      const pGender = p.gender || (p.room_no && (p.room_no.includes('BI') || p.room_no.includes('BW')) ? 'Male' : 'Female'); 
+      return pGender && pGender.toLowerCase().startsWith(currentGender === 'male' ? 'm' : 'f');
+  });
 
-  // C. Build Sets of "Used" numbers by Peers
-  const usedDining = new Set(relevantPeers.map(p => String(p.dining_seat_no || '')));
-  const usedLaundry = new Set(relevantPeers.map(p => String(p.laundry_token_no || '')));
-  const usedMobile = new Set(relevantPeers.map(p => String(p.mobile_locker_no || p.mobile_locker || '')));
-  const usedValuables = new Set(relevantPeers.map(p => String(p.valuables_locker_no || p.valuables_locker || '')));
+  const usedDining = new Set(relevantOccupancy.map(p => String(p.dining_seat_no || '')));
+  const usedLaundry = new Set(relevantOccupancy.map(p => String(p.laundry_token_no || '')));
+  const usedMobile = new Set(relevantOccupancy.map(p => String(p.mobile_locker_no || p.mobile_locker || '')));
+  const usedValuables = new Set(relevantOccupancy.map(p => String(p.valuables_locker_no || p.valuables_locker || '')));
 
-  // D. Helper to filter 1-200 options
-  // We filter out any number that is present in the "Used" sets
   const getAvailableOptions = (usedSet) => NUMBER_OPTIONS.filter(n => !usedSet.has(String(n)));
 
   const availableDiningOpts = getAvailableOptions(usedDining);
@@ -532,13 +553,11 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const availableMobileOpts = getAvailableOptions(usedMobile);
   const availableValuablesOpts = getAvailableOptions(usedValuables);
 
-  // E. Filter Rooms by Gender
   if (currentGender === 'male') availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (currentGender === 'female') availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
   
   const studentsPending = participants.filter(p => p.status !== 'Arrived');
 
-  // Handlers
   const handleStudentChange = (e) => { 
     const selectedId = e.target.value; 
     const student = participants.find(p => p.participant_id == selectedId); 
@@ -554,20 +573,14 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); 
       const data = await res.json(); 
       if (!res.ok) throw new Error(data.error || "Unknown Error"); 
-      
       fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
-
       setStatus('✅ Success! Confirmation Sent.'); 
       setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor' })); 
       setSelectedStudent(null); 
       clearRoom(); 
-      
-      // Refresh Data
       fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); 
       fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(data)); 
-    } catch (err) { 
-      setStatus(`❌ ${err.message}`); 
-    } 
+    } catch (err) { setStatus(`❌ ${err.message}`); } 
   };
 
   const sectionHeader = (title) => <div style={{fontSize:'14px', fontWeight:'bold', color:'#007bff', borderBottom:'1px solid #eee', paddingBottom:'5px', marginTop:'15px', marginBottom:'10px'}}>{title}</div>;
@@ -578,111 +591,31 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       <form onSubmit={handleSubmit} style={{ maxWidth: '900px' }}> 
         <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}> 
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}> 
-            <div>
-              <label style={labelStyle}>1. Select Course</label>
-              <select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}>
-                <option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
-              </select>
-            </div> 
-            <div>
-              <label style={labelStyle}>2. Select Student</label>
-              <select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required>
-                <option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}
-              </select>
-            </div> 
+            <div><label style={labelStyle}>1. Select Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> 
+            <div><label style={labelStyle}>2. Select Student</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}</select></div> 
           </div> 
-          {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (
-            <div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}>
-              <strong>⚠️ SPECIAL ATTENTION:</strong> 
-              {selectedStudent.evening_food && <div>🍛 Food: {selectedStudent.evening_food}</div>} 
-              {selectedStudent.medical_info && <div>🏥 Medical: {selectedStudent.medical_info}</div>}
-            </div>
-          )} 
+          {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (<div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}><strong>⚠️ SPECIAL ATTENTION:</strong> {selectedStudent.evening_food && <div>🍛 Food: {selectedStudent.evening_food}</div>} {selectedStudent.medical_info && <div>🏥 Medical: {selectedStudent.medical_info}</div>}</div>)} 
         </div> 
-
         {sectionHeader("📍 Allocation Details")} 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}> 
-          <div>
-            <label style={labelStyle}>🆔 Conf No</label>
-            <input style={{...inputStyle, background:'#f0f0f0'}} value={formData.confNo} readOnly />
-          </div> 
-          <div>
-            <label style={labelStyle}>🛏️ Room No</label>
-            <select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required>
-              <option value="">-- Free Rooms --</option>
-              {preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}
-              {availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}
-            </select>
-          </div> 
-          <div>
-            <label style={labelStyle}>🍽️ Dining Seat</label>
-            <div style={{display:'flex', gap:'5px'}}>
-              <select style={{...inputStyle, width:'80px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}>
-                <option>Chair</option><option>Floor</option>
-              </select>
-              <select style={inputStyle} value={formData.seatNo} onChange={e=>setFormData({...formData, seatNo:e.target.value})} required>
-                <option value="">-- Free --</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-          </div> 
+          <div><label style={labelStyle}>🆔 Conf No</label><input style={{...inputStyle, background:'#f0f0f0'}} value={formData.confNo} readOnly /></div> 
+          <div><label style={labelStyle}>🛏️ Room No</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Free Rooms --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div> 
+          <div><label style={labelStyle}>🍽️ Dining Seat</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'80px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={e=>setFormData({...formData, seatNo:e.target.value})} required><option value="">-- Free --</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> 
         </div> 
-
         {sectionHeader("🧘 Hall & Meditation")} 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}> 
-          <div>
-            <label style={labelStyle}>🗣️ Discourse Lang</label>
-            <select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>
-              <option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>Odia</option><option>Bengali</option><option>Mandarin Chinese</option><option>Spanish</option><option>French</option><option>Portuguese</option><option>Russian</option><option>German</option><option>Vietnamese</option><option>Thai</option><option>Japanese</option>
-            </select>
-          </div> 
-          <div>
-            <label style={labelStyle}>🛖 Pagoda Cell</label>
-            <select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}>
-              <option value="">None</option>{NUMBER_OPTIONS.map(n=><option key={n} value={n}>{n}</option>)}
-            </select>
-          </div> 
+          <div><label style={labelStyle}>🗣️ Discourse Lang</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>Odia</option><option>Bengali</option><option>Mandarin Chinese</option><option>Spanish</option><option>French</option><option>Portuguese</option><option>Russian</option><option>German</option><option>Vietnamese</option><option>Thai</option><option>Japanese</option></select></div> 
+          <div><label style={labelStyle}>🛖 Pagoda Cell</label><select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}><option value="">None</option>{NUMBER_OPTIONS.map(n=><option key={n} value={n}>{n}</option>)}</select></div> 
         </div> 
-
         {sectionHeader("🔐 Lockers & Other")} 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> 
-          <div>
-            <label style={labelStyle}>📱 Mobile Locker</label>
-            <select style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}>
-              <option value="">None</option>{availableMobileOpts.map(n=><option key={n} value={n}>{n}</option>)}
-            </select>
-          </div> 
-          <div>
-            <label style={labelStyle}>💍 Val Locker</label>
-            <select style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}>
-              <option value="">None</option>{availableValuablesOpts.map(n=><option key={n} value={n}>{n}</option>)}
-            </select>
-          </div> 
-          <div>
-            <label style={labelStyle}>🧺 Laundry Token</label>
-            <select style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})}>
-              <option value="">None</option>{availableLaundryOpts.map(n=><option key={n} value={n}>{n}</option>)}
-            </select>
-          </div> 
-          <div>
-            <label style={labelStyle}>💻 Laptop</label>
-            <select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}>
-              <option>No</option><option>Yes</option>
-            </select>
-          </div> 
-          <div>
-            <label style={labelStyle}>💺 Special</label>
-            <select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}>
-              <option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option>
-            </select>
-          </div> 
+          <div><label style={labelStyle}>📱 Mobile Locker</label><select style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">None</option>{availableMobileOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div> 
+          <div><label style={labelStyle}>💍 Val Locker</label><select style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">None</option>{availableValuablesOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div> 
+          <div><label style={labelStyle}>🧺 Laundry Token</label><select style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})}><option value="">None</option>{availableLaundryOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div> 
+          <div><label style={labelStyle}>💻 Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> 
+          <div><label style={labelStyle}>💺 Special</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div> 
         </div> 
-
-        <div style={{marginTop:'30px', textAlign:'right'}}>
-          <button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', fontSize:'16px', cursor:'pointer', boxShadow:'0 4px 6px rgba(0,123,255,0.2)'}}>
-            Confirm & Save
-          </button>
-        </div> 
-        
+        <div style={{marginTop:'30px', textAlign:'right'}}><button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', fontSize:'16px', cursor:'pointer', boxShadow:'0 4px 6px rgba(0,123,255,0.2)'}}>Confirm & Save</button></div> 
         {status && <div style={{marginTop:'15px', padding:'10px', borderRadius:'6px', background: status.includes('Success') ? '#d4edda' : '#f8d7da', color: status.includes('Success') ? '#155724' : '#721c24', textAlign:'center', fontWeight:'bold'}}>{status}</div>} 
       </form> 
     </div> 
