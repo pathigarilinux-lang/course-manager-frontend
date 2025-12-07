@@ -424,7 +424,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
   );
 }
 
-// --- 3. STUDENT FORM (With Smart Filters) ---
+// --- 3. STUDENT FORM (Fixed: Gender-Based Uniqueness Filter) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
@@ -462,19 +462,33 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   }, [formData.courseId]);
 
   // --- LOGIC: Filter Available Resources ---
-  // 1. Identify Used Rooms
-  const occupiedSet = new Set(occupancy.map(p => p.room_no ? p.room_no.replace(/[\s-]+/g, '').toUpperCase() : ''));
-  let availableRooms = rooms.filter(r => !occupiedSet.has(r.room_no.replace(/[\s-]+/g, '').toUpperCase()) && r.is_maintenance !== true );
+  
+  // 1. Filter Rooms (Global Check)
+  // Rooms are physical and gender-typed in the DB, so we use global occupancy
+  const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? p.room_no.replace(/[\s-]+/g, '').toUpperCase() : ''));
+  let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(r.room_no.replace(/[\s-]+/g, '').toUpperCase()) && r.is_maintenance !== true );
 
-  // 2. Identify Used Assets (Dining, Lockers, Tokens)
-  // We check 'occupancy' (global list) to avoid duplicates across the center
-  const usedDining = new Set(occupancy.map(p => String(p.dining_seat_no || '')).filter(x => x));
-  const usedLaundry = new Set(occupancy.map(p => String(p.laundry_token_no || '')).filter(x => x));
-  // Note: Checking multiple key variations for safety
-  const usedMobile = new Set(occupancy.map(p => String(p.mobile_locker_no || p.mobile_locker || '')).filter(x => x));
-  const usedValuables = new Set(occupancy.map(p => String(p.valuables_locker_no || p.valuables_locker || '')).filter(x => x));
+  // 2. Filter Seats/Lockers (Gender Aware Check)
+  // We use 'participants' because it definitely contains the Dining/Locker data for this course.
+  
+  // A. Determine Gender Context
+  const currentGender = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
 
-  // Helper to filter 1-200 options
+  // B. Get list of peers (Same Gender only) to check for duplicates
+  // We exclude 'Cancelled' students so their seats become free again.
+  const relevantPeers = participants.filter(p => 
+    p.status !== 'Cancelled' && 
+    p.gender && p.gender.toLowerCase() === currentGender
+  );
+
+  // C. Build Sets of "Used" numbers by Peers
+  const usedDining = new Set(relevantPeers.map(p => String(p.dining_seat_no || '')));
+  const usedLaundry = new Set(relevantPeers.map(p => String(p.laundry_token_no || '')));
+  const usedMobile = new Set(relevantPeers.map(p => String(p.mobile_locker_no || p.mobile_locker || '')));
+  const usedValuables = new Set(relevantPeers.map(p => String(p.valuables_locker_no || p.valuables_locker || '')));
+
+  // D. Helper to filter 1-200 options
+  // We filter out any number that is present in the "Used" sets
   const getAvailableOptions = (usedSet) => NUMBER_OPTIONS.filter(n => !usedSet.has(String(n)));
 
   const availableDiningOpts = getAvailableOptions(usedDining);
@@ -482,12 +496,9 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const availableMobileOpts = getAvailableOptions(usedMobile);
   const availableValuablesOpts = getAvailableOptions(usedValuables);
 
-  // Filter Rooms by Gender if Student Selected
-  if (selectedStudent && selectedStudent.gender) { 
-    const g = selectedStudent.gender.toLowerCase(); 
-    if (g === 'male') availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
-    else if (g === 'female') availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
-  }
+  // E. Filter Rooms by Gender
+  if (currentGender === 'male') availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
+  else if (currentGender === 'female') availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
   
   const studentsPending = participants.filter(p => p.status !== 'Arrived');
 
