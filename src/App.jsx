@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-const ADMIN_PASSCODE = "1234"; 
+const API_URL = "https://course-manager-backend-staging.onrender.com"; // Ensure this matches your Staging Backend URL
+const ADMIN_PASSCODE = "11111"; 
 
 // --- UTILS ---
 const NUMBER_OPTIONS = Array.from({length: 200}, (_, i) => i + 1);
@@ -116,25 +116,18 @@ function ATPanel({ courses }) {
 
   useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(setParticipants); }, [courseId]);
 
-  // Handle local changes in the modal (Does not save to DB yet)
   const handleLocalChange = (field, value) => {
     setEditingStudent(prev => ({ ...prev, [field]: value }));
   };
 
-  // Save to DB when "Done" is clicked
   const handleSave = async (e) => {
     e.preventDefault();
     if (!editingStudent) return;
-    
-    // Optimistic Update
     setParticipants(prev => prev.map(p => p.participant_id === editingStudent.participant_id ? editingStudent : p));
-    
-    // API Call
     await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editingStudent)
     });
-    
     setEditingStudent(null);
   };
 
@@ -154,7 +147,6 @@ function ATPanel({ courses }) {
         <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
         <input style={inputStyle} placeholder="Search Student..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} disabled={!courseId} />
       </div>
-
       {courseId && (
         <div style={{maxHeight:'500px', overflowY:'auto'}}>
            <table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}>
@@ -178,33 +170,16 @@ function ATPanel({ courses }) {
            </table>
         </div>
       )}
-
       {editingStudent && (
         <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}>
           <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'500px'}}>
             <h3>Update Details: {editingStudent.full_name}</h3>
             <form onSubmit={handleSave} style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-               <div>
-                  <label style={labelStyle}>Special Seating</label>
-                  <select style={inputStyle} value={editingStudent.special_seating || ''} onChange={(e) => handleLocalChange('special_seating', e.target.value)}>
-                     <option value="">None</option>
-                     <option value="Chowky">Chowky</option>
-                     <option value="Chair">Chair</option>
-                     <option value="BackRest">BackRest</option>
-                  </select>
-               </div>
-               <div>
-                 <label style={labelStyle}>Evening Food</label>
-                 <select style={inputStyle} value={editingStudent.evening_food || ''} onChange={e => handleLocalChange('evening_food', e.target.value)}>
-                   <option value="">None</option><option value="Lemon Water">Lemon Water</option><option value="Milk">Milk</option><option value="Fruit">Fruit</option><option value="Other">Other</option>
-                 </select>
-               </div>
+               <div><label style={labelStyle}>Special Seating</label><select style={inputStyle} value={editingStudent.special_seating || ''} onChange={(e) => handleLocalChange('special_seating', e.target.value)}><option value="">None</option><option value="Chowky">Chowky</option><option value="Chair">Chair</option><option value="BackRest">BackRest</option></select></div>
+               <div><label style={labelStyle}>Evening Food</label><select style={inputStyle} value={editingStudent.evening_food || ''} onChange={e => handleLocalChange('evening_food', e.target.value)}><option value="">None</option><option value="Lemon Water">Lemon Water</option><option value="Milk">Milk</option><option value="Fruit">Fruit</option><option value="Other">Other</option></select></div>
                <div><label style={labelStyle}>Medical Info</label><textarea style={{...inputStyle, height:'80px'}} value={editingStudent.medical_info || ''} onChange={e => handleLocalChange('medical_info', e.target.value)} /></div>
                <div><label style={labelStyle}>Teacher Notes</label><input style={inputStyle} value={editingStudent.teacher_notes || ''} onChange={e => handleLocalChange('teacher_notes', e.target.value)} /></div>
-               <div style={{marginTop:'10px', textAlign:'right', display:'flex', gap:'10px', justifyContent:'flex-end'}}>
-                 <button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false)}}>Cancel</button>
-                 <button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Done & Save</button>
-               </div>
+               <div style={{marginTop:'10px', textAlign:'right', display:'flex', gap:'10px', justifyContent:'flex-end'}}><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false)}}>Cancel</button><button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Done & Save</button></div>
             </form>
           </div>
         </div>
@@ -212,6 +187,7 @@ function ATPanel({ courses }) {
     </div>
   );
 }
+
 // --- 1. ZERO DAY DASHBOARD ---
 function Dashboard({ courses }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -222,13 +198,7 @@ function Dashboard({ courses }) {
 
   const arrivalData = stats ? [{ name: 'Arrived', Male: stats.arrived_m, Female: stats.arrived_f }, { name: 'Pending', Male: stats.pending_m, Female: stats.pending_f }, { name: 'Cancelled', Male: stats.cancelled_m, Female: stats.cancelled_f }] : [];
   const typeData = stats ? [{ name: 'Old', Male: stats.om, Female: stats.of }, { name: 'New', Male: stats.nm, Female: stats.nf }, { name: 'Server', Male: stats.sm, Female: stats.sf }] : [];
-
-  // Calculate Attendance String with Short Names
-  const attendanceString = courses.map(c => {
-      const total = (c.arrived || 0) + (c.pending || 0);
-      const pct = total > 0 ? Math.round((c.arrived || 0) / total * 100) : 0;
-      return `${getShortCourseName(c.course_name)}: ${c.arrived}/${total} (${pct}%)`;
-  }).join("  ✦  ");
+  const attendanceString = courses.map(c => { const total = (c.arrived || 0) + (c.pending || 0); const pct = total > 0 ? Math.round((c.arrived || 0) / total * 100) : 0; return `${getShortCourseName(c.course_name)}: ${c.arrived}/${total} (${pct}%)`; }).join("  ✦  ");
 
   return (
     <div>
@@ -236,35 +206,11 @@ function Dashboard({ courses }) {
         <h2 style={{margin:0, color:'#333'}}>Zero Day Dashboard</h2>
         <select style={{padding:'10px', borderRadius:'6px', border:'1px solid #ccc', fontSize:'14px', minWidth:'200px'}} onChange={e=>setSelectedCourse(e.target.value)} value={selectedCourse || ''}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
       </div>
-
-      {/* SCROLLING MARQUEE */}
-      <div style={{background:'#e3f2fd', color:'#333', padding:'8px', marginBottom:'20px', overflow:'hidden', whiteSpace:'nowrap', borderRadius:'4px', border:'1px solid #90caf9', fontWeight:'bold', fontSize:'14px'}}>
-          <marquee>{attendanceString || "Loading Course Data..."}</marquee>
-      </div>
-
+      <div style={{background:'#e3f2fd', color:'#333', padding:'8px', marginBottom:'20px', overflow:'hidden', whiteSpace:'nowrap', borderRadius:'4px', border:'1px solid #90caf9', fontWeight:'bold', fontSize:'14px'}}><marquee>{attendanceString || "Loading Course Data..."}</marquee></div>
       {stats && selectedCourse ? (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', animation: 'fadeIn 0.5s' }}>
           <div style={cardStyle}><h3 style={{marginTop:0}}>Status Overview</h3><div style={{height:'250px'}}><ResponsiveContainer><BarChart data={arrivalData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name"/><YAxis/><Tooltip/><Legend/><Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar><Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar></BarChart></ResponsiveContainer></div></div>
-          
-          {/* MIDDLE: Discourse Count Only */}
-          <div style={cardStyle}>
-                <h3 style={{marginTop:0}}>Discourse Count</h3>
-                {stats.languages && stats.languages.length > 0 ? (
-                  <div style={{maxHeight:'250px', overflowY:'auto'}}>
-                  <table style={{width:'100%', fontSize:'13px'}}>
-                    <thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Lang</th><th style={{width:'30px'}}>M</th><th style={{width:'30px'}}>F</th><th style={{textAlign:'right'}}>Tot</th></tr></thead>
-                    <tbody>
-                      {stats.languages.map((l, i) => (
-                        <tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}>
-                          <td style={{padding:'4px 0'}}>{l.discourse_language}</td><td style={{padding:'4px 0', color:'#007bff'}}>{l.male_count}</td><td style={{padding:'4px 0', color:'#e91e63'}}>{l.female_count}</td><td style={{padding:'4px 0', textAlign:'right'}}>{l.total}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  </div>
-                ) : <p style={{color:'#888'}}>No data.</p>}
-          </div>
-
+          <div style={cardStyle}><h3 style={{marginTop:0}}>Discourse Count</h3>{stats.languages && stats.languages.length > 0 ? (<div style={{maxHeight:'250px', overflowY:'auto'}}><table style={{width:'100%', fontSize:'13px'}}><thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Lang</th><th style={{width:'30px'}}>M</th><th style={{width:'30px'}}>F</th><th style={{textAlign:'right'}}>Tot</th></tr></thead><tbody>{stats.languages.map((l, i) => (<tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}><td style={{padding:'4px 0'}}>{l.discourse_language}</td><td style={{padding:'4px 0', color:'#007bff'}}>{l.male_count}</td><td style={{padding:'4px 0', color:'#e91e63'}}>{l.female_count}</td><td style={{padding:'4px 0', textAlign:'right'}}>{l.total}</td></tr>))}</tbody></table></div>) : <p style={{color:'#888'}}>No data.</p>}</div>
           <div style={cardStyle}><h3 style={{marginTop:0}}>Live Counts</h3><div style={{height:'250px'}}><ResponsiveContainer><BarChart data={typeData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name"/><YAxis/><Tooltip/><Legend/><Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar><Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar></BarChart></ResponsiveContainer></div></div>
         </div>
       ) : <p style={{padding:'40px', textAlign:'center', color:'#888'}}>Select a course to view stats.</p>}
@@ -272,7 +218,7 @@ function Dashboard({ courses }) {
   );
 }
 
-// --- 2. GLOBAL ACCOMMODATION MANAGER (Fixed: ID Detection) ---
+// --- 2. GLOBAL ACCOMMODATION MANAGER (Fixed: Failsafe Swap & ID) ---
 function GlobalAccommodationManager({ courses, onRoomClick }) {
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
@@ -294,10 +240,8 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
 
   // --- SMART SWAP LOGIC ---
   const updateParticipantRoom = async (student, roomNo) => {
-      // FIX: Check both participant_id AND id to be safe
       const id = student.participant_id || student.id;
       if (!id) throw new Error("Missing Participant ID. Cannot update.");
-      
       await fetch(`${API_URL}/participants/${id}`, { 
           method: 'PUT', 
           headers: { 'Content-Type': 'application/json' }, 
@@ -314,10 +258,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
       const targetNorm = normalize(targetRoomNo);
       const currentNorm = normalize(editingRoom.p.room_no);
 
-      if (targetNorm === currentNorm) {
-          alert("Target room is the same as current room!");
-          return;
-      }
+      if (targetNorm === currentNorm) { alert("Target room is the same as current room!"); return; }
 
       const targetOccupant = occupancy.find(p => p.room_no && normalize(p.room_no) === targetNorm);
       const currentStudent = editingRoom.p;
@@ -331,32 +272,19 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
       try {
           if (targetOccupant) {
               if(!window.confirm(`⚠️ Room ${targetRoomNo} is occupied by ${targetOccupant.full_name}.\n\nConfirm SWAP between:\n1. ${currentStudent.full_name}\n2. ${targetOccupant.full_name}?`)) return;
-
-              // Step 1: Vacate Current
               await updateParticipantRoom(currentStudent, null);
               await new Promise(r => setTimeout(r, 500)); 
-
-              // Step 2: Move Target -> Old Room
               await updateParticipantRoom(targetOccupant, currentStudent.room_no);
               await new Promise(r => setTimeout(r, 500)); 
-
-              // Step 3: Move Current -> New Room
               await updateParticipantRoom(currentStudent, targetRoomNo);
-
           } else {
-              // Simple Move
               await updateParticipantRoom(currentStudent, targetRoomNo);
           }
           setEditingRoom(null); 
           loadData();
-      } catch (err) { 
-          console.error(err); 
-          alert("Error processing request: " + err.message); 
-          loadData(); 
-      }
+      } catch (err) { console.error(err); alert("Error processing request: " + err.message); loadData(); }
   };
 
-  // --- RENDERING HELPERS ---
   const normalize = (str) => str ? str.replace(/[\s-]+/g, '').toUpperCase() : '';
   const occupiedMap = {}; 
   const safeRooms = rooms || []; 
@@ -364,19 +292,16 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
 
   const maleRooms = safeRooms.filter(r => r.gender_type === 'Male'); 
   const femaleRooms = safeRooms.filter(r => r.gender_type === 'Female');
-  
   let maleFree = 0, maleOcc = 0, maleOther = 0;
   let femaleFree = 0, femaleOcc = 0, femaleOther = 0;
   
   safeRooms.forEach(r => { 
       const occupant = occupiedMap[normalize(r.room_no)];
       const isMale = r.gender_type === 'Male';
-      if (!occupant) {
-          if(isMale) maleFree++; else femaleFree++;
-      } else {
+      if (!occupant) { if(isMale) maleFree++; else femaleFree++; } 
+      else {
           const isMatch = !filterCourseId || (String(occupant.course_id) === String(filterCourseId));
-          if (isMatch) { if(isMale) maleOcc++; else femaleOcc++; } 
-          else { if(isMale) maleOther++; else femaleOther++; }
+          if (isMatch) { if(isMale) maleOcc++; else femaleOcc++; } else { if(isMale) maleOther++; else femaleOther++; }
       }
   });
 
@@ -391,15 +316,10 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     const occupant = occupiedMap[normalize(room.room_no)];
     const isOccupied = !!occupant;
     const isMaintenance = room.is_maintenance === true;
-    
     let isDimmed = false;
-    if (filterCourseId && isOccupied) {
-        if (String(occupant.course_id) !== String(filterCourseId)) isDimmed = true;
-    }
-
+    if (filterCourseId && isOccupied) { if (String(occupant.course_id) !== String(filterCourseId)) isDimmed = true; }
     let bgColor = gender === 'Male' ? '#e3f2fd' : '#fce4ec'; 
     let borderColor = gender === 'Male' ? '#90caf9' : '#f48fb1';
-    
     if (isMaintenance) { bgColor = '#e0e0e0'; borderColor = '#9e9e9e'; } 
     else if (isOccupied) {
         const isArrived = occupant.status === 'Arrived';
@@ -408,35 +328,11 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
         if (!isArrived) { bgColor = '#fff3e0'; borderColor = '#ffb74d'; }
         if (isDimmed) { bgColor = '#f5f5f5'; borderColor = '#ddd'; }
     }
-
-    const boxStyle = {
-        border: `1px solid ${borderColor}`,
-        background: bgColor,
-        borderRadius: '6px',
-        padding: '8px',
-        textAlign: 'center',
-        minHeight: '80px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        cursor: (isOccupied || !isMaintenance) ? 'pointer' : 'not-allowed',
-        position: 'relative',
-        opacity: isMaintenance || isDimmed ? 0.6 : 1
-    };
-
+    const boxStyle = { border: `1px solid ${borderColor}`, background: bgColor, borderRadius: '6px', padding: '8px', textAlign: 'center', minHeight: '80px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'center', cursor: (isOccupied || !isMaintenance) ? 'pointer' : 'not-allowed', position: 'relative', opacity: isMaintenance || isDimmed ? 0.6 : 1 };
     return ( 
       <div key={room.room_id} onClick={() => !isMaintenance && (isOccupied ? setEditingRoom({ p: occupant, newRoomNo: '' }) : onRoomClick(room.room_no))} style={boxStyle}> 
-           <div style={{fontWeight:'bold', fontSize:'13px', color: isDimmed ? '#999' : '#333'}}>
-             {room.room_no} 
-             {isMaintenance && <span style={{display:'block', fontSize:'9px', color:'red'}}>🛠️ MAINT</span>}
-           </div>
-           {isOccupied && !isMaintenance && ( 
-             <div style={{fontSize:'11px', color: isDimmed ? '#999' : '#333', marginTop:'4px'}}> 
-               <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'90px'}}>{(occupant.full_name || '').split(' ')[0]}</div> 
-               <div style={{fontWeight:'bold', fontSize:'9px'}}>({occupant.conf_no})</div>
-             </div> 
-           )}
+           <div style={{fontWeight:'bold', fontSize:'13px', color: isDimmed ? '#999' : '#333'}}> {room.room_no} {isMaintenance && <span style={{display:'block', fontSize:'9px', color:'red'}}>🛠️ MAINT</span>} </div>
+           {isOccupied && !isMaintenance && ( <div style={{fontSize:'11px', color: isDimmed ? '#999' : '#333', marginTop:'4px'}}> <div style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'90px'}}>{(occupant.full_name || '').split(' ')[0]}</div> <div style={{fontWeight:'bold', fontSize:'9px'}}>({occupant.conf_no})</div> </div> )}
            {!isOccupied && !isMaintenance && <div style={{fontSize:'9px', color: gender==='Male'?'#1565c0':'#ad1457', marginTop:'4px'}}>FREE</div>}
            <button onClick={(e) => toggleMaintenance(room, e)} style={{position:'absolute', bottom:'2px', right:'2px', fontSize:'10px', background:'none', border:'none', cursor:'pointer', opacity:0.5}}>🛠️</button>
            {!isOccupied && !PROTECTED_ROOMS.has(room.room_no) && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(room.room_id, room.room_no)}} style={{position:'absolute', top:'2px', right:'2px', color:'#ccc', border:'none', background:'none', cursor:'pointer', fontSize:'10px'}}>x</button>} 
@@ -448,271 +344,87 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
     <div style={cardStyle}> 
       <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center', flexWrap:'wrap', gap:'10px'}}> 
         <h2 style={{margin:0}}>🛏️ Global Accommodation</h2> 
-        <select style={{width:'200px', padding:'10px', borderRadius:'6px', border:'2px solid #007bff', fontWeight:'bold'}} value={filterCourseId} onChange={e => setFilterCourseId(e.target.value)}>
-            <option value="">-- SHOW ALL COURSES --</option>
-            {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
-        </select>
-        <div style={{display:'flex', gap:'10px', alignItems:'center'}}> 
-          <div style={{display:'flex', gap:'5px', alignItems:'center', background:'#f9f9f9', padding:'5px', borderRadius:'5px', border:'1px solid #eee'}}> 
-            <input style={{...inputStyle, width:'60px', padding:'5px'}} placeholder="No" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} /> 
-            <select style={{...inputStyle, width:'70px', padding:'5px'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select> 
-            <button onClick={handleAddRoom} style={{...quickBtnStyle(true), background:'#007bff', color:'white', padding:'5px 10px', fontSize:'11px'}}>+ Add</button> 
-          </div> 
-          <button onClick={loadData} style={{...btnStyle(false), fontSize:'12px'}}>↻ Refresh</button> 
-        </div> 
+        <select style={{width:'200px', padding:'10px', borderRadius:'6px', border:'2px solid #007bff', fontWeight:'bold'}} value={filterCourseId} onChange={e => setFilterCourseId(e.target.value)}><option value="">-- SHOW ALL COURSES --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+        <div style={{display:'flex', gap:'10px', alignItems:'center'}}> <div style={{display:'flex', gap:'5px', alignItems:'center', background:'#f9f9f9', padding:'5px', borderRadius:'5px', border:'1px solid #eee'}}> <input style={{...inputStyle, width:'60px', padding:'5px'}} placeholder="No" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} /> <select style={{...inputStyle, width:'70px', padding:'5px'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select> <button onClick={handleAddRoom} style={{...quickBtnStyle(true), background:'#007bff', color:'white', padding:'5px 10px', fontSize:'11px'}}>+ Add</button> </div> <button onClick={loadData} style={{...btnStyle(false), fontSize:'12px'}}>↻ Refresh</button> </div> 
       </div> 
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'15px', marginBottom:'20px'}}> 
-        <div style={{padding:'12px', background:'#e3f2fd', borderRadius:'8px', borderLeft:'5px solid #1565c0'}}> 
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#1565c0', marginBottom:'5px'}}>MALE WING</div> 
-          <div style={{fontSize:'12px'}}>Free: <b>{maleFree}</b> | Occupied: <b>{maleOcc}</b> {maleOther > 0 && <span style={{color:'#888'}}>(+ {maleOther} other)</span>}</div>
-        </div> 
-        <div style={{padding:'12px', background:'#fce4ec', borderRadius:'8px', borderLeft:'5px solid #ad1457'}}> 
-          <div style={{fontSize:'14px', fontWeight:'bold', color:'#ad1457', marginBottom:'5px'}}>FEMALE WING</div> 
-          <div style={{fontSize:'12px'}}>Free: <b>{femaleFree}</b> | Occupied: <b>{femaleOcc}</b> {femaleOther > 0 && <span style={{color:'#888'}}>(+ {femaleOther} other)</span>}</div>
-        </div> 
+        <div style={{padding:'12px', background:'#e3f2fd', borderRadius:'8px', borderLeft:'5px solid #1565c0'}}> <div style={{fontSize:'14px', fontWeight:'bold', color:'#1565c0', marginBottom:'5px'}}>MALE WING</div> <div style={{fontSize:'12px'}}>Free: <b>{maleFree}</b> | Occupied: <b>{maleOcc}</b> {maleOther > 0 && <span style={{color:'#888'}}>(+ {maleOther} other)</span>}</div> </div> 
+        <div style={{padding:'12px', background:'#fce4ec', borderRadius:'8px', borderLeft:'5px solid #ad1457'}}> <div style={{fontSize:'14px', fontWeight:'bold', color:'#ad1457', marginBottom:'5px'}}>FEMALE WING</div> <div style={{fontSize:'12px'}}>Free: <b>{femaleFree}</b> | Occupied: <b>{femaleOcc}</b> {femaleOther > 0 && <span style={{color:'#888'}}>(+ {femaleOther} other)</span>}</div> </div> 
       </div>
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}> 
-        <div style={{border:'1px solid #90caf9', borderRadius:'8px', padding:'10px'}}> 
-          <h3 style={{textAlign:'center', background:'#e3f2fd', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>MALE WING</h3> 
-          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}> {maleRooms.map(r => renderRoom(r, 'Male'))} </div> 
-        </div> 
-        <div style={{border:'1px solid #f48fb1', borderRadius:'8px', padding:'10px'}}> 
-          <h3 style={{textAlign:'center', background:'#fce4ec', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>FEMALE WING</h3> 
-          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}> {femaleRooms.map(r => renderRoom(r, 'Female'))} </div> 
-        </div> 
+        <div style={{border:'1px solid #90caf9', borderRadius:'8px', padding:'10px'}}> <h3 style={{textAlign:'center', background:'#e3f2fd', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>MALE WING</h3> <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}> {maleRooms.map(r => renderRoom(r, 'Male'))} </div> </div> 
+        <div style={{border:'1px solid #f48fb1', borderRadius:'8px', padding:'10px'}}> <h3 style={{textAlign:'center', background:'#fce4ec', margin:'0 0 15px 0', padding:'8px', borderRadius:'4px'}}>FEMALE WING</h3> <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px'}}> {femaleRooms.map(r => renderRoom(r, 'Female'))} </div> </div> 
       </div>
       {editingRoom && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}> <h3>🔄 Change/Swap Room</h3> <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}> <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name || 'Unknown'}</strong></p> <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p> </div> <label style={labelStyle}>New Room Number:</label> <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter target room no" /> <div style={{marginTop:'20px', display:'flex', gap:'10px'}}> <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Update / Swap</button> <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button> </div> </div> </div> )} 
     </div> 
   );
 }
 
-// --- 3. STUDENT FORM (Fixed: Strict Gatekeeper & Duplicate Filtering) ---
+// --- 3. STUDENT FORM (Fixed: Strict Gatekeeper & Filter) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
-  const [participants, setParticipants] = useState([]); 
-  const [rooms, setRooms] = useState([]); 
-  const [occupancy, setOccupancy] = useState([]); 
-  const [selectedStudent, setSelectedStudent] = useState(null); 
-  
-  const [formData, setFormData] = useState({ 
-    courseId: '', participantId: '', roomNo: '', seatNo: '', 
-    laundryToken: '', mobileLocker: '', valuablesLocker: '', 
-    language: 'English', pagodaCell: '', laptop: 'No', 
-    confNo: '', specialSeating: 'None', seatType: 'Chair' 
-  }); 
+  const [participants, setParticipants] = useState([]); const [rooms, setRooms] = useState([]); const [occupancy, setOccupancy] = useState([]); const [selectedStudent, setSelectedStudent] = useState(null); 
+  const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Chair' }); 
   const [status, setStatus] = useState('');
 
-  // Initial Data Load
-  useEffect(() => { 
-    fetch(`${API_URL}/rooms`).then(res=>res.json()).then(data => setRooms(Array.isArray(data)?data:[])); 
-    fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(Array.isArray(data)?data:[])); 
-  }, []);
+  useEffect(() => { fetch(`${API_URL}/rooms`).then(res=>res.json()).then(data => setRooms(Array.isArray(data)?data:[])); fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(Array.isArray(data)?data:[])); }, []);
+  useEffect(() => { if (preSelectedRoom) { setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); } }, [preSelectedRoom, courses]);
+  useEffect(() => { if (formData.courseId) { fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); } }, [formData.courseId]);
 
-  useEffect(() => { 
-    if (preSelectedRoom) { 
-      setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); 
-      if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); 
-    } 
-  }, [preSelectedRoom, courses]);
-
-  useEffect(() => { 
-    if (formData.courseId) { 
-      fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); 
-    } 
-  }, [formData.courseId]);
-
-  // --- LOGIC: AGGRESSIVE RESOURCE FILTERING ---
   const normalize = (str) => str ? str.toString().replace(/[\s-]+/g, '').toUpperCase() : '';
   const cleanNum = (val) => val ? String(val).trim() : '';
-
-  // Build Room Gender Map
-  const roomGenderMap = {};
-  rooms.forEach(r => { if(r.room_no) roomGenderMap[normalize(r.room_no)] = r.gender_type; });
-
-  // Filter Rooms (Exclude occupied)
+  const roomGenderMap = {}; rooms.forEach(r => { if(r.room_no) roomGenderMap[normalize(r.room_no)] = r.gender_type; });
   const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
 
-  // Filter Seats/Lockers (Combine Sources & Fuzzy Match)
   const currentGender = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
-  const isMale = currentGender.startsWith('m');
-  const isFemale = currentGender.startsWith('f');
-
-  // Combine GLOBAL occupancy + COURSE participants
-  const allRecords = [...occupancy, ...participants].filter(p => 
-      String(p.participant_id) !== String(formData.participantId) && 
-      p.status !== 'Cancelled'
-  );
-
-  const usedDining = new Set();
-  const usedLaundry = new Set();
-  const usedMobile = new Set();
-  const usedValuables = new Set();
+  const isMale = currentGender.startsWith('m'); const isFemale = currentGender.startsWith('f');
+  const allRecords = [...occupancy, ...participants].filter(p => String(p.participant_id) !== String(formData.participantId) && p.status !== 'Cancelled');
+  const usedDining = new Set(); const usedLaundry = new Set(); const usedMobile = new Set(); const usedValuables = new Set();
 
   allRecords.forEach(p => {
-      // Determine Peer Gender
-      let pGender = '';
-      if (p.gender) pGender = p.gender.toLowerCase();
-      else if (p.room_no && roomGenderMap[normalize(p.room_no)]) pGender = roomGenderMap[normalize(p.room_no)].toLowerCase();
-
-      // Check Match (Starts with 'm' or 'f')
-      const peerIsMale = pGender.startsWith('m');
-      const peerIsFemale = pGender.startsWith('f');
-
-      if ((isMale && peerIsMale) || (isFemale && peerIsFemale)) {
+      let pGender = ''; if (p.gender) pGender = p.gender.toLowerCase(); else if (p.room_no && roomGenderMap[normalize(p.room_no)]) pGender = roomGenderMap[normalize(p.room_no)].toLowerCase();
+      if ((isMale && pGender.startsWith('m')) || (isFemale && pGender.startsWith('f'))) {
           if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no));
           if (p.laundry_token_no) usedLaundry.add(cleanNum(p.laundry_token_no));
-          // Correct Schema Keys: mobile_locker_no, valuables_locker_no
           if (p.mobile_locker_no) usedMobile.add(cleanNum(p.mobile_locker_no));
           if (p.valuables_locker_no) usedValuables.add(cleanNum(p.valuables_locker_no));
       }
   });
 
   const getAvailableOptions = (usedSet) => NUMBER_OPTIONS.filter(n => !usedSet.has(String(n)));
-
-  const availableDiningOpts = getAvailableOptions(usedDining);
-  const availableLaundryOpts = getAvailableOptions(usedLaundry);
-  const availableMobileOpts = getAvailableOptions(usedMobile);
-  const availableValuablesOpts = getAvailableOptions(usedValuables);
-
-  if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
-  else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
-  
+  const availableDiningOpts = getAvailableOptions(usedDining); const availableLaundryOpts = getAvailableOptions(usedLaundry); const availableMobileOpts = getAvailableOptions(usedMobile); const availableValuablesOpts = getAvailableOptions(usedValuables);
+  if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
   const studentsPending = participants.filter(p => p.status !== 'Arrived');
 
-  const handleStudentChange = (e) => { 
-    const selectedId = e.target.value; 
-    const student = participants.find(p => p.participant_id == selectedId); 
-    setSelectedStudent(student); 
-    // Auto-fill ConfNo but allow editing
-    setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); 
-  };
-
+  const handleStudentChange = (e) => { const selectedId = e.target.value; const student = participants.find(p => p.participant_id == selectedId); setSelectedStudent(student); setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); };
   const handleSubmit = async (e) => { 
     e.preventDefault(); 
-    
-    // --- STRICT GATEKEEPER ---
-    if (!formData.confNo || formData.confNo.trim() === '') {
-        alert("⛔ STOP: Student is missing a Confirmation Number (e.g. NM50).\n\nPlease add a Conf No in 'Manage Students' or update the CSV source before checking in.");
-        return; // HALT SUBMISSION
-    }
-
-    setStatus('Submitting...'); 
-    const payload = { ...formData, diningSeatType: formData.seatType }; 
+    if (!formData.confNo || formData.confNo.trim() === '') { return alert("⛔ STOP: Student is missing a Confirmation Number (e.g. NM50)."); }
+    setStatus('Submitting...'); const payload = { ...formData, diningSeatType: formData.seatType }; 
     try { 
-      const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); 
-      const data = await res.json(); 
-      if (!res.ok) throw new Error(data.error || "Unknown Error"); 
-      
+      const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const data = await res.json(); if (!res.ok) throw new Error(data.error || "Unknown Error"); 
       fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
-      
-      setStatus('✅ Success! Confirmation Sent.'); 
-      setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor' })); 
-      setSelectedStudent(null); 
-      clearRoom(); 
-      
-      fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); 
-      fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(data)); 
+      setStatus('✅ Success!'); setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor' })); setSelectedStudent(null); clearRoom(); fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(data)); 
     } catch (err) { setStatus(`❌ ${err.message}`); } 
   };
 
   const sectionHeader = (title) => <div style={{fontSize:'14px', fontWeight:'bold', color:'#007bff', borderBottom:'1px solid #eee', paddingBottom:'5px', marginTop:'15px', marginBottom:'10px'}}>{title}</div>;
-
-  return ( 
-    <div style={cardStyle}> 
-      <h2>📝 Student Onboarding Form</h2> 
-      <form onSubmit={handleSubmit} style={{ maxWidth: '900px' }}> 
-        <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}> 
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}> 
-            <div><label style={labelStyle}>1. Select Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> 
-            <div><label style={labelStyle}>2. Select Student</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}</select></div> 
-          </div> 
-          {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (<div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}><strong>⚠️ SPECIAL ATTENTION:</strong> {selectedStudent.evening_food && <div>🍛 Food: {selectedStudent.evening_food}</div>} {selectedStudent.medical_info && <div>🏥 Medical: {selectedStudent.medical_info}</div>}</div>)} 
-        </div> 
-        {sectionHeader("📍 Allocation Details")} 
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}> 
-          <div>
-             <label style={labelStyle}>🆔 Conf No <span style={{color:'red'}}>*</span></label>
-             {/* ReadOnly removed so you can manually fix it if missing, but Gatekeeper enforces it */}
-             <input style={{...inputStyle, background: formData.confNo ? '#e8f5e9' : '#ffebee', border: formData.confNo ? '1px solid #ccc' : '1px solid red'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED" />
-          </div> 
-          <div><label style={labelStyle}>🛏️ Room No</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Free Rooms --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div> 
-          <div><label style={labelStyle}>🍽️ Dining Seat</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'80px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={e=>setFormData({...formData, seatNo:e.target.value})} required><option value="">-- Free --</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> 
-        </div> 
-        {sectionHeader("🧘 Hall & Meditation")} 
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}> 
-          <div><label style={labelStyle}>🗣️ Discourse Lang</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>Odia</option><option>Bengali</option><option>Mandarin Chinese</option><option>Spanish</option><option>French</option><option>Portuguese</option><option>Russian</option><option>German</option><option>Vietnamese</option><option>Thai</option><option>Japanese</option></select></div> 
-          <div><label style={labelStyle}>🛖 Pagoda Cell</label><select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}><option value="">None</option>{NUMBER_OPTIONS.map(n=><option key={n} value={n}>{n}</option>)}</select></div> 
-        </div> 
-        {sectionHeader("🔐 Lockers & Other")} 
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> 
-          <div><label style={labelStyle}>📱 Mobile Locker</label><select style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">None</option>{availableMobileOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div> 
-          <div><label style={labelStyle}>💍 Val Locker</label><select style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">None</option>{availableValuablesOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div> 
-          <div><label style={labelStyle}>🧺 Laundry Token</label><select style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})}><option value="">None</option>{availableLaundryOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div> 
-          <div><label style={labelStyle}>💻 Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> 
-          <div><label style={labelStyle}>💺 Special</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div> 
-        </div> 
-        <div style={{marginTop:'30px', textAlign:'right'}}><button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', fontSize:'16px', cursor:'pointer', boxShadow:'0 4px 6px rgba(0,123,255,0.2)'}}>Confirm & Save</button></div> 
-        {status && <div style={{marginTop:'15px', padding:'10px', borderRadius:'6px', background: status.includes('Success') ? '#d4edda' : '#f8d7da', color: status.includes('Success') ? '#155724' : '#721c24', textAlign:'center', fontWeight:'bold'}}>{status}</div>} 
-      </form> 
-    </div> 
-  );
+  return ( <div style={cardStyle}> <h2>📝 Student Onboarding Form</h2> <form onSubmit={handleSubmit} style={{ maxWidth: '900px' }}> <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}> <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}> <div><label style={labelStyle}>1. Select Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> <div><label style={labelStyle}>2. Select Student</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}</select></div> </div> {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (<div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}><strong>⚠️ SPECIAL ATTENTION:</strong> {selectedStudent.evening_food && <div>🍛 Food: {selectedStudent.evening_food}</div>} {selectedStudent.medical_info && <div>🏥 Medical: {selectedStudent.medical_info}</div>}</div>)} </div> {sectionHeader("📍 Allocation Details")} <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}> <div><label style={labelStyle}>🆔 Conf No <span style={{color:'red'}}>*</span></label><input style={{...inputStyle, background: formData.confNo ? '#e8f5e9' : '#ffebee', border: formData.confNo ? '1px solid #ccc' : '1px solid red'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED" /></div> <div><label style={labelStyle}>🛏️ Room No</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Free Rooms --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div> <div><label style={labelStyle}>🍽️ Dining Seat</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'80px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={e=>setFormData({...formData, seatNo:e.target.value})} required><option value="">-- Free --</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> </div> {sectionHeader("🧘 Hall & Meditation")} <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}> <div><label style={labelStyle}>🗣️ Discourse Lang</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>Odia</option><option>Bengali</option><option>Mandarin Chinese</option><option>Spanish</option><option>French</option><option>Portuguese</option><option>Russian</option><option>German</option><option>Vietnamese</option><option>Thai</option><option>Japanese</option></select></div> <div><label style={labelStyle}>🛖 Pagoda Cell</label><select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}><option value="">None</option>{NUMBER_OPTIONS.map(n=><option key={n} value={n}>{n}</option>)}</select></div> </div> {sectionHeader("🔐 Lockers & Other")} <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> <div><label style={labelStyle}>📱 Mobile Locker</label><select style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">None</option>{availableMobileOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div> <div><label style={labelStyle}>💍 Val Locker</label><select style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">None</option>{availableValuablesOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div> <div><label style={labelStyle}>🧺 Laundry Token</label><select style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})}><option value="">None</option>{availableLaundryOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div> <div><label style={labelStyle}>💻 Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> <div><label style={labelStyle}>💺 Special</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div> </div> <div style={{marginTop:'30px', textAlign:'right'}}><button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', fontSize:'16px', cursor:'pointer', boxShadow:'0 4px 6px rgba(0,123,255,0.2)'}}>Confirm & Save</button></div> {status && <div style={{marginTop:'15px', padding:'10px', borderRadius:'6px', background: status.includes('Success') ? '#d4edda' : '#f8d7da', color: status.includes('Success') ? '#155724' : '#721c24', textAlign:'center', fontWeight:'bold'}}>{status}</div>} </form> </div> );
 }
 
-// --- 4. MANAGE STUDENTS (Fixed: Dhamma Hall Logic, Export & Split Views) ---
+// --- 4. MANAGE STUDENTS (Strict Auto-Assign, Split Print/Export) ---
 function ParticipantList({ courses, refreshCourses }) {
-  const [courseId, setCourseId] = useState(''); 
-  const [participants, setParticipants] = useState([]); 
-  const [search, setSearch] = useState(''); 
-  const [editingStudent, setEditingStudent] = useState(null); 
-  const [viewingStudent, setViewingStudent] = useState(null); 
-  const [viewAllMode, setViewAllMode] = useState(false); 
-  const [viewMode, setViewMode] = useState('list'); 
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-  const [swappingSeat, setSwappingSeat] = useState(null); 
-  const [newSeatNo, setNewSeatNo] = useState('');
+  const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [search, setSearch] = useState(''); const [editingStudent, setEditingStudent] = useState(null); const [viewingStudent, setViewingStudent] = useState(null); const [viewAllMode, setViewAllMode] = useState(false); const [viewMode, setViewMode] = useState('list'); const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); const [swappingSeat, setSwappingSeat] = useState(null); const [newSeatNo, setNewSeatNo] = useState('');
   
   const loadStudents = () => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
   useEffect(loadStudents, [courseId]);
-  
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
-  
-  // --- EXPORT FUNCTIONS ---
-  const downloadCSV = (headers, rows, filename) => {
-      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-  };
-
-  const handleExport = () => { // Master List
-      if (participants.length === 0) return alert("No data"); 
-      const headers = ["Name", "Conf No", "Age", "Gender", "Dining", "Room", "Dhamma Seat", "Status"]; 
-      const rows = participants.map(p => [`"${p.full_name}"`, p.conf_no, p.age, p.gender, p.dining_seat_no, p.room_no, p.dhamma_hall_seat_no, p.status]); 
-      downloadCSV(headers, rows, `master_list_${courseId}.csv`);
-  };
-
-  const handleDiningExport = () => { // Dining Only
-      const arrived = participants.filter(p => p.status === 'Arrived');
-      if (arrived.length === 0) return alert("No arrived students.");
-      const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"];
-      const rows = arrived.map(p => [p.dining_seat_no, p.dining_seat_type, `"${p.full_name}"`, p.gender, p.room_no, p.discourse_language]);
-      downloadCSV(headers, rows, `dining_chart_${courseId}.csv`);
-  };
-
-  const handleSeatingExport = () => { // Dhamma Hall Only
-      const seated = participants.filter(p => p.dhamma_hall_seat_no);
-      if (seated.length === 0) return alert("No seats assigned yet.");
-      const headers = ["Seat No", "Name", "Gender", "Conf No", "Status"];
-      const rows = seated.map(p => [p.dhamma_hall_seat_no, `"${p.full_name}"`, p.gender, p.conf_no, p.status]);
-      downloadCSV(headers, rows, `dhamma_seating_${courseId}.csv`);
-  };
-
+  const downloadCSV = (headers, rows, filename) => { const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", filename); document.body.appendChild(link); link.click(); };
+  const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Age", "Gender", "Dining", "Room", "Dhamma Seat", "Status"]; const rows = participants.map(p => [`"${p.full_name}"`, p.conf_no, p.age, p.gender, p.dining_seat_no, p.room_no, p.dhamma_hall_seat_no, p.status]); downloadCSV(headers, rows, `students_master_${courseId}.csv`); };
+  const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Arrived'); if (arrived.length === 0) return alert("No arrived students."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no, p.dining_seat_type, `"${p.full_name}"`, p.gender, p.room_no, p.discourse_language]); downloadCSV(headers, rows, `dining_chart_${courseId}.csv`); };
+  const handleSeatingExport = () => { const seated = participants.filter(p => p.dhamma_hall_seat_no); if (seated.length === 0) return alert("No seats assigned yet."); const headers = ["Seat No", "Name", "Gender", "Conf No", "Status"]; const rows = seated.map(p => [p.dhamma_hall_seat_no, `"${p.full_name}"`, p.gender, p.conf_no, p.status]); downloadCSV(headers, rows, `dhamma_seating_${courseId}.csv`); };
   const sortedList = React.useMemo(() => { let sortableItems = [...participants]; if (sortConfig.key) { sortableItems.sort((a, b) => { const valA = (a[sortConfig.key] || '').toString().toLowerCase(); const valB = (b[sortConfig.key] || '').toString().toLowerCase(); if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } return sortableItems.filter(p => p.full_name.toLowerCase().includes(search.toLowerCase())); }, [participants, sortConfig, search]);
 
-  // --- ACTIONS ---
   const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students/expenses?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
   const handleDeleteCourse = async () => { if (window.confirm("🛑 DELETE COURSE COMPLETELY?")) { await fetch(`${API_URL}/courses/${courseId}`, { method: 'DELETE' }); refreshCourses(); setCourseId(''); } };
   const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); } };
@@ -725,187 +437,40 @@ function ParticipantList({ courses, refreshCourses }) {
   const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || 'Course';
   const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = seatNo.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF')) return 'Old'; if (s.startsWith('NM') || s.startsWith('NF')) return 'New'; if (s.startsWith('SM') || s.startsWith('SF')) return 'DS'; return 'New'; };
   const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = confNo.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
-  
-  // --- ROBUST AUTO-ASSIGN LOGIC ---
-  const parseCourses = (str) => { 
-      if (!str) return { s: 0, l: 0 }; 
-      // Flexible Regex: Matches "S:1", "S: 1", "S-1"
-      const sMatch = str.match(/S\s*[:=-]?\s*(\d+)/i); 
-      const lMatch = str.match(/L\s*[:=-]?\s*(\d+)/i); 
-      return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; 
-  };
+  const parseCourses = (str) => { if (!str) return { s: 0, l: 0 }; const s = str.match(/S\s*[:=-]?\s*(\d+)/i); const l = str.match(/L\s*[:=-]?\s*(\d+)/i); return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; };
   const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info); return (c.l * 10000) + (c.s * 10); };
   
   const handleAutoAssign = () => {
-    if (!window.confirm("⚡ Auto-Assign will OVERWRITE current seats.\n\nAre you sure?")) return;
-    
-    // Grid Config
-    const M_COLS=10, M_ROWS=8; 
-    const F_COLS=7, F_ROWS=7;
-
+    if (!window.confirm("⚡ STRICT Auto-Assign.\n\nStudents WITHOUT a valid Conf No (e.g. NM/OM) will be SKIPPED.\n\nContinue?")) return;
+    const M_COLS=10, M_ROWS=8; const F_COLS=7, F_ROWS=7;
     setTimeout(async () => {
-        const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
-        const allP = await res.json();
-
-        // 1. Clear ALL existing seats first to prevent "Ghost" duplicates
-        // (Optimistic UI update not needed here as we will reload)
-        
-        // 2. Separate Genders & Filter Exclusions
-        const cleanP = allP.filter(p => p.status !== 'Cancelled' && !p.conf_no.toUpperCase().startsWith('S')); // Exclude Servers
-        
-        const males = cleanP.filter(p => p.gender && p.gender.toLowerCase().startsWith('m'));
-        const females = cleanP.filter(p => p.gender && p.gender.toLowerCase().startsWith('f'));
-
-        // 3. Sorting Engine
-        const sortStrategy = (list) => {
-            const oldStudents = list.filter(p => getCategoryRank(p.conf_no) === 0).sort((a,b) => getSeniorityScore(b) - getSeniorityScore(a));
-            const newStudents = list.filter(p => getCategoryRank(p.conf_no) !== 0).sort((a,b) => (parseInt(b.age)||0) - (parseInt(a.age)||0)); // Oldest age first
-            return [...oldStudents, ...newStudents];
-        };
-
-        const sortedMales = sortStrategy(males);
-        const sortedFemales = sortStrategy(females);
-        const updates = [];
-
-        // 4. Assign Seats (Row by Row)
-        sortedMales.forEach((p, i) => {
-            if (i < M_COLS * M_ROWS) {
-                const row = Math.floor(i / M_COLS) + 1;
-                const col = i % M_COLS; // 0..9
-                // Male: J (Left) -> A (Right). J is index 0.
-                const colChar = String.fromCharCode(74 - col); // 74='J', 65='A'
-                updates.push({ ...p, dhamma_hall_seat_no: `${colChar}${row}` });
-            }
-        });
-
-        sortedFemales.forEach((p, i) => {
-            if (i < F_COLS * F_ROWS) {
-                const row = Math.floor(i / F_COLS) + 1;
-                const col = i % F_COLS; 
-                // Female: A (Left) -> G (Right). A is index 0.
-                const colChar = String.fromCharCode(65 + col); // 65='A'
-                updates.push({ ...p, dhamma_hall_seat_no: `${colChar}${row}` });
-            }
-        });
-
-        // 5. Batch Update
-        await Promise.all(updates.map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { 
-            method: 'PUT', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(p) 
-        })));
-        
-        alert(`✅ Assigned ${updates.length} seats successfully!`); 
-        loadStudents();
+        const res = await fetch(`${API_URL}/courses/${courseId}/participants`); const allP = await res.json();
+        const cleanP = allP.filter(p => { if (p.status === 'Cancelled') return false; if (!p.conf_no || p.conf_no.trim() === '') return false; if (p.conf_no.toUpperCase().startsWith('S')) return false; return true; });
+        const males = cleanP.filter(p => p.gender && p.gender.toLowerCase().startsWith('m')); const females = cleanP.filter(p => p.gender && p.gender.toLowerCase().startsWith('f'));
+        const sortStrategy = (list) => { const oldStudents = list.filter(p => getCategoryRank(p.conf_no) === 0).sort((a,b) => getSeniorityScore(b) - getSeniorityScore(a)); const newStudents = list.filter(p => getCategoryRank(p.conf_no) !== 0).sort((a,b) => (parseInt(b.age)||0) - (parseInt(a.age)||0)); return [...oldStudents, ...newStudents]; };
+        const sortedMales = sortStrategy(males); const sortedFemales = sortStrategy(females); const updates = [];
+        sortedMales.forEach((p, i) => { if (i < M_COLS * M_ROWS) { const row = Math.floor(i / M_COLS) + 1; const col = i % M_COLS; const colChar = String.fromCharCode(74 - col); updates.push({ ...p, dhamma_hall_seat_no: `${colChar}${row}` }); } });
+        sortedFemales.forEach((p, i) => { if (i < F_COLS * F_ROWS) { const row = Math.floor(i / F_COLS) + 1; const col = i % F_COLS; const colChar = String.fromCharCode(65 + col); updates.push({ ...p, dhamma_hall_seat_no: `${colChar}${row}` }); } });
+        let count = 0; for (const p of updates) { await fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }); count++; }
+        alert(`✅ Assigned ${count} seats! \n(Skipped ${allP.length - cleanP.length} invalid/cancelled)`); loadStudents();
     }, 100);
-  };
-
-  // --- PRINT UTILS ---
-  const printSection = (sectionId) => {
-      const style = document.createElement('style');
-      style.innerHTML = `@media print { body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; transform: scale(0.95); transform-origin: top left; } .no-print { display: none !important; } }`;
-      document.head.appendChild(style); window.print(); document.head.removeChild(style);
   };
 
   const [badgeStudent, setBadgeStudent] = useState(null);
   const BadgeModal = ({ student, onClose }) => ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'white', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'center'}}> <div className="print-area" style={{textAlign:'center'}}> <div style={{border:'2px solid #333', padding:'20px', width:'350px', margin:'20px auto', borderRadius:'10px', background: student.conf_no.startsWith('O') ? '#fff9c4' : '#fff'}}><h2>IDENTITY CARD</h2><h3>{student.full_name}</h3><p><strong>Course:</strong> {selectedCourseName}</p><p><strong>Room:</strong> {student.room_no}</p></div> <div style={{border:'2px solid #333', padding:'20px', width:'350px', margin:'20px auto', borderRadius:'10px'}}><h2>DINING CARD</h2><h1>{student.dining_seat_no}</h1><p>{['F','Floor'].includes(student.dining_seat_type) ? 'Floor' : 'Chair'}</p><p>{student.full_name}</p></div> <div className="no-print"><button onClick={() => window.print()} style={{...quickBtnStyle(true), marginRight:'10px'}}>🖨️ Print</button><button onClick={onClose} style={{...quickBtnStyle(false)}}>Close</button></div> </div> </div> );
 
-  if (viewAllMode) { return ( <div style={{background:'white', padding:'20px', height:'100vh', overflow:'auto'}}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setViewAllMode(false)} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Master List</button> </div> <h2 style={{textAlign:'center'}}>Master Student List - {selectedCourseName}</h2> <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}> <thead><tr style={{background:'#f0f0f0', borderBottom:'2px solid #000'}}><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Phone</th><th style={thPrint}>Room</th><th style={thPrint}>Dining</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Dhamma</th><th style={thPrint}>Status</th></tr></thead> <tbody> {participants.map(p => ( <tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}> <td style={{padding:'8px'}}>{p.full_name}</td> <td style={{padding:'8px'}}>{p.conf_no}</td> <td style={{padding:'8px'}}>{p.age}</td> <td style={{padding:'8px'}}>{p.gender}</td> <td style={{padding:'8px'}}>{p.phone_number}</td> <td style={{padding:'8px'}}>{p.room_no}</td> <td style={{padding:'8px'}}>{p.dining_seat_no} ({p.dining_seat_type})</td> <td style={{padding:'8px'}}>{p.pagoda_cell_no}</td> <td style={{padding:'8px'}}>{p.dhamma_hall_seat_no}</td> <td style={{padding:'8px'}}>{p.status}</td> </tr> ))} </tbody> </table> </div> ); }
+  if (viewAllMode) { return ( <div style={{background:'white', padding:'20px', height:'100vh', overflow:'auto'}}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setViewAllMode(false)} style={btnStyle(false)}>← Back</button> <button onClick={handleExport} style={{...btnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export Master List</button> </div> <h2 style={{textAlign:'center'}}>Master Student List - {selectedCourseName}</h2> <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}> <thead><tr style={{background:'#f0f0f0', borderBottom:'2px solid #000'}}><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Phone</th><th style={thPrint}>Room</th><th style={thPrint}>Dining</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Dhamma</th><th style={thPrint}>Status</th></tr></thead> <tbody> {participants.map(p => ( <tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}> <td style={{padding:'8px'}}>{p.full_name}</td> <td style={{padding:'8px'}}>{p.conf_no}</td> <td style={{padding:'8px'}}>{p.age}</td> <td style={{padding:'8px'}}>{p.gender}</td> <td style={{padding:'8px'}}>{p.phone_number}</td> <td style={{padding:'8px'}}>{p.room_no}</td> <td style={{padding:'8px'}}>{p.dining_seat_no} ({p.dining_seat_type})</td> <td style={{padding:'8px'}}>{p.pagoda_cell_no}</td> <td style={{padding:'8px'}}>{p.dhamma_hall_seat_no}</td> <td style={{padding:'8px'}}>{p.status}</td> </tr> ))} </tbody> </table> </div> ); }
   
-  // --- DINING VIEW ---
-  if (viewMode === 'dining') { 
-      const arrived = participants.filter(p => p.status==='Arrived');
-      const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return (a.dining_seat_no || '0').localeCompare(b.dining_seat_no || '0', undefined, { numeric: true }); };
-      const males = arrived.filter(p => p.gender && p.gender.toLowerCase().startsWith('m')).sort(sorter);
-      const females = arrived.filter(p => p.gender && p.gender.toLowerCase().startsWith('f')).sort(sorter);
-      const renderTable = (list, title, color, sectionId) => (
-          <div id={sectionId} style={{marginBottom:'40px', padding:'20px', background:'white', borderRadius:'8px', border:`1px solid ${color}`}}>
-             <div className="no-print" style={{display:'flex', justifyContent:'flex-end', gap:'10px', marginBottom:'10px'}}>
-                 <button onClick={() => printSection(sectionId)} style={{...quickBtnStyle(true), background: color, color:'white', border:'none'}}>🖨️ Print {title}</button>
-             </div>
-             <div style={{textAlign:'center', color: color, borderBottom:`3px solid ${color}`, marginBottom:'20px'}}><h1 style={{margin:'5px 0'}}>{title} Dining Chart</h1><h3 style={{margin:'0', color:'#666'}}>{selectedCourseName}</h3></div>
-             <table style={{width:'100%', borderCollapse:'collapse', fontSize:'16px'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Seat</th><th style={thPrint}>Type</th><th style={thPrint}>Cat</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Lang</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}><td style={{padding:'12px', fontWeight:'bold'}}>{p.dining_seat_no}</td><td style={{padding:'12px'}}>{['F','Floor'].includes(p.dining_seat_type) ? 'Floor' : 'Chair'}</td><td style={{padding:'12px'}}>{getCategory(p.conf_no)}</td><td style={{padding:'12px'}}>{p.full_name}</td><td style={{padding:'12px'}}>{p.room_no}</td><td style={{padding:'12px'}}>{p.pagoda_cell_no}</td><td style={{padding:'12px'}}>{p.discourse_language}</td></tr>))}</tbody></table>
-          </div>
-      );
-      return ( <div style={cardStyle}> <div className="no-print" style={{marginBottom:'20px', display:'flex', justifyContent:'space-between'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><button onClick={handleDiningExport} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button></div> {renderTable(males, "MALE", "#007bff", "print-section-male")} <div style={{height:'30px'}}></div> {renderTable(females, "FEMALE", "#e91e63", "print-section-female")} </div> ); 
-  }
+  if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return (a.dining_seat_no || '0').localeCompare(b.dining_seat_no || '0', undefined, { numeric: true }); }; const males = arrived.filter(p => p.gender && p.gender.toLowerCase().startsWith('m')).sort(sorter); const females = arrived.filter(p => p.gender && p.gender.toLowerCase().startsWith('f')).sort(sorter); const printSection = (sectionId) => { const style = document.createElement('style'); style.innerHTML = `@media print { body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }`; document.head.appendChild(style); window.print(); document.head.removeChild(style); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', background:'white', borderRadius:'8px', border:`1px solid ${color}`}}> <div className="no-print" style={{display:'flex', justifyContent:'flex-end', gap:'10px', marginBottom:'10px'}}> <button onClick={handleDiningExport} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white', border:'none'}}>📥 Export CSV</button> <button onClick={() => printSection(sectionId)} style={{...quickBtnStyle(true), background: color, color:'white', border:'none'}}>🖨️ Print {title}</button> </div> <div style={{textAlign:'center', color: color, borderBottom:`3px solid ${color}`, marginBottom:'20px'}}><h1 style={{margin:'5px 0'}}>{title} Dining Chart</h1><h3 style={{margin:'0', color:'#666'}}>{selectedCourseName}</h3></div> <table style={{width:'100%', borderCollapse:'collapse', fontSize:'16px'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Seat</th><th style={thPrint}>Type</th><th style={thPrint}>Cat</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Lang</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}><td style={{padding:'12px', fontWeight:'bold'}}>{p.dining_seat_no}</td><td style={{padding:'12px'}}>{['F','Floor'].includes(p.dining_seat_type) ? 'Floor' : 'Chair'}</td><td style={{padding:'12px'}}>{getCategory(p.conf_no)}</td><td style={{padding:'12px'}}>{p.full_name}</td><td style={{padding:'12px'}}>{p.room_no}</td><td style={{padding:'12px'}}>{p.pagoda_cell_no}</td><td style={{padding:'12px'}}>{p.discourse_language}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print" style={{marginBottom:'20px', display:'flex', justifyContent:'space-between'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(males, "MALE", "#007bff", "print-section-male")} <div style={{height:'30px'}}></div> {renderTable(females, "FEMALE", "#e91e63", "print-section-female")} </div> ); }
 
-  // --- SEATING VIEW (Fixed: Split View & Female Rows) ---
   if (viewMode === 'seating') { 
-    const males = participants.filter(p => p.gender && p.gender.toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled');
-    const females = participants.filter(p => p.gender && p.gender.toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled');
-    const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p);
-    const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
-    
+    const males = participants.filter(p => p.gender && p.gender.toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); const females = participants.filter(p => p.gender && p.gender.toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p); const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
     const SeatBox = ({ p, label }) => { const isOld = p && p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S')); return ( <div onClick={() => setSwappingSeat({ p, label })} style={{border:'1px solid #ccc', background: p ? (isOld ? '#fff9c4' : 'white') : '#f0f0f0', height:'60px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontSize:'10px', textAlign:'center', cursor:'pointer', position:'relative'}}> {p ? (<><div style={{fontWeight:'bold', fontSize:'13px', color: p.gender.startsWith('M')?'#007bff':'#e91e63'}}>{p.dhamma_hall_seat_no}</div><div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width:'90%'}}>{(p.full_name || '').substring(0, 10)}</div><div style={{fontSize:'9px'}}>{p.conf_no}</div><div style={{fontSize:'8px', color:'#666'}}>{p.dining_seat_no ? `D:${p.dining_seat_no}` : ''}</div></>) : <span style={{color:'#ccc'}}>{label}</span>} </div> ); };
-    
-    // Male Grid: J->A
     const renderMaleGrid = (map, cols, rows) => { let grid = []; for (let r = 0; r < rows; r++) { let rowCells = []; const rowNum = r+1; for (let c = 0; c < cols; c++) { const colChar = String.fromCharCode(74 - c); const seatLabel = `${colChar}${rowNum}`; const student = map[seatLabel]; rowCells.push(<SeatBox key={seatLabel} p={student} label={seatLabel} />); } grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:'5px', marginBottom:'5px'}}>{rowCells}</div>); } return grid; };
-    
-    // Female Grid: A->G
     const renderFemaleGrid = (map, cols, rows) => { let grid = []; for (let r = 0; r < rows; r++) { let rowCells = []; const rowNum = r+1; for (let c = 0; c < cols; c++) { const colChar = String.fromCharCode(65 + c); const seatLabel = `${colChar}${rowNum}`; const student = map[seatLabel]; rowCells.push(<SeatBox key={seatLabel} p={student} label={seatLabel} />); } grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:'5px', marginBottom:'5px'}}>{rowCells}</div>); } return grid; };
-    
-    const renderSection = (title, color, content, sectionId) => (
-        <div id={sectionId} style={{marginBottom:'40px'}}>
-            <div className="no-print" style={{textAlign:'right', padding:'10px', background:'#f8f9fa', marginBottom:'10px', borderBottom:'1px solid #ddd'}}>
-                <button onClick={() => printSection(sectionId)} style={{...quickBtnStyle(true), background: color, border:'none', color:'white'}}>🖨️ Print {title}</button>
-            </div>
-            <h3 style={{textAlign:'center', background: color, color:'white', padding:'8px', margin:'0 0 10px 0', borderRadius:'4px'}}>{title} SIDE</h3>
-            {content}
-        </div>
-    );
-
-    return ( <div style={cardStyle}> 
-        <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
-            <button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button>
-            <div style={{display:'flex', gap:'10px'}}>
-                <button onClick={handleSeatingExport} style={{...btnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button>
-                <button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800', color:'white'}}>⚡ Auto-Assign All</button>
-            </div>
-        </div>
-        
-        <div className="print-area">
-            <div style={{textAlign:'center', marginBottom:'20px', borderBottom:'2px solid #333', paddingBottom:'10px'}}><h1>DHAMMA HALL SEATING</h1><h3>{selectedCourseName}</h3></div>
-            
-            <div style={{display:'flex', gap:'40px', justifyContent:'center'}}>
-                {/* MALE SECTION */}
-                <div style={{flex:'0 0 48%'}}>
-                    {renderSection("MALE (J ← A)", "#007bff", (
-                        <>
-                            {renderMaleGrid(maleMap, 10, 8)}
-                            <div style={{marginTop:'15px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}>
-                                <h4 style={{textAlign:'center', margin:'5px', color:'#007bff'}}>Special (Chowky/Chair)</h4>
-                                <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`K${i+1}`; return <SeatBox key={label} p={maleMap[label]} label={label} /> })}</div> 
-                                <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`L${i+1}`; return <SeatBox key={label} p={maleMap[label]} label={label} /> })}</div> 
-                            </div>
-                        </>
-                    ), "print-male-hall")}
-                </div>
-
-                {/* AISLE */}
-                <div style={{flex:'0 0 4%', display:'flex', alignItems:'center', justifyContent:'center', borderLeft:'1px dashed #ccc', borderRight:'1px dashed #ccc'}}>
-                    <div style={{writingMode:'vertical-rl', textOrientation:'upright', letterSpacing:'5px', color:'#ccc', fontWeight:'bold'}}>AISLE</div>
-                </div>
-
-                {/* FEMALE SECTION */}
-                <div style={{flex:'0 0 48%'}}>
-                    {renderSection("FEMALE (A → G)", "#e91e63", (
-                        <>
-                            {renderFemaleGrid(femaleMap, 7, 7)}
-                            <div style={{marginTop:'15px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}>
-                                <h4 style={{textAlign:'center', margin:'5px', color:'#e91e63'}}>Special (Chowky/Chair)</h4>
-                                {/* Female Special Rows: H & I */}
-                                <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`H${i+1}`; return <SeatBox key={label} p={femaleMap[label]} label={label} /> })}</div> 
-                                <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`I${i+1}`; return <SeatBox key={label} p={femaleMap[label]} label={label} /> })}</div> 
-                            </div>
-                        </>
-                    ), "print-female-hall")}
-                </div>
-            </div>
-        </div>
-
-        {swappingSeat && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}><h3>💺 Seat Manager</h3>{swappingSeat.p ? (<div><p><strong>Student:</strong> {swappingSeat.p.full_name}</p><p><strong>Current Seat:</strong> {swappingSeat.label}</p></div>) : <p><strong>Empty Seat:</strong> {swappingSeat.label}</p>}<div style={{marginTop:'15px'}}><label style={labelStyle}>Assign/Change to Seat No:</label><input style={inputStyle} value={newSeatNo} onChange={e=>setNewSeatNo(e.target.value)} placeholder="e.g. C5" /></div><div style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={handleSeatSwapSave} disabled={!swappingSeat.p && !newSeatNo} style={{...btnStyle(true), background: '#28a745', color:'white', flex:1}}>Update</button><button onClick={() => {setSwappingSeat(null); setNewSeatNo('');}} style={{...btnStyle(false), flex:1}}>Close</button></div></div></div>)}
-    </div> );
+    const printSection = (sectionId) => { const style = document.createElement('style'); style.innerHTML = `@media print { body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; transform: scale(0.95); transform-origin: top left; } .no-print { display: none !important; } }`; document.head.appendChild(style); window.print(); document.head.removeChild(style); };
+    const renderSection = (title, color, content, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px'}}> <div className="no-print" style={{textAlign:'right', padding:'10px', background:'#f8f9fa', marginBottom:'10px', borderBottom:'1px solid #ddd'}}> <button onClick={() => printSection(sectionId)} style={{...quickBtnStyle(true), background: color, border:'none', color:'white'}}>🖨️ Print {title}</button> </div> <h3 style={{textAlign:'center', background: color, color:'white', padding:'8px', margin:'0 0 10px 0', borderRadius:'4px'}}>{title} SIDE</h3> {content} </div> );
+    return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button> <div style={{display:'flex', gap:'10px'}}> <button onClick={handleSeatingExport} style={{...btnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button> <button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800', color:'white'}}>⚡ Auto-Assign All</button> </div> </div> <div className="print-area"> <div style={{textAlign:'center', marginBottom:'20px', borderBottom:'2px solid #333', paddingBottom:'10px'}}><h1>DHAMMA HALL SEATING</h1><h3>{selectedCourseName}</h3></div> <div style={{display:'flex', gap:'40px', justifyContent:'center'}}> <div style={{flex:'0 0 48%'}}> {renderSection("MALE (J ← A)", "#007bff", ( <> {renderMaleGrid(maleMap, 10, 8)} <div style={{marginTop:'15px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}> <h4 style={{textAlign:'center', margin:'5px', color:'#007bff'}}>Special (Chowky/Chair)</h4> <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`K${i+1}`; return <SeatBox key={label} p={maleMap[label]} label={label} /> })}</div> <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`L${i+1}`; return <SeatBox key={label} p={maleMap[label]} label={label} /> })}</div> </div> </> ), "print-male-hall")} </div> <div style={{flex:'0 0 4%', display:'flex', alignItems:'center', justifyContent:'center', borderLeft:'1px dashed #ccc', borderRight:'1px dashed #ccc'}}><div style={{writingMode:'vertical-rl', textOrientation:'upright', letterSpacing:'5px', color:'#ccc', fontWeight:'bold'}}>AISLE</div></div> <div style={{flex:'0 0 48%'}}> {renderSection("FEMALE (A → G)", "#e91e63", ( <> {renderFemaleGrid(femaleMap, 7, 7)} <div style={{marginTop:'15px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}> <h4 style={{textAlign:'center', margin:'5px', color:'#e91e63'}}>Special (Chowky/Chair)</h4> <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`H${i+1}`; return <SeatBox key={label} p={femaleMap[label]} label={label} /> })}</div> <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`I${i+1}`; return <SeatBox key={label} p={femaleMap[label]} label={label} /> })}</div> </div> </> ), "print-female-hall")} </div> </div> </div> {swappingSeat && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}><h3>💺 Seat Manager</h3>{swappingSeat.p ? (<div><p><strong>Student:</strong> {swappingSeat.p.full_name}</p><p><strong>Current Seat:</strong> {swappingSeat.label}</p></div>) : <p><strong>Empty Seat:</strong> {swappingSeat.label}</p>}<div style={{marginTop:'15px'}}><label style={labelStyle}>Assign/Change to Seat No:</label><input style={inputStyle} value={newSeatNo} onChange={e=>setNewSeatNo(e.target.value)} placeholder="e.g. C5" /></div><div style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={handleSeatSwapSave} disabled={!swappingSeat.p && !newSeatNo} style={{...btnStyle(true), background: '#28a745', color:'white', flex:1}}>Update</button><button onClick={() => {setSwappingSeat(null); setNewSeatNo('');}} style={{...btnStyle(false), flex:1}}>Close</button></div></div></div>)} </div> );
   }
 
   return ( <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}><div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div><div style={{display:'flex', gap:'5px'}}><button onClick={handleAutoNoShow} disabled={!courseId} style={{...quickBtnStyle(true), background:'#d32f2f', color:'white'}}>🚫 Auto-Flag No-Shows</button><button onClick={handleSendReminders} disabled={!courseId} style={{...quickBtnStyle(true), background:'#ff9800', color:'white'}}>📢 Send Reminders</button><button onClick={() => setViewAllMode(true)} disabled={!courseId} style={{...quickBtnStyle(true), background:'#6c757d', color:'white'}}>👁️ View All</button><button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button><button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining Sheet</button><button onClick={() => setViewMode('seating')} disabled={!courseId} style={quickBtnStyle(true)}>🧘 Dhamma Plan</button></div></div>
@@ -963,35 +528,195 @@ function ExpenseTracker({ courses }) {
   );
 }
 
-01:16:51.301
- 
-1160|  function UploadParticipants({ courses, setView }) { const [courseId, setCourseId] = useState(''); const [csvFile, setCsvFile] = useState(null); const [preview, setPreview] = useState([]); const [status, setStatus] = useState(''); 
-01:16:51.301
- 
-   |           ^
-01:16:51.301
- 
-1161|    const handleFileChange = (e) => { const file = e.target.files[0]; if (!file) return; setCsvFile(file); setStatus(''); setPreview([]); const reader = new FileReader(); reader.onload = (event) => { const text = event.target.result; const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== ''); let headerIndex = -1; let headers = []; for (let i = 0; i < Math.min(lines.length, 20); i++) { if (lines[i].toLowerCase().includes('name')) { headerIndex = i; headers = lines[i].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase()); break; } } if (headerIndex === -1) { setStatus("⚠️ Error: No header found."); return; } const nameIdx = headers.findIndex(h => h.includes('name')); const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile')); const emailIdx = headers.findIndex(h => h.includes('email')); const ageIdx = headers.findIndex(h => h === 'age'); const genderIdx = headers.findIndex(h => h === 'gender'); const coursesIdx = headers.findIndex(h => h.includes('courses')); const confIdx = headers.findIndex(h => h.includes('conf')); const dataRows = lines.slice(headerIndex + 1); const parsedData = dataRows.map(row => { const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, '')); if (cols.length <= nameIdx) return null; return { name: cols[nameIdx], phone: phoneIdx!==-1?cols[phoneIdx]:'', email: emailIdx!==-1?cols[emailIdx]:'', age: ageIdx!==-1?cols[ageIdx]:'', gender: genderIdx!==-1?cols[genderIdx]:'', courses: coursesIdx!==-1?cols[coursesIdx]:'', confNo: confIdx!==-1?cols[confIdx]:'' }; }).filter(r => r && r.name); setPreview(parsedData); setStatus(`✅ Ready! Found ${parsedData.length} students.`); }; reader.readAsText(file); };
-01:16:51.301
- 
-1162|    const handleUpload = async () => { if (!courseId) return alert("Select course"); setStatus('Uploading...'); try { const res = await fetch(`${API_URL}/courses/${courseId}/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ students: preview }) }); if (!res.ok) throw new Error("Failed"); setStatus(`✅ Added ${preview.length} students.`); setTimeout(() => setView('onboarding'), 2000); } catch (err) { setStatus("❌ " + err.message); } };
-01:16:51.301
- 
-01:16:51.303
- 
-error during build:
-01:16:51.303
- 
-Error: Transform failed with 2 errors:
-01:16:51.303
- 
-/vercel/path0/src/App.jsx:1159:9: ERROR: The symbol "CreateCourseForm" has already been declared
-01:16:51.304
- 
-/vercel/path0/src/App.jsx:1160:9: ERROR: The symbol "UploadParticipants" has already been declared
-01:16:51.304
- 
-    at failureErrorWithLog (/vercel/path0/node_modules/esbuild/lib/main.js:1649:15)
+// --- 6. COURSE ADMIN (Create + Strict Upload + Manual) ---
+function CourseAdmin({ courses, refreshCourses, setView }) {
+  const [activeTab, setActiveTab] = useState('create');
+  return (
+    <div style={cardStyle}>
+      <div style={{display:'flex', borderBottom:'1px solid #ddd', marginBottom:'20px', gap:'10px'}}>
+        <button onClick={()=>setActiveTab('create')} style={{padding:'10px', background:activeTab==='create'?'#eee':'white', border:'none', borderBottom:activeTab==='create'?'2px solid #007bff':'none', cursor:'pointer'}}>➕ New Course</button>
+        <button onClick={()=>setActiveTab('upload')} style={{padding:'10px', background:activeTab==='upload'?'#eee':'white', border:'none', borderBottom:activeTab==='upload'?'2px solid #007bff':'none', cursor:'pointer'}}>📂 Upload CSV</button>
+        <button onClick={()=>setActiveTab('manual')} style={{padding:'10px', background:activeTab==='manual'?'#eee':'white', border:'none', borderBottom:activeTab==='manual'?'2px solid #007bff':'none', cursor:'pointer'}}>✍️ Manual Entry</button>
+      </div>
+      {activeTab === 'create' && <CreateCourseForm refreshCourses={refreshCourses} setView={setView} />}
+      {activeTab === 'upload' && <UploadParticipants courses={courses} setView={setView} />}
+      {activeTab === 'manual' && <ManualStudentForm courses={courses} setView={setView} />}
+    </div>
+  );
+}
+
+function CreateCourseForm({ refreshCourses, setView }) { 
+  const [formData, setFormData] = useState({ courseName: '', teacherName: '', startDate: '', endDate: '' }); 
+  const [status, setStatus] = useState(''); 
+  const handleSubmit = async (e) => { 
+    e.preventDefault(); setStatus('Saving...'); 
+    try { 
+      const res = await fetch(`${API_URL}/courses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(formData)}); 
+      if (!res.ok) throw new Error("Failed"); 
+      setStatus('✅ Created!'); 
+      refreshCourses(); 
+      setTimeout(() => setView('dashboard'), 1500); 
+    } catch (err) { setStatus('❌ ' + err.message); } 
+  }; 
+  return ( 
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '500px' }}> 
+      <h3>Course Details</h3> 
+      <input style={inputStyle} placeholder="Course Name" required onChange={e => setFormData({...formData, courseName: e.target.value})} />
+      <input style={inputStyle} placeholder="Teacher Name" required onChange={e => setFormData({...formData, teacherName: e.target.value})} />
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
+        <input type="date" style={inputStyle} required onChange={e => setFormData({...formData, startDate: e.target.value})} />
+        <input type="date" style={inputStyle} required onChange={e => setFormData({...formData, endDate: e.target.value})} />
+      </div>
+      <button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Create Course</button>
+      {status && <p>{status}</p>}
+    </form> 
+  ); 
+}
+
+function UploadParticipants({ courses, setView }) { 
+  const [courseId, setCourseId] = useState(''); 
+  const [csvFile, setCsvFile] = useState(null); 
+  const [preview, setPreview] = useState([]); 
+  const [status, setStatus] = useState(''); 
+  
+  const handleFileChange = (e) => { 
+    const file = e.target.files[0]; 
+    if (!file) return; 
+    setCsvFile(file); 
+    setStatus(''); 
+    setPreview([]); 
+    
+    const reader = new FileReader(); 
+    reader.onload = (event) => { 
+      const text = event.target.result; 
+      const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== ''); 
+      
+      let headerIndex = -1; 
+      let headers = []; 
+      
+      for (let i = 0; i < Math.min(lines.length, 20); i++) { 
+        if (lines[i].toLowerCase().includes('name')) { 
+          headerIndex = i; 
+          headers = lines[i].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase()); 
+          break; 
+        } 
+      } 
+      
+      if (headerIndex === -1) { setStatus("⚠️ Error: No header row found (must contain 'name')."); return; } 
+      
+      const nameIdx = headers.findIndex(h => h.includes('name')); 
+      const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile')); 
+      const emailIdx = headers.findIndex(h => h.includes('email')); 
+      const ageIdx = headers.findIndex(h => h === 'age'); 
+      const genderIdx = headers.findIndex(h => h === 'gender'); 
+      const coursesIdx = headers.findIndex(h => h.includes('courses')); 
+      const confIdx = headers.findIndex(h => h.includes('conf')); 
+      
+      const dataRows = lines.slice(headerIndex + 1); 
+      const parsedData = dataRows.map(row => { 
+        const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, '')); 
+        if (cols.length <= nameIdx) return null; 
+        
+        return { 
+          name: cols[nameIdx], 
+          phone: phoneIdx !== -1 ? cols[phoneIdx] : '', 
+          email: emailIdx !== -1 ? cols[emailIdx] : '', 
+          age: ageIdx !== -1 ? cols[ageIdx] : '', 
+          gender: genderIdx !== -1 ? cols[genderIdx] : '', 
+          courses: coursesIdx !== -1 ? cols[coursesIdx] : '', 
+          confNo: confIdx !== -1 ? cols[confIdx] : '' 
+        }; 
+      }).filter(r => r && r.name); 
+
+      // --- STRICT VALIDATION: Check for Missing Conf No ---
+      const badRows = parsedData.filter(r => !r.confNo || r.confNo.trim() === '');
+      if (badRows.length > 0) {
+          setStatus(`⛔ ERROR: Upload Blocked!\n\n${badRows.length} students are missing a Confirmation Number (Conf No).\n\nExamples: ${badRows.slice(0,3).map(r => r.name).join(', ')}...`);
+          setPreview([]); // Block upload
+          return;
+      }
+
+      setPreview(parsedData); 
+      setStatus(`✅ Ready! Found ${parsedData.length} valid students.`); 
+    }; 
+    reader.readAsText(file); 
+  };
+
+  const handleUpload = async () => { 
+    if (!courseId) return alert("Select course"); 
+    setStatus('Uploading...'); 
+    try { 
+      const res = await fetch(`${API_URL}/courses/${courseId}/import`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ students: preview }) 
+      }); 
+      if (!res.ok) throw new Error("Failed"); 
+      setStatus(`✅ Added ${preview.length} students.`); 
+      setTimeout(() => setView('onboarding'), 2000); 
+    } catch (err) { setStatus("❌ " + err.message); } 
+  };
+
+  return ( 
+    <div>
+      <h3>Upload CSV</h3>
+      <div style={{maxWidth:'500px'}}>
+        <div style={{marginBottom:'10px'}}>
+          <label>Select Course:</label>
+          <select style={inputStyle} onChange={e => setCourseId(e.target.value)}>
+            <option value="">-- Select --</option>
+            {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
+          </select>
+        </div>
+        <div style={{marginBottom:'10px'}}>
+          <input type="file" accept=".csv" onChange={handleFileChange} />
+        </div>
+        {status && <div style={{padding:'15px', background: status.includes('ERROR') ? '#f8d7da' : '#e3f2fd', color: status.includes('ERROR') ? '#721c24' : '#0c5460', borderRadius:'4px', marginBottom:'10px', whiteSpace:'pre-wrap', fontWeight: status.includes('ERROR') ? 'bold' : 'normal'}}>{status}</div>}
+        <button onClick={handleUpload} disabled={!csvFile || !courseId || preview.length===0} style={{...btnStyle(true), width:'100%', background: preview.length>0?'#28a745':'#ccc', cursor: preview.length>0?'pointer':'not-allowed'}}>Upload</button>
+      </div>
+    </div> 
+  );
+}
+
+function ManualStudentForm({ courses, setView }) {
+  const [formData, setFormData] = useState({ courseId: '', fullName: '', coursesInfo: '', email: '', age: '', gender: '', confNo: '' });
+  const [status, setStatus] = useState('');
+  const handleSubmit = async (e) => {
+    e.preventDefault(); 
+    
+    // Strict Check for Manual Entry too
+    if (!formData.confNo || formData.confNo.trim() === '') {
+        return setStatus('❌ Error: Confirmation Number is required.');
+    }
+
+    setStatus('Saving...');
+    try {
+      const res = await fetch(`${API_URL}/participants`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(formData)});
+      if (!res.ok) throw new Error("Failed. ConfNo/Name might exist.");
+      setStatus('✅ Student Added!');
+      setFormData({ ...formData, fullName: '', coursesInfo: '', email: '', age: '', gender: '', confNo: '' });
+    } catch (err) { setStatus('❌ ' + err.message); }
+  };
+  return (
+    <form onSubmit={handleSubmit} style={{display:'flex', flexDirection:'column', gap:'15px', maxWidth:'600px'}}>
+       <h3>Add Student (Manual)</h3>
+       <label>Select Course</label>
+       <select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} required>
+         <option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+       <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px'}}>
+         <div><label>Full Name</label><input style={inputStyle} value={formData.fullName} onChange={e=>setFormData({...formData, fullName: e.target.value})} required /></div>
+         <div><label>Conf No</label><input style={inputStyle} value={formData.confNo} onChange={e=>setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED (e.g. NM99)" required /></div>
+       </div>
+       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}>
+         <div><label>Gender</label><select style={inputStyle} onChange={e=>setFormData({...formData, gender: e.target.value})}><option value="">Select</option><option>Male</option><option>Female</option></select></div>
+         <div><label>Age</label><input style={inputStyle} type="number" value={formData.age} onChange={e=>setFormData({...formData, age: e.target.value})} /></div>
+         <div><label>Courses Info</label><input style={inputStyle} value={formData.coursesInfo} onChange={e=>setFormData({...formData, coursesInfo: e.target.value})} placeholder="S:0 L:0" /></div>
+       </div>
+       <button type="submit" disabled={!formData.courseId} style={{...btnStyle(true), background:'#28a745', color:'white'}}>Add Student</button>
+       {status && <p style={{color: status.includes('Error') ? 'red' : 'green', fontWeight:'bold'}}>{status}</p>}
+    </form>
+  );
+}
 
 // --- STYLES ---
 const btnStyle = (isActive) => ({ padding: '10px 20px', border: '1px solid #ddd', borderRadius: '5px', cursor: 'pointer', background: isActive ? '#007bff' : '#fff', color: isActive ? 'white' : '#333', fontWeight: '500' });
