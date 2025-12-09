@@ -650,7 +650,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   );
 }
 
-// --- 4. MANAGE STUDENTS (Fixed: Smart Print & Sorting) ---
+// --- 4. MANAGE STUDENTS (Fixed: Dining CSV & Sorting) ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
@@ -667,8 +667,34 @@ function ParticipantList({ courses, refreshCourses }) {
   useEffect(loadStudents, [courseId]);
   
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
-  const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses", "Age", "Gender", "Dining Seat", "Dining Type", "Room", "Pagoda", "Language", "Status"]; const rows = participants.map(p => [`"${p.full_name}"`, p.conf_no, `"${p.courses_info}"`, p.age, p.gender, p.dining_seat_no, p.dining_seat_type, p.room_no, p.pagoda_cell_no, p.discourse_language, p.status]); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `students_course_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   
+  // Generic Export (Master List)
+  const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses", "Age", "Gender", "Dining Seat", "Dining Type", "Room", "Pagoda", "Language", "Status"]; const rows = participants.map(p => [`"${p.full_name}"`, p.conf_no, `"${p.courses_info}"`, p.age, p.gender, p.dining_seat_no, p.dining_seat_type, p.room_no, p.pagoda_cell_no, p.discourse_language, p.status]); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `students_master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
+
+  // New: Dining Specific Export
+  const handleDiningExport = () => {
+      const arrived = participants.filter(p => p.status === 'Arrived');
+      if (arrived.length === 0) return alert("No arrived students to export.");
+      const headers = ["Seat No", "Type", "Category", "Name", "Gender", "Room", "Pagoda", "Language"];
+      const rows = arrived.map(p => [
+          p.dining_seat_no,
+          ['F','Floor'].includes(p.dining_seat_type) ? 'Floor' : 'Chair',
+          getCategory(p.conf_no),
+          `"${p.full_name}"`,
+          p.gender,
+          p.room_no,
+          p.pagoda_cell_no,
+          p.discourse_language
+      ]);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `dining_chart_${courseId}.csv`);
+      document.body.appendChild(link);
+      link.click();
+  };
+
   const sortedList = React.useMemo(() => { let sortableItems = [...participants]; if (sortConfig.key) { sortableItems.sort((a, b) => { const valA = (a[sortConfig.key] || '').toString().toLowerCase(); const valB = (b[sortConfig.key] || '').toString().toLowerCase(); if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } return sortableItems.filter(p => p.full_name.toLowerCase().includes(search.toLowerCase())); }, [participants, sortConfig, search]);
 
   const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students/expenses?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
@@ -682,18 +708,7 @@ function ParticipantList({ courses, refreshCourses }) {
   
   const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || 'Course';
   const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = seatNo.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF')) return 'Old'; if (s.startsWith('NM') || s.startsWith('NF')) return 'New'; if (s.startsWith('SM') || s.startsWith('SF')) return 'DS'; return 'New'; };
-  
-  // --- RANKING LOGIC (Old First) ---
-  const getCategoryRank = (confNo) => { 
-      if (!confNo) return 2; 
-      const s = confNo.toUpperCase(); 
-      // Rank 0: Old Students (OM/OF) & Servers (SM/SF)
-      if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; 
-      // Rank 1: New Students
-      if (s.startsWith('N')) return 1;
-      return 2; // Others
-  };
-  
+  const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = confNo.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   const parseCourses = (str) => { if (!str) return { s: 0, l: 0, seva: 0 }; const s = str.match(/S:\s*(\d+)/); const l = str.match(/L:\s*(\d+)/); const sv = str.match(/Seva:\s*(\d+)/); return { s: s ? parseInt(s[1]) : 0, l: l ? parseInt(l[1]) : 0, seva: sv ? parseInt(sv[1]) : 0 }; };
   const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info); return (c.l * 10000) + (c.s * 10) + (c.seva * 0.1); };
   
@@ -724,68 +739,31 @@ function ParticipantList({ courses, refreshCourses }) {
 
   if (viewAllMode) { return ( <div style={{background:'white', padding:'20px', height:'100vh', overflow:'auto'}}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setViewAllMode(false)} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Master List</button> </div> <h2 style={{textAlign:'center'}}>Master Student List - {selectedCourseName}</h2> <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}> <thead><tr style={{background:'#f0f0f0', borderBottom:'2px solid #000'}}><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Phone</th><th style={thPrint}>Room</th><th style={thPrint}>Dining</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Dhamma</th><th style={thPrint}>Status</th></tr></thead> <tbody> {participants.map(p => ( <tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}> <td style={{padding:'8px'}}>{p.full_name}</td> <td style={{padding:'8px'}}>{p.conf_no}</td> <td style={{padding:'8px'}}>{p.age}</td> <td style={{padding:'8px'}}>{p.gender}</td> <td style={{padding:'8px'}}>{p.phone_number}</td> <td style={{padding:'8px'}}>{p.room_no}</td> <td style={{padding:'8px'}}>{p.dining_seat_no} ({p.dining_seat_type})</td> <td style={{padding:'8px'}}>{p.pagoda_cell_no}</td> <td style={{padding:'8px'}}>{p.dhamma_hall_seat_no}</td> <td style={{padding:'8px'}}>{p.status}</td> </tr> ))} </tbody> </table> </div> ); }
   
-  // --- DINING CHARTS (Split View & Print) ---
   if (viewMode === 'dining') { 
       const arrived = participants.filter(p => p.status==='Arrived');
-      
-      // Sorter: Old/Server (Rank 0) -> New (Rank 1) -> Then Seat Number (1, 2, 10...)
-      const sorter = (a,b) => { 
-          const rankA = getCategoryRank(a.conf_no); 
-          const rankB = getCategoryRank(b.conf_no); 
-          if (rankA !== rankB) return rankA - rankB; 
-          
-          // Numeric Sort for Seats
-          return (a.dining_seat_no || '0').localeCompare(b.dining_seat_no || '0', undefined, { numeric: true }); 
-      };
-      
+      const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return (a.dining_seat_no || '0').localeCompare(b.dining_seat_no || '0', undefined, { numeric: true }); };
       const males = arrived.filter(p => p.gender && p.gender.toLowerCase().startsWith('m')).sort(sorter);
       const females = arrived.filter(p => p.gender && p.gender.toLowerCase().startsWith('f')).sort(sorter);
-
-      // Function to trigger print for ONE specific table
       const printSection = (sectionId) => {
           const style = document.createElement('style');
-          // Hide everything except the target section
-          style.innerHTML = `
-            @media print {
-              body * { visibility: hidden; }
-              #${sectionId}, #${sectionId} * { visibility: visible; }
-              #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; }
-              .no-print { display: none !important; }
-            }
-          `;
-          document.head.appendChild(style);
-          window.print();
-          document.head.removeChild(style);
+          style.innerHTML = `@media print { body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }`;
+          document.head.appendChild(style); window.print(); document.head.removeChild(style);
       };
-
       const renderTable = (list, title, color, sectionId) => (
           <div id={sectionId} style={{marginBottom:'40px', padding:'20px', background:'white', borderRadius:'8px', border:`1px solid ${color}`}}>
-             <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}>
+             <div className="no-print" style={{display:'flex', justifyContent:'flex-end', gap:'10px', marginBottom:'10px'}}>
+                 <button onClick={handleDiningExport} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white', border:'none'}}>📥 Export CSV</button>
                  <button onClick={() => printSection(sectionId)} style={{...quickBtnStyle(true), background: color, color:'white', border:'none'}}>🖨️ Print {title} Only</button>
              </div>
-             <div style={{textAlign:'center', color: color, borderBottom:`3px solid ${color}`, marginBottom:'20px'}}>
-                 <h1 style={{margin:'5px 0'}}>{title} Dining Chart</h1>
-                 <h3 style={{margin:'0', color:'#666'}}>{selectedCourseName}</h3>
-             </div>
-             <table style={{width:'100%', borderCollapse:'collapse', fontSize:'16px'}}>
-                 <thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Seat</th><th style={thPrint}>Type</th><th style={thPrint}>Cat</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Lang</th></tr></thead>
-                 <tbody>{list.map(p=>(<tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}><td style={{padding:'12px', fontWeight:'bold'}}>{p.dining_seat_no}</td><td style={{padding:'12px'}}>{['F','Floor'].includes(p.dining_seat_type) ? 'Floor' : 'Chair'}</td><td style={{padding:'12px'}}>{getCategory(p.conf_no)}</td><td style={{padding:'12px'}}>{p.full_name}</td><td style={{padding:'12px'}}>{p.room_no}</td><td style={{padding:'12px'}}>{p.pagoda_cell_no}</td><td style={{padding:'12px'}}>{p.discourse_language}</td></tr>))}</tbody>
-             </table>
+             <div style={{textAlign:'center', color: color, borderBottom:`3px solid ${color}`, marginBottom:'20px'}}><h1 style={{margin:'5px 0'}}>{title} Dining Chart</h1><h3 style={{margin:'0', color:'#666'}}>{selectedCourseName}</h3></div>
+             <table style={{width:'100%', borderCollapse:'collapse', fontSize:'16px'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Seat</th><th style={thPrint}>Type</th><th style={thPrint}>Cat</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Lang</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}><td style={{padding:'12px', fontWeight:'bold'}}>{p.dining_seat_no}</td><td style={{padding:'12px'}}>{['F','Floor'].includes(p.dining_seat_type) ? 'Floor' : 'Chair'}</td><td style={{padding:'12px'}}>{getCategory(p.conf_no)}</td><td style={{padding:'12px'}}>{p.full_name}</td><td style={{padding:'12px'}}>{p.room_no}</td><td style={{padding:'12px'}}>{p.pagoda_cell_no}</td><td style={{padding:'12px'}}>{p.discourse_language}</td></tr>))}</tbody></table>
           </div>
       );
-
-      return ( 
-          <div style={cardStyle}> 
-             <div className="no-print" style={{marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div>
-             {renderTable(males, "MALE", "#007bff", "print-section-male")}
-             <div style={{height:'30px'}}></div>
-             {renderTable(females, "FEMALE", "#e91e63", "print-section-female")}
-          </div> 
-      ); 
+      return ( <div style={cardStyle}> <div className="no-print" style={{marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(males, "MALE", "#007bff", "print-section-male")} <div style={{height:'30px'}}></div> {renderTable(females, "FEMALE", "#e91e63", "print-section-female")} </div> ); 
   }
 
+  // --- PART 2: EXISTING DHAMMA HALL FEATURES ---
   if (viewMode === 'seating') { 
-    // Re-implemented Seating Logic here to ensure it's not lost
     const males = participants.filter(p => p.gender && p.gender.toLowerCase() === 'male' && p.dhamma_hall_seat_no && p.status!=='Cancelled');
     const females = participants.filter(p => p.gender && p.gender.toLowerCase() === 'female' && p.dhamma_hall_seat_no && p.status!=='Cancelled');
     const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p);
