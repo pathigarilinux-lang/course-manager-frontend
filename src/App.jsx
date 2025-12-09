@@ -486,7 +486,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
   );
 }
 
-// --- 3. STUDENT FORM (Fixed: Aggressive Duplicate Filtering) ---
+// --- 3. STUDENT FORM (Fixed: Strict Gatekeeper & Duplicate Filtering) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
@@ -521,26 +521,23 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   }, [formData.courseId]);
 
   // --- LOGIC: AGGRESSIVE RESOURCE FILTERING ---
-  
-  // 1. Helpers
   const normalize = (str) => str ? str.toString().replace(/[\s-]+/g, '').toUpperCase() : '';
   const cleanNum = (val) => val ? String(val).trim() : '';
 
-  // 2. Build Room Gender Map
+  // Build Room Gender Map
   const roomGenderMap = {};
   rooms.forEach(r => { if(r.room_no) roomGenderMap[normalize(r.room_no)] = r.gender_type; });
 
-  // 3. Filter Rooms (Exclude occupied)
+  // Filter Rooms (Exclude occupied)
   const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
 
-  // 4. Filter Seats/Lockers (Combine Sources & Fuzzy Match)
+  // Filter Seats/Lockers (Combine Sources & Fuzzy Match)
   const currentGender = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
   const isMale = currentGender.startsWith('m');
   const isFemale = currentGender.startsWith('f');
 
-  // Combine GLOBAL occupancy + COURSE participants to ensure we don't miss anyone
-  // We filter out the currently selected student (so they can keep their own seat if editing)
+  // Combine GLOBAL occupancy + COURSE participants
   const allRecords = [...occupancy, ...participants].filter(p => 
       String(p.participant_id) !== String(formData.participantId) && 
       p.status !== 'Cancelled'
@@ -561,10 +558,10 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       const peerIsMale = pGender.startsWith('m');
       const peerIsFemale = pGender.startsWith('f');
 
-      // If gender matches (or implies match), block the numbers
       if ((isMale && peerIsMale) || (isFemale && peerIsFemale)) {
           if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no));
           if (p.laundry_token_no) usedLaundry.add(cleanNum(p.laundry_token_no));
+          // Correct Schema Keys: mobile_locker_no, valuables_locker_no
           if (p.mobile_locker_no) usedMobile.add(cleanNum(p.mobile_locker_no));
           if (p.valuables_locker_no) usedValuables.add(cleanNum(p.valuables_locker_no));
       }
@@ -577,7 +574,6 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const availableMobileOpts = getAvailableOptions(usedMobile);
   const availableValuablesOpts = getAvailableOptions(usedValuables);
 
-  // Filter Room Dropdown by Gender
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
   
@@ -587,16 +583,19 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
     const selectedId = e.target.value; 
     const student = participants.find(p => p.participant_id == selectedId); 
     setSelectedStudent(student); 
+    // Auto-fill ConfNo but allow editing
     setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); 
   };
 
   const handleSubmit = async (e) => { 
     e.preventDefault(); 
-    // --- NEW: STRICT GATEKEEPER ---
+    
+    // --- STRICT GATEKEEPER ---
     if (!formData.confNo || formData.confNo.trim() === '') {
         alert("⛔ STOP: Student is missing a Confirmation Number (e.g. NM50).\n\nPlease add a Conf No in 'Manage Students' or update the CSV source before checking in.");
-        return; // Halt execution
+        return; // HALT SUBMISSION
     }
+
     setStatus('Submitting...'); 
     const payload = { ...formData, diningSeatType: formData.seatType }; 
     try { 
@@ -631,7 +630,11 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
         </div> 
         {sectionHeader("📍 Allocation Details")} 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}> 
-          <div><label style={labelStyle}>🆔 Conf No</label><input style={{...inputStyle, background:'#f0f0f0'}} value={formData.confNo} readOnly /></div> 
+          <div>
+             <label style={labelStyle}>🆔 Conf No <span style={{color:'red'}}>*</span></label>
+             {/* ReadOnly removed so you can manually fix it if missing, but Gatekeeper enforces it */}
+             <input style={{...inputStyle, background: formData.confNo ? '#e8f5e9' : '#ffebee', border: formData.confNo ? '1px solid #ccc' : '1px solid red'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED" />
+          </div> 
           <div><label style={labelStyle}>🛏️ Room No</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Free Rooms --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div> 
           <div><label style={labelStyle}>🍽️ Dining Seat</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'80px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={e=>setFormData({...formData, seatNo:e.target.value})} required><option value="">-- Free --</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> 
         </div> 
