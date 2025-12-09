@@ -650,7 +650,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   );
 }
 
-// --- 4. MANAGE STUDENTS (Fixed: Dining CSV & Sorting) ---
+// --- 4. MANAGE STUDENTS (Fixed: Dhamma Hall Logic, Export & Split Views) ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
@@ -668,39 +668,47 @@ function ParticipantList({ courses, refreshCourses }) {
   
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   
-  // Generic Export (Master List)
-  const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses", "Age", "Gender", "Dining Seat", "Dining Type", "Room", "Pagoda", "Language", "Status"]; const rows = participants.map(p => [`"${p.full_name}"`, p.conf_no, `"${p.courses_info}"`, p.age, p.gender, p.dining_seat_no, p.dining_seat_type, p.room_no, p.pagoda_cell_no, p.discourse_language, p.status]); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `students_master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
-
-  // New: Dining Specific Export
-  const handleDiningExport = () => {
-      const arrived = participants.filter(p => p.status === 'Arrived');
-      if (arrived.length === 0) return alert("No arrived students to export.");
-      const headers = ["Seat No", "Type", "Category", "Name", "Gender", "Room", "Pagoda", "Language"];
-      const rows = arrived.map(p => [
-          p.dining_seat_no,
-          ['F','Floor'].includes(p.dining_seat_type) ? 'Floor' : 'Chair',
-          getCategory(p.conf_no),
-          `"${p.full_name}"`,
-          p.gender,
-          p.room_no,
-          p.pagoda_cell_no,
-          p.discourse_language
-      ]);
+  // --- EXPORT FUNCTIONS ---
+  const downloadCSV = (headers, rows, filename) => {
       const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `dining_chart_${courseId}.csv`);
+      link.setAttribute("download", filename);
       document.body.appendChild(link);
       link.click();
   };
 
+  const handleExport = () => { // Master List
+      if (participants.length === 0) return alert("No data"); 
+      const headers = ["Name", "Conf No", "Age", "Gender", "Dining", "Room", "Dhamma Seat", "Status"]; 
+      const rows = participants.map(p => [`"${p.full_name}"`, p.conf_no, p.age, p.gender, p.dining_seat_no, p.room_no, p.dhamma_hall_seat_no, p.status]); 
+      downloadCSV(headers, rows, `master_list_${courseId}.csv`);
+  };
+
+  const handleDiningExport = () => { // Dining Only
+      const arrived = participants.filter(p => p.status === 'Arrived');
+      if (arrived.length === 0) return alert("No arrived students.");
+      const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"];
+      const rows = arrived.map(p => [p.dining_seat_no, p.dining_seat_type, `"${p.full_name}"`, p.gender, p.room_no, p.discourse_language]);
+      downloadCSV(headers, rows, `dining_chart_${courseId}.csv`);
+  };
+
+  const handleSeatingExport = () => { // Dhamma Hall Only
+      const seated = participants.filter(p => p.dhamma_hall_seat_no);
+      if (seated.length === 0) return alert("No seats assigned yet.");
+      const headers = ["Seat No", "Name", "Gender", "Conf No", "Status"];
+      const rows = seated.map(p => [p.dhamma_hall_seat_no, `"${p.full_name}"`, p.gender, p.conf_no, p.status]);
+      downloadCSV(headers, rows, `dhamma_seating_${courseId}.csv`);
+  };
+
   const sortedList = React.useMemo(() => { let sortableItems = [...participants]; if (sortConfig.key) { sortableItems.sort((a, b) => { const valA = (a[sortConfig.key] || '').toString().toLowerCase(); const valB = (b[sortConfig.key] || '').toString().toLowerCase(); if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } return sortableItems.filter(p => p.full_name.toLowerCase().includes(search.toLowerCase())); }, [participants, sortConfig, search]);
 
+  // --- ACTIONS ---
   const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students/expenses?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
   const handleDeleteCourse = async () => { if (window.confirm("🛑 DELETE COURSE COMPLETELY?")) { await fetch(`${API_URL}/courses/${courseId}`, { method: 'DELETE' }); refreshCourses(); setCourseId(''); } };
   const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); } };
-  const handleCancelStudent = async (student) => { if (!window.confirm(`Mark ${student.full_name} as Cancelled?`)) return; const updatedData = { ...student, status: 'Cancelled', room_no: null, dining_seat_no: null, pagoda_cell_no: null, laundry_token_no: null }; await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedData) }); loadStudents(); };
+  const handleCancelStudent = async (student) => { if (!window.confirm(`Mark ${student.full_name} as Cancelled?`)) return; const updatedData = { ...student, status: 'Cancelled', room_no: null, dining_seat_no: null, dhamma_hall_seat_no: null }; await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedData) }); loadStudents(); };
   const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingStudent) }); setEditingStudent(null); loadStudents(); };
   const handleSeatSwapSave = async () => { if (!swappingSeat || !swappingSeat.p) return; await fetch(`${API_URL}/participants/${swappingSeat.p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...swappingSeat.p, dhamma_hall_seat_no: newSeatNo }) }); setSwappingSeat(null); loadStudents(); };
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag all pending students as No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); loadStudents(); alert("✅ Processed No-Shows."); };
@@ -709,29 +717,86 @@ function ParticipantList({ courses, refreshCourses }) {
   const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || 'Course';
   const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = seatNo.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF')) return 'Old'; if (s.startsWith('NM') || s.startsWith('NF')) return 'New'; if (s.startsWith('SM') || s.startsWith('SF')) return 'DS'; return 'New'; };
   const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = confNo.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
-  const parseCourses = (str) => { if (!str) return { s: 0, l: 0, seva: 0 }; const s = str.match(/S:\s*(\d+)/); const l = str.match(/L:\s*(\d+)/); const sv = str.match(/Seva:\s*(\d+)/); return { s: s ? parseInt(s[1]) : 0, l: l ? parseInt(l[1]) : 0, seva: sv ? parseInt(sv[1]) : 0 }; };
-  const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info); return (c.l * 10000) + (c.s * 10) + (c.seva * 0.1); };
   
-  const FEMALE_COLS = 7; const FEMALE_ROWS = 7; const MALE_COLS = 10; const MALE_ROWS = 8;
+  // --- ROBUST AUTO-ASSIGN LOGIC ---
+  const parseCourses = (str) => { 
+      if (!str) return { s: 0, l: 0 }; 
+      // Flexible Regex: Matches "S:1", "S: 1", "S-1"
+      const sMatch = str.match(/S\s*[:=-]?\s*(\d+)/i); 
+      const lMatch = str.match(/L\s*[:=-]?\s*(\d+)/i); 
+      return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; 
+  };
+  const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info); return (c.l * 10000) + (c.s * 10); };
+  
   const handleAutoAssign = () => {
-    if (!window.confirm("⚡ Overwrite Dhamma Hall Seats for ALL students?")) return;
+    if (!window.confirm("⚡ Auto-Assign will OVERWRITE current seats.\n\nAre you sure?")) return;
+    
+    // Grid Config
+    const M_COLS=10, M_ROWS=8; 
+    const F_COLS=7, F_ROWS=7;
+
     setTimeout(async () => {
         const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
-        const freshParticipants = await res.json();
-        let males = freshParticipants.filter(p => p.gender && p.gender.toLowerCase() === 'male' && p.status !== 'Cancelled' && !p.conf_no.toUpperCase().startsWith('SM'));
-        let females = freshParticipants.filter(p => p.gender && p.gender.toLowerCase() === 'female' && p.status !== 'Cancelled' && !p.conf_no.toUpperCase().startsWith('SF'));
-        const sortGroup = (group) => {
-          const oldS = group.filter(p => p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S'))).sort((a,b) => getSeniorityScore(b) - getSeniorityScore(a));
-          const newS = group.filter(p => !p.conf_no || p.conf_no.startsWith('N')).sort((a,b) => (parseInt(b.age)||0) - (parseInt(a.age)||0)); 
-          return [...oldS, ...newS];
+        const allP = await res.json();
+
+        // 1. Clear ALL existing seats first to prevent "Ghost" duplicates
+        // (Optimistic UI update not needed here as we will reload)
+        
+        // 2. Separate Genders & Filter Exclusions
+        const cleanP = allP.filter(p => p.status !== 'Cancelled' && !p.conf_no.toUpperCase().startsWith('S')); // Exclude Servers
+        
+        const males = cleanP.filter(p => p.gender && p.gender.toLowerCase().startsWith('m'));
+        const females = cleanP.filter(p => p.gender && p.gender.toLowerCase().startsWith('f'));
+
+        // 3. Sorting Engine
+        const sortStrategy = (list) => {
+            const oldStudents = list.filter(p => getCategoryRank(p.conf_no) === 0).sort((a,b) => getSeniorityScore(b) - getSeniorityScore(a));
+            const newStudents = list.filter(p => getCategoryRank(p.conf_no) !== 0).sort((a,b) => (parseInt(b.age)||0) - (parseInt(a.age)||0)); // Oldest age first
+            return [...oldStudents, ...newStudents];
         };
-        males = sortGroup(males); females = sortGroup(females);
+
+        const sortedMales = sortStrategy(males);
+        const sortedFemales = sortStrategy(females);
         const updates = [];
-        males.forEach((p, i) => { if (i < MALE_COLS * MALE_ROWS) { const rowIdx = Math.floor(i / MALE_COLS) + 1; const colIdx = i % MALE_COLS; const colChar = String.fromCharCode(65 + colIdx); updates.push({ ...p, dhamma_hall_seat_no: `${colChar}${rowIdx}` }); } });
-        females.forEach((p, i) => { if (i < FEMALE_COLS * FEMALE_ROWS) { const rowIdx = Math.floor(i / FEMALE_COLS) + 1; const colIdx = i % FEMALE_COLS; const colChar = String.fromCharCode(65 + colIdx); updates.push({ ...p, dhamma_hall_seat_no: `${colChar}${rowIdx}` }); } });
-        await Promise.all(updates.map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) })));
-        alert("✅ Seats Assigned!"); loadStudents();
-    }, 50);
+
+        // 4. Assign Seats (Row by Row)
+        sortedMales.forEach((p, i) => {
+            if (i < M_COLS * M_ROWS) {
+                const row = Math.floor(i / M_COLS) + 1;
+                const col = i % M_COLS; // 0..9
+                // Male: J (Left) -> A (Right). J is index 0.
+                const colChar = String.fromCharCode(74 - col); // 74='J', 65='A'
+                updates.push({ ...p, dhamma_hall_seat_no: `${colChar}${row}` });
+            }
+        });
+
+        sortedFemales.forEach((p, i) => {
+            if (i < F_COLS * F_ROWS) {
+                const row = Math.floor(i / F_COLS) + 1;
+                const col = i % F_COLS; 
+                // Female: A (Left) -> G (Right). A is index 0.
+                const colChar = String.fromCharCode(65 + col); // 65='A'
+                updates.push({ ...p, dhamma_hall_seat_no: `${colChar}${row}` });
+            }
+        });
+
+        // 5. Batch Update
+        await Promise.all(updates.map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { 
+            method: 'PUT', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(p) 
+        })));
+        
+        alert(`✅ Assigned ${updates.length} seats successfully!`); 
+        loadStudents();
+    }, 100);
+  };
+
+  // --- PRINT UTILS ---
+  const printSection = (sectionId) => {
+      const style = document.createElement('style');
+      style.innerHTML = `@media print { body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; transform: scale(0.95); transform-origin: top left; } .no-print { display: none !important; } }`;
+      document.head.appendChild(style); window.print(); document.head.removeChild(style);
   };
 
   const [badgeStudent, setBadgeStudent] = useState(null);
@@ -739,42 +804,100 @@ function ParticipantList({ courses, refreshCourses }) {
 
   if (viewAllMode) { return ( <div style={{background:'white', padding:'20px', height:'100vh', overflow:'auto'}}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setViewAllMode(false)} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Master List</button> </div> <h2 style={{textAlign:'center'}}>Master Student List - {selectedCourseName}</h2> <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}> <thead><tr style={{background:'#f0f0f0', borderBottom:'2px solid #000'}}><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Phone</th><th style={thPrint}>Room</th><th style={thPrint}>Dining</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Dhamma</th><th style={thPrint}>Status</th></tr></thead> <tbody> {participants.map(p => ( <tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}> <td style={{padding:'8px'}}>{p.full_name}</td> <td style={{padding:'8px'}}>{p.conf_no}</td> <td style={{padding:'8px'}}>{p.age}</td> <td style={{padding:'8px'}}>{p.gender}</td> <td style={{padding:'8px'}}>{p.phone_number}</td> <td style={{padding:'8px'}}>{p.room_no}</td> <td style={{padding:'8px'}}>{p.dining_seat_no} ({p.dining_seat_type})</td> <td style={{padding:'8px'}}>{p.pagoda_cell_no}</td> <td style={{padding:'8px'}}>{p.dhamma_hall_seat_no}</td> <td style={{padding:'8px'}}>{p.status}</td> </tr> ))} </tbody> </table> </div> ); }
   
+  // --- DINING VIEW ---
   if (viewMode === 'dining') { 
       const arrived = participants.filter(p => p.status==='Arrived');
       const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return (a.dining_seat_no || '0').localeCompare(b.dining_seat_no || '0', undefined, { numeric: true }); };
       const males = arrived.filter(p => p.gender && p.gender.toLowerCase().startsWith('m')).sort(sorter);
       const females = arrived.filter(p => p.gender && p.gender.toLowerCase().startsWith('f')).sort(sorter);
-      const printSection = (sectionId) => {
-          const style = document.createElement('style');
-          style.innerHTML = `@media print { body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }`;
-          document.head.appendChild(style); window.print(); document.head.removeChild(style);
-      };
       const renderTable = (list, title, color, sectionId) => (
           <div id={sectionId} style={{marginBottom:'40px', padding:'20px', background:'white', borderRadius:'8px', border:`1px solid ${color}`}}>
              <div className="no-print" style={{display:'flex', justifyContent:'flex-end', gap:'10px', marginBottom:'10px'}}>
-                 <button onClick={handleDiningExport} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white', border:'none'}}>📥 Export CSV</button>
-                 <button onClick={() => printSection(sectionId)} style={{...quickBtnStyle(true), background: color, color:'white', border:'none'}}>🖨️ Print {title} Only</button>
+                 <button onClick={() => printSection(sectionId)} style={{...quickBtnStyle(true), background: color, color:'white', border:'none'}}>🖨️ Print {title}</button>
              </div>
              <div style={{textAlign:'center', color: color, borderBottom:`3px solid ${color}`, marginBottom:'20px'}}><h1 style={{margin:'5px 0'}}>{title} Dining Chart</h1><h3 style={{margin:'0', color:'#666'}}>{selectedCourseName}</h3></div>
              <table style={{width:'100%', borderCollapse:'collapse', fontSize:'16px'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Seat</th><th style={thPrint}>Type</th><th style={thPrint}>Cat</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda</th><th style={thPrint}>Lang</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id} style={{borderBottom:'1px solid #ddd'}}><td style={{padding:'12px', fontWeight:'bold'}}>{p.dining_seat_no}</td><td style={{padding:'12px'}}>{['F','Floor'].includes(p.dining_seat_type) ? 'Floor' : 'Chair'}</td><td style={{padding:'12px'}}>{getCategory(p.conf_no)}</td><td style={{padding:'12px'}}>{p.full_name}</td><td style={{padding:'12px'}}>{p.room_no}</td><td style={{padding:'12px'}}>{p.pagoda_cell_no}</td><td style={{padding:'12px'}}>{p.discourse_language}</td></tr>))}</tbody></table>
           </div>
       );
-      return ( <div style={cardStyle}> <div className="no-print" style={{marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(males, "MALE", "#007bff", "print-section-male")} <div style={{height:'30px'}}></div> {renderTable(females, "FEMALE", "#e91e63", "print-section-female")} </div> ); 
+      return ( <div style={cardStyle}> <div className="no-print" style={{marginBottom:'20px', display:'flex', justifyContent:'space-between'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><button onClick={handleDiningExport} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button></div> {renderTable(males, "MALE", "#007bff", "print-section-male")} <div style={{height:'30px'}}></div> {renderTable(females, "FEMALE", "#e91e63", "print-section-female")} </div> ); 
   }
 
-  // --- PART 2: EXISTING DHAMMA HALL FEATURES ---
+  // --- SEATING VIEW (Fixed: Split View & Female Rows) ---
   if (viewMode === 'seating') { 
-    const males = participants.filter(p => p.gender && p.gender.toLowerCase() === 'male' && p.dhamma_hall_seat_no && p.status!=='Cancelled');
-    const females = participants.filter(p => p.gender && p.gender.toLowerCase() === 'female' && p.dhamma_hall_seat_no && p.status!=='Cancelled');
+    const males = participants.filter(p => p.gender && p.gender.toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled');
+    const females = participants.filter(p => p.gender && p.gender.toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled');
     const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p);
     const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
     
-    const SeatBox = ({ p, label }) => { const isOld = p && p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S')); return ( <div onClick={() => setSwappingSeat({ p, label })} style={{border:'1px solid #ccc', background: p ? (isOld ? '#fff9c4' : 'white') : '#f0f0f0', height:'60px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontSize:'10px', textAlign:'center', cursor:'pointer'}}> {p ? (<><div style={{fontWeight:'bold', fontSize:'13px', color:'#007bff'}}>{p.dhamma_hall_seat_no}</div><div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width:'90%'}}>{(p.full_name || '').substring(0, 10)}</div><div style={{fontSize:'9px'}}>{p.conf_no}</div><div style={{fontSize:'8px', color:'#666'}}>P:{p.pagoda_cell_no} D:{p.dining_seat_no}</div></>) : <span style={{color:'#ccc'}}>{label}</span>} </div> ); };
+    const SeatBox = ({ p, label }) => { const isOld = p && p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S')); return ( <div onClick={() => setSwappingSeat({ p, label })} style={{border:'1px solid #ccc', background: p ? (isOld ? '#fff9c4' : 'white') : '#f0f0f0', height:'60px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontSize:'10px', textAlign:'center', cursor:'pointer', position:'relative'}}> {p ? (<><div style={{fontWeight:'bold', fontSize:'13px', color: p.gender.startsWith('M')?'#007bff':'#e91e63'}}>{p.dhamma_hall_seat_no}</div><div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width:'90%'}}>{(p.full_name || '').substring(0, 10)}</div><div style={{fontSize:'9px'}}>{p.conf_no}</div><div style={{fontSize:'8px', color:'#666'}}>{p.dining_seat_no ? `D:${p.dining_seat_no}` : ''}</div></>) : <span style={{color:'#ccc'}}>{label}</span>} </div> ); };
     
+    // Male Grid: J->A
     const renderMaleGrid = (map, cols, rows) => { let grid = []; for (let r = 0; r < rows; r++) { let rowCells = []; const rowNum = r+1; for (let c = 0; c < cols; c++) { const colChar = String.fromCharCode(74 - c); const seatLabel = `${colChar}${rowNum}`; const student = map[seatLabel]; rowCells.push(<SeatBox key={seatLabel} p={student} label={seatLabel} />); } grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:'5px', marginBottom:'5px'}}>{rowCells}</div>); } return grid; };
+    
+    // Female Grid: A->G
     const renderFemaleGrid = (map, cols, rows) => { let grid = []; for (let r = 0; r < rows; r++) { let rowCells = []; const rowNum = r+1; for (let c = 0; c < cols; c++) { const colChar = String.fromCharCode(65 + c); const seatLabel = `${colChar}${rowNum}`; const student = map[seatLabel]; rowCells.push(<SeatBox key={seatLabel} p={student} label={seatLabel} />); } grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:'5px', marginBottom:'5px'}}>{rowCells}</div>); } return grid; };
     
-    return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button><div style={{display:'flex', gap:'10px'}}><button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800', color:'white'}}>⚡ Auto-Assign All</button><button onClick={() => window.print()} style={{...btnStyle(true), background:'#28a745', color:'white'}}>🖨️ Print Plan (A3)</button></div></div><div className="print-area"><div style={{textAlign:'center', marginBottom:'20px', borderBottom:'2px solid #333', paddingBottom:'10px'}}><h1>DHAMMA HALL SEATING</h1><h3>{selectedCourseName}</h3></div><div style={{display:'flex', gap:'40px'}}><div style={{flex:'0 0 55%'}}><h3 style={{textAlign:'center', background:'#e3f2fd', padding:'5px', margin:'0 0 10px 0'}}>MALE SIDE (J ← A)</h3>{renderMaleGrid(maleMap, MALE_COLS, MALE_ROWS)}<div style={{marginTop:'15px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}><h4 style={{textAlign:'center', margin:'5px'}}>Chowky/Chair (Special)</h4> <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`K${i+1}`; return <SeatBox key={label} p={maleMap[label]} label={label} /> })}</div> <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`L${i+1}`; return <SeatBox key={label} p={maleMap[label]} label={label} /> })}</div> </div></div><div style={{flex:'0 0 5%', display:'flex', alignItems:'center', justifyContent:'center', borderLeft:'1px dashed #ccc', borderRight:'1px dashed #ccc'}}><div style={{writingMode:'vertical-rl', textOrientation:'upright', letterSpacing:'5px', color:'#ccc', fontWeight:'bold'}}>AISLE</div></div><div style={{flex:'0 0 40%'}}><h3 style={{textAlign:'center', background:'#fce4ec', padding:'5px', margin:'0 0 10px 0'}}>FEMALE SIDE (A → G)</h3>{renderFemaleGrid(femaleMap, FEMALE_COLS, FEMALE_ROWS)}</div></div></div>{swappingSeat && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}><h3>💺 Seat Manager</h3>{swappingSeat.p ? (<div><p><strong>Student:</strong> {swappingSeat.p.full_name}</p><p><strong>Current Seat:</strong> {swappingSeat.label}</p></div>) : <p><strong>Empty Seat:</strong> {swappingSeat.label}</p>}<div style={{marginTop:'15px'}}><label style={labelStyle}>Assign/Change to Seat No:</label><input style={inputStyle} value={newSeatNo} onChange={e=>setNewSeatNo(e.target.value)} placeholder="e.g. C5" /></div><div style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={handleSeatSwapSave} disabled={!swappingSeat.p} style={{...btnStyle(true), background: swappingSeat.p ? '#28a745' : '#ccc', color:'white', flex:1}}>Update</button><button onClick={() => {setSwappingSeat(null); setNewSeatNo('');}} style={{...btnStyle(false), flex:1}}>Close</button></div></div></div>)}</div> );
+    const renderSection = (title, color, content, sectionId) => (
+        <div id={sectionId} style={{marginBottom:'40px'}}>
+            <div className="no-print" style={{textAlign:'right', padding:'10px', background:'#f8f9fa', marginBottom:'10px', borderBottom:'1px solid #ddd'}}>
+                <button onClick={() => printSection(sectionId)} style={{...quickBtnStyle(true), background: color, border:'none', color:'white'}}>🖨️ Print {title}</button>
+            </div>
+            <h3 style={{textAlign:'center', background: color, color:'white', padding:'8px', margin:'0 0 10px 0', borderRadius:'4px'}}>{title} SIDE</h3>
+            {content}
+        </div>
+    );
+
+    return ( <div style={cardStyle}> 
+        <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
+            <button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button>
+            <div style={{display:'flex', gap:'10px'}}>
+                <button onClick={handleSeatingExport} style={{...btnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button>
+                <button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800', color:'white'}}>⚡ Auto-Assign All</button>
+            </div>
+        </div>
+        
+        <div className="print-area">
+            <div style={{textAlign:'center', marginBottom:'20px', borderBottom:'2px solid #333', paddingBottom:'10px'}}><h1>DHAMMA HALL SEATING</h1><h3>{selectedCourseName}</h3></div>
+            
+            <div style={{display:'flex', gap:'40px', justifyContent:'center'}}>
+                {/* MALE SECTION */}
+                <div style={{flex:'0 0 48%'}}>
+                    {renderSection("MALE (J ← A)", "#007bff", (
+                        <>
+                            {renderMaleGrid(maleMap, 10, 8)}
+                            <div style={{marginTop:'15px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}>
+                                <h4 style={{textAlign:'center', margin:'5px', color:'#007bff'}}>Special (Chowky/Chair)</h4>
+                                <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`K${i+1}`; return <SeatBox key={label} p={maleMap[label]} label={label} /> })}</div> 
+                                <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`L${i+1}`; return <SeatBox key={label} p={maleMap[label]} label={label} /> })}</div> 
+                            </div>
+                        </>
+                    ), "print-male-hall")}
+                </div>
+
+                {/* AISLE */}
+                <div style={{flex:'0 0 4%', display:'flex', alignItems:'center', justifyContent:'center', borderLeft:'1px dashed #ccc', borderRight:'1px dashed #ccc'}}>
+                    <div style={{writingMode:'vertical-rl', textOrientation:'upright', letterSpacing:'5px', color:'#ccc', fontWeight:'bold'}}>AISLE</div>
+                </div>
+
+                {/* FEMALE SECTION */}
+                <div style={{flex:'0 0 48%'}}>
+                    {renderSection("FEMALE (A → G)", "#e91e63", (
+                        <>
+                            {renderFemaleGrid(femaleMap, 7, 7)}
+                            <div style={{marginTop:'15px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}>
+                                <h4 style={{textAlign:'center', margin:'5px', color:'#e91e63'}}>Special (Chowky/Chair)</h4>
+                                {/* Female Special Rows: H & I */}
+                                <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`H${i+1}`; return <SeatBox key={label} p={femaleMap[label]} label={label} /> })}</div> 
+                                <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'5px', marginBottom:'5px'}}>{Array.from({length:8}, (_, i) => { const label=`I${i+1}`; return <SeatBox key={label} p={femaleMap[label]} label={label} /> })}</div> 
+                            </div>
+                        </>
+                    ), "print-female-hall")}
+                </div>
+            </div>
+        </div>
+
+        {swappingSeat && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}><h3>💺 Seat Manager</h3>{swappingSeat.p ? (<div><p><strong>Student:</strong> {swappingSeat.p.full_name}</p><p><strong>Current Seat:</strong> {swappingSeat.label}</p></div>) : <p><strong>Empty Seat:</strong> {swappingSeat.label}</p>}<div style={{marginTop:'15px'}}><label style={labelStyle}>Assign/Change to Seat No:</label><input style={inputStyle} value={newSeatNo} onChange={e=>setNewSeatNo(e.target.value)} placeholder="e.g. C5" /></div><div style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={handleSeatSwapSave} disabled={!swappingSeat.p && !newSeatNo} style={{...btnStyle(true), background: '#28a745', color:'white', flex:1}}>Update</button><button onClick={() => {setSwappingSeat(null); setNewSeatNo('');}} style={{...btnStyle(false), flex:1}}>Close</button></div></div></div>)}
+    </div> );
   }
 
   return ( <div style={cardStyle}> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}><div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /></div><div style={{display:'flex', gap:'5px'}}><button onClick={handleAutoNoShow} disabled={!courseId} style={{...quickBtnStyle(true), background:'#d32f2f', color:'white'}}>🚫 Auto-Flag No-Shows</button><button onClick={handleSendReminders} disabled={!courseId} style={{...quickBtnStyle(true), background:'#ff9800', color:'white'}}>📢 Send Reminders</button><button onClick={() => setViewAllMode(true)} disabled={!courseId} style={{...quickBtnStyle(true), background:'#6c757d', color:'white'}}>👁️ View All</button><button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export CSV</button><button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining Sheet</button><button onClick={() => setViewMode('seating')} disabled={!courseId} style={quickBtnStyle(true)}>🧘 Dhamma Plan</button></div></div>
