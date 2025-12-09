@@ -592,6 +592,11 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const handleSubmit = async (e) => { 
     e.preventDefault(); 
+    // --- NEW: STRICT GATEKEEPER ---
+    if (!formData.confNo || formData.confNo.trim() === '') {
+        alert("⛔ STOP: Student is missing a Confirmation Number (e.g. NM50).\n\nPlease add a Conf No in 'Manage Students' or update the CSV source before checking in.");
+        return; // Halt execution
+    }
     setStatus('Submitting...'); 
     const payload = { ...formData, diningSeatType: formData.seatType }; 
     try { 
@@ -955,7 +960,7 @@ function ExpenseTracker({ courses }) {
   );
 }
 
-// --- 6. COURSE ADMIN (Create + Upload + Manual) ---
+// --- 6. COURSE ADMIN (Create + Strict Upload + Manual) ---
 function CourseAdmin({ courses, refreshCourses, setView }) {
   const [activeTab, setActiveTab] = useState('create');
   return (
@@ -972,11 +977,153 @@ function CourseAdmin({ courses, refreshCourses, setView }) {
   );
 }
 
+function CreateCourseForm({ refreshCourses, setView }) { 
+  const [formData, setFormData] = useState({ courseName: '', teacherName: '', startDate: '', endDate: '' }); 
+  const [status, setStatus] = useState(''); 
+  const handleSubmit = async (e) => { 
+    e.preventDefault(); setStatus('Saving...'); 
+    try { 
+      const res = await fetch(`${API_URL}/courses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(formData)}); 
+      if (!res.ok) throw new Error("Failed"); 
+      setStatus('✅ Created!'); 
+      refreshCourses(); 
+      setTimeout(() => setView('dashboard'), 1500); 
+    } catch (err) { setStatus('❌ ' + err.message); } 
+  }; 
+  return ( 
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '500px' }}> 
+      <h3>Course Details</h3> 
+      <input style={inputStyle} placeholder="Course Name" required onChange={e => setFormData({...formData, courseName: e.target.value})} />
+      <input style={inputStyle} placeholder="Teacher Name" required onChange={e => setFormData({...formData, teacherName: e.target.value})} />
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
+        <input type="date" style={inputStyle} required onChange={e => setFormData({...formData, startDate: e.target.value})} />
+        <input type="date" style={inputStyle} required onChange={e => setFormData({...formData, endDate: e.target.value})} />
+      </div>
+      <button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Create Course</button>
+      {status && <p>{status}</p>}
+    </form> 
+  ); 
+}
+
+function UploadParticipants({ courses, setView }) { 
+  const [courseId, setCourseId] = useState(''); 
+  const [csvFile, setCsvFile] = useState(null); 
+  const [preview, setPreview] = useState([]); 
+  const [status, setStatus] = useState(''); 
+  
+  const handleFileChange = (e) => { 
+    const file = e.target.files[0]; 
+    if (!file) return; 
+    setCsvFile(file); 
+    setStatus(''); 
+    setPreview([]); 
+    
+    const reader = new FileReader(); 
+    reader.onload = (event) => { 
+      const text = event.target.result; 
+      const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== ''); 
+      
+      let headerIndex = -1; 
+      let headers = []; 
+      
+      // Smart Header Detection
+      for (let i = 0; i < Math.min(lines.length, 20); i++) { 
+        if (lines[i].toLowerCase().includes('name')) { 
+          headerIndex = i; 
+          headers = lines[i].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase()); 
+          break; 
+        } 
+      } 
+      
+      if (headerIndex === -1) { setStatus("⚠️ Error: No header row found (must contain 'name')."); return; } 
+      
+      const nameIdx = headers.findIndex(h => h.includes('name')); 
+      const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile')); 
+      const emailIdx = headers.findIndex(h => h.includes('email')); 
+      const ageIdx = headers.findIndex(h => h === 'age'); 
+      const genderIdx = headers.findIndex(h => h === 'gender'); 
+      const coursesIdx = headers.findIndex(h => h.includes('courses')); 
+      const confIdx = headers.findIndex(h => h.includes('conf')); 
+      
+      const dataRows = lines.slice(headerIndex + 1); 
+      const parsedData = dataRows.map(row => { 
+        // Improved CSV Split (Handles commas inside quotes)
+        const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, '')); 
+        if (cols.length <= nameIdx) return null; 
+        
+        return { 
+          name: cols[nameIdx], 
+          phone: phoneIdx !== -1 ? cols[phoneIdx] : '', 
+          email: emailIdx !== -1 ? cols[emailIdx] : '', 
+          age: ageIdx !== -1 ? cols[ageIdx] : '', 
+          gender: genderIdx !== -1 ? cols[genderIdx] : '', 
+          courses: coursesIdx !== -1 ? cols[coursesIdx] : '', 
+          confNo: confIdx !== -1 ? cols[confIdx] : '' 
+        }; 
+      }).filter(r => r && r.name); 
+
+      // --- STRICT VALIDATION: Check for Missing Conf No ---
+      const badRows = parsedData.filter(r => !r.confNo || r.confNo.trim() === '');
+      if (badRows.length > 0) {
+          setStatus(`⛔ ERROR: Upload Blocked!\n\n${badRows.length} students are missing a Confirmation Number (Conf No).\n\nExamples: ${badRows.slice(0,3).map(r => r.name).join(', ')}...`);
+          setPreview([]); // Block upload
+          return;
+      }
+
+      setPreview(parsedData); 
+      setStatus(`✅ Ready! Found ${parsedData.length} valid students.`); 
+    }; 
+    reader.readAsText(file); 
+  };
+
+  const handleUpload = async () => { 
+    if (!courseId) return alert("Select course"); 
+    setStatus('Uploading...'); 
+    try { 
+      const res = await fetch(`${API_URL}/courses/${courseId}/import`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ students: preview }) 
+      }); 
+      if (!res.ok) throw new Error("Failed"); 
+      setStatus(`✅ Added ${preview.length} students.`); 
+      setTimeout(() => setView('onboarding'), 2000); 
+    } catch (err) { setStatus("❌ " + err.message); } 
+  };
+
+  return ( 
+    <div>
+      <h3>Upload CSV</h3>
+      <div style={{maxWidth:'500px'}}>
+        <div style={{marginBottom:'10px'}}>
+          <label>Select Course:</label>
+          <select style={inputStyle} onChange={e => setCourseId(e.target.value)}>
+            <option value="">-- Select --</option>
+            {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
+          </select>
+        </div>
+        <div style={{marginBottom:'10px'}}>
+          <input type="file" accept=".csv" onChange={handleFileChange} />
+        </div>
+        {status && <div style={{padding:'15px', background: status.includes('ERROR') ? '#f8d7da' : '#e3f2fd', color: status.includes('ERROR') ? '#721c24' : '#0c5460', borderRadius:'4px', marginBottom:'10px', whiteSpace:'pre-wrap', fontWeight: status.includes('ERROR') ? 'bold' : 'normal'}}>{status}</div>}
+        <button onClick={handleUpload} disabled={!csvFile || !courseId || preview.length===0} style={{...btnStyle(true), width:'100%', background: preview.length>0?'#28a745':'#ccc', cursor: preview.length>0?'pointer':'not-allowed'}}>Upload</button>
+      </div>
+    </div> 
+  );
+}
+
 function ManualStudentForm({ courses, setView }) {
   const [formData, setFormData] = useState({ courseId: '', fullName: '', coursesInfo: '', email: '', age: '', gender: '', confNo: '' });
   const [status, setStatus] = useState('');
   const handleSubmit = async (e) => {
-    e.preventDefault(); setStatus('Saving...');
+    e.preventDefault(); 
+    
+    // Strict Check for Manual Entry too
+    if (!formData.confNo || formData.confNo.trim() === '') {
+        return setStatus('❌ Error: Confirmation Number is required.');
+    }
+
+    setStatus('Saving...');
     try {
       const res = await fetch(`${API_URL}/participants`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(formData)});
       if (!res.ok) throw new Error("Failed. ConfNo/Name might exist.");
@@ -990,9 +1137,17 @@ function ManualStudentForm({ courses, setView }) {
        <label>Select Course</label>
        <select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} required>
          <option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
-       <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px'}}><div><label>Full Name</label><input style={inputStyle} value={formData.fullName} onChange={e=>setFormData({...formData, fullName: e.target.value})} required /></div><div><label>Conf No</label><input style={inputStyle} value={formData.confNo} onChange={e=>setFormData({...formData, confNo: e.target.value})} placeholder="e.g. NM99" /></div></div>
-       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}><div><label>Gender</label><select style={inputStyle} onChange={e=>setFormData({...formData, gender: e.target.value})}><option value="">Select</option><option>Male</option><option>Female</option></select></div><div><label>Age</label><input style={inputStyle} type="number" value={formData.age} onChange={e=>setFormData({...formData, age: e.target.value})} /></div><div><label>Courses Info</label><input style={inputStyle} value={formData.coursesInfo} onChange={e=>setFormData({...formData, coursesInfo: e.target.value})} placeholder="S:0 L:0" /></div></div>
-       <button type="submit" disabled={!formData.courseId} style={{...btnStyle(true), background:'#28a745', color:'white'}}>Add Student</button>{status && <p>{status}</p>}
+       <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px'}}>
+         <div><label>Full Name</label><input style={inputStyle} value={formData.fullName} onChange={e=>setFormData({...formData, fullName: e.target.value})} required /></div>
+         <div><label>Conf No</label><input style={inputStyle} value={formData.confNo} onChange={e=>setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED (e.g. NM99)" required /></div>
+       </div>
+       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}>
+         <div><label>Gender</label><select style={inputStyle} onChange={e=>setFormData({...formData, gender: e.target.value})}><option value="">Select</option><option>Male</option><option>Female</option></select></div>
+         <div><label>Age</label><input style={inputStyle} type="number" value={formData.age} onChange={e=>setFormData({...formData, age: e.target.value})} /></div>
+         <div><label>Courses Info</label><input style={inputStyle} value={formData.coursesInfo} onChange={e=>setFormData({...formData, coursesInfo: e.target.value})} placeholder="S:0 L:0" /></div>
+       </div>
+       <button type="submit" disabled={!formData.courseId} style={{...btnStyle(true), background:'#28a745', color:'white'}}>Add Student</button>
+       {status && <p style={{color: status.includes('Error') ? 'red' : 'green', fontWeight:'bold'}}>{status}</p>}
     </form>
   );
 }
