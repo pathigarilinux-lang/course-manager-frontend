@@ -101,7 +101,7 @@ export default function App() {
       {view === 'onboarding' && <StudentForm courses={courses} preSelectedRoom={preSelectedRoom} clearRoom={() => setPreSelectedRoom('')} />}
       {view === 'expenses' && <ExpenseTracker courses={courses} />}
       {view === 'participants' && <ParticipantList courses={courses} refreshCourses={fetchCourses} />}
-      {view === 'course-admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} setView={setView} />}
+      {view === 'course-admin' && renderCourseAdmin()}
     </div>
   );
 }
@@ -693,7 +693,6 @@ function ExpenseTracker({ courses }) {
             value={selectedCourse}
             onChange={(e) => setSelectedCourse(e.target.value)}
           >
-             {/* Ensure MOCK_COURSES is defined at top of file, or replace with your state */}
             {MOCK_COURSES.map(c => <option key={c}>{c}</option>)}
           </select>
         </div>
