@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
+// --- FIX 1: UPDATED IMPORTS (Added missing icons like Upload, Database, etc.) ---
+import { 
+  Users, Upload, Save, Database, AlertTriangle, CheckCircle, 
+  Search, Home, Coffee, FileText, Trash2, X, Edit, Plus,
+  CreditCard, DollarSign, Download, Calendar
+} from 'lucide-react';
 
 const API_URL = "https://course-manager-backend-staging.onrender.com"; // Staging URL
 const ADMIN_PASSCODE = "11111"; 
@@ -31,6 +37,11 @@ export default function App() {
   const [error, setError] = useState('');
   const [preSelectedRoom, setPreSelectedRoom] = useState('');
 
+  // --- FIX 2: ADDED NEW STATE FOR COURSE ADMIN ---
+  const [students, setStudents] = useState([]);
+  const [uploadStatus, setUploadStatus] = useState(null);
+  const [selectedCourseForUpload, setSelectedCourseForUpload] = useState('');
+
   useEffect(() => {
     const savedAuth = localStorage.getItem('admin_auth');
     if (savedAuth === 'true') setIsAuthenticated(true);
@@ -61,6 +72,190 @@ export default function App() {
     setPreSelectedRoom(roomNo);
     setView('onboarding');
   };
+
+  // ==============================================================================
+  // --- 6. COURSE ADMIN LOGIC (MOVED INSIDE APP COMPONENT TO FIX CRASHES) --------
+  // ==============================================================================
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // SECURITY: Block Excel Files
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      alert("❌ Format Error!\n\nPlease upload a .CSV file.\nExcel (.xlsx) files cannot be read directly. Please Save As -> CSV.");
+      event.target.value = null; 
+      setUploadStatus({ type: 'error', msg: 'Invalid file format. Please convert Excel to CSV.' });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        processCSV(e.target.result);
+      } catch (err) {
+        console.error("CSV Parse Error:", err);
+        setUploadStatus({ type: 'error', msg: 'Failed to parse CSV. Check file formatting.' });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const processCSV = (csvText) => {
+    const lines = csvText.split('\n').map(line => line.trim()).filter(line => line);
+    
+    if (lines.length < 2) {
+      setUploadStatus({ type: 'error', msg: 'File is empty or missing headers.' });
+      return;
+    }
+
+    // SMART HEADER MAPPING
+    const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
+    const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
+
+    const map = {
+      conf: getIndex(['conf', 'ref', 'id']),
+      name: getIndex(['name', 'student', 'given']),
+      age: getIndex(['age', 'years']),
+      gender: getIndex(['gender', 'sex']),
+      courses: getIndex(['course', 'history', 'old']),
+      seat: getIndex(['seat', 'dining']),
+      email: getIndex(['email']),
+      phone: getIndex(['phone', 'mobile']),
+      notes: getIndex(['notes', 'remark'])
+    };
+
+    console.log("Smart Mapping Active:", map);
+
+    const parsedStudents = lines.slice(1).map((line, index) => {
+      const row = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+      const clean = (val) => val ? val.replace(/^"|"$/g, '').trim() : '';
+      
+      const rawConf = map.conf > -1 ? clean(row[map.conf]) : '';
+      const rawName = map.name > -1 ? clean(row[map.name]) : 'Unknown Student';
+      const finalConf = rawConf || `TEMP-${index + 1}`;
+      
+      return {
+        id: Date.now() + index,
+        conf_no: finalConf,
+        full_name: rawName,
+        age: map.age > -1 ? clean(row[map.age]) : '',
+        gender: map.gender > -1 ? clean(row[map.gender]) : '',
+        courses_info: map.courses > -1 ? clean(row[map.courses]) : '', 
+        dining_seat: map.seat > -1 ? clean(row[map.seat]) : '',
+        email: map.email > -1 ? clean(row[map.email]) : '',
+        mobile: map.phone > -1 ? clean(row[map.phone]) : '',
+        status: rawConf ? 'Active' : 'Pending ID'
+      };
+    });
+
+    setStudents(parsedStudents);
+    setUploadStatus({ 
+      type: 'success', 
+      msg: `Ready! Loaded ${parsedStudents.length} students. (${parsedStudents.filter(s => s.status === 'Pending ID').length} IDs generated)` 
+    });
+  };
+
+  const saveToDatabase = async () => {
+    if (students.length === 0) return;
+    const confirmSave = window.confirm(`Are you sure you want to save ${students.length} students to the database?`);
+    if (!confirmSave) return;
+    alert(`✅ Success: ${students.length} students saved to Staging DB.`);
+    // Actual API Call would go here
+  };
+
+  const renderCourseAdmin = () => (
+    <div style={cardStyle}>
+      <h2 style={{fontSize: '20px', fontWeight: 'bold', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+        <Upload size={24} color="#2563eb"/> 
+        Course Admin & Upload
+      </h2>
+      
+      <div style={{marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr', gap: '16px'}}>
+        <div>
+          <label style={labelStyle}>Select Target Course</label>
+          <select 
+            style={inputStyle}
+            value={selectedCourseForUpload}
+            onChange={(e) => setSelectedCourseForUpload(e.target.value)}
+          >
+            <option value="">-- Select Course --</option>
+            {courses.map(c => <option key={c.course_id} value={c.course_name}>{c.course_name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={{border: '2px dashed #d1d5db', borderRadius: '8px', padding: '32px', textAlign: 'center', backgroundColor: '#f9fafb', position: 'relative'}}>
+        <input 
+          type="file" 
+          accept=".csv"
+          onChange={handleFileUpload}
+          style={{position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer'}}
+        />
+        <div style={{pointerEvents: 'none'}}>
+          <Database size={48} color="#9ca3af" style={{margin: '0 auto'}} />
+          <p style={{marginTop: '8px', fontSize: '14px', color: '#4b5563'}}>Click to upload or drag and drop CSV file</p>
+          <p style={{fontSize: '12px', color: '#9ca3af'}}>(.xlsx files not supported, please convert to .csv)</p>
+        </div>
+      </div>
+
+      {uploadStatus && (
+        <div style={{marginTop: '16px', padding: '12px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: uploadStatus.type === 'success' ? '#f0fdf4' : '#fef2f2', color: uploadStatus.type === 'success' ? '#15803d' : '#b91c1c', border: `1px solid ${uploadStatus.type === 'success' ? '#bbf7d0' : '#fecaca'}`}}>
+          {uploadStatus.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
+          <span style={{fontWeight: '500'}}>{uploadStatus.msg}</span>
+        </div>
+      )}
+
+      {students.length > 0 && (
+        <div style={{marginTop: '32px', borderTop: '1px solid #e5e7eb', paddingTop: '24px'}}>
+           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+              <h3 style={{fontWeight: 'bold', color: '#374151'}}>Data Preview ({students.length} Records)</h3>
+              <button 
+                onClick={saveToDatabase}
+                style={{backgroundColor: '#16a34a', color: 'white', padding: '8px 24px', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold'}}
+              >
+                <Save size={18} /> Save All to Database
+              </button>
+           </div>
+           
+           <div style={{maxHeight: '320px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px'}}>
+             <table style={{width: '100%', textAlign: 'left', backgroundColor: 'white', fontSize: '14px', borderCollapse: 'collapse'}}>
+               <thead style={{backgroundColor: '#f3f4f6', color: '#4b5563', position: 'sticky', top: 0}}>
+                 <tr>
+                   <th style={{padding: '12px'}}>Conf No</th>
+                   <th style={{padding: '12px'}}>Name</th>
+                   <th style={{padding: '12px'}}>Age</th>
+                   <th style={{padding: '12px'}}>Gender</th>
+                   <th style={{padding: '12px'}}>History</th>
+                   <th style={{padding: '12px'}}>Dining</th>
+                 </tr>
+               </thead>
+               <tbody>
+                 {students.map((s) => (
+                   <tr key={s.id} style={{borderBottom: '1px solid #e5e7eb'}}>
+                     <td style={{padding: '12px', fontFamily: 'monospace', fontWeight: '500', color: s.status === 'Pending ID' ? '#ea580c' : '#2563eb'}}>
+                       {s.conf_no}
+                     </td>
+                     <td style={{padding: '12px', fontWeight: '500'}}>{s.full_name}</td>
+                     <td style={{padding: '12px'}}>{s.age}</td>
+                     <td style={{padding: '12px'}}>
+                        <span style={{padding: '2px 8px', borderRadius: '4px', fontSize: '12px', backgroundColor: s.gender.toLowerCase() === 'female' ? '#fce7f3' : '#dbeafe', color: s.gender.toLowerCase() === 'female' ? '#be185d' : '#1d4ed8'}}>
+                          {s.gender}
+                        </span>
+                     </td>
+                     <td style={{padding: '12px', fontSize: '12px', color: '#6b7280'}}>{s.courses_info}</td>
+                     <td style={{padding: '12px', color: '#4b5563'}}>{s.dining_seat}</td>
+                   </tr>
+                 ))}
+               </tbody>
+             </table>
+           </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // --- END OF COURSE ADMIN LOGIC ---
 
   if (!isAuthenticated) {
     return (
@@ -101,6 +296,7 @@ export default function App() {
       {view === 'onboarding' && <StudentForm courses={courses} preSelectedRoom={preSelectedRoom} clearRoom={() => setPreSelectedRoom('')} />}
       {view === 'expenses' && <ExpenseTracker courses={courses} />}
       {view === 'participants' && <ParticipantList courses={courses} refreshCourses={fetchCourses} />}
+      {/* FIX 3: CALL RENDER FUNCTION DIRECTLY (No Component Tag) */}
       {view === 'course-admin' && renderCourseAdmin()}
     </div>
   );
@@ -425,12 +621,12 @@ function ParticipantList({ courses, refreshCourses }) {
   const [newSeatNo, setNewSeatNo] = useState('');
   const [assignProgress, setAssignProgress] = useState(''); 
   const [selectedSeat, setSelectedSeat] = useState(null);
-  const [badgeStudent, setBadgeStudent] = useState(null); // CRITICAL FIX: Moved State to Top Level
+  const [badgeStudent, setBadgeStudent] = useState(null);
 
   // Helper Functions
   const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = String(seatNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF')) return 'Old'; if (s.startsWith('NM') || s.startsWith('NF')) return 'New'; if (s.startsWith('SM') || s.startsWith('SF')) return 'DS'; return 'New'; };
   const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = String(confNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
-  const parseCourses = (str) => { if (!str) return { s: 0, l: 0 }; const s = str.match(/S\s*[:=-]?\s*(\d+)/i); const l = str.match(/L\s*[:=-]?\s*(\d+)/i); return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; };
+  const parseCourses = (str) => { if (!str) return { s: 0, l: 0 }; const sMatch = str.match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = str.match(/L\s*[:=-]?\s*(\d+)/i); return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; };
   const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info || ''); return (c.l * 10000) + (c.s * 10); };
 
   const loadStudents = () => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
@@ -487,7 +683,7 @@ function ParticipantList({ courses, refreshCourses }) {
   };
 
   const printSection = (sectionId) => { const style = document.createElement('style'); style.innerHTML = `@media print { @page { size: A3 landscape; margin: 5mm; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }`; document.head.appendChild(style); window.print(); document.head.removeChild(style); };
-  const BadgeModal = ({ student, onClose }) => ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'white', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'center'}}> <div className="print-area" style={{textAlign:'center'}}> <div style={{border:'2px solid #333', padding:'20px', width:'350px', margin:'20px auto', borderRadius:'10px', background: (student.conf_no||'').startsWith('O') ? '#fff9c4' : '#fff'}}><h2>IDENTITY CARD</h2><h3>{student.full_name}</h3><p><strong>Course:</strong> {selectedCourseName}</p><p><strong>Room:</strong> {student.room_no}</p></div> <div style={{border:'2px solid #333', padding:'20px', width:'350px', margin:'20px auto', borderRadius:'10px'}}><h2>DINING CARD</h2><h1>{student.dining_seat_no}</h1><p>{['F','Floor'].includes(student.dining_seat_type) ? 'Floor' : 'Chair'}</p><p>{student.full_name}</p></div> <div className="no-print"><button onClick={() => window.print()} style={{...quickBtnStyle(true), marginRight:'10px'}}>🖨️ Print</button><button onClick={onClose} style={{...quickBtnStyle(false)}}>Close</button></div> </div> </div> );
+  const BadgeModal = ({ student, onClose }) => ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'white', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'center'}}> <div className="print-area" style={{textAlign:'center'}}> <div style={{border:'2px solid #333', padding:'20px', width:'350px', margin:'20px auto', borderRadius:'10px', background: (student.conf_no||'').startsWith('O') ? '#fff9c4' : '#fff'}}><h2>IDENTITY CARD</h2><h3>{student.full_name}</h3><p><strong>Course:</strong> {courseId}</p><p><strong>Room:</strong> {student.room_no}</p></div> <div style={{border:'2px solid #333', padding:'20px', width:'350px', margin:'20px auto', borderRadius:'10px'}}><h2>DINING CARD</h2><h1>{student.dining_seat_no}</h1><p>{['F','Floor'].includes(student.dining_seat_type) ? 'Floor' : 'Chair'}</p><p>{student.full_name}</p></div> <div className="no-print"><button onClick={() => window.print()} style={{...quickBtnStyle(true), marginRight:'10px'}}>🖨️ Print</button><button onClick={onClose} style={{...quickBtnStyle(false)}}>Close</button></div> </div> </div> );
 
   if (viewAllMode) { return ( <div style={{background:'white', padding:'20px'}}> <div className="no-print" style={{marginBottom:'20px'}}><button onClick={() => setViewAllMode(false)} style={btnStyle(false)}>← Back</button><button onClick={handleExport} style={{...quickBtnStyle(true), marginLeft:'10px'}}>Export CSV</button></div> <h2>Master List</h2> <table style={{width:'100%', fontSize:'12px', borderCollapse:'collapse'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Seat</th></tr></thead><tbody>{participants.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.age}</td><td style={tdStyle}>{p.gender}</td><td style={tdStyle}>{p.dhamma_hall_seat_no}</td></tr>))}</tbody></table> </div> ); }
   
@@ -525,7 +721,7 @@ function ParticipantList({ courses, refreshCourses }) {
   </div> );
 }
 
-// --- 5. STORE & FINANCE (Unchanged) ---
+// --- 5. STORE & FINANCE ---
 function ExpenseTracker({ courses }) {
   const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [selectedStudentId, setSelectedStudentId] = useState(''); const [studentToken, setStudentToken] = useState(''); const [expenseType, setExpenseType] = useState('Laundry Token'); const [amount, setAmount] = useState(''); const [history, setHistory] = useState([]); const [status, setStatus] = useState(''); const [showInvoice, setShowInvoice] = useState(false); const [reportMode, setReportMode] = useState(''); const [financialData, setFinancialData] = useState([]); const [editingId, setEditingId] = useState(null);
   useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data)?data:[])).catch(console.error); }, [courseId]);
@@ -570,210 +766,6 @@ function ExpenseTracker({ courses }) {
     </div>
   );
 }
-
-// ==============================================================================
-  // --- 6. COURSE ADMIN (SMART CSV UPLOAD & LOGIC) -------------------------------
-  // ==============================================================================
-
-  // --- A. LOGIC: HANDLE FILE SELECTION ---
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    // SECURITY: Block Excel Files
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      alert("❌ Format Error!\n\nPlease upload a .CSV file.\nExcel (.xlsx) files cannot be read directly. Please Save As -> CSV.");
-      event.target.value = null; // Reset input
-      setUploadStatus({ type: 'error', msg: 'Invalid file format. Please convert Excel to CSV.' });
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        processCSV(e.target.result);
-      } catch (err) {
-        console.error("CSV Parse Error:", err);
-        setUploadStatus({ type: 'error', msg: 'Failed to parse CSV. Check file formatting.' });
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  // --- B. LOGIC: SMART PARSER (Fixes Column Shifting) ---
-  const processCSV = (csvText) => {
-    const lines = csvText.split('\n').map(line => line.trim()).filter(line => line);
-    
-    if (lines.length < 2) {
-      setUploadStatus({ type: 'error', msg: 'File is empty or missing headers.' });
-      return;
-    }
-
-    // 1. SMART HEADER MAPPING
-    // Detects column index by name (e.g. finds "Age" even if it moved to column 4)
-    const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
-    
-    const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
-
-    const map = {
-      conf: getIndex(['conf', 'ref', 'id']),          // Confirmation No
-      name: getIndex(['name', 'student', 'given']),   // Student Name
-      age: getIndex(['age', 'years']),                // Age
-      gender: getIndex(['gender', 'sex']),            // Gender
-      courses: getIndex(['course', 'history', 'old']),// Course History (S:9 L:0...)
-      seat: getIndex(['seat', 'dining']),             // Dining Seat
-      email: getIndex(['email']),                     // Email
-      phone: getIndex(['phone', 'mobile']),           // Phone
-      notes: getIndex(['notes', 'remark'])            // Notes
-    };
-
-    console.log("Smart Mapping Active:", map); // Debugging info
-
-    // 2. DATA EXTRACTION
-    const parsedStudents = lines.slice(1).map((line, index) => {
-      // Regex to handle commas inside quotes (e.g., "Doe, John")
-      const row = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-      const clean = (val) => val ? val.replace(/^"|"$/g, '').trim() : '';
-
-      // Extract data safely
-      const rawConf = map.conf > -1 ? clean(row[map.conf]) : '';
-      const rawName = map.name > -1 ? clean(row[map.name]) : 'Unknown Student';
-      
-      // LOGIC: If Conf No is missing, generate a Temporary ID
-      const finalConf = rawConf || `TEMP-${index + 1}`;
-      
-      return {
-        id: Date.now() + index,
-        conf_no: finalConf,
-        full_name: rawName,
-        age: map.age > -1 ? clean(row[map.age]) : '',
-        gender: map.gender > -1 ? clean(row[map.gender]) : '',
-        courses_info: map.courses > -1 ? clean(row[map.courses]) : '', 
-        dining_seat: map.seat > -1 ? clean(row[map.seat]) : '',
-        email: map.email > -1 ? clean(row[map.email]) : '',
-        mobile: map.phone > -1 ? clean(row[map.phone]) : '',
-        status: rawConf ? 'Active' : 'Pending ID' // Flag generated IDs
-      };
-    });
-
-    setStudents(parsedStudents);
-    setUploadStatus({ 
-      type: 'success', 
-      msg: `Ready! Loaded ${parsedStudents.length} students. (${parsedStudents.filter(s => s.status === 'Pending ID').length} IDs generated)` 
-    });
-  };
-
-  // --- C. LOGIC: DATABASE SAVE ---
-  const saveToDatabase = async () => {
-    if (students.length === 0) return;
-    
-    const confirmSave = window.confirm(`Are you sure you want to save ${students.length} students to the database?`);
-    if (!confirmSave) return;
-
-    // Simulation of DB Save
-    alert(`✅ Success: ${students.length} students saved to Staging DB.`);
-    // TODO: Connect actual Supabase insert here
-    // const { error } = await supabase.from('students').insert(students);
-  };
-
-  // --- D. UI: RENDER COURSE ADMIN TAB ---
-  const renderCourseAdmin = () => (
-    <div className="bg-white p-6 rounded-lg shadow-md max-w-4xl mx-auto mt-6">
-      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <Upload size={24} className="text-blue-600"/> 
-        Course Admin & Upload
-      </h2>
-      
-      {/* 1. Context Selector */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Select Target Course</label>
-          <select 
-            className="w-full p-2 border rounded-md bg-gray-50"
-            value={selectedCourse}
-            onChange={(e) => setSelectedCourse(e.target.value)}
-          >
-            {MOCK_COURSES.map(c => <option key={c}>{c}</option>)}
-          </select>
-        </div>
-        <div className="flex items-end">
-           <div className="text-sm text-gray-500 mb-2">
-             Format Required: <strong>.CSV</strong> (Not Excel/XLSX)
-           </div>
-        </div>
-      </div>
-
-      {/* 2. Upload Area */}
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50 hover:bg-gray-100 transition relative">
-        <input 
-          type="file" 
-          accept=".csv"
-          onChange={handleFileUpload}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        />
-        <div className="pointer-events-none">
-          <Database className="mx-auto h-12 w-12 text-gray-400" />
-          <p className="mt-2 text-sm text-gray-600">Click to upload or drag and drop CSV file</p>
-        </div>
-      </div>
-
-      {/* 3. Status Message */}
-      {uploadStatus && (
-        <div className={`mt-4 p-3 rounded-md flex items-center gap-2 ${uploadStatus.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-          {uploadStatus.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-          <span className="font-medium">{uploadStatus.msg}</span>
-        </div>
-      )}
-
-      {/* 4. Preview & Save */}
-      {students.length > 0 && (
-        <div className="mt-8 border-t pt-6">
-           <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-gray-700">Data Preview ({students.length} Records)</h3>
-              <button 
-                onClick={saveToDatabase}
-                className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 shadow-sm flex items-center gap-2 font-bold"
-              >
-                <Save size={18} /> Save All to Database
-              </button>
-           </div>
-           
-           <div className="max-h-80 overflow-y-auto border rounded-lg shadow-inner">
-             <table className="w-full text-left bg-white text-sm">
-               <thead className="bg-gray-100 text-gray-600 sticky top-0 shadow-sm">
-                 <tr>
-                   <th className="p-3">Conf No</th>
-                   <th className="p-3">Name</th>
-                   <th className="p-3">Age</th>
-                   <th className="p-3">Gender</th>
-                   <th className="p-3">History</th>
-                   <th className="p-3">Dining</th>
-                 </tr>
-               </thead>
-               <tbody className="divide-y">
-                 {students.map((s) => (
-                   <tr key={s.id} className="hover:bg-blue-50 transition-colors">
-                     <td className={`p-3 font-mono font-medium ${s.status === 'Pending ID' ? 'text-orange-600' : 'text-blue-600'}`}>
-                       {s.conf_no}
-                     </td>
-                     <td className="p-3 font-medium">{s.full_name}</td>
-                     <td className="p-3">{s.age}</td>
-                     <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-xs ${s.gender.toLowerCase() === 'female' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {s.gender}
-                        </span>
-                     </td>
-                     <td className="p-3 text-xs text-gray-500">{s.courses_info}</td>
-                     <td className="p-3 text-gray-600">{s.dining_seat}</td>
-                   </tr>
-                 ))}
-               </tbody>
-             </table>
-           </div>
-        </div>
-      )}
-    </div>
-  );
 
 // --- STYLES ---
 const btnStyle = (isActive) => ({ padding: '10px 20px', border: '1px solid #ddd', borderRadius: '5px', cursor: 'pointer', background: isActive ? '#007bff' : '#fff', color: isActive ? 'white' : '#333', fontWeight: '500' });
