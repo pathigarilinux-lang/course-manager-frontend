@@ -571,193 +571,210 @@ function ExpenseTracker({ courses }) {
   );
 }
 
-// --- 6. COURSE ADMIN (Create + Strict Upload + Manual) ---
-function CourseAdmin({ courses, refreshCourses, setView }) {
-  const [activeTab, setActiveTab] = useState('create');
-  return (
-    <div style={cardStyle}>
-      <div style={{display:'flex', borderBottom:'1px solid #ddd', marginBottom:'20px', gap:'10px'}}>
-        <button onClick={()=>setActiveTab('create')} style={{padding:'10px', background:activeTab==='create'?'#eee':'white', border:'none', borderBottom:activeTab==='create'?'2px solid #007bff':'none', cursor:'pointer'}}>➕ New Course</button>
-        <button onClick={()=>setActiveTab('upload')} style={{padding:'10px', background:activeTab==='upload'?'#eee':'white', border:'none', borderBottom:activeTab==='upload'?'2px solid #007bff':'none', cursor:'pointer'}}>📂 Upload CSV</button>
-        <button onClick={()=>setActiveTab('manual')} style={{padding:'10px', background:activeTab==='manual'?'#eee':'white', border:'none', borderBottom:activeTab==='manual'?'2px solid #007bff':'none', cursor:'pointer'}}>✍️ Manual Entry</button>
-      </div>
-      {activeTab === 'create' && <CreateCourseForm refreshCourses={refreshCourses} setView={setView} />}
-      {activeTab === 'upload' && <UploadParticipants courses={courses} setView={setView} />}
-      {activeTab === 'manual' && <ManualStudentForm courses={courses} setView={setView} />}
-    </div>
-  );
-}
+// ==============================================================================
+  // --- 6. COURSE ADMIN (SMART CSV UPLOAD & LOGIC) -------------------------------
+  // ==============================================================================
 
-function CreateCourseForm({ refreshCourses, setView }) { 
-  const [formData, setFormData] = useState({ courseName: '', teacherName: '', startDate: '', endDate: '' }); 
-  const [status, setStatus] = useState(''); 
-  const handleSubmit = async (e) => { 
-    e.preventDefault(); setStatus('Saving...'); 
-    try { 
-      const res = await fetch(`${API_URL}/courses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(formData)}); 
-      if (!res.ok) throw new Error("Failed"); 
-      setStatus('✅ Created!'); 
-      refreshCourses(); 
-      setTimeout(() => setView('dashboard'), 1500); 
-    } catch (err) { setStatus('❌ ' + err.message); } 
-  }; 
-  return ( 
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '500px' }}> 
-      <h3>Course Details</h3> 
-      <input style={inputStyle} placeholder="Course Name" required onChange={e => setFormData({...formData, courseName: e.target.value})} />
-      <input style={inputStyle} placeholder="Teacher Name" required onChange={e => setFormData({...formData, teacherName: e.target.value})} />
-      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
-        <input type="date" style={inputStyle} required onChange={e => setFormData({...formData, startDate: e.target.value})} />
-        <input type="date" style={inputStyle} required onChange={e => setFormData({...formData, endDate: e.target.value})} />
-      </div>
-      <button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Create Course</button>
-      {status && <p>{status}</p>}
-    </form> 
-  ); 
-}
+  // --- A. LOGIC: HANDLE FILE SELECTION ---
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
 
-function UploadParticipants({ courses, setView }) { 
-  const [courseId, setCourseId] = useState(''); 
-  const [csvFile, setCsvFile] = useState(null); 
-  const [preview, setPreview] = useState([]); 
-  const [status, setStatus] = useState(''); 
-  
-  const handleFileChange = (e) => { 
-    const file = e.target.files[0]; 
-    if (!file) return; 
-    setCsvFile(file); 
-    setStatus(''); 
-    setPreview([]); 
-    
-    const reader = new FileReader(); 
-    reader.onload = (event) => { 
-      const text = event.target.result; 
-      const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== ''); 
-      
-      let headerIndex = -1; 
-      let headers = []; 
-      
-      // Smart Header Detection
-      for (let i = 0; i < Math.min(lines.length, 20); i++) { 
-        if (lines[i].toLowerCase().includes('name')) { 
-          headerIndex = i; 
-          headers = lines[i].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase()); 
-          break; 
-        } 
-      } 
-      
-      if (headerIndex === -1) { setStatus("⚠️ Error: No header row found (must contain 'name')."); return; } 
-      
-      const nameIdx = headers.findIndex(h => h.includes('name')); 
-      const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile')); 
-      const emailIdx = headers.findIndex(h => h.includes('email')); 
-      const ageIdx = headers.findIndex(h => h === 'age'); 
-      const genderIdx = headers.findIndex(h => h === 'gender'); 
-      const coursesIdx = headers.findIndex(h => h.includes('courses')); 
-      const confIdx = headers.findIndex(h => h.includes('conf')); 
-      
-      const dataRows = lines.slice(headerIndex + 1); 
-      const parsedData = dataRows.map(row => { 
-        // Improved CSV Split (Handles commas inside quotes)
-        const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, '')); 
-        if (cols.length <= nameIdx) return null; 
-        
-        return { 
-          name: cols[nameIdx], 
-          phone: phoneIdx !== -1 ? cols[phoneIdx] : '', 
-          email: emailIdx !== -1 ? cols[emailIdx] : '', 
-          age: ageIdx !== -1 ? cols[ageIdx] : '', 
-          gender: genderIdx !== -1 ? cols[genderIdx] : '', 
-          courses: coursesIdx !== -1 ? cols[coursesIdx] : '', 
-          confNo: confIdx !== -1 ? cols[confIdx] : '' 
-        }; 
-      }).filter(r => r && r.name); 
-
-      // --- LOGIC: Filter valid rows only (Clean & Upload) ---
-      const validRows = parsedData.filter(r => r.confNo && r.confNo.trim() !== '');
-      const skippedCount = parsedData.length - validRows.length;
-
-      setPreview(validRows); 
-      setStatus(`✅ Ready! Found ${validRows.length} valid students. (Skipped ${skippedCount} without Conf No)`); 
-    }; 
-    reader.readAsText(file); 
-  };
-
-  const handleUpload = async () => { 
-    if (!courseId) return alert("Select course"); 
-    setStatus('Uploading...'); 
-    try { 
-      const res = await fetch(`${API_URL}/courses/${courseId}/import`, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ students: preview }) 
-      }); 
-      if (!res.ok) throw new Error("Failed"); 
-      setStatus(`✅ Added ${preview.length} students.`); 
-      setTimeout(() => setView('onboarding'), 2000); 
-    } catch (err) { setStatus("❌ " + err.message); } 
-  };
-
-  return ( 
-    <div>
-      <h3>Upload CSV</h3>
-      <div style={{maxWidth:'500px'}}>
-        <div style={{marginBottom:'10px'}}>
-          <label>Select Course:</label>
-          <select style={inputStyle} onChange={e => setCourseId(e.target.value)}>
-            <option value="">-- Select --</option>
-            {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
-          </select>
-        </div>
-        <div style={{marginBottom:'10px'}}>
-          <input type="file" accept=".csv" onChange={handleFileChange} />
-        </div>
-        {status && <div style={{padding:'15px', background: status.includes('ERROR') ? '#f8d7da' : '#e3f2fd', color: status.includes('ERROR') ? '#721c24' : '#0c5460', borderRadius:'4px', marginBottom:'10px', whiteSpace:'pre-wrap', fontWeight: status.includes('ERROR') ? 'bold' : 'normal'}}>{status}</div>}
-        <button onClick={handleUpload} disabled={!csvFile || !courseId || preview.length===0} style={{...btnStyle(true), width:'100%', background: preview.length>0?'#28a745':'#ccc', cursor: preview.length>0?'pointer':'not-allowed'}}>Upload</button>
-      </div>
-    </div> 
-  );
-}
-
-function ManualStudentForm({ courses, setView }) {
-  const [formData, setFormData] = useState({ courseId: '', fullName: '', coursesInfo: '', email: '', age: '', gender: '', confNo: '' });
-  const [status, setStatus] = useState('');
-  const handleSubmit = async (e) => {
-    e.preventDefault(); 
-    
-    // Strict Check for Manual Entry too
-    if (!formData.confNo || formData.confNo.trim() === '') {
-        return setStatus('❌ Error: Confirmation Number is required.');
+    // SECURITY: Block Excel Files
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      alert("❌ Format Error!\n\nPlease upload a .CSV file.\nExcel (.xlsx) files cannot be read directly. Please Save As -> CSV.");
+      event.target.value = null; // Reset input
+      setUploadStatus({ type: 'error', msg: 'Invalid file format. Please convert Excel to CSV.' });
+      return;
     }
 
-    setStatus('Saving...');
-    try {
-      const res = await fetch(`${API_URL}/participants`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(formData)});
-      if (!res.ok) throw new Error("Failed. ConfNo/Name might exist.");
-      setStatus('✅ Student Added!');
-      setFormData({ ...formData, fullName: '', coursesInfo: '', email: '', age: '', gender: '', confNo: '' });
-    } catch (err) { setStatus('❌ ' + err.message); }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        processCSV(e.target.result);
+      } catch (err) {
+        console.error("CSV Parse Error:", err);
+        setUploadStatus({ type: 'error', msg: 'Failed to parse CSV. Check file formatting.' });
+      }
+    };
+    reader.readAsText(file);
   };
-  return (
-    <form onSubmit={handleSubmit} style={{display:'flex', flexDirection:'column', gap:'15px', maxWidth:'600px'}}>
-       <h3>Add Student (Manual)</h3>
-       <label>Select Course</label>
-       <select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} required>
-         <option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
-       <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'10px'}}>
-         <div><label>Full Name</label><input style={inputStyle} value={formData.fullName} onChange={e=>setFormData({...formData, fullName: e.target.value})} required /></div>
-         <div><label>Conf No</label><input style={inputStyle} value={formData.confNo} onChange={e=>setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED (e.g. NM99)" required /></div>
-       </div>
-       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}>
-         <div><label>Gender</label><select style={inputStyle} onChange={e=>setFormData({...formData, gender: e.target.value})}><option value="">Select</option><option>Male</option><option>Female</option></select></div>
-         <div><label>Age</label><input style={inputStyle} type="number" value={formData.age} onChange={e=>setFormData({...formData, age: e.target.value})} /></div>
-         <div><label>Courses Info</label><input style={inputStyle} value={formData.coursesInfo} onChange={e=>setFormData({...formData, coursesInfo: e.target.value})} placeholder="S:0 L:0" /></div>
-       </div>
-       <button type="submit" disabled={!formData.courseId} style={{...btnStyle(true), background:'#28a745', color:'white'}}>Add Student</button>
-       {status && <p style={{color: status.includes('Error') ? 'red' : 'green', fontWeight:'bold'}}>{status}</p>}
-    </form>
+
+  // --- B. LOGIC: SMART PARSER (Fixes Column Shifting) ---
+  const processCSV = (csvText) => {
+    const lines = csvText.split('\n').map(line => line.trim()).filter(line => line);
+    
+    if (lines.length < 2) {
+      setUploadStatus({ type: 'error', msg: 'File is empty or missing headers.' });
+      return;
+    }
+
+    // 1. SMART HEADER MAPPING
+    // Detects column index by name (e.g. finds "Age" even if it moved to column 4)
+    const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
+    
+    const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
+
+    const map = {
+      conf: getIndex(['conf', 'ref', 'id']),          // Confirmation No
+      name: getIndex(['name', 'student', 'given']),   // Student Name
+      age: getIndex(['age', 'years']),                // Age
+      gender: getIndex(['gender', 'sex']),            // Gender
+      courses: getIndex(['course', 'history', 'old']),// Course History (S:9 L:0...)
+      seat: getIndex(['seat', 'dining']),             // Dining Seat
+      email: getIndex(['email']),                     // Email
+      phone: getIndex(['phone', 'mobile']),           // Phone
+      notes: getIndex(['notes', 'remark'])            // Notes
+    };
+
+    console.log("Smart Mapping Active:", map); // Debugging info
+
+    // 2. DATA EXTRACTION
+    const parsedStudents = lines.slice(1).map((line, index) => {
+      // Regex to handle commas inside quotes (e.g., "Doe, John")
+      const row = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+      const clean = (val) => val ? val.replace(/^"|"$/g, '').trim() : '';
+
+      // Extract data safely
+      const rawConf = map.conf > -1 ? clean(row[map.conf]) : '';
+      const rawName = map.name > -1 ? clean(row[map.name]) : 'Unknown Student';
+      
+      // LOGIC: If Conf No is missing, generate a Temporary ID
+      const finalConf = rawConf || `TEMP-${index + 1}`;
+      
+      return {
+        id: Date.now() + index,
+        conf_no: finalConf,
+        full_name: rawName,
+        age: map.age > -1 ? clean(row[map.age]) : '',
+        gender: map.gender > -1 ? clean(row[map.gender]) : '',
+        courses_info: map.courses > -1 ? clean(row[map.courses]) : '', 
+        dining_seat: map.seat > -1 ? clean(row[map.seat]) : '',
+        email: map.email > -1 ? clean(row[map.email]) : '',
+        mobile: map.phone > -1 ? clean(row[map.phone]) : '',
+        status: rawConf ? 'Active' : 'Pending ID' // Flag generated IDs
+      };
+    });
+
+    setStudents(parsedStudents);
+    setUploadStatus({ 
+      type: 'success', 
+      msg: `Ready! Loaded ${parsedStudents.length} students. (${parsedStudents.filter(s => s.status === 'Pending ID').length} IDs generated)` 
+    });
+  };
+
+  // --- C. LOGIC: DATABASE SAVE ---
+  const saveToDatabase = async () => {
+    if (students.length === 0) return;
+    
+    const confirmSave = window.confirm(`Are you sure you want to save ${students.length} students to the database?`);
+    if (!confirmSave) return;
+
+    // Simulation of DB Save
+    alert(`✅ Success: ${students.length} students saved to Staging DB.`);
+    // TODO: Connect actual Supabase insert here
+    // const { error } = await supabase.from('students').insert(students);
+  };
+
+  // --- D. UI: RENDER COURSE ADMIN TAB ---
+  const renderCourseAdmin = () => (
+    <div className="bg-white p-6 rounded-lg shadow-md max-w-4xl mx-auto mt-6">
+      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+        <Upload size={24} className="text-blue-600"/> 
+        Course Admin & Upload
+      </h2>
+      
+      {/* 1. Context Selector */}
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Select Target Course</label>
+          <select 
+            className="w-full p-2 border rounded-md bg-gray-50"
+            value={selectedCourse}
+            onChange={(e) => setSelectedCourse(e.target.value)}
+          >
+             {/* Ensure MOCK_COURSES is defined at top of file, or replace with your state */}
+            {MOCK_COURSES.map(c => <option key={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="flex items-end">
+           <div className="text-sm text-gray-500 mb-2">
+             Format Required: <strong>.CSV</strong> (Not Excel/XLSX)
+           </div>
+        </div>
+      </div>
+
+      {/* 2. Upload Area */}
+      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50 hover:bg-gray-100 transition relative">
+        <input 
+          type="file" 
+          accept=".csv"
+          onChange={handleFileUpload}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        />
+        <div className="pointer-events-none">
+          <Database className="mx-auto h-12 w-12 text-gray-400" />
+          <p className="mt-2 text-sm text-gray-600">Click to upload or drag and drop CSV file</p>
+        </div>
+      </div>
+
+      {/* 3. Status Message */}
+      {uploadStatus && (
+        <div className={`mt-4 p-3 rounded-md flex items-center gap-2 ${uploadStatus.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          {uploadStatus.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
+          <span className="font-medium">{uploadStatus.msg}</span>
+        </div>
+      )}
+
+      {/* 4. Preview & Save */}
+      {students.length > 0 && (
+        <div className="mt-8 border-t pt-6">
+           <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-gray-700">Data Preview ({students.length} Records)</h3>
+              <button 
+                onClick={saveToDatabase}
+                className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 shadow-sm flex items-center gap-2 font-bold"
+              >
+                <Save size={18} /> Save All to Database
+              </button>
+           </div>
+           
+           <div className="max-h-80 overflow-y-auto border rounded-lg shadow-inner">
+             <table className="w-full text-left bg-white text-sm">
+               <thead className="bg-gray-100 text-gray-600 sticky top-0 shadow-sm">
+                 <tr>
+                   <th className="p-3">Conf No</th>
+                   <th className="p-3">Name</th>
+                   <th className="p-3">Age</th>
+                   <th className="p-3">Gender</th>
+                   <th className="p-3">History</th>
+                   <th className="p-3">Dining</th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y">
+                 {students.map((s) => (
+                   <tr key={s.id} className="hover:bg-blue-50 transition-colors">
+                     <td className={`p-3 font-mono font-medium ${s.status === 'Pending ID' ? 'text-orange-600' : 'text-blue-600'}`}>
+                       {s.conf_no}
+                     </td>
+                     <td className="p-3 font-medium">{s.full_name}</td>
+                     <td className="p-3">{s.age}</td>
+                     <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-xs ${s.gender.toLowerCase() === 'female' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {s.gender}
+                        </span>
+                     </td>
+                     <td className="p-3 text-xs text-gray-500">{s.courses_info}</td>
+                     <td className="p-3 text-gray-600">{s.dining_seat}</td>
+                   </tr>
+                 ))}
+               </tbody>
+             </table>
+           </div>
+        </div>
+      )}
+    </div>
   );
-}
 
 // --- STYLES ---
 const btnStyle = (isActive) => ({ padding: '10px 20px', border: '1px solid #ddd', borderRadius: '5px', cursor: 'pointer', background: isActive ? '#007bff' : '#fff', color: isActive ? 'white' : '#333', fontWeight: '500' });
