@@ -10,7 +10,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^2.12.0",
-    "lucide-react": "^0.468.0",  <-- ADD THIS LINE (Don't forget the comma on the line before!)
+    "lucide-react": "^0.468.0",
     "vite": "^5.0.0"
   },
   "devDependencies": {
