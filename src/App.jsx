@@ -572,7 +572,7 @@ function ExpenseTracker({ courses }) {
     </div>
   );
 }
-// --- 6. COURSE ADMIN (Update: Ignore Empty Conf No & Upload Rest) ---
+// --- 6. COURSE ADMIN (Update: Smart Upload - Auto-Clean Data) ---
 function UploadParticipants({ courses, setView }) { 
   const [courseId, setCourseId] = useState(''); 
   const [csvFile, setCsvFile] = useState(null); 
@@ -594,40 +594,77 @@ function UploadParticipants({ courses, setView }) {
       const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== ''); 
       let headerIndex = -1; let headers = []; 
       
+      // 1. Find Header Row (Look for 'name' or 'student')
       for (let i = 0; i < Math.min(lines.length, 20); i++) { 
-        if (lines[i].toLowerCase().includes('name')) { headerIndex = i; headers = lines[i].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase()); break; } 
+        const lowerLine = lines[i].toLowerCase();
+        if (lowerLine.includes('name') || lowerLine.includes('student')) { 
+          headerIndex = i; 
+          headers = lines[i].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase()); 
+          break; 
+        } 
       } 
-      if (headerIndex === -1) { setStatus("⚠️ Error: No header row found."); return; } 
       
-      const nameIdx = headers.findIndex(h => h.includes('name')); 
-      const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile')); 
-      const emailIdx = headers.findIndex(h => h.includes('email')); 
-      const ageIdx = headers.findIndex(h => h === 'age'); 
-      const genderIdx = headers.findIndex(h => h === 'gender'); 
-      const coursesIdx = headers.findIndex(h => h.includes('courses')); 
-      const confIdx = headers.findIndex(h => h.includes('conf')); 
+      if (headerIndex === -1) { setStatus("⚠️ Error: Could not find header row (must contain 'Name' column)."); return; } 
       
+      // 2. Map Columns (Fuzzy Match)
+      const colMap = {
+          name: headers.findIndex(h => h.includes('name') || h.includes('student')),
+          conf: headers.findIndex(h => h.includes('conf') || h.includes('id') || h.includes('no')),
+          gender: headers.findIndex(h => h.includes('gender') || h.includes('sex')),
+          age: headers.findIndex(h => h.includes('age')),
+          courses: headers.findIndex(h => h.includes('course') || h.includes('history')),
+          phone: headers.findIndex(h => h.includes('phone') || h.includes('mobile')),
+          email: headers.findIndex(h => h.includes('email'))
+      };
+
       const dataRows = lines.slice(headerIndex + 1); 
-      const parsedData = dataRows.map(row => { 
+      
+      const cleanData = dataRows.map((row, index) => { 
         const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, '')); 
-        if (cols.length <= nameIdx) return null; 
+        if (cols.length <= 1) return null; // Skip empty rows
+
+        // A. Extract Raw Values
+        let rawName = colMap.name > -1 ? cols[colMap.name] : 'Unknown';
+        let rawConf = colMap.conf > -1 ? cols[colMap.conf] : '';
+        let rawGender = colMap.gender > -1 ? cols[colMap.gender] : '';
+        let rawAge = colMap.age > -1 ? cols[colMap.age] : '';
+        let rawCourses = colMap.courses > -1 ? cols[colMap.courses] : '';
+        let rawPhone = colMap.phone > -1 ? cols[colMap.phone] : '';
+        let rawEmail = colMap.email > -1 ? cols[colMap.email] : '';
+
+        // B. AUTO-CLEAN LOGIC
+        
+        // 1. Gender Standardization
+        let cleanGender = 'Male'; // Default
+        if (rawGender) {
+            const g = rawGender.toLowerCase();
+            if (g.startsWith('f') || g.includes('girl') || g.includes('woman')) cleanGender = 'Female';
+            else if (g.startsWith('m') || g.includes('boy') || g.includes('man')) cleanGender = 'Male';
+        }
+
+        // 2. Conf No Generation (The "Crash Preventer")
+        // If missing, generate a temp ID based on Gender & Index (e.g. NM-TEMP-1)
+        if (!rawConf || rawConf.trim() === '') {
+            const prefix = cleanGender === 'Male' ? 'NM-TEMP' : 'NF-TEMP';
+            rawConf = `${prefix}-${index + 1}`;
+        }
+
+        // 3. Courses Info (Ensure it's not null)
+        if (!rawCourses) rawCourses = "S:0 L:0";
+
         return { 
-          name: cols[nameIdx], 
-          phone: phoneIdx !== -1 ? cols[phoneIdx] : '', 
-          email: emailIdx !== -1 ? cols[emailIdx] : '', 
-          age: ageIdx !== -1 ? cols[ageIdx] : '', 
-          gender: genderIdx !== -1 ? cols[genderIdx] : '', 
-          courses: coursesIdx !== -1 ? cols[coursesIdx] : '', 
-          confNo: confIdx !== -1 ? cols[confIdx] : '' 
+          name: rawName, 
+          confNo: rawConf, 
+          gender: cleanGender, 
+          age: rawAge, 
+          courses: rawCourses, 
+          phone: rawPhone, 
+          email: rawEmail 
         }; 
-      }).filter(r => r && r.name); 
+      }).filter(r => r && r.name && r.name !== 'Unknown'); 
 
-      // --- LOGIC: Filter valid rows only ---
-      const validRows = parsedData.filter(r => r.confNo && r.confNo.trim() !== '');
-      const skippedCount = parsedData.length - validRows.length;
-
-      setPreview(validRows); 
-      setStatus(`✅ Ready! Found ${validRows.length} valid students. (Skipped ${skippedCount} without Conf No)`); 
+      setPreview(cleanData); 
+      setStatus(`✅ Ready! Processed ${cleanData.length} students.\n(Auto-generated IDs for students missing Conf No)`); 
     }; 
     reader.readAsText(file); 
   };
@@ -649,16 +686,18 @@ function UploadParticipants({ courses, setView }) {
 
   return ( 
     <div>
-      <h3>Upload CSV</h3>
+      <h3>Upload CSV (Auto-Cleaning Enabled)</h3>
       <div style={{maxWidth:'500px'}}>
         <div style={{marginBottom:'10px'}}><label>Select Course:</label><select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div>
         <div style={{marginBottom:'10px'}}><input type="file" accept=".csv" onChange={handleFileChange} /></div>
-        {status && <div style={{padding:'15px', background: '#e3f2fd', color: '#0c5460', borderRadius:'4px', marginBottom:'10px', whiteSpace:'pre-wrap'}}>{status}</div>}
-        <button onClick={handleUpload} disabled={!csvFile || !courseId || preview.length===0} style={{...btnStyle(true), width:'100%', background: preview.length>0?'#28a745':'#ccc', cursor: preview.length>0?'pointer':'not-allowed'}}>Upload</button>
+        {status && <div style={{padding:'15px', background: status.includes('Error') ? '#f8d7da' : '#e3f2fd', color: status.includes('Error') ? '#721c24' : '#0c5460', borderRadius:'4px', marginBottom:'10px', whiteSpace:'pre-wrap', fontWeight: status.includes('Error') ? 'bold' : 'normal'}}>{status}</div>}
+        <button onClick={handleUpload} disabled={!csvFile || !courseId || preview.length===0} style={{...btnStyle(true), width:'100%', background: preview.length>0?'#28a745':'#ccc', cursor: preview.length>0?'pointer':'not-allowed'}}>Upload Cleaned Data</button>
       </div>
     </div> 
   );
 }
+
+
 // --- STYLES ---
 const btnStyle = (isActive) => ({ padding: '10px 20px', border: '1px solid #ddd', borderRadius: '5px', cursor: 'pointer', background: isActive ? '#007bff' : '#fff', color: isActive ? 'white' : '#333', fontWeight: '500' });
 const quickBtnStyle = (isActive) => ({ padding: '6px 12px', border: '1px solid #ccc', borderRadius: '15px', background: isActive ? '#007bff' : '#f1f1f1', color: isActive ? 'white' : 'black', cursor: 'pointer', fontSize: '13px' });
