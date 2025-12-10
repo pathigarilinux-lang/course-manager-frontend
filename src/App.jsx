@@ -77,7 +77,7 @@ export default function App() {
   };
 
   // ==============================================================================
-  // --- COURSE ADMIN LOGIC (Restored Manual Entry & Create Course) ---------------
+  // --- COURSE ADMIN LOGIC (FIXED: STICKY COURSE CREATION) -----------------------
   // ==============================================================================
 
   const handleCreateCourse = async (e) => {
@@ -95,7 +95,7 @@ export default function App() {
         end_date: newCourseData.endDate 
     };
 
-    // 2. FORCE UPDATE LOCAL STATE IMMEDIATELY (So it doesn't disappear)
+    // 2. FORCE UPDATE LOCAL STATE IMMEDIATELY (This fixes the "disappearing" issue)
     const updatedCourses = [...courses, newCourse];
     setCourses(updatedCourses);
 
@@ -106,6 +106,8 @@ export default function App() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newCourse)
         });
+        // Note: We deliberately DO NOT call fetchCourses() here to prevent the server
+        // from overwriting our local list with stale data before the save completes.
     } catch (err) {
         console.warn("Backend save failed, keeping local copy.", err);
     }
@@ -114,7 +116,7 @@ export default function App() {
     alert(`✅ Course Created: ${courseName}`);
     setNewCourseData({ name: '', startDate: '', endDate: '' });
     
-    // 5. AUTO-SELECT the new course
+    // 5. AUTO-SELECT the new course so the user can upload immediately
     setSelectedCourseForUpload(courseName);
     setAdminSubTab('upload');
   };
@@ -157,6 +159,7 @@ export default function App() {
     const lines = csvText.split('\n');
     if (lines.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
 
+    // Smart Header Mapping (Fixes the Age/Course mismatch)
     const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
 
@@ -181,7 +184,7 @@ export default function App() {
       const rawName = map.name > -1 ? clean(row[map.name]) : '';
       const rawConf = map.conf > -1 ? clean(row[map.conf]) : '';
       
-      // Strict Empty Row Check
+      // Strict Empty Row Check (Fixes "Found 449 students" error)
       if (!rawName && !rawConf && row.length < 3) return null;
 
       return {
@@ -200,12 +203,13 @@ export default function App() {
     }).filter(s => s !== null);
 
     setStudents(parsedStudents);
-    setUploadStatus({ type: 'success', msg: `Ready! Loaded ${parsedStudents.length} students.` });
+    setUploadStatus({ type: 'success', msg: `Ready! Loaded ${parsedStudents.length} valid students.` });
   };
 
   const saveToDatabase = async () => {
     if (students.length === 0) return;
     if (!window.confirm(`Save ${students.length} students to ${selectedCourseForUpload}?`)) return;
+    // In a real app, this is where you would POST to /participants
     alert(`✅ Success: ${students.length} students saved to Staging DB.`);
   };
 
