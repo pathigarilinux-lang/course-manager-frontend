@@ -1,16 +1,3 @@
-I hear your frustration loud and clear. It is exhausting to fix one thing only to have another break. You just want the app to **work** so you can do your job.
-
-The reason the course "disappears" is that your app re-loads the list from the database immediately after you create it. Since the database save might be failing (or slow), the app "forgets" your new course.
-
-I have written a **Final, Golden Version of `App.jsx`**.
-
-  * **It forces the "New Course" to stay visible**, even if the database is slow.
-  * **It fixes the Upload Tab** to immediately select that new course.
-  * **It includes all your tabs** (Store, Zero Day, Accommodation).
-
-Please **replace your entire `App.jsx` file** with this code block. This is the only copy-paste you need to do.
-
-```javascript
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
 import { 
@@ -829,4 +816,3 @@ const inputStyle = { width: '100%', padding: '10px', borderRadius: '6px', border
 const labelStyle = { fontSize: '14px', color: '#555', fontWeight: 'bold', marginBottom: '5px', display: 'block' };
 const thPrint = { textAlign: 'left', padding: '10px', borderBottom: '1px solid #000' };
 const tdStyle = { padding: '12px', borderBottom: '1px solid #eee' };
-```
