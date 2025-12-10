@@ -83,13 +83,50 @@ export default function App() {
   const handleCreateCourse = async (e) => {
     e.preventDefault();
     if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
+    
+    // 1. Create the course object
     const courseId = `C-${Date.now()}`;
     const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
-    const newCourse = { course_id: courseId, course_name: courseName, ...newCourseData };
-    setCourses([...courses, newCourse]);
-    alert(`✅ Course Created: ${courseName}`);
-    setNewCourseData({ name: '', startDate: '', endDate: '' });
-    setAdminSubTab('upload');
+    
+    const newCourse = { 
+      course_id: courseId, 
+      course_name: courseName, 
+      start_date: newCourseData.startDate, 
+      end_date: newCourseData.endDate 
+    };
+    
+    try {
+      // 2. Try to SAVE to Backend
+      const res = await fetch(`${API_URL}/courses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCourse)
+      });
+
+      if (!res.ok) {
+        console.warn("Backend save failed, using local state only.");
+        // If backend fails, just update screen
+        setCourses(prev => [...prev, newCourse]);
+      } else {
+        // If success, get fresh list from server
+        fetchCourses();
+      }
+
+      // 3. UI Updates
+      alert(`✅ Course Created: ${courseName}`);
+      setNewCourseData({ name: '', startDate: '', endDate: '' });
+      
+      // 4. Auto-select the new course for upload
+      setSelectedCourseForUpload(courseName); 
+      setAdminSubTab('upload'); 
+
+    } catch (err) {
+      console.error("Error creating course:", err);
+      // Fallback if server is offline
+      setCourses(prev => [...prev, newCourse]);
+      setSelectedCourseForUpload(courseName); 
+      setAdminSubTab('upload');
+    }
   };
 
   const handleManualSubmit = async (e) => {
