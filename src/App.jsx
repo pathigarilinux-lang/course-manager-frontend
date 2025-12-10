@@ -74,42 +74,82 @@ export default function App() {
   };
 
   // ==============================================================================
-  // --- 6. COURSE ADMIN LOGIC (MOVED INSIDE APP COMPONENT TO FIX CRASHES) --------
+  // --- 6. COURSE ADMIN (COMPLETE: TABS + SMART UPLOAD + MANUAL ENTRY) -----------
   // ==============================================================================
 
+  // --- STATE FOR COURSE ADMIN ---
+  const [adminSubTab, setAdminSubTab] = useState('upload'); // 'create', 'upload', 'manual'
+  const [newCourseData, setNewCourseData] = useState({ name: '', startDate: '', endDate: '' });
+  const [manualStudent, setManualStudent] = useState({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
+
+  // --- A. LOGIC: CREATE COURSE ---
+  const handleCreateCourse = async (e) => {
+    e.preventDefault();
+    if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
+    
+    // Construct a course object (mimicking backend structure)
+    const courseId = `C-${Date.now()}`;
+    const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
+    
+    const newCourse = { course_id: courseId, course_name: courseName, ...newCourseData };
+    
+    // Optimistic UI Update (In real app, await POST request)
+    setCourses([...courses, newCourse]);
+    alert(`✅ Course Created: ${courseName}`);
+    setNewCourseData({ name: '', startDate: '', endDate: '' });
+    setAdminSubTab('upload'); // Switch to upload tab automatically
+  };
+
+  // --- B. LOGIC: MANUAL STUDENT ENTRY ---
+  const handleManualSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedCourseForUpload) return alert("Please select a target course first.");
+    if (!manualStudent.full_name) return alert("Name is required.");
+
+    const newStudent = {
+      id: Date.now(),
+      ...manualStudent,
+      conf_no: manualStudent.conf_no || `MANUAL-${Date.now()}`, // Fallback ID
+      status: 'Active',
+      dining_seat: '',
+      room_no: ''
+    };
+
+    // Add to current "preview" list or save directly
+    // For this workflow, we'll add it to the 'students' state so it appears in the Preview list
+    setStudents(prev => [newStudent, ...prev]);
+    alert(`Added ${newStudent.full_name} to the Preview list. Click "Save to Database" to finalize.`);
+    setManualStudent({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
+    setAdminSubTab('upload'); // Switch to see the preview
+  };
+
+  // --- C. LOGIC: SMART CSV PARSER (Fixes Age/Course Mismatch & Ghost Rows) ---
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    // SECURITY: Block Excel Files
     if (!file.name.toLowerCase().endsWith('.csv')) {
-      alert("❌ Format Error!\n\nPlease upload a .CSV file.\nExcel (.xlsx) files cannot be read directly. Please Save As -> CSV.");
+      alert("❌ Format Error!\n\nPlease upload a .CSV file.\nExcel (.xlsx) files cannot be read directly.");
       event.target.value = null; 
-      setUploadStatus({ type: 'error', msg: 'Invalid file format. Please convert Excel to CSV.' });
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      try {
-        processCSV(e.target.result);
-      } catch (err) {
-        console.error("CSV Parse Error:", err);
-        setUploadStatus({ type: 'error', msg: 'Failed to parse CSV. Check file formatting.' });
-      }
+      try { processCSV(e.target.result); } 
+      catch (err) { console.error(err); setUploadStatus({ type: 'error', msg: 'Failed to parse CSV.' }); }
     };
     reader.readAsText(file);
   };
 
   const processCSV = (csvText) => {
-    const lines = csvText.split('\n').map(line => line.trim()).filter(line => line);
-    
+    const lines = csvText.split('\n');
     if (lines.length < 2) {
       setUploadStatus({ type: 'error', msg: 'File is empty or missing headers.' });
       return;
     }
 
-    // SMART HEADER MAPPING
+    // 1. SMART HEADER MAPPING
     const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
 
@@ -127,18 +167,23 @@ export default function App() {
 
     console.log("Smart Mapping Active:", map);
 
+    // 2. DATA EXTRACTION & CLEANING
     const parsedStudents = lines.slice(1).map((line, index) => {
       const row = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
       const clean = (val) => val ? val.replace(/^"|"$/g, '').trim() : '';
       
+      const rawName = map.name > -1 ? clean(row[map.name]) : '';
       const rawConf = map.conf > -1 ? clean(row[map.conf]) : '';
-      const rawName = map.name > -1 ? clean(row[map.name]) : 'Unknown Student';
+      
+      // STRICT FILTER: Skip empty rows (Ghost Rows)
+      if (!rawName && !rawConf && row.length < 3) return null;
+
       const finalConf = rawConf || `TEMP-${index + 1}`;
       
       return {
         id: Date.now() + index,
         conf_no: finalConf,
-        full_name: rawName,
+        full_name: rawName || 'Unknown Student',
         age: map.age > -1 ? clean(row[map.age]) : '',
         gender: map.gender > -1 ? clean(row[map.gender]) : '',
         courses_info: map.courses > -1 ? clean(row[map.courses]) : '', 
@@ -147,160 +192,138 @@ export default function App() {
         mobile: map.phone > -1 ? clean(row[map.phone]) : '',
         status: rawConf ? 'Active' : 'Pending ID'
       };
-    });
+    }).filter(s => s !== null); // Remove nulls (empty rows)
 
     setStudents(parsedStudents);
     setUploadStatus({ 
       type: 'success', 
-      msg: `Ready! Loaded ${parsedStudents.length} students. (${parsedStudents.filter(s => s.status === 'Pending ID').length} IDs generated)` 
+      msg: `Ready! Loaded ${parsedStudents.length} valid students. (${parsedStudents.filter(s => s.status === 'Pending ID').length} IDs generated)` 
     });
   };
 
   const saveToDatabase = async () => {
     if (students.length === 0) return;
-    const confirmSave = window.confirm(`Are you sure you want to save ${students.length} students to the database?`);
-    if (!confirmSave) return;
+    if (!window.confirm(`Are you sure you want to save ${students.length} students to the database?`)) return;
+    
+    // In a real app, this is where you await supabase.insert(students)
     alert(`✅ Success: ${students.length} students saved to Staging DB.`);
-    // Actual API Call would go here
+    
+    // Clear preview after save? Optional.
+    // setStudents([]); 
   };
 
+  // --- D. UI: RENDER COURSE ADMIN TAB ---
   const renderCourseAdmin = () => (
     <div style={cardStyle}>
-      <h2 style={{fontSize: '20px', fontWeight: 'bold', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px'}}>
-        <Upload size={24} color="#2563eb"/> 
-        Course Admin & Upload
-      </h2>
-      
-      <div style={{marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr', gap: '16px'}}>
-        <div>
-          <label style={labelStyle}>Select Target Course</label>
-          <select 
-            style={inputStyle}
-            value={selectedCourseForUpload}
-            onChange={(e) => setSelectedCourseForUpload(e.target.value)}
-          >
-            <option value="">-- Select Course --</option>
-            {courses.map(c => <option key={c.course_id} value={c.course_name}>{c.course_name}</option>)}
-          </select>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+        <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}>
+          <Upload size={24} className="text-blue-600"/> Course Admin
+        </h2>
+        <div style={{display:'flex', gap:'5px'}}>
+           <button onClick={()=>setAdminSubTab('create')} style={quickBtnStyle(adminSubTab==='create')}>+ New Course</button>
+           <button onClick={()=>setAdminSubTab('upload')} style={quickBtnStyle(adminSubTab==='upload')}>📂 Upload CSV</button>
+           <button onClick={()=>setAdminSubTab('manual')} style={quickBtnStyle(adminSubTab==='manual')}>✍️ Manual Entry</button>
         </div>
       </div>
 
-      <div style={{border: '2px dashed #d1d5db', borderRadius: '8px', padding: '32px', textAlign: 'center', backgroundColor: '#f9fafb', position: 'relative'}}>
-        <input 
-          type="file" 
-          accept=".csv"
-          onChange={handleFileUpload}
-          style={{position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer'}}
-        />
-        <div style={{pointerEvents: 'none'}}>
-          <Database size={48} color="#9ca3af" style={{margin: '0 auto'}} />
-          <p style={{marginTop: '8px', fontSize: '14px', color: '#4b5563'}}>Click to upload or drag and drop CSV file</p>
-          <p style={{fontSize: '12px', color: '#9ca3af'}}>(.xlsx files not supported, please convert to .csv)</p>
-        </div>
-      </div>
-
-      {uploadStatus && (
-        <div style={{marginTop: '16px', padding: '12px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: uploadStatus.type === 'success' ? '#f0fdf4' : '#fef2f2', color: uploadStatus.type === 'success' ? '#15803d' : '#b91c1c', border: `1px solid ${uploadStatus.type === 'success' ? '#bbf7d0' : '#fecaca'}`}}>
-          {uploadStatus.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-          <span style={{fontWeight: '500'}}>{uploadStatus.msg}</span>
-        </div>
+      {/* SUB-TAB 1: CREATE COURSE */}
+      {adminSubTab === 'create' && (
+        <form onSubmit={handleCreateCourse} style={{maxWidth:'500px', margin:'0 auto', display:'flex', flexDirection:'column', gap:'15px'}}>
+          <h3 style={{textAlign:'center'}}>Create New Course</h3>
+          <div><label style={labelStyle}>Course Name / Type</label><input style={inputStyle} placeholder="e.g. 10-Day" value={newCourseData.name} onChange={e=>setNewCourseData({...newCourseData, name:e.target.value})} /></div>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
+            <div><label style={labelStyle}>Start Date</label><input type="date" style={inputStyle} value={newCourseData.startDate} onChange={e=>setNewCourseData({...newCourseData, startDate:e.target.value})} /></div>
+            <div><label style={labelStyle}>End Date</label><input type="date" style={inputStyle} value={newCourseData.endDate} onChange={e=>setNewCourseData({...newCourseData, endDate:e.target.value})} /></div>
+          </div>
+          <button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white', marginTop:'10px'}}>Create Course</button>
+        </form>
       )}
 
-      {students.length > 0 && (
-        <div style={{marginTop: '32px', borderTop: '1px solid #e5e7eb', paddingTop: '24px'}}>
-           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
-              <h3 style={{fontWeight: 'bold', color: '#374151'}}>Data Preview ({students.length} Records)</h3>
-              <button 
-                onClick={saveToDatabase}
-                style={{backgroundColor: '#16a34a', color: 'white', padding: '8px 24px', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold'}}
-              >
-                <Save size={18} /> Save All to Database
-              </button>
-           </div>
-           
-           <div style={{maxHeight: '320px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px'}}>
-             <table style={{width: '100%', textAlign: 'left', backgroundColor: 'white', fontSize: '14px', borderCollapse: 'collapse'}}>
-               <thead style={{backgroundColor: '#f3f4f6', color: '#4b5563', position: 'sticky', top: 0}}>
-                 <tr>
-                   <th style={{padding: '12px'}}>Conf No</th>
-                   <th style={{padding: '12px'}}>Name</th>
-                   <th style={{padding: '12px'}}>Age</th>
-                   <th style={{padding: '12px'}}>Gender</th>
-                   <th style={{padding: '12px'}}>History</th>
-                   <th style={{padding: '12px'}}>Dining</th>
-                 </tr>
-               </thead>
-               <tbody>
-                 {students.map((s) => (
-                   <tr key={s.id} style={{borderBottom: '1px solid #e5e7eb'}}>
-                     <td style={{padding: '12px', fontFamily: 'monospace', fontWeight: '500', color: s.status === 'Pending ID' ? '#ea580c' : '#2563eb'}}>
-                       {s.conf_no}
-                     </td>
-                     <td style={{padding: '12px', fontWeight: '500'}}>{s.full_name}</td>
-                     <td style={{padding: '12px'}}>{s.age}</td>
-                     <td style={{padding: '12px'}}>
-                        <span style={{padding: '2px 8px', borderRadius: '4px', fontSize: '12px', backgroundColor: s.gender.toLowerCase() === 'female' ? '#fce7f3' : '#dbeafe', color: s.gender.toLowerCase() === 'female' ? '#be185d' : '#1d4ed8'}}>
-                          {s.gender}
-                        </span>
-                     </td>
-                     <td style={{padding: '12px', fontSize: '12px', color: '#6b7280'}}>{s.courses_info}</td>
-                     <td style={{padding: '12px', color: '#4b5563'}}>{s.dining_seat}</td>
-                   </tr>
-                 ))}
-               </tbody>
-             </table>
-           </div>
-        </div>
+      {/* SUB-TAB 2: UPLOAD CSV */}
+      {adminSubTab === 'upload' && (
+        <>
+          <div style={{marginBottom:'20px'}}>
+            <label style={labelStyle}>Select Target Course</label>
+            <select style={inputStyle} value={selectedCourseForUpload} onChange={(e) => setSelectedCourseForUpload(e.target.value)}>
+              <option value="">-- Select Course --</option>
+              {courses.map(c => <option key={c.course_id} value={c.course_name}>{c.course_name}</option>)}
+            </select>
+          </div>
+
+          <div style={{border:'2px dashed #ccc', borderRadius:'8px', padding:'30px', textAlign:'center', background:'#f9f9f9', position:'relative'}}>
+            <input type="file" accept=".csv" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
+            <div style={{pointerEvents:'none'}}>
+              <Database size={40} color="#999" />
+              <p style={{margin:'10px 0', color:'#555'}}>Click to upload .CSV file</p>
+              <small style={{color:'#999'}}>(Excel .xlsx not supported directly)</small>
+            </div>
+          </div>
+
+          {uploadStatus && (
+            <div style={{marginTop:'15px', padding:'10px', borderRadius:'5px', background: uploadStatus.type === 'success' ? '#d4edda' : '#f8d7da', color: uploadStatus.type === 'success' ? '#155724' : '#721c24', display:'flex', alignItems:'center', gap:'10px'}}>
+              {uploadStatus.type === 'success' ? <CheckCircle size={16}/> : <AlertTriangle size={16}/>}
+              <span>{uploadStatus.msg}</span>
+            </div>
+          )}
+
+          {students.length > 0 && (
+            <div style={{marginTop:'25px', borderTop:'1px solid #eee', paddingTop:'15px'}}>
+               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
+                  <h3 style={{margin:0}}>Preview Data ({students.length})</h3>
+                  <button onClick={saveToDatabase} style={{...btnStyle(true), background:'#28a745', color:'white', display:'flex', alignItems:'center', gap:'5px'}}><Save size={16}/> Save All to Database</button>
+               </div>
+               <div style={{maxHeight:'300px', overflowY:'auto', border:'1px solid #eee', borderRadius:'5px'}}>
+                 <table style={{width:'100%', fontSize:'13px', borderCollapse:'collapse'}}>
+                   <thead style={{position:'sticky', top:0, background:'#f1f1f1'}}>
+                     <tr><th style={thPrint}>Conf</th><th style={thPrint}>Name</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Courses</th></tr>
+                   </thead>
+                   <tbody>
+                     {students.map(s => (
+                       <tr key={s.id} style={{borderBottom:'1px solid #eee'}}>
+                         <td style={{padding:'8px', color: s.status === 'Pending ID' ? 'orange' : 'blue', fontFamily:'monospace'}}>{s.conf_no}</td>
+                         <td style={{padding:'8px'}}>{s.full_name}</td>
+                         <td style={{padding:'8px'}}>{s.age}</td>
+                         <td style={{padding:'8px'}}>{s.gender}</td>
+                         <td style={{padding:'8px', color:'#666'}}>{s.courses_info}</td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* SUB-TAB 3: MANUAL ENTRY */}
+      {adminSubTab === 'manual' && (
+        <form onSubmit={handleManualSubmit} style={{maxWidth:'600px', margin:'0 auto'}}>
+          <h3 style={{textAlign:'center', marginBottom:'20px'}}>Add Single Student</h3>
+          
+          <div style={{marginBottom:'15px'}}>
+            <label style={labelStyle}>Target Course</label>
+            <select style={inputStyle} value={selectedCourseForUpload} onChange={(e) => setSelectedCourseForUpload(e.target.value)} required>
+              <option value="">-- Select Course --</option>
+              {courses.map(c => <option key={c.course_id} value={c.course_name}>{c.course_name}</option>)}
+            </select>
+          </div>
+
+          <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'15px', marginBottom:'15px'}}>
+             <div><label style={labelStyle}>Full Name</label><input style={inputStyle} value={manualStudent.full_name} onChange={e=>setManualStudent({...manualStudent, full_name:e.target.value})} required /></div>
+             <div><label style={labelStyle}>Conf No (Optional)</label><input style={inputStyle} value={manualStudent.conf_no} onChange={e=>setManualStudent({...manualStudent, conf_no:e.target.value})} placeholder="e.g. OF123" /></div>
+          </div>
+
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr', gap:'15px', marginBottom:'15px'}}>
+             <div><label style={labelStyle}>Gender</label><select style={inputStyle} value={manualStudent.gender} onChange={e=>setManualStudent({...manualStudent, gender:e.target.value})}><option>Male</option><option>Female</option></select></div>
+             <div><label style={labelStyle}>Age</label><input type="number" style={inputStyle} value={manualStudent.age} onChange={e=>setManualStudent({...manualStudent, age:e.target.value})} /></div>
+             <div><label style={labelStyle}>Courses Info</label><input style={inputStyle} value={manualStudent.courses_info} onChange={e=>setManualStudent({...manualStudent, courses_info:e.target.value})} placeholder="e.g. S:3 L:1" /></div>
+          </div>
+
+          <button type="submit" style={{...btnStyle(true), width:'100%', background:'#007bff', color:'white'}}>+ Add to Preview List</button>
+        </form>
       )}
     </div>
   );
-
-  // --- END OF COURSE ADMIN LOGIC ---
-
-  if (!isAuthenticated) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}>
-        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
-          <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Center Admin</h1>
-          <form onSubmit={handleLogin}>
-            <input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} />
-            <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button>
-          </form>
-          {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="app-container" style={{ fontFamily: 'Segoe UI, sans-serif', padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
-      <style>{`@media print { .no-print { display: none !important; } .app-container { background: white !important; padding: 0 !important; } body { font-size: 10pt; } .print-hide { display: none; } }`}</style>
-      <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button onClick={() => setView('dashboard')} style={btnStyle(view === 'dashboard')}>📊 Zero Day Dashboard</button>
-          <button onClick={() => setView('ta-panel')} style={btnStyle(view === 'ta-panel')}>AT Panel</button>
-          <button onClick={() => setView('room-view')} style={btnStyle(view === 'room-view')}>🛏️ Global Accommodation</button>
-          <button onClick={() => setView('onboarding')} style={btnStyle(view === 'onboarding')}>📝 Student Onboarding</button>
-          <button onClick={() => setView('participants')} style={btnStyle(view === 'participants')}>👥 Manage Students</button>
-          <button onClick={() => setView('expenses')} style={btnStyle(view === 'expenses')}>🛒 Store</button>
-          <button onClick={() => setView('course-admin')} style={btnStyle(view === 'course-admin')}>⚙️ Course Admin</button>
-        </div>
-        <button onClick={handleLogout} style={{ ...btnStyle(false), border: '1px solid #dc3545', color: '#dc3545' }}>🔒 Logout</button>
-      </nav>
-
-      {error && <div className="no-print" style={{ padding: '12px', background: '#ffebee', color: '#c62828', borderRadius: '5px', marginBottom: '20px' }}>⚠️ {error}</div>}
-
-      {view === 'dashboard' && <Dashboard courses={courses} />}
-      {view === 'ta-panel' && <ATPanel courses={courses} />}
-      {view === 'room-view' && <GlobalAccommodationManager courses={courses} onRoomClick={handleRoomClick} />}
-      {view === 'onboarding' && <StudentForm courses={courses} preSelectedRoom={preSelectedRoom} clearRoom={() => setPreSelectedRoom('')} />}
-      {view === 'expenses' && <ExpenseTracker courses={courses} />}
-      {view === 'participants' && <ParticipantList courses={courses} refreshCourses={fetchCourses} />}
-      {/* FIX 3: CALL RENDER FUNCTION DIRECTLY (No Component Tag) */}
-      {view === 'course-admin' && renderCourseAdmin()}
-    </div>
-  );
-}
 
 // --- 0. AT PANEL ---
 function ATPanel({ courses }) {
