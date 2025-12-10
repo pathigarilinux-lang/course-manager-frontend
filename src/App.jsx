@@ -412,7 +412,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   return ( <div style={cardStyle}> <h2>📝 Student Onboarding Form</h2> <form onSubmit={handleSubmit} style={{ maxWidth: '900px' }}> <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}> <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}> <div><label style={labelStyle}>1. Select Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> <div><label style={labelStyle}>2. Select Student</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name}</option>)}</select></div> </div> {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (<div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}><strong>⚠️ SPECIAL ATTENTION:</strong> {selectedStudent.evening_food && <div>🍛 Food: {selectedStudent.evening_food}</div>} {selectedStudent.medical_info && <div>🏥 Medical: {selectedStudent.medical_info}</div>}</div>)} </div> {sectionHeader("📍 Allocation Details")} <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}> <div><label style={labelStyle}>🆔 Conf No <span style={{color:'red'}}>*</span></label><input style={{...inputStyle, background: formData.confNo ? '#e8f5e9' : '#ffebee', border: formData.confNo ? '1px solid #ccc' : '1px solid red'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED" /></div> <div><label style={labelStyle}>🛏️ Room No</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Free Rooms --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div> <div><label style={labelStyle}>🍽️ Dining Seat</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'80px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={e=>setFormData({...formData, seatNo:e.target.value})} required><option value="">-- Free --</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> </div> {sectionHeader("🧘 Hall & Meditation")} <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}> <div><label style={labelStyle}>🗣️ Discourse Lang</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>Odia</option><option>Bengali</option><option>Mandarin Chinese</option><option>Spanish</option><option>French</option><option>Portuguese</option><option>Russian</option><option>German</option><option>Vietnamese</option><option>Thai</option><option>Japanese</option></select></div> <div><label style={labelStyle}>🛖 Pagoda Cell</label><select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}><option value="">None</option>{NUMBER_OPTIONS.map(n=><option key={n} value={n}>{n}</option>)}</select></div> </div> {sectionHeader("🔐 Lockers & Other")} <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> <div><label style={labelStyle}>📱 Mobile Locker</label><select style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">None</option>{availableMobileOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div> <div><label style={labelStyle}>💍 Val Locker</label><select style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">None</option>{availableValuablesOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div> <div><label style={labelStyle}>🧺 Laundry Token</label><select style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})}><option value="">None</option>{availableLaundryOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div> <div><label style={labelStyle}>💻 Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> <div><label style={labelStyle}>💺 Special</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div> </div> <div style={{marginTop:'30px', textAlign:'right'}}><button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', fontSize:'16px', cursor:'pointer', boxShadow:'0 4px 6px rgba(0,123,255,0.2)'}}>Confirm & Save</button></div> {status && <div style={{marginTop:'15px', padding:'10px', borderRadius:'6px', background: status.includes('Success') ? '#d4edda' : '#f8d7da', color: status.includes('Success') ? '#155724' : '#721c24', textAlign:'center', fontWeight:'bold'}}>{status}</div>} </form> </div> );
 }
 
-// --- 4. MANAGE STUDENTS (Restored UI + Safe Swapping + Fixed Auto-Assign) ---
+// --- 4. MANAGE STUDENTS (Crash-Proof & Fixed Auto-Assign) ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
@@ -420,12 +420,12 @@ function ParticipantList({ courses, refreshCourses }) {
   const [editingStudent, setEditingStudent] = useState(null); 
   const [viewingStudent, setViewingStudent] = useState(null); 
   const [viewAllMode, setViewAllMode] = useState(false); 
-  const [viewMode, setViewMode] = useState('list'); // Default to LIST view
+  const [viewMode, setViewMode] = useState('list'); 
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [swappingSeat, setSwappingSeat] = useState(null); 
   const [newSeatNo, setNewSeatNo] = useState('');
   const [assignProgress, setAssignProgress] = useState(''); 
-  const [selectedSeat, setSelectedSeat] = useState(null); // For Click-to-Move
+  const [selectedSeat, setSelectedSeat] = useState(null);
 
   const loadStudents = () => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
   useEffect(loadStudents, [courseId]);
@@ -446,7 +446,20 @@ function ParticipantList({ courses, refreshCourses }) {
   const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Arrived'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no, p.dining_seat_type, `"${p.full_name}"`, p.gender, p.room_no, p.discourse_language]); downloadCSV(headers, rows, `dining_${courseId}.csv`); };
   const handleSeatingExport = () => { const seated = participants.filter(p => p.dhamma_hall_seat_no); if (seated.length === 0) return alert("No seats."); const headers = ["Seat", "Name", "Gender", "Conf No", "Status"]; const rows = seated.map(p => [p.dhamma_hall_seat_no, `"${p.full_name}"`, p.gender, p.conf_no, p.status]); downloadCSV(headers, rows, `hall_${courseId}.csv`); };
 
-  const sortedList = React.useMemo(() => { let sortableItems = [...participants]; if (sortConfig.key) { sortableItems.sort((a, b) => { const valA = (a[sortConfig.key] || '').toString().toLowerCase(); const valB = (b[sortConfig.key] || '').toString().toLowerCase(); if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } return sortableItems.filter(p => p.full_name.toLowerCase().includes(search.toLowerCase())); }, [participants, sortConfig, search]);
+  const sortedList = React.useMemo(() => { 
+      let sortableItems = [...participants]; 
+      if (sortConfig.key) { 
+          sortableItems.sort((a, b) => { 
+              const valA = (a[sortConfig.key] || '').toString().toLowerCase(); 
+              const valB = (b[sortConfig.key] || '').toString().toLowerCase(); 
+              if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; 
+              if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; 
+              return 0; 
+          }); 
+      } 
+      // CRASH FIX: Handle null full_name
+      return sortableItems.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase())); 
+  }, [participants, sortConfig, search]);
 
   // --- ACTIONS ---
   const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
@@ -475,10 +488,11 @@ function ParticipantList({ courses, refreshCourses }) {
     const allP = await res.json();
 
     // STRICT Filter: Just exclude Cancelled and Servers
-    const cleanP = allP.filter(p => p.status !== 'Cancelled' && !p.conf_no?.toUpperCase().startsWith('S') && !p.full_name.includes('(AT)'));
+    // CRASH FIX: Added safe checks (|| '') for conf_no and full_name
+    const cleanP = allP.filter(p => p.status !== 'Cancelled' && !(p.conf_no || '').toUpperCase().startsWith('S') && !(p.full_name || '').includes('(AT)'));
     
-    const males = cleanP.filter(p => p.gender && p.gender.toLowerCase().startsWith('m'));
-    const females = cleanP.filter(p => p.gender && p.gender.toLowerCase().startsWith('f'));
+    const males = cleanP.filter(p => (p.gender || '').toLowerCase().startsWith('m'));
+    const females = cleanP.filter(p => (p.gender || '').toLowerCase().startsWith('f'));
 
     // Sorter
     const sortStrategy = (list) => {
@@ -522,37 +536,26 @@ function ParticipantList({ courses, refreshCourses }) {
   // --- 2. CLICK-TO-MOVE LOGIC (Gender Safe) ---
   const handleSeatClick = async (seatLabel, student) => {
       if (!selectedSeat) {
-          // Select Source
           setSelectedSeat({ label: seatLabel, p: student });
       } else {
-          // Execute Move
           const source = selectedSeat;
           const target = { label: seatLabel, p: student };
-          setSelectedSeat(null); // Reset selection
+          setSelectedSeat(null); 
 
           if (source.label === target.label) return; 
 
           // --- GENDER SAFETY CHECK ---
-          const isSourceMale = source.p && source.p.gender && source.p.gender.toLowerCase().startsWith('m');
+          const isSourceMale = source.p && (source.p.gender || '').toLowerCase().startsWith('m');
           
-          // Determine Zone Gender based on Letter
-          // Men: J..A, K, L. Women: A..G, H, I. 
-          // Note: A-G overlap letters, but physical location differs. 
-          // However, for this check, we use the *Student's* gender.
-          
-          // 1. Moving an Empty seat? Ignore. We need a person to move.
-          if (!source.p) return;
+          if (!source.p) return; // Cannot move empty
 
-          // 2. Is the Target Seat Occupied? Check Gender Match.
           if (target.p) {
-              const isTargetMale = target.p.gender && target.p.gender.toLowerCase().startsWith('m');
+              const isTargetMale = (target.p.gender || '').toLowerCase().startsWith('m');
               if (isSourceMale !== isTargetMale) {
                   return alert(`⛔ Action Blocked: Cannot swap Male (${source.p.full_name}) with Female (${target.p.full_name}).`);
               }
           }
           
-          // 3. Is the Target Zone Valid? (Simple heuristic: Don't check zone, check occupant. If empty, assume user knows best or add strict zone map later. For now, strict occupant check is safer.)
-
           // Execute Swap
           if (!target.p) {
               if (!window.confirm(`Move ${source.p.full_name} to ${target.label}?`)) return;
@@ -560,7 +563,6 @@ function ParticipantList({ courses, refreshCourses }) {
           } 
           else if (source.p && target.p) {
               if (!window.confirm(`Swap Seats?\n\n1. ${source.p.full_name} (${source.label})\n2. ${target.p.full_name} (${target.label})`)) return;
-              // Safe sequential swap
               await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP'}) });
               await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label}) });
               await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label}) });
@@ -589,12 +591,15 @@ function ParticipantList({ courses, refreshCourses }) {
              <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table>
           </div>
       );
-      return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>p.gender.startsWith('M')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>p.gender.startsWith('F')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> );
+      return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> );
   }
 
   // --- SEATING VIEW ---
   if (viewMode === 'seating') { 
-    const males = participants.filter(p => p.gender && p.gender.toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); const females = participants.filter(p => p.gender && p.gender.toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p); const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
+    const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
+    const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
+    const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p); 
+    const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
     
     // CLICK-TO-MOVE BOX
     const SeatBox = ({ p, label }) => { 
