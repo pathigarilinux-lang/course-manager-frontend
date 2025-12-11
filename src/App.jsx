@@ -40,10 +40,9 @@ export default function App() {
   const [students, setStudents] = useState([]);
   const [uploadStatus, setUploadStatus] = useState(null);
   const [selectedCourseForUpload, setSelectedCourseForUpload] = useState('');
-  const [adminSubTab, setAdminSubTab] = useState('upload'); // 'create', 'upload', 'manual'
+  const [adminSubTab, setAdminSubTab] = useState('upload'); 
   const [newCourseData, setNewCourseData] = useState({ name: '', startDate: '', endDate: '' });
   const [manualStudent, setManualStudent] = useState({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
-
 
   useEffect(() => {
     const savedAuth = localStorage.getItem('admin_auth');
@@ -77,46 +76,54 @@ export default function App() {
   };
 
   // ==============================================================================
-  // --- COURSE ADMIN LOGIC (FIXED: STICKY COURSE CREATION) -----------------------
+  // --- COURSE ADMIN LOGIC -------------------------------------------------------
   // ==============================================================================
 
   const handleCreateCourse = async (e) => {
     e.preventDefault();
     if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
     
-    // 1. Create the new course object
+    // 1. Create the new course object (Local UI version)
     const courseId = `C-${Date.now()}`;
     const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
     
-    const newCourse = { 
+    const newCourseLocal = { 
         course_id: courseId, 
         course_name: courseName, 
         start_date: newCourseData.startDate, 
         end_date: newCourseData.endDate 
     };
 
-    // 2. FORCE UPDATE LOCAL STATE IMMEDIATELY (This fixes the "disappearing" issue)
-    const updatedCourses = [...courses, newCourse];
-    setCourses(updatedCourses);
+    // 2. Update UI Immediately (Optimistic)
+    setCourses(prev => [...prev, newCourseLocal]);
 
-    // 3. Try saving to backend (Optimistic)
+    // 3. Save to Backend (FIXED: PAYLOAD MATCHES BACKEND EXPECTATIONS)
     try {
-        await fetch(`${API_URL}/courses`, {
+        const payload = {
+            courseName: courseName, // Backend expects 'courseName', NOT 'course_name'
+            teacherName: 'Goenka Ji', // Default teacher
+            startDate: newCourseData.startDate,
+            endDate: newCourseData.endDate
+        };
+
+        const res = await fetch(`${API_URL}/courses`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newCourse)
+            body: JSON.stringify(payload)
         });
-        // Note: We deliberately DO NOT call fetchCourses() here to prevent the server
-        // from overwriting our local list with stale data before the save completes.
+
+        if (res.ok) {
+            alert(`✅ Course Created: ${courseName}`);
+            // Fetch fresh list from server to get real DB ID
+            fetchCourses(); 
+        } else {
+            console.warn("Backend rejected save. Keeping local copy.");
+        }
     } catch (err) {
-        console.warn("Backend save failed, keeping local copy.", err);
+        console.error("Backend Error:", err);
     }
     
-    // 4. UI Updates
-    alert(`✅ Course Created: ${courseName}`);
     setNewCourseData({ name: '', startDate: '', endDate: '' });
-    
-    // 5. AUTO-SELECT the new course so the user can upload immediately
     setSelectedCourseForUpload(courseName);
     setAdminSubTab('upload');
   };
@@ -159,7 +166,6 @@ export default function App() {
     const lines = csvText.split('\n');
     if (lines.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
 
-    // Smart Header Mapping (Fixes the Age/Course mismatch)
     const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
 
@@ -184,8 +190,8 @@ export default function App() {
       const rawName = map.name > -1 ? clean(row[map.name]) : '';
       const rawConf = map.conf > -1 ? clean(row[map.conf]) : '';
       
-      // Strict Empty Row Check (Fixes "Found 449 students" error)
-      if (!rawName && !rawConf && row.length < 3) return null;
+      // FIX: Strict Empty Row Check - If no name AND no ID, ignore it.
+      if (!rawName && !rawConf) return null;
 
       return {
         id: Date.now() + index,
@@ -208,9 +214,41 @@ export default function App() {
 
   const saveToDatabase = async () => {
     if (students.length === 0) return;
+    // Find the course ID for the selected course name
+    const targetCourse = courses.find(c => c.course_name === selectedCourseForUpload);
+    if (!targetCourse) return alert("Please select a valid course first.");
+
     if (!window.confirm(`Save ${students.length} students to ${selectedCourseForUpload}?`)) return;
-    // In a real app, this is where you would POST to /participants
-    alert(`✅ Success: ${students.length} students saved to Staging DB.`);
+
+    try {
+        const payload = { students: students.map(s => ({
+            name: s.full_name,
+            confNo: s.conf_no,
+            age: s.age,
+            gender: s.gender,
+            courses: s.courses_info,
+            email: s.email,
+            phone: s.mobile
+        }))};
+
+        // Use the Import Endpoint
+        const res = await fetch(`${API_URL}/courses/${targetCourse.course_id}/import`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if(res.ok) {
+            alert(`✅ Success: ${data.message}`);
+            setStudents([]); // Clear preview on success
+        } else {
+            alert(`❌ Error: ${data.error}`);
+        }
+    } catch(err) {
+        alert("Network Error: Failed to save data.");
+        console.error(err);
+    }
   };
 
   const renderCourseAdmin = () => (
@@ -760,7 +798,7 @@ function ParticipantList({ courses, refreshCourses }) {
           </div>
       </div>
       {courseId && (<div style={{background:'#fff5f5', border:'1px solid #feb2b2', padding:'10px', borderRadius:'5px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}><span style={{color:'#c53030', fontWeight:'bold', fontSize:'13px'}}>⚠️ Admin Zone:</span><div><button onClick={handleResetCourse} style={{background:'#e53e3e', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', marginRight:'10px', fontSize:'12px'}}>Reset Data</button><button onClick={handleDeleteCourse} style={{background:'red', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Delete Course</button></div></div>)}
-      <div style={{overflowX:'auto'}}><table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}><thead><tr style={{background:'#f1f1f1', textAlign:'left'}}>{['full_name','conf_no','courses_info','age','gender','dining_seat_no','dining_seat_type','room_no','pagoda_cell_no','status'].map(k=><th key={k} style={{...tdStyle, cursor:'pointer'}} onClick={()=>handleSort(k)}>{k.replace('_',' ').toUpperCase()}{sortConfig.key===k?(sortConfig.direction==='asc'?'▲':'▼'):''}</th>)}<th style={tdStyle}>ACTIONS</th></tr></thead><tbody>{sortedList.map(p => (<tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}><td style={tdStyle}><strong>{p.full_name}</strong></td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.age}</td><td style={tdStyle}>{p.gender}</td><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{['F','Floor'].includes(p.dining_seat_type) ? 'Floor' : 'Chair'}</td><td style={tdStyle}>{p.room_no}</td><td style={tdStyle}>{p.pagoda_cell_no}</td><td style={{...tdStyle, color: p.status==='Arrived'?'green':'orange'}}>{p.status}</td><td style={tdStyle}><button onClick={() => setBadgeStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>🪪</button><button onClick={() => setViewingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>👁️</button><button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={() => handleCancelStudent(p)} style={{marginRight:'5px', cursor:'pointer', color:'orange'}}>🚫</button><button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button></td></tr>))}</tbody></table></div>
+      <div style={{overflowX:'auto'}}><table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}><thead><tr style={{background:'#f1f1f1', textAlign:'left'}}>{['full_name','conf_no','courses_info','age','gender','dining_seat_no','dining_seat_type','room_no','pagoda_cell_no','status'].map(k=><th key={k} style={{...tdStyle, cursor:'pointer'}} onClick={()=>handleSort(k)}>{k.replace('_',' ').toUpperCase()}{sortConfig.key===k?(sortConfig.direction==='asc'?'▲':'▼'):''}</th>)}<th style={tdStyle}>ACTIONS</th></tr></thead><tbody>{sortedList.map(p => (<tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}><td style={tdStyle}><strong>{p.full_name}</strong></td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.courses_info}</td><td style={tdStyle}>{p.age}</td><td style={tdStyle}>{p.gender}</td><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{['F','Floor'].includes(p.dining_seat_type) ? 'Floor' : 'Chair'}</td><td style={tdStyle}>{p.room_no}</td><td style={tdStyle}>{p.pagoda_cell_no}</td><td style={{...tdStyle, color: p.status==='Arrived'?'green':'orange'}}>{p.status}</td><td style={tdStyle}><button onClick={() => setBadgeStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>🪪</button><button onClick={() => setViewingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>👁️</button><button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={() => handleCancelStudent(p)} style={{marginRight:'5px', cursor:'pointer', color:'orange'}}>🚫</button><button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button></td></tr>))}</tbody></table></div>
       {viewingStudent && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'400px'}}> <h3>👤 Student Details</h3> <p><strong>Name:</strong> {viewingStudent.full_name}</p> <p><strong>Conf No:</strong> {viewingStudent.conf_no}</p> <p><strong>Status:</strong> {viewingStudent.status}</p> <p><strong>Room:</strong> {viewingStudent.room_no}</p> <p><strong>Dining:</strong> {viewingStudent.dining_seat_no} ({viewingStudent.dining_seat_type})</p> <button onClick={()=>setViewingStudent(null)} style={{marginTop:'20px', width:'100%', padding:'10px', background:'#007bff', color:'white', border:'none', borderRadius:'5px'}}>Close</button> </div> </div> )}
       {editingStudent && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'500px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave} style={{display:'flex', flexDirection:'column', gap:'10px'}}><label>Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e => setEditingStudent({...editingStudent, full_name: e.target.value})} /><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Conf No</label><input style={inputStyle} value={editingStudent.conf_no||''} onChange={e => setEditingStudent({...editingStudent, conf_no: e.target.value})} /></div><div><label>Lang</label><input style={inputStyle} value={editingStudent.discourse_language||''} onChange={e => setEditingStudent({...editingStudent, discourse_language: e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Dining Seat</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div><div><label>Dining Type</label><select style={inputStyle} value={editingStudent.dining_seat_type||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_type: e.target.value})}><option value="F">Floor</option><option value="C">Chair</option></select></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Room</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e => setEditingStudent({...editingStudent, room_no: e.target.value})} /></div><div><label>Pagoda</label><input style={inputStyle} value={editingStudent.pagoda_cell_no||''} onChange={e => setEditingStudent({...editingStudent, pagoda_cell_no: e.target.value})} /></div></div><label>Seating Type</label><select style={inputStyle} value={editingStudent.special_seating||''} onChange={e => setEditingStudent({...editingStudent, special_seating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select><div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div></form></div></div>)}
       {badgeStudent && <BadgeModal student={badgeStudent} onClose={() => setBadgeStudent(null)} />}
