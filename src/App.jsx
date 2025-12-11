@@ -700,6 +700,7 @@ function ATPanel({ courses }) {
   );
 }
 
+// --- DASHBOARD (FIXED MARQUEE OTH) ---
 function Dashboard({ courses }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [stats, setStats] = useState(null);
@@ -707,14 +708,27 @@ function Dashboard({ courses }) {
   useEffect(() => { if (courses.length > 0 && !selectedCourse) setSelectedCourse(courses[0].course_id); }, [courses]);
   useEffect(() => { if (selectedCourse) fetch(`${API_URL}/courses/${selectedCourse}/stats`).then(res => res.json()).then(setStats).catch(console.error); }, [selectedCourse]);
 
+  // Copy helper here to ensure it works
+  const getSmartShortName = (name) => {
+      if (!name) return 'Unknown';
+      const n = name.toUpperCase();
+      if (n.includes('45-DAY') || n.includes('45 DAY')) return '45D';
+      if (n.includes('30-DAY') || n.includes('30 DAY')) return '30D';
+      if (n.includes('20-DAY') || n.includes('20 DAY')) return '20D';
+      if (n.includes('10-DAY') || n.includes('10 DAY')) return '10D';
+      if (n.includes('SATIPATTHANA')) return 'ST';
+      if (n.includes('SERVICE')) return 'SVC';
+      return 'OTH';
+  };
+
   const arrivalData = stats ? [{ name: 'Arrived', Male: stats.arrived_m, Female: stats.arrived_f }, { name: 'Pending', Male: stats.pending_m, Female: stats.pending_f }, { name: 'Cancelled', Male: stats.cancelled_m, Female: stats.cancelled_f }] : [];
   const typeData = stats ? [{ name: 'Old', Male: stats.om, Female: stats.of }, { name: 'New', Male: stats.nm, Female: stats.nf }, { name: 'Server', Male: stats.sm, Female: stats.sf }] : [];
-  const attendanceString = courses.map(c => { const total = (c.arrived || 0) + (c.pending || 0); const pct = total > 0 ? Math.round((c.arrived || 0) / total * 100) : 0; return `${getShortCourseName(c.course_name)}: ${c.arrived}/${total} (${pct}%)`; }).join("  ✦  ");
+  const attendanceString = courses.map(c => { const total = (c.arrived || 0) + (c.pending || 0); const pct = total > 0 ? Math.round((c.arrived || 0) / total * 100) : 0; return `${getSmartShortName(c.course_name)}: ${c.arrived}/${total} (${pct}%)`; }).join("  ✦  ");
 
   return (
     <div>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-        <h2 style={{margin:0, color:'#333'}}>Zero Day Stag Dashboard</h2>
+        <h2 style={{margin:0, color:'#333'}}>Zero Day Dashboard</h2>
         <select style={{padding:'10px', borderRadius:'6px', border:'1px solid #ccc', fontSize:'14px', minWidth:'200px'}} onChange={e=>setSelectedCourse(e.target.value)} value={selectedCourse || ''}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
       </div>
       <div style={{background:'#e3f2fd', color:'#333', padding:'8px', marginBottom:'20px', overflow:'hidden', whiteSpace:'nowrap', borderRadius:'4px', border:'1px solid #90caf9', fontWeight:'bold', fontSize:'14px'}}><marquee>{attendanceString || "Loading Course Data..."}</marquee></div>
@@ -728,8 +742,7 @@ function Dashboard({ courses }) {
     </div>
   );
 }
-
-// --- STUDENT ONBOARDING FORM (WITH THERMAL RECEIPT) ---
+// --- STUDENT ONBOARDING FORM (FINAL POLISH) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
@@ -774,25 +787,29 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const isMale = currentGender.startsWith('m'); 
   const isFemale = currentGender.startsWith('f');
 
+  // 1. Room Filtering
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
 
+  // 2. Number Filtering (Dining, Pagoda, etc.)
+  // We collect ALL used numbers from both `occupancy` (global) and `participants` (current course)
   const allRecords = [...occupancy, ...participants].filter(p => String(p.participant_id) !== String(formData.participantId) && p.status !== 'Cancelled');
-  const usedDining = new Set(); const usedLaundry = new Set(); const usedMobile = new Set(); const usedValuables = new Set();
+  
+  const usedDining = new Set(); 
+  const usedPagoda = new Set();
 
   allRecords.forEach(p => {
-      let pGender = p.gender ? p.gender.toLowerCase() : '';
-      if ((isMale && pGender.startsWith('m')) || (isFemale && pGender.startsWith('f'))) {
-          if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no));
-          if (p.laundry_token_no) usedLaundry.add(cleanNum(p.laundry_token_no));
-          if (p.mobile_locker_no) usedMobile.add(cleanNum(p.mobile_locker_no));
-          if (p.valuables_locker_no) usedValuables.add(cleanNum(p.valuables_locker_no));
-      }
+      // Numbers are unique globally or per gender? Usually global dining hall.
+      // Assuming unique per gender side for Dining, but Pagoda might be unique entirely. 
+      // Safe bet: Filter if used.
+      if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no));
+      if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no));
   });
 
   const getAvailableOptions = (usedSet) => NUMBER_OPTIONS.filter(n => !usedSet.has(String(n)));
   const availableDiningOpts = getAvailableOptions(usedDining); 
+  const availablePagodaOpts = getAvailableOptions(usedPagoda);
   
   const studentsPending = participants.filter(p => p.status !== 'Arrived');
 
@@ -828,72 +845,54 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); 
       if (!res.ok) throw new Error("Check-in failed"); 
       fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
-      setStatus('✅ Success!'); 
+      
+      setStatus('✅ Success! Student Checked-In.'); 
+      window.scrollTo(0, 0); // Scroll to top to see success message
+
       setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' })); 
       setSelectedStudent(null); 
       clearRoom(); 
+      // Refresh Data
       fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); 
       fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(data)); 
+      
+      // Auto-hide status after 3s
+      setTimeout(() => setStatus(''), 5000);
     } catch (err) { setStatus(`❌ ${err.message}`); } 
   };
 
-  // --- PRINT LOGIC ---
   const handlePrint = () => {
       if(!selectedStudent) return alert("Select a student first.");
       const style = document.createElement('style');
-      style.innerHTML = `
-          @media print {
-              body * { visibility: hidden; }
-              #receipt-area, #receipt-area * { visibility: visible; }
-              #receipt-area { 
-                  position: absolute; left: 0; top: 0; width: 100%; 
-                  font-family: 'Courier New', monospace; font-size: 14px; color: black;
-              }
-              @page { size: auto; margin: 0mm; }
-          }
-      `;
+      style.innerHTML = `@media print { body * { visibility: hidden; } #receipt-area, #receipt-area * { visibility: visible; } #receipt-area { position: absolute; left: 0; top: 0; width: 100%; font-family: 'Courier New', monospace; font-size: 14px; color: black; } @page { size: auto; margin: 0mm; } }`;
       document.head.appendChild(style);
       window.print();
       document.head.removeChild(style);
   };
 
   const currentCourse = courses.find(c => c.course_id === formData.courseId);
-
   const sectionHeader = (title) => <div style={{fontSize:'14px', fontWeight:'bold', color:'#007bff', borderBottom:'1px solid #eee', paddingBottom:'5px', marginTop:'15px', marginBottom:'10px'}}>{title}</div>;
   
   return ( 
     <div style={cardStyle}> 
       <h2>📝 Student Onboarding Form</h2> 
+      
+      {/* STATUS MESSAGE (TOP) */}
+      {status && (
+          <div style={{marginBottom:'20px', padding:'15px', borderRadius:'6px', background: status.includes('Success') ? '#d4edda' : '#f8d7da', color: status.includes('Success') ? '#155724' : '#721c24', textAlign:'center', fontWeight:'bold', fontSize:'16px', boxShadow:'0 2px 4px rgba(0,0,0,0.1)'}}>
+              {status}
+          </div>
+      )}
+
       <form onSubmit={handleSubmit} style={{ maxWidth: '900px' }}> 
-        
-        {/* SELECTION */}
         <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}> 
             <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'20px'}}> 
-                <div>
-                    <label style={labelStyle}>1. Select Course</label>
-                    <select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}>
-                        <option value="">-- Select --</option>
-                        {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
-                    </select>
-                </div> 
-                <div>
-                    <label style={labelStyle}>2. Select Student</label>
-                    <select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required>
-                        <option value="">-- Select --</option>
-                        {studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no||'No ID'})</option>)}
-                    </select>
-                </div> 
+                <div><label style={labelStyle}>1. Select Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> 
+                <div><label style={labelStyle}>2. Select Student</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no||'No ID'})</option>)}</select></div> 
             </div> 
-            {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (
-                <div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}>
-                    <strong>⚠️ SPECIAL ATTENTION:</strong> 
-                    {selectedStudent.evening_food && <div>🍛 Food: {selectedStudent.evening_food}</div>} 
-                    {selectedStudent.medical_info && <div>🏥 Medical: {selectedStudent.medical_info}</div>}
-                </div>
-            )} 
+            {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (<div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}><strong>⚠️ SPECIAL ATTENTION:</strong> {selectedStudent.evening_food && <div>🍛 Food: {selectedStudent.evening_food}</div>} {selectedStudent.medical_info && <div>🏥 Medical: {selectedStudent.medical_info}</div>}</div>)} 
         </div> 
 
-        {/* ALLOCATION */}
         {sectionHeader("📍 Allocation Details")} 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr', gap:'15px'}}> 
             <div><label style={labelStyle}>🆔 Conf No <span style={{color:'red'}}>*</span></label><input style={{...inputStyle, background: formData.confNo ? '#e8f5e9' : '#ffebee', border: formData.confNo ? '1px solid #ccc' : '1px solid red'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED" /></div> 
@@ -902,20 +901,18 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
             <div><label style={labelStyle}>🍽️ Dining</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={handleDiningSeatChange} required><option value="">--</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> 
         </div> 
 
-        {/* LOCKERS (Synced) */}
         {sectionHeader("🔐 Lockers & Other (Auto-Synced)")} 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> 
-            <div><label style={labelStyle}>📱 Mobile</label><input style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})} placeholder="Auto" /></div> 
-            <div><label style={labelStyle}>💍 Valuables</label><input style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})} placeholder="Auto" /></div> 
-            <div><label style={labelStyle}>🧺 Laundry</label><input style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})} placeholder="Auto" /></div> 
+            <div><label style={labelStyle}>📱 Mobile</label><input style={{...inputStyle, background:'#e9ecef', color:'#555'}} value={formData.mobileLocker} readOnly placeholder="Auto" /></div> 
+            <div><label style={labelStyle}>💍 Valuables</label><input style={{...inputStyle, background:'#e9ecef', color:'#555'}} value={formData.valuablesLocker} readOnly placeholder="Auto" /></div> 
+            <div><label style={labelStyle}>🧺 Laundry</label><input style={{...inputStyle, background:'#e9ecef', color:'#555'}} value={formData.laundryToken} readOnly placeholder="Auto" /></div> 
             <div><label style={labelStyle}>💻 Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> 
         </div> 
 
-        {/* HALL */}
         {sectionHeader("🧘 Hall & Meditation")} 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> 
-            <div><label style={labelStyle}>🗣️ Lang</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Telugu</option><option>Marathi</option><option>Tamil</option><option>Kannada</option></select></div> 
-            <div><label style={labelStyle}>🛖 Pagoda</label><select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}><option value="">None</option>{NUMBER_OPTIONS.map(n=><option key={n} value={n}>{n}</option>)}</select></div>
+            <div><label style={labelStyle}>🗣️ Lang</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>Odia</option><option>Bengali</option><option>Mandarin Chinese</option><option>Spanish</option><option>French</option><option>Portuguese</option><option>Russian</option><option>German</option><option>Vietnamese</option><option>Thai</option><option>Japanese</option></select></div> 
+            <div><label style={labelStyle}>🛖 Pagoda</label><select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}><option value="">None</option>{availablePagodaOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div>
             <div><label style={labelStyle}>🧘 DS Seat</label><input style={inputStyle} value={formData.dhammaSeat} onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} placeholder="e.g. A1" /></div>
             <div><label style={labelStyle}>💺 Special</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div> 
         </div> 
@@ -924,11 +921,9 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
             <button type="button" onClick={handlePrint} disabled={!selectedStudent} style={{padding:'12px 20px', background:'#6c757d', color:'white', border:'none', borderRadius:'6px', cursor:'pointer'}}>🖨️ Print Slip</button>
             <button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Confirm & Save</button>
         </div> 
-        
-        {status && <div style={{marginTop:'15px', padding:'10px', borderRadius:'6px', background: status.includes('Success') ? '#d4edda' : '#f8d7da', color: status.includes('Success') ? '#155724' : '#721c24', textAlign:'center', fontWeight:'bold'}}>{status}</div>} 
       </form> 
 
-      {/* --- HIDDEN THERMAL RECEIPT (Only visible on Print) --- */}
+      {/* --- HIDDEN RECEIPT --- */}
       <div id="receipt-area" style={{ display: 'none', width: '300px', padding: '10px' }}>
           <div style={{textAlign: 'center', fontWeight: 'bold', marginBottom: '10px'}}>
               <div style={{fontSize: '16px'}}>VIPASSANA</div>
@@ -936,20 +931,16 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
               <div style={{fontSize: '14px', marginTop:'5px'}}>Dhamma Nagajjuna 2</div>
           </div>
           <div style={{borderBottom: '1px dashed black', margin: '5px 0'}}></div>
-          
           <div style={{fontSize: '12px', marginBottom: '10px'}}>
               <div><strong>Course:</strong> {currentCourse?.course_name || 'N/A'}</div>
               <div><strong>Teacher:</strong> {currentCourse?.teacher_name || 'Goenka Ji'}</div>
               <div><strong>Dates:</strong> {currentCourse ? `${new Date(currentCourse.start_date).toLocaleDateString()} to ${new Date(currentCourse.end_date).toLocaleDateString()}` : ''}</div>
           </div>
-          
           <div style={{borderBottom: '1px dashed black', margin: '5px 0'}}></div>
-
           <div style={{fontSize: '14px', fontWeight: 'bold', margin: '10px 0'}}>
               <div>{selectedStudent?.full_name}</div>
               <div>Conf No: {formData.confNo}</div>
           </div>
-
           <table style={{width: '100%', fontSize: '14px', borderCollapse: 'collapse'}}>
               <tbody>
                   <tr><td style={{padding:'2px 0'}}>Room No:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.roomNo || '-'}</td></tr>
@@ -960,13 +951,8 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                   <tr><td style={{padding:'2px 0'}}>Language:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.language}</td></tr>
               </tbody>
           </table>
-
           <div style={{borderBottom: '1px dashed black', margin: '15px 0'}}></div>
-          <div style={{textAlign: 'center', fontSize: '10px', fontStyle: 'italic'}}>
-              *** Student Copy ***<br/>
-              Please keep this safely.<br/>
-              Produce this slip to collect valuables.
-          </div>
+          <div style={{textAlign: 'center', fontSize: '10px', fontStyle: 'italic'}}>*** Student Copy ***<br/>Please keep this safely.<br/>Produce this slip to collect valuables.</div>
       </div>
     </div> 
   );
@@ -974,6 +960,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
 // --- PARTICIPANT LIST (FIXED AUTO-ASSIGN & ADDED COLUMN) ---
 // --- PARTICIPANT LIST (FIXED DUPLICATES & PROFESSIONAL GRID) ---
+// --- PARTICIPANT LIST (FIXED GRID UNDEFINED ISSUE) ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
@@ -987,7 +974,6 @@ function ParticipantList({ courses, refreshCourses }) {
   const [selectedSeat, setSelectedSeat] = useState(null);
   const [badgeStudent, setBadgeStudent] = useState(null);
 
-  // --- HELPERS ---
   const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = String(seatNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF')) return 'Old'; if (s.startsWith('NM') || s.startsWith('NF')) return 'New'; if (s.startsWith('SM') || s.startsWith('SF')) return 'DS'; return 'New'; };
   const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = String(confNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   const parseCourses = (str) => { if (!str) return { s: 0, l: 0 }; const sMatch = str.match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = str.match(/L\s*[:=-]?\s*(\d+)/i); return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; };
@@ -1052,14 +1038,13 @@ function ParticipantList({ courses, refreshCourses }) {
       }
   };
 
-  // --- STRICT AUTO-ASSIGN LOGIC (NO DUPLICATES) ---
   const handleAutoAssign = async () => {
     if (!window.confirm("⚡ Auto-Assign Seats?\n\n- ONLY 'Arrived' students.\n- Locked/Manual seats preserved.\n- Prevents Duplicates.")) return;
     setAssignProgress('Calculations...');
     
     const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
     const allP = await res.json();
-    const activeStudents = allP.filter(p => p.status === 'Arrived'); // Strict Arrived Filter
+    const activeStudents = allP.filter(p => p.status === 'Arrived'); 
 
     const males = activeStudents.filter(p => (p.gender || '').toLowerCase().startsWith('m'));
     const females = activeStudents.filter(p => (p.gender || '').toLowerCase().startsWith('f'));
@@ -1070,7 +1055,6 @@ function ParticipantList({ courses, refreshCourses }) {
         return seats;
     };
     
-    // Define Seat Pools
     const maleRegular = generateSeats(['J','I','H','G','F','E','D','C','B','A'], 8);
     const maleSpecial = generateSeats(['L','K'], 8); 
     const femaleRegular = generateSeats(['G','F','E','D','C','B','A'], 8);
@@ -1078,51 +1062,18 @@ function ParticipantList({ courses, refreshCourses }) {
 
     const assignGroup = (studentList, regularSeats, specialSeats) => {
         const updates = [];
-        
-        // 1. Map Locked Seats
         const lockedSeatSet = new Set();
-        studentList.forEach(p => {
-            if (p.is_seat_locked && p.dhamma_hall_seat_no) lockedSeatSet.add(p.dhamma_hall_seat_no);
-        });
-
-        // 2. Identify Available Seats (Total - Locked)
+        studentList.forEach(p => { if (p.is_seat_locked && p.dhamma_hall_seat_no) lockedSeatSet.add(p.dhamma_hall_seat_no); });
         const availableRegular = regularSeats.filter(s => !lockedSeatSet.has(s));
         const availableSpecial = specialSeats.filter(s => !lockedSeatSet.has(s));
-
-        // 3. Identify Students to Assign (Not Locked)
         const toAssign = studentList.filter(p => !p.is_seat_locked);
-
-        // 4. Sort Strategy
-        const sorter = (a,b) => { 
-            const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); 
-            if(rankA !== rankB) return rankA - rankB; 
-            if(rankA === 0) return getSeniorityScore(b) - getSeniorityScore(a); 
-            return (parseInt(b.age)||0) - (parseInt(a.age)||0); 
-        };
+        const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if(rankA !== rankB) return rankA - rankB; if(rankA === 0) return getSeniorityScore(b) - getSeniorityScore(a); return (parseInt(b.age)||0) - (parseInt(a.age)||0); };
         
         const specialGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating)).sort(sorter);
         const regularGroup = toAssign.filter(p => !p.special_seating || !['Chowky','Chair','BackRest'].includes(p.special_seating)).sort(sorter);
 
-        // 5. Assign Special (Consume availableSpecial list)
-        specialGroup.forEach(p => { 
-            if (availableSpecial.length > 0) {
-                const seat = availableSpecial.shift(); // Take first available
-                updates.push({ ...p, dhamma_hall_seat_no: seat });
-            } else { 
-                regularGroup.unshift(p); // Overflow to regular
-            } 
-        });
-
-        // 6. Assign Regular (Consume availableRegular list)
-        regularGroup.forEach(p => { 
-            if (availableRegular.length > 0) {
-                const seat = availableRegular.shift(); // Take first available
-                updates.push({ ...p, dhamma_hall_seat_no: seat });
-            } else {
-                 console.warn("Out of seats for:", p.full_name);
-            }
-        });
-
+        specialGroup.forEach(p => { if (availableSpecial.length > 0) { updates.push({ ...p, dhamma_hall_seat_no: availableSpecial.shift() }); } else { regularGroup.unshift(p); } });
+        regularGroup.forEach(p => { if (availableRegular.length > 0) { updates.push({ ...p, dhamma_hall_seat_no: availableRegular.shift() }); } });
         return updates;
     };
 
@@ -1142,61 +1093,22 @@ function ParticipantList({ courses, refreshCourses }) {
   
   if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={quickBtnStyle(true)}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
 
-  // --- DHAMMA HALL SEATING VIEW (PROFESSIONAL GRID) ---
   if (viewMode === 'seating') { 
     const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
     const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
     const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p); 
     const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
     
-    // PROFESSIONAL BOX STYLE
     const SeatBox = ({ p, label }) => { 
         const isSelected = selectedSeat && selectedSeat.label === label; 
         const isLocked = p && p.is_seat_locked;
-        // White bg, Black text, exact look
         return ( 
-            <div onClick={() => handleSeatClick(label, p)} 
-                 style={{ 
-                     border: isSelected ? '3px solid gold' : '1px solid black', 
-                     background: 'white', 
-                     height:'100%', 
-                     width: '100%', 
-                     fontSize:'10px', 
-                     cursor:'pointer', 
-                     position:'relative', 
-                     boxSizing: 'border-box', 
-                     display:'flex', 
-                     flexDirection:'column',
-                     fontFamily: 'Arial, sans-serif'
-                 }}> 
-                {/* HEADER: Seat Label */}
-                <div style={{
-                    textAlign:'center', borderBottom:'1px solid black', fontWeight:'bold', 
-                    fontSize:'14px', padding:'2px 0', background:'white'
-                }}> 
-                    {label} {isLocked && <span style={{color:'red', fontSize:'10px'}}>🔒</span>} 
-                </div>
-                
+            <div onClick={() => handleSeatClick(label, p)} style={{ border: isSelected ? '3px solid gold' : '1px solid black', background: 'white', height:'100%', width: '100%', fontSize:'10px', cursor:'pointer', position:'relative', boxSizing: 'border-box', display:'flex', flexDirection:'column', fontFamily: 'Arial, sans-serif' }}> 
+                <div style={{textAlign:'center', borderBottom:'1px solid black', fontWeight:'bold', fontSize:'14px', padding:'2px 0', background:'white'}}> {label} {isLocked && <span style={{color:'red', fontSize:'10px'}}>🔒</span>} </div>
                 {p ? ( <> 
-                    {/* NAME */}
-                    <div style={{
-                        textAlign:'center', fontWeight:'bold', fontSize:'12px', 
-                        borderBottom:'1px solid black', padding:'4px 2px',
-                        overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis',
-                        height: '22px'
-                    }}> 
-                        {formatName(p.full_name)} 
-                    </div>
-                    {/* INFO ROW 1: Conf | Cell */}
-                    <div style={{display:'flex', borderBottom:'1px solid black', height:'18px'}}> 
-                        <div style={{flex:1, textAlign:'center', borderRight:'1px solid black', lineHeight:'18px'}}>{p.conf_no}</div> 
-                        <div style={{flex:1, textAlign:'center', lineHeight:'18px'}}>Cell:{p.pagoda_cell_no||'-'}</div> 
-                    </div>
-                    {/* INFO ROW 2: DS | Lang */}
-                    <div style={{display:'flex', height:'18px'}}> 
-                        <div style={{flex:1, textAlign:'center', borderRight:'1px solid black', lineHeight:'18px'}}>DS:{p.dining_seat_no||'-'}</div> 
-                        <div style={{flex:1, textAlign:'center', fontWeight:'bold', lineHeight:'18px'}}>{getLangCode(p.discourse_language)}</div> 
-                    </div>
+                    <div style={{textAlign:'center', fontWeight:'bold', fontSize:'12px', borderBottom:'1px solid black', padding:'4px 2px', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis', height: '22px'}}> {formatName(p.full_name)} </div>
+                    <div style={{display:'flex', borderBottom:'1px solid black', height:'18px'}}> <div style={{flex:1, textAlign:'center', borderRight:'1px solid black', lineHeight:'18px'}}>{p.conf_no}</div> <div style={{flex:1, textAlign:'center', lineHeight:'18px'}}>Cell:{p.pagoda_cell_no||'-'}</div> </div>
+                    <div style={{display:'flex', height:'18px'}}> <div style={{flex:1, textAlign:'center', borderRight:'1px solid black', lineHeight:'18px'}}>DS:{p.dining_seat_no||'-'}</div> <div style={{flex:1, textAlign:'center', fontWeight:'bold', lineHeight:'18px'}}>{getLangCode(p.discourse_language)}</div> </div>
                 </> ) : null} 
             </div> 
         ); 
@@ -1204,13 +1116,9 @@ function ParticipantList({ courses, refreshCourses }) {
 
     const renderGrid = (map, cols, rows) => { 
         let grid = []; 
-        // Header Row for Column Labels (Optional, but good for A3)
-        // grid.push(<div key="head" style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 100px)`}}>{cols.map(c=><div style={{textAlign:'center', fontWeight:'bold'}}>{c}</div>)}</div>);
-        
         for (let r = 0; r < rows; r++) { 
             let cells = []; 
             cols.forEach(c => { const label = `${c}${r+1}`; cells.push(<SeatBox key={label} p={map[label]} label={label} />); });
-            // Strict 100px width per cell, -1px gap to collapse double borders
             grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 110px)`, gridAutoRows:'85px', gap:'-1px', marginBottom:'-1px'}}>{cells}</div>); 
         } 
         return grid; 
@@ -1222,9 +1130,7 @@ function ParticipantList({ courses, refreshCourses }) {
         <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto'}}> 
             <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> <button onClick={()=>printSection(id)} style={{...quickBtnStyle(true), background:'#007bff', color:'white'}}>🖨️ Print {title} (A3)</button> </div> 
             <div style={{textAlign:'center', marginBottom:'10px'}}> <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Dhamma Hall Seating Plan - {title}</h1> </div> 
-            
             <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content'}}> {renderGrid(map, cols, rows)} </div> </div>
-            
             <div style={{display:'flex', justifyContent:'center', marginTop:'30px'}}> <div style={{textAlign:'center'}}> <div style={{border:'2px dashed black', width:'300px', height:'50px'}}></div> <div style={{fontWeight:'bold', marginTop:'5px', fontSize:'16px'}}>TEACHER</div> </div> </div>
         </div>
     );
@@ -1238,7 +1144,6 @@ function ParticipantList({ courses, refreshCourses }) {
     </div> );
   }
 
-  // --- DEFAULT LIST VIEW ---
   return ( <div style={cardStyle}> 
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}>
           <div style={{display:'flex', gap:'10px'}}> <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select> <input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /> </div>
