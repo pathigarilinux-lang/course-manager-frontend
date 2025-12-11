@@ -405,7 +405,7 @@ export default function App() {
   );
 }
 
-// --- GLOBAL ACCOMMODATION (FIXED & IMPROVED) ---
+// --- GLOBAL ACCOMMODATION (FIXED MANUAL ADD) ---
 function GlobalAccommodationManager({ courses, onRoomClick }) {
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
@@ -419,7 +419,6 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
   
   useEffect(loadData, []);
 
-  // Fix for "OTH" issue - handles spaces and dashes
   const getSmartShortName = (name) => {
       if (!name) return 'Unknown';
       const n = name.toUpperCase();
@@ -438,11 +437,12 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
           const res = await fetch(`${API_URL}/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newRoom) });
           if(res.ok) {
               setNewRoom({ ...newRoom, roomNo: '' }); 
-              loadData(); // Force refresh
+              loadData(); 
           } else {
-              alert("Failed to add room. Check if it already exists.");
+              const err = await res.json();
+              alert(`Error: ${err.error || "Failed to add room"}`);
           }
-      } catch(err) { console.error(err); }
+      } catch(err) { console.error(err); alert("Network Error"); }
   };
 
   const handleDeleteRoom = async (id, name) => { 
@@ -486,7 +486,7 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
       if (p.room_no) {
           occupiedSet.add(normalize(p.room_no));
           const cId = p.course_id; 
-          const group = courseGroups[cId]; // Exact match by ID
+          const group = courseGroups[cId]; 
           if (group) {
               const isOld = p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S'));
               group.stats.total++;
@@ -781,6 +781,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 }
 
 // --- PARTICIPANT LIST (FIXED AUTO-ASSIGN & ADDED COLUMN) ---
+// --- PARTICIPANT LIST (FIXED DUPLICATES & PROFESSIONAL GRID) ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
@@ -800,7 +801,6 @@ function ParticipantList({ courses, refreshCourses }) {
   const parseCourses = (str) => { if (!str) return { s: 0, l: 0 }; const sMatch = str.match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = str.match(/L\s*[:=-]?\s*(\d+)/i); return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; };
   const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info || ''); return (c.l * 10000) + (c.s * 10); };
   
-  // Format Name: Nitesh Sharma -> Nitesh S
   const formatName = (name) => {
       if(!name) return "";
       const parts = name.trim().split(" ");
@@ -815,6 +815,8 @@ function ParticipantList({ courses, refreshCourses }) {
       if(l.includes('hindi')) return 'H';
       if(l.includes('english')) return 'E';
       if(l.includes('marathi')) return 'M';
+      if(l.includes('tamil')) return 'Ta';
+      if(l.includes('kannada')) return 'K';
       return l[0].toUpperCase();
   };
 
@@ -858,16 +860,14 @@ function ParticipantList({ courses, refreshCourses }) {
       }
   };
 
+  // --- STRICT AUTO-ASSIGN LOGIC (NO DUPLICATES) ---
   const handleAutoAssign = async () => {
-    if (!window.confirm("⚡ Auto-Assign Seats?\n\n- ONLY 'Arrived' students will be assigned.\n- Locked/Manual seats preserved.")) return;
+    if (!window.confirm("⚡ Auto-Assign Seats?\n\n- ONLY 'Arrived' students.\n- Locked/Manual seats preserved.\n- Prevents Duplicates.")) return;
     setAssignProgress('Calculations...');
     
-    // 1. Fetch Students
     const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
     const allP = await res.json();
-    
-    // 2. Filter: Only Active + Arrived students (Fixes "null" issue)
-    const activeStudents = allP.filter(p => p.status === 'Arrived');
+    const activeStudents = allP.filter(p => p.status === 'Arrived'); // Strict Arrived Filter
 
     const males = activeStudents.filter(p => (p.gender || '').toLowerCase().startsWith('m'));
     const females = activeStudents.filter(p => (p.gender || '').toLowerCase().startsWith('f'));
@@ -878,20 +878,29 @@ function ParticipantList({ courses, refreshCourses }) {
         return seats;
     };
     
-    // Male: L, K, J... A (12 Cols * 8 Rows = 96 Seats)
-    const maleRegularSeats = generateSeats(['J','I','H','G','F','E','D','C','B','A'], 8);
-    const maleSpecialSeats = generateSeats(['L','K'], 8); 
-    
-    // Female: I, H, G... A (9 Cols * 8 Rows = 72 Seats)
-    const femaleRegularSeats = generateSeats(['G','F','E','D','C','B','A'], 8);
-    const femaleSpecialSeats = generateSeats(['I','H'], 8);
+    // Define Seat Pools
+    const maleRegular = generateSeats(['J','I','H','G','F','E','D','C','B','A'], 8);
+    const maleSpecial = generateSeats(['L','K'], 8); 
+    const femaleRegular = generateSeats(['G','F','E','D','C','B','A'], 8);
+    const femaleSpecial = generateSeats(['I','H'], 8);
 
     const assignGroup = (studentList, regularSeats, specialSeats) => {
-        const updates = []; const usedSeats = new Set();
-        studentList.filter(p => p.is_seat_locked && p.dhamma_hall_seat_no).forEach(p => usedSeats.add(p.dhamma_hall_seat_no));
-        const toAssign = studentList.filter(p => !p.is_seat_locked);
+        const updates = [];
         
-        // Robust Sorting
+        // 1. Map Locked Seats
+        const lockedSeatSet = new Set();
+        studentList.forEach(p => {
+            if (p.is_seat_locked && p.dhamma_hall_seat_no) lockedSeatSet.add(p.dhamma_hall_seat_no);
+        });
+
+        // 2. Identify Available Seats (Total - Locked)
+        const availableRegular = regularSeats.filter(s => !lockedSeatSet.has(s));
+        const availableSpecial = specialSeats.filter(s => !lockedSeatSet.has(s));
+
+        // 3. Identify Students to Assign (Not Locked)
+        const toAssign = studentList.filter(p => !p.is_seat_locked);
+
+        // 4. Sort Strategy
         const sorter = (a,b) => { 
             const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); 
             if(rankA !== rankB) return rankA - rankB; 
@@ -902,31 +911,32 @@ function ParticipantList({ courses, refreshCourses }) {
         const specialGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating)).sort(sorter);
         const regularGroup = toAssign.filter(p => !p.special_seating || !['Chowky','Chair','BackRest'].includes(p.special_seating)).sort(sorter);
 
-        // Fill Special
-        let sIdx = 0;
+        // 5. Assign Special (Consume availableSpecial list)
         specialGroup.forEach(p => { 
-            while(sIdx < specialSeats.length && usedSeats.has(specialSeats[sIdx])) sIdx++; 
-            if(sIdx < specialSeats.length) { 
-                const seat = specialSeats[sIdx]; updates.push({ ...p, dhamma_hall_seat_no: seat }); usedSeats.add(seat); 
-            } else { regularGroup.unshift(p); } 
+            if (availableSpecial.length > 0) {
+                const seat = availableSpecial.shift(); // Take first available
+                updates.push({ ...p, dhamma_hall_seat_no: seat });
+            } else { 
+                regularGroup.unshift(p); // Overflow to regular
+            } 
         });
 
-        // Fill Regular
-        let rIdx = 0;
+        // 6. Assign Regular (Consume availableRegular list)
         regularGroup.forEach(p => { 
-            while(rIdx < regularSeats.length && usedSeats.has(regularSeats[rIdx])) rIdx++; 
-            if(rIdx < regularSeats.length) { 
-                updates.push({ ...p, dhamma_hall_seat_no: regularSeats[rIdx] }); 
+            if (availableRegular.length > 0) {
+                const seat = availableRegular.shift(); // Take first available
+                updates.push({ ...p, dhamma_hall_seat_no: seat });
             } else {
                  console.warn("Out of seats for:", p.full_name);
             }
         });
+
         return updates;
     };
 
-    const allUpdates = [...assignGroup(males, maleRegularSeats, maleSpecialSeats), ...assignGroup(females, femaleRegularSeats, femaleSpecialSeats)];
+    const allUpdates = [...assignGroup(males, maleRegular, maleSpecial), ...assignGroup(females, femaleRegular, femaleSpecial)];
     
-    if(allUpdates.length === 0) { setAssignProgress(''); return alert("No new assignments needed (or no Arrived students found)."); }
+    if(allUpdates.length === 0) { setAssignProgress(''); return alert("No assignments needed."); }
 
     setAssignProgress(`Saving ${allUpdates.length}...`);
     const BATCH_SIZE = 5;
@@ -940,22 +950,61 @@ function ParticipantList({ courses, refreshCourses }) {
   
   if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={quickBtnStyle(true)}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
 
-  // --- DHAMMA HALL SEATING VIEW ---
+  // --- DHAMMA HALL SEATING VIEW (PROFESSIONAL GRID) ---
   if (viewMode === 'seating') { 
     const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
     const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
     const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p); 
     const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
     
+    // PROFESSIONAL BOX STYLE
     const SeatBox = ({ p, label }) => { 
         const isSelected = selectedSeat && selectedSeat.label === label; 
         const isLocked = p && p.is_seat_locked;
+        // White bg, Black text, exact look
         return ( 
-            <div onClick={() => handleSeatClick(label, p)} style={{ border: isSelected ? '3px solid gold' : '1px solid #333', background: 'white', height:'85px', width: '100%', overflow: 'hidden', padding: '2px', fontSize:'11px', cursor:'pointer', position:'relative', boxSizing: 'border-box', display:'flex', flexDirection:'column' }}> 
-                <div style={{textAlign:'center', borderBottom:'1px solid #333', fontWeight:'bold', fontSize:'13px', marginBottom:'2px'}}> {label} {isLocked && <span style={{color:'red', fontSize:'10px'}}>🔒</span>} </div>
+            <div onClick={() => handleSeatClick(label, p)} 
+                 style={{ 
+                     border: isSelected ? '3px solid gold' : '1px solid black', 
+                     background: 'white', 
+                     height:'100%', 
+                     width: '100%', 
+                     fontSize:'10px', 
+                     cursor:'pointer', 
+                     position:'relative', 
+                     boxSizing: 'border-box', 
+                     display:'flex', 
+                     flexDirection:'column',
+                     fontFamily: 'Arial, sans-serif'
+                 }}> 
+                {/* HEADER: Seat Label */}
+                <div style={{
+                    textAlign:'center', borderBottom:'1px solid black', fontWeight:'bold', 
+                    fontSize:'14px', padding:'2px 0', background:'white'
+                }}> 
+                    {label} {isLocked && <span style={{color:'red', fontSize:'10px'}}>🔒</span>} 
+                </div>
+                
                 {p ? ( <> 
-                    <div style={{textAlign:'center', fontWeight:'bold', fontSize:'13px', marginBottom:'2px', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis', padding:'0 2px'}}> {formatName(p.full_name)} </div>
-                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', fontSize:'11px', lineHeight:'1.2'}}> <div style={{fontWeight:'500'}}>{p.conf_no}</div> <div style={{textAlign:'right'}}>Cell:{p.pagoda_cell_no||'-'}</div> <div style={{color:'#007bff'}}>DS:{p.dining_seat_no||'-'}</div> <div style={{textAlign:'right', fontWeight:'bold'}}>{getLangCode(p.discourse_language)}</div> </div>
+                    {/* NAME */}
+                    <div style={{
+                        textAlign:'center', fontWeight:'bold', fontSize:'12px', 
+                        borderBottom:'1px solid black', padding:'4px 2px',
+                        overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis',
+                        height: '22px'
+                    }}> 
+                        {formatName(p.full_name)} 
+                    </div>
+                    {/* INFO ROW 1: Conf | Cell */}
+                    <div style={{display:'flex', borderBottom:'1px solid black', height:'18px'}}> 
+                        <div style={{flex:1, textAlign:'center', borderRight:'1px solid black', lineHeight:'18px'}}>{p.conf_no}</div> 
+                        <div style={{flex:1, textAlign:'center', lineHeight:'18px'}}>Cell:{p.pagoda_cell_no||'-'}</div> 
+                    </div>
+                    {/* INFO ROW 2: DS | Lang */}
+                    <div style={{display:'flex', height:'18px'}}> 
+                        <div style={{flex:1, textAlign:'center', borderRight:'1px solid black', lineHeight:'18px'}}>DS:{p.dining_seat_no||'-'}</div> 
+                        <div style={{flex:1, textAlign:'center', fontWeight:'bold', lineHeight:'18px'}}>{getLangCode(p.discourse_language)}</div> 
+                    </div>
                 </> ) : null} 
             </div> 
         ); 
@@ -963,22 +1012,28 @@ function ParticipantList({ courses, refreshCourses }) {
 
     const renderGrid = (map, cols, rows) => { 
         let grid = []; 
+        // Header Row for Column Labels (Optional, but good for A3)
+        // grid.push(<div key="head" style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 100px)`}}>{cols.map(c=><div style={{textAlign:'center', fontWeight:'bold'}}>{c}</div>)}</div>);
+        
         for (let r = 0; r < rows; r++) { 
             let cells = []; 
             cols.forEach(c => { const label = `${c}${r+1}`; cells.push(<SeatBox key={label} p={map[label]} label={label} />); });
-            grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 90px)`, gap:'-1px'}}>{cells}</div>); 
+            // Strict 100px width per cell, -1px gap to collapse double borders
+            grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 110px)`, gridAutoRows:'85px', gap:'-1px', marginBottom:'-1px'}}>{cells}</div>); 
         } 
         return grid; 
     };
 
-    const printSection = (sectionId) => { const style = document.createElement('style'); style.innerHTML = `@media print { @page { size: A3 landscape; margin: 5mm; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; flexDirection: column; alignItems: center; } .no-print { display: none !important; } .seat-grid { page-break-inside: avoid; border: 1px solid #333; margin-top: 20px; } .seat-grid > div { border-bottom: 1px solid #333; } .seat-grid > div > div { border-right: 1px solid #333; } h1 { font-size: 24px !important; margin: 0 0 10px 0; } }`; document.head.appendChild(style); window.print(); document.head.removeChild(style); };
+    const printSection = (sectionId) => { const style = document.createElement('style'); style.innerHTML = `@media print { @page { size: A3 landscape; margin: 5mm; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; flexDirection: column; alignItems: center; } .no-print { display: none !important; } .seat-grid { page-break-inside: avoid; border-top: 1px solid black; border-left: 1px solid black; } h1 { font-size: 24px !important; margin: 0 0 10px 0; } }`; document.head.appendChild(style); window.print(); document.head.removeChild(style); };
 
     const SeatingSheet = ({ id, title, map, cols, rows }) => (
         <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto'}}> 
             <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> <button onClick={()=>printSection(id)} style={{...quickBtnStyle(true), background:'#007bff', color:'white'}}>🖨️ Print {title} (A3)</button> </div> 
             <div style={{textAlign:'center', marginBottom:'10px'}}> <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Dhamma Hall Seating Plan - {title}</h1> </div> 
-            <div style={{display:'flex', justifyContent:'center', marginBottom:'20px'}}> <div style={{textAlign:'center'}}> <div style={{border:'2px dashed #333', width:'250px', height:'50px'}}></div> <div style={{fontWeight:'bold', marginTop:'5px', fontSize:'16px'}}>TEACHER</div> </div> </div>
-            <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{border:'2px solid #333', background:'#ccc', width:'fit-content'}}> {renderGrid(map, cols, rows)} </div> </div>
+            
+            <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content'}}> {renderGrid(map, cols, rows)} </div> </div>
+            
+            <div style={{display:'flex', justifyContent:'center', marginTop:'30px'}}> <div style={{textAlign:'center'}}> <div style={{border:'2px dashed black', width:'300px', height:'50px'}}></div> <div style={{fontWeight:'bold', marginTop:'5px', fontSize:'16px'}}>TEACHER</div> </div> </div>
         </div>
     );
 
