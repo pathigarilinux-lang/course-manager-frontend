@@ -729,7 +729,7 @@ function Dashboard({ courses }) {
   );
 }
 
-// --- STUDENT ONBOARDING FORM (ENHANCED) ---
+// --- STUDENT ONBOARDING FORM (WITH THERMAL RECEIPT) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
@@ -742,7 +742,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       laundryToken: '', mobileLocker: '', valuablesLocker: '', 
       language: 'English', pagodaCell: '', laptop: 'No', 
       confNo: '', specialSeating: 'None', seatType: 'Chair',
-      dhammaSeat: '' // New Field
+      dhammaSeat: '' 
   }); 
 
   useEffect(() => { 
@@ -774,18 +774,15 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const isMale = currentGender.startsWith('m'); 
   const isFemale = currentGender.startsWith('f');
 
-  // Filter Rooms by Gender & Occupancy
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
 
-  // Filter Numbers
   const allRecords = [...occupancy, ...participants].filter(p => String(p.participant_id) !== String(formData.participantId) && p.status !== 'Cancelled');
   const usedDining = new Set(); const usedLaundry = new Set(); const usedMobile = new Set(); const usedValuables = new Set();
 
   allRecords.forEach(p => {
       let pGender = p.gender ? p.gender.toLowerCase() : '';
-      // If gender matches current student, exclude their used numbers
       if ((isMale && pGender.startsWith('m')) || (isFemale && pGender.startsWith('f'))) {
           if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no));
           if (p.laundry_token_no) usedLaundry.add(cleanNum(p.laundry_token_no));
@@ -796,9 +793,6 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const getAvailableOptions = (usedSet) => NUMBER_OPTIONS.filter(n => !usedSet.has(String(n)));
   const availableDiningOpts = getAvailableOptions(usedDining); 
-  const availableLaundryOpts = getAvailableOptions(usedLaundry); 
-  const availableMobileOpts = getAvailableOptions(usedMobile); 
-  const availableValuablesOpts = getAvailableOptions(usedValuables);
   
   const studentsPending = participants.filter(p => p.status !== 'Arrived');
 
@@ -814,40 +808,56 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       })); 
   };
 
-  // AUTO-ASSIGN LOGIC: Sync all numbers with Dining Seat
   const handleDiningSeatChange = (e) => {
       const val = e.target.value;
       setFormData(prev => ({
           ...prev,
           seatNo: val,
-          mobileLocker: val,    // Auto-fill
-          valuablesLocker: val, // Auto-fill
-          laundryToken: val     // Auto-fill
+          mobileLocker: val,    
+          valuablesLocker: val, 
+          laundryToken: val     
       }));
   };
 
   const handleSubmit = async (e) => { 
     e.preventDefault(); 
-    if (!formData.confNo || formData.confNo.trim() === '') { return alert("⛔ STOP: Student is missing a Confirmation Number (e.g. NM50)."); }
+    if (!formData.confNo || formData.confNo.trim() === '') { return alert("⛔ STOP: Student is missing a Confirmation Number."); }
     setStatus('Submitting...'); 
     const payload = { ...formData, diningSeatType: formData.seatType }; 
     try { 
       const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); 
-      const data = await res.json(); 
-      if (!res.ok) throw new Error(data.error || "Unknown Error"); 
-      
+      if (!res.ok) throw new Error("Check-in failed"); 
       fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
-      
       setStatus('✅ Success!'); 
-      // Reset Form
       setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' })); 
       setSelectedStudent(null); 
       clearRoom(); 
-      // Refresh Data
       fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); 
       fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(data)); 
     } catch (err) { setStatus(`❌ ${err.message}`); } 
   };
+
+  // --- PRINT LOGIC ---
+  const handlePrint = () => {
+      if(!selectedStudent) return alert("Select a student first.");
+      const style = document.createElement('style');
+      style.innerHTML = `
+          @media print {
+              body * { visibility: hidden; }
+              #receipt-area, #receipt-area * { visibility: visible; }
+              #receipt-area { 
+                  position: absolute; left: 0; top: 0; width: 100%; 
+                  font-family: 'Courier New', monospace; font-size: 14px; color: black;
+              }
+              @page { size: auto; margin: 0mm; }
+          }
+      `;
+      document.head.appendChild(style);
+      window.print();
+      document.head.removeChild(style);
+  };
+
+  const currentCourse = courses.find(c => c.course_id === formData.courseId);
 
   const sectionHeader = (title) => <div style={{fontSize:'14px', fontWeight:'bold', color:'#007bff', borderBottom:'1px solid #eee', paddingBottom:'5px', marginTop:'15px', marginBottom:'10px'}}>{title}</div>;
   
@@ -856,7 +866,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       <h2>📝 Student Onboarding Form</h2> 
       <form onSubmit={handleSubmit} style={{ maxWidth: '900px' }}> 
         
-        {/* 1. SELECTION SECTION */}
+        {/* SELECTION */}
         <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}> 
             <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'20px'}}> 
                 <div>
@@ -874,8 +884,6 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                     </select>
                 </div> 
             </div> 
-            
-            {/* ALERTS: FOOD / MEDICAL */}
             {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (
                 <div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}>
                     <strong>⚠️ SPECIAL ATTENTION:</strong> 
@@ -885,128 +893,81 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
             )} 
         </div> 
 
-        {/* 2. ALLOCATION DETAILS */}
+        {/* ALLOCATION */}
         {sectionHeader("📍 Allocation Details")} 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr', gap:'15px'}}> 
-            
-            {/* CONF NO (Auto-fetched) */}
-            <div>
-                <label style={labelStyle}>🆔 Conf No <span style={{color:'red'}}>*</span></label>
-                <input 
-                    style={{...inputStyle, background: formData.confNo ? '#e8f5e9' : '#ffebee', border: formData.confNo ? '1px solid #ccc' : '1px solid red'}} 
-                    value={formData.confNo} 
-                    onChange={e => setFormData({...formData, confNo: e.target.value})} 
-                    placeholder="REQUIRED" 
-                />
-            </div> 
-
-            {/* AGE (Display Only) */}
-            <div>
-                <label style={labelStyle}>🎂 Age</label>
-                <input 
-                    style={{...inputStyle, background:'#e9ecef', color:'#495057'}} 
-                    value={selectedStudent?.age || ''} 
-                    disabled 
-                    placeholder="Age" 
-                />
-            </div>
-
-            {/* ROOM SELECTOR */}
-            <div>
-                <label style={labelStyle}>🛏️ Room No</label>
-                <select 
-                    style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} 
-                    value={formData.roomNo} 
-                    onChange={e => setFormData({...formData, roomNo: e.target.value})} 
-                    required
-                >
-                    <option value="">-- Free Rooms --</option>
-                    {preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}
-                    {availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}
-                </select>
-            </div> 
-
-            {/* DINING SEAT (Trigger for Auto-Sync) */}
-            <div>
-                <label style={labelStyle}>🍽️ Dining Seat</label>
-                <div style={{display:'flex', gap:'5px'}}>
-                    <select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select>
-                    <select style={inputStyle} value={formData.seatNo} onChange={handleDiningSeatChange} required>
-                        <option value="">-- Free --</option>
-                        {availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}
-                    </select>
-                </div>
-            </div> 
+            <div><label style={labelStyle}>🆔 Conf No <span style={{color:'red'}}>*</span></label><input style={{...inputStyle, background: formData.confNo ? '#e8f5e9' : '#ffebee', border: formData.confNo ? '1px solid #ccc' : '1px solid red'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED" /></div> 
+            <div><label style={labelStyle}>🎂 Age</label><input style={{...inputStyle, background:'#e9ecef'}} value={selectedStudent?.age || ''} disabled placeholder="Age" /></div>
+            <div><label style={labelStyle}>🛏️ Room No</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Free Rooms --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div> 
+            <div><label style={labelStyle}>🍽️ Dining</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={handleDiningSeatChange} required><option value="">--</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> 
         </div> 
 
-        {/* 3. LOCKERS (Auto-Filled) */}
-        {sectionHeader("🔐 Lockers & Other (Auto-Synced with Dining)")} 
+        {/* LOCKERS (Synced) */}
+        {sectionHeader("🔐 Lockers & Other (Auto-Synced)")} 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> 
-            <div>
-                <label style={labelStyle}>📱 Mobile Locker</label>
-                <input style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})} placeholder="Auto" />
-            </div> 
-            <div>
-                <label style={labelStyle}>💍 Val Locker</label>
-                <input style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})} placeholder="Auto" />
-            </div> 
-            <div>
-                <label style={labelStyle}>🧺 Laundry Token</label>
-                <input style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})} placeholder="Auto" />
-            </div> 
-            <div>
-                <label style={labelStyle}>💻 Laptop</label>
-                <select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select>
-            </div> 
+            <div><label style={labelStyle}>📱 Mobile</label><input style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})} placeholder="Auto" /></div> 
+            <div><label style={labelStyle}>💍 Valuables</label><input style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})} placeholder="Auto" /></div> 
+            <div><label style={labelStyle}>🧺 Laundry</label><input style={inputStyle} value={formData.laundryToken} onChange={e => setFormData({...formData, laundryToken: e.target.value})} placeholder="Auto" /></div> 
+            <div><label style={labelStyle}>💻 Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> 
         </div> 
 
-        {/* 4. HALL & MEDITATION */}
+        {/* HALL */}
         {sectionHeader("🧘 Hall & Meditation")} 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> 
-            <div>
-                <label style={labelStyle}>🗣️ Discourse Lang</label>
-                <select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>
-                    <option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>Odia</option><option>Bengali</option><option>Mandarin Chinese</option><option>Spanish</option><option>French</option><option>Portuguese</option><option>Russian</option><option>German</option><option>Vietnamese</option><option>Thai</option><option>Japanese</option>
-                </select>
-            </div> 
-            <div>
-                <label style={labelStyle}>🛖 Pagoda Cell</label>
-                <select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}>
-                    <option value="">None</option>{NUMBER_OPTIONS.map(n=><option key={n} value={n}>{n}</option>)}
-                </select>
-            </div>
-            
-            {/* NEW FIELD: DHAMMA HALL SEAT */}
-            <div>
-                <label style={labelStyle}>🧘 DS Hall Seat</label>
-                <input 
-                    style={inputStyle} 
-                    value={formData.dhammaSeat} 
-                    onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} 
-                    placeholder="e.g. A1, B2" 
-                />
-            </div>
-
-            <div>
-                <label style={labelStyle}>💺 Special</label>
-                <select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}>
-                    <option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option>
-                </select>
-            </div> 
+            <div><label style={labelStyle}>🗣️ Lang</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Telugu</option><option>Marathi</option><option>Tamil</option><option>Kannada</option></select></div> 
+            <div><label style={labelStyle}>🛖 Pagoda</label><select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}><option value="">None</option>{NUMBER_OPTIONS.map(n=><option key={n} value={n}>{n}</option>)}</select></div>
+            <div><label style={labelStyle}>🧘 DS Seat</label><input style={inputStyle} value={formData.dhammaSeat} onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} placeholder="e.g. A1" /></div>
+            <div><label style={labelStyle}>💺 Special</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div> 
         </div> 
 
-        <div style={{marginTop:'30px', textAlign:'right'}}>
-            <button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', fontSize:'16px', cursor:'pointer', boxShadow:'0 4px 6px rgba(0,123,255,0.2)'}}>
-                Confirm & Save
-            </button>
+        <div style={{marginTop:'30px', textAlign:'right', display:'flex', justifyContent:'flex-end', gap:'10px'}}>
+            <button type="button" onClick={handlePrint} disabled={!selectedStudent} style={{padding:'12px 20px', background:'#6c757d', color:'white', border:'none', borderRadius:'6px', cursor:'pointer'}}>🖨️ Print Slip</button>
+            <button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Confirm & Save</button>
         </div> 
         
-        {status && (
-            <div style={{marginTop:'15px', padding:'10px', borderRadius:'6px', background: status.includes('Success') ? '#d4edda' : '#f8d7da', color: status.includes('Success') ? '#155724' : '#721c24', textAlign:'center', fontWeight:'bold'}}>
-                {status}
-            </div>
-        )} 
+        {status && <div style={{marginTop:'15px', padding:'10px', borderRadius:'6px', background: status.includes('Success') ? '#d4edda' : '#f8d7da', color: status.includes('Success') ? '#155724' : '#721c24', textAlign:'center', fontWeight:'bold'}}>{status}</div>} 
       </form> 
+
+      {/* --- HIDDEN THERMAL RECEIPT (Only visible on Print) --- */}
+      <div id="receipt-area" style={{ display: 'none', width: '300px', padding: '10px' }}>
+          <div style={{textAlign: 'center', fontWeight: 'bold', marginBottom: '10px'}}>
+              <div style={{fontSize: '16px'}}>VIPASSANA</div>
+              <div style={{fontSize: '12px'}}>International Meditation Center</div>
+              <div style={{fontSize: '14px', marginTop:'5px'}}>Dhamma Nagajjuna 2</div>
+          </div>
+          <div style={{borderBottom: '1px dashed black', margin: '5px 0'}}></div>
+          
+          <div style={{fontSize: '12px', marginBottom: '10px'}}>
+              <div><strong>Course:</strong> {currentCourse?.course_name || 'N/A'}</div>
+              <div><strong>Teacher:</strong> {currentCourse?.teacher_name || 'Goenka Ji'}</div>
+              <div><strong>Dates:</strong> {currentCourse ? `${new Date(currentCourse.start_date).toLocaleDateString()} to ${new Date(currentCourse.end_date).toLocaleDateString()}` : ''}</div>
+          </div>
+          
+          <div style={{borderBottom: '1px dashed black', margin: '5px 0'}}></div>
+
+          <div style={{fontSize: '14px', fontWeight: 'bold', margin: '10px 0'}}>
+              <div>{selectedStudent?.full_name}</div>
+              <div>Conf No: {formData.confNo}</div>
+          </div>
+
+          <table style={{width: '100%', fontSize: '14px', borderCollapse: 'collapse'}}>
+              <tbody>
+                  <tr><td style={{padding:'2px 0'}}>Room No:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.roomNo || '-'}</td></tr>
+                  <tr><td style={{padding:'2px 0'}}>Dining Seat:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.seatNo || '-'}</td></tr>
+                  <tr><td style={{padding:'2px 0'}}>Mobile Locker:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.mobileLocker || '-'}</td></tr>
+                  <tr><td style={{padding:'2px 0'}}>Valuables Locker:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.valuablesLocker || '-'}</td></tr>
+                  <tr><td style={{padding:'2px 0'}}>Laundry Token:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.laundryToken || '-'}</td></tr>
+                  <tr><td style={{padding:'2px 0'}}>Language:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.language}</td></tr>
+              </tbody>
+          </table>
+
+          <div style={{borderBottom: '1px dashed black', margin: '15px 0'}}></div>
+          <div style={{textAlign: 'center', fontSize: '10px', fontStyle: 'italic'}}>
+              *** Student Copy ***<br/>
+              Please keep this safely.<br/>
+              Produce this slip to collect valuables.
+          </div>
+      </div>
     </div> 
   );
 }
