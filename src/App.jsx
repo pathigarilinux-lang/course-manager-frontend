@@ -822,7 +822,7 @@ function ParticipantList({ courses, refreshCourses }) {
   const parseCourses = (str) => { if (!str) return { s: 0, l: 0 }; const sMatch = str.match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = str.match(/L\s*[:=-]?\s*(\d+)/i); return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; };
   const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info || ''); return (c.l * 10000) + (c.s * 10); };
   
-  // Name Format: Nitesh Sharma -> Nitesh S
+  // Format Name: Nitesh Sharma -> Nitesh S
   const formatName = (name) => {
       if(!name) return "";
       const parts = name.trim().split(" ");
@@ -830,7 +830,7 @@ function ParticipantList({ courses, refreshCourses }) {
       return `${parts[0]} ${parts[parts.length-1][0]}`;
   };
 
-  // Lang Code: Telugu -> T, English -> E
+  // Language Code: Telugu -> T, English -> E
   const getLangCode = (lang) => {
       if(!lang) return "";
       const l = lang.toLowerCase();
@@ -850,6 +850,7 @@ function ParticipantList({ courses, refreshCourses }) {
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   const downloadCSV = (headers, rows, filename) => { const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", filename); document.body.appendChild(link); link.click(); };
   
+  // EXPORTS
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Age", "Gender", "Dining", "Room", "Dhamma Seat", "Status"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', p.age || '', p.gender || '', p.dining_seat_no || '', p.room_no || '', p.dhamma_hall_seat_no || '', p.status || '']); downloadCSV(headers, rows, `master_${courseId}.csv`); };
   const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Arrived'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); downloadCSV(headers, rows, `dining_${courseId}.csv`); };
   const handleSeatingExport = () => { const seated = participants.filter(p => p.dhamma_hall_seat_no); if (seated.length === 0) return alert("No seats."); const headers = ["Seat", "Name", "Gender", "Conf No", "Status"]; const rows = seated.map(p => [p.dhamma_hall_seat_no, `"${p.full_name || ''}"`, p.gender || '', p.conf_no || '', p.status || '']); downloadCSV(headers, rows, `hall_${courseId}.csv`); };
@@ -900,11 +901,11 @@ function ParticipantList({ courses, refreshCourses }) {
         return seats;
     };
     
-    // Male: L, K, J... A
+    // Male: L, K, J... A (12 Columns)
     const maleRegularSeats = generateSeats(['J','I','H','G','F','E','D','C','B','A'], 8);
     const maleSpecialSeats = generateSeats(['L','K'], 8); 
     
-    // Female: I, H, G... A
+    // Female: I, H, G... A (9 Columns)
     const femaleRegularSeats = generateSeats(['G','F','E','D','C','B','A'], 8);
     const femaleSpecialSeats = generateSeats(['I','H'], 8);
 
@@ -939,7 +940,7 @@ function ParticipantList({ courses, refreshCourses }) {
   
   if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={quickBtnStyle(true)}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
 
-  // --- DHAMMA HALL SEATING VIEW (FIXED LAYOUT) ---
+  // --- DHAMMA HALL SEATING VIEW (STATIC GRID FIXED) ---
   if (viewMode === 'seating') { 
     const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
     const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
@@ -959,7 +960,6 @@ function ParticipantList({ courses, refreshCourses }) {
                      height:'85px', 
                      width: '100%',
                      overflow: 'hidden',
-                     padding: '2px', 
                      fontSize:'11px', 
                      cursor:'pointer', 
                      position:'relative', 
@@ -967,22 +967,29 @@ function ParticipantList({ courses, refreshCourses }) {
                      display:'flex',
                      flexDirection:'column'
                  }}> 
-                {/* 1. Header: Seat No */}
-                <div style={{textAlign:'center', borderBottom:'1px solid #333', fontWeight:'bold', fontSize:'13px', marginBottom:'2px'}}>
+                {/* 1. Header: Seat No (Centered, Border Bottom) */}
+                <div style={{textAlign:'center', borderBottom:'1px solid #333', fontWeight:'bold', fontSize:'14px', lineHeight:'20px'}}>
                     {label} {isLocked && <span style={{color:'red', fontSize:'10px'}}>🔒</span>}
                 </div>
                 
                 {p ? ( <> 
-                    {/* 2. Name: Nitesh S */}
-                    <div style={{textAlign:'center', fontWeight:'bold', fontSize:'13px', marginBottom:'2px', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis'}}>
+                    {/* 2. Name: Nitesh S (Truncated) */}
+                    <div style={{
+                        textAlign:'center', fontWeight:'bold', fontSize:'13px', 
+                        height:'24px', lineHeight:'24px', borderBottom:'1px solid #333',
+                        whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', padding:'0 2px'
+                    }}>
                         {formatName(p.full_name)}
                     </div>
-                    {/* 3. Grid Info */}
-                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', fontSize:'11px', lineHeight:'1.2'}}>
-                        <div style={{fontWeight:'500'}}>{p.conf_no}</div>
-                        <div style={{textAlign:'right'}}>Cell:{p.pagoda_cell_no||'-'}</div>
-                        <div style={{color:'#007bff'}}>DS:{p.dining_seat_no||'-'}</div>
-                        <div style={{textAlign:'right', fontWeight:'bold'}}>{getLangCode(p.discourse_language)}</div>
+                    {/* 3. Grid Row 1: Conf | Cell */}
+                    <div style={{display:'flex', borderBottom:'1px solid #333', height:'20px', lineHeight:'20px'}}>
+                         <div style={{flex:1, textAlign:'center', borderRight:'1px solid #333', fontWeight:'500'}}>{p.conf_no}</div>
+                         <div style={{flex:1, textAlign:'center'}}>Cell:{p.pagoda_cell_no||'-'}</div>
+                    </div>
+                    {/* 4. Grid Row 2: DS | Lang */}
+                    <div style={{display:'flex', height:'20px', lineHeight:'20px'}}>
+                         <div style={{flex:1, textAlign:'center', borderRight:'1px solid #333', color:'#007bff'}}>DS:{p.dining_seat_no||'-'}</div>
+                         <div style={{flex:1, textAlign:'center', fontWeight:'bold'}}>{getLangCode(p.discourse_language)}</div>
                     </div>
                 </> ) : null} 
             </div> 
@@ -997,7 +1004,8 @@ function ParticipantList({ courses, refreshCourses }) {
                 const label = `${c}${r+1}`;
                 cells.push(<SeatBox key={label} p={map[label]} label={label} />); 
             });
-            grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 1fr)`, gap:'-1px'}}>{cells}</div>); 
+            // Force strict static widths for A3 print
+            grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 90px)`, gap:'-1px'}}>{cells}</div>); 
         } 
         return grid; 
     };
@@ -1009,12 +1017,12 @@ function ParticipantList({ courses, refreshCourses }) {
                 @page { size: A3 landscape; margin: 5mm; } 
                 body * { visibility: hidden; } 
                 #${sectionId}, #${sectionId} * { visibility: visible; } 
-                #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; } 
+                #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; flexDirection: column; alignItems: center; } 
                 .no-print { display: none !important; } 
-                .seat-grid { page-break-inside: avoid; border: 1px solid #333; width: 100%; }
+                .seat-grid { page-break-inside: avoid; border: 1px solid #333; margin-top: 20px; }
                 .seat-grid > div { border-bottom: 1px solid #333; }
                 .seat-grid > div > div { border-right: 1px solid #333; }
-                h1 { font-size: 24px !important; margin-bottom: 20px; }
+                h1 { font-size: 24px !important; margin: 0 0 10px 0; }
             }
         `; 
         document.head.appendChild(style); 
@@ -1029,20 +1037,22 @@ function ParticipantList({ courses, refreshCourses }) {
             </div> 
             
             {/* HEADER */}
-            <div style={{textAlign:'center', marginBottom:'15px'}}> 
+            <div style={{textAlign:'center', marginBottom:'10px'}}> 
                 <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Dhamma Hall Seating Plan - {title}</h1> 
             </div> 
             
-            {/* GRID */}
-            <div className="seat-grid" style={{border:'2px solid #333', background:'#ccc'}}>
-                {renderGrid(map, cols, rows)}
-            </div>
-            
-            [cite_start]{/* FOOTER [cite: 27] */}
-            <div style={{display:'flex', justifyContent:'center', marginTop:'50px'}}>
+            {/* TEACHER BOX (TOP) */}
+            <div style={{display:'flex', justifyContent:'center', marginBottom:'20px'}}>
                 <div style={{textAlign:'center'}}>
-                    <div style={{border:'2px dashed #333', padding:'15px', width:'250px', height:'40px'}}></div>
+                    <div style={{border:'2px dashed #333', width:'250px', height:'50px'}}></div>
                     <div style={{fontWeight:'bold', marginTop:'5px', fontSize:'16px'}}>TEACHER</div>
+                </div>
+            </div>
+
+            {/* GRID */}
+            <div style={{display:'flex', justifyContent:'center'}}>
+                <div className="seat-grid" style={{border:'2px solid #333', background:'#ccc', width:'fit-content'}}>
+                    {renderGrid(map, cols, rows)}
                 </div>
             </div>
         </div>
