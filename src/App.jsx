@@ -812,12 +812,11 @@ function ParticipantList({ courses, refreshCourses }) {
   const [viewAllMode, setViewAllMode] = useState(false); 
   const [viewMode, setViewMode] = useState('list'); 
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-  const [swappingSeat, setSwappingSeat] = useState(null); 
-  const [newSeatNo, setNewSeatNo] = useState('');
   const [assignProgress, setAssignProgress] = useState(''); 
   const [selectedSeat, setSelectedSeat] = useState(null);
   const [badgeStudent, setBadgeStudent] = useState(null);
 
+  // --- HELPERS ---
   const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = String(seatNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF')) return 'Old'; if (s.startsWith('NM') || s.startsWith('NF')) return 'New'; if (s.startsWith('SM') || s.startsWith('SF')) return 'DS'; return 'New'; };
   const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = String(confNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   const parseCourses = (str) => { if (!str) return { s: 0, l: 0 }; const sMatch = str.match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = str.match(/L\s*[:=-]?\s*(\d+)/i); return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; };
@@ -828,84 +827,143 @@ function ParticipantList({ courses, refreshCourses }) {
   
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   const downloadCSV = (headers, rows, filename) => { const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", filename); document.body.appendChild(link); link.click(); };
+  
+  // EXPORTS
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Age", "Gender", "Dining", "Room", "Dhamma Seat", "Status"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', p.age || '', p.gender || '', p.dining_seat_no || '', p.room_no || '', p.dhamma_hall_seat_no || '', p.status || '']); downloadCSV(headers, rows, `master_${courseId}.csv`); };
   const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Arrived'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); downloadCSV(headers, rows, `dining_${courseId}.csv`); };
   const handleSeatingExport = () => { const seated = participants.filter(p => p.dhamma_hall_seat_no); if (seated.length === 0) return alert("No seats."); const headers = ["Seat", "Name", "Gender", "Conf No", "Status"]; const rows = seated.map(p => [p.dhamma_hall_seat_no, `"${p.full_name || ''}"`, p.gender || '', p.conf_no || '', p.status || '']); downloadCSV(headers, rows, `hall_${courseId}.csv`); };
 
   const sortedList = React.useMemo(() => { let sortableItems = [...participants].filter(p => p); if (sortConfig.key) { sortableItems.sort((a, b) => { const valA = (a[sortConfig.key] || '').toString().toLowerCase(); const valB = (b[sortConfig.key] || '').toString().toLowerCase(); if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } return sortableItems.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase())); }, [participants, sortConfig, search]);
 
+  // CRUD ACTIONS
   const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
   const handleDeleteCourse = async () => { if (window.confirm("🛑 DELETE COURSE?")) { await fetch(`${API_URL}/courses/${courseId}`, { method: 'DELETE' }); refreshCourses(); setCourseId(''); } };
   const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); } };
   const handleCancelStudent = async (student) => { if (!window.confirm("Cancel Student?")) return; const updatedData = { ...student, status: 'Cancelled', room_no: null, dining_seat_no: null, dhamma_hall_seat_no: null }; await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedData) }); loadStudents(); };
   const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingStudent) }); setEditingStudent(null); loadStudents(); };
-  const handleSeatSwapSave = async () => { if (!swappingSeat || !swappingSeat.p) return; await fetch(`${API_URL}/participants/${swappingSeat.p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...swappingSeat.p, dhamma_hall_seat_no: newSeatNo }) }); setSwappingSeat(null); loadStudents(); };
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); loadStudents(); };
   const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
 
-  const handleAutoAssign = async () => {
-    if (!window.confirm("⚡ Auto-Assign Seats?\n(Overwriting existing assignments)")) return;
-    setAssignProgress('Preparing...');
-    const M_COLS=10, M_ROWS=8; const F_COLS=7, F_ROWS=7;
-    const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
-    const allP = await res.json();
-    const cleanP = allP.filter(p => p.status !== 'Cancelled' && p.conf_no && p.conf_no.trim() !== '' && !p.conf_no.toUpperCase().startsWith('S') && !(p.full_name || '').includes('(AT)'));
-    const males = cleanP.filter(p => (p.gender || '').toLowerCase().startsWith('m'));
-    const females = cleanP.filter(p => (p.gender || '').toLowerCase().startsWith('f'));
-    const sortStrategy = (list) => { const oldS = list.filter(p => getCategoryRank(p.conf_no) === 0).sort((a,b) => getSeniorityScore(b) - getSeniorityScore(a)); const newS = list.filter(p => getCategoryRank(p.conf_no) !== 0).sort((a,b) => (parseInt(b.age)||0) - (parseInt(a.age)||0)); return [...oldS, ...newS]; };
-    const sortedMales = sortStrategy(males); const sortedFemales = sortStrategy(females); const updates = [];
-    sortedMales.forEach((p, i) => { if (i < M_COLS * M_ROWS) { const row = Math.floor(i / M_COLS) + 1; const col = i % M_COLS; updates.push({ ...p, dhamma_hall_seat_no: `${String.fromCharCode(74 - col)}${row}` }); } });
-    sortedFemales.forEach((p, i) => { if (i < F_COLS * F_ROWS) { const row = Math.floor(i / F_COLS) + 1; const col = i % F_COLS; updates.push({ ...p, dhamma_hall_seat_no: `${String.fromCharCode(65 + col)}${row}` }); } });
-    setAssignProgress(`Assigning 0 / ${updates.length}...`);
-    const BATCH_SIZE = 5;
-    for (let i = 0; i < updates.length; i += BATCH_SIZE) { const batch = updates.slice(i, i + BATCH_SIZE); await Promise.all(batch.map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }))); setAssignProgress(`Assigning ${Math.min(i + BATCH_SIZE, updates.length)} / ${updates.length}...`); await new Promise(r => setTimeout(r, 50)); }
-    setAssignProgress(''); alert(`✅ Assignment Complete! Assigned ${updates.length} students.\n(Ignored students with missing Conf No)`); loadStudents();
-  };
-
+  // --- NEW STICKY SEAT CLICK LOGIC ---
   const handleSeatClick = async (seatLabel, student) => {
-      if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); } 
-      else {
-          const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null); 
-          if (source.label === target.label) return; 
-          const isSourceMale = source.p && (source.p.gender || '').toLowerCase().startsWith('m');
-          if (!source.p) return; 
-          if (target.p) { const isTargetMale = (target.p.gender || '').toLowerCase().startsWith('m'); if (isSourceMale !== isTargetMale) return alert(`⛔ Action Blocked: Gender mismatch.`); }
-          if (!target.p) { if (!window.confirm(`Move ${source.p.full_name} to ${target.label}?`)) return; await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label}) }); } 
-          else { if (!window.confirm(`Swap Seats?\n1. ${source.p.full_name}\n2. ${target.p.full_name}`)) return; await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP'}) }); await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label}) }); await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label}) }); }
+      // 1. Select Source
+      if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); return; }
+      
+      // 2. Execute Move/Swap
+      const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null);
+      if (source.label === target.label) return;
+      if (!source.p) return; // Cannot move an empty seat
+
+      // Check Gender
+      const isSourceMale = (source.p.gender || '').toLowerCase().startsWith('m');
+      if (target.p) { const isTargetMale = (target.p.gender || '').toLowerCase().startsWith('m'); if (isSourceMale !== isTargetMale) return alert("⛔ Gender Mismatch!"); }
+
+      if (window.confirm(`Confirm Move/Swap?\nFrom ${source.label} (${source.p.full_name})\nTo ${target.label} ${target.p ? '('+target.p.full_name+')' : '(Empty)'}`)) {
+          // CASE A: Move to Empty
+          if (!target.p) { 
+               await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); 
+          } 
+          // CASE B: Swap
+          else { 
+               await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP', is_seat_locked: true}) }); 
+               await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); 
+               await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); 
+          }
           loadStudents();
       }
   };
 
-  const printSection = (sectionId) => { const style = document.createElement('style'); style.innerHTML = `@media print { @page { size: A3 landscape; margin: 5mm; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }`; document.head.appendChild(style); window.print(); document.head.removeChild(style); };
+  // --- NEW AUTO-ASSIGN LOGIC (Sticky + Rows K/L) ---
+  const handleAutoAssign = async () => {
+    if (!window.confirm("⚡ Auto-Assign Seats?\n\n- Locked/Manual seats will remain untouched.\n- Special Seating (Chowky/Chair) goes to Rows K & L.\n- Everyone else fills available spots.")) return;
+    setAssignProgress('Calculations...');
+    
+    // 1. Data Prep
+    const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
+    const allP = await res.json();
+    const activeStudents = allP.filter(p => p.status !== 'Cancelled' && p.status !== 'No-Show' && p.status !== 'No Response' && !(p.full_name || '').includes('(AT)'));
+    const males = activeStudents.filter(p => (p.gender || '').toLowerCase().startsWith('m'));
+    const females = activeStudents.filter(p => (p.gender || '').toLowerCase().startsWith('f'));
+
+    // 2. Define Grids
+    const generateSeats = (rows, cols, reverse) => {
+        let seats = [];
+        for(let r=1; r<=rows; r++) { for(let c=0; c<cols; c++) { const charCode = reverse ? 74 - c : 65 + c; seats.push(`${String.fromCharCode(charCode)}${r}`); } }
+        return seats;
+    };
+    const maleRegularSeats = generateSeats(8, 10, true); // J1...A8
+    const maleSpecialSeats = ['K1','K2','K3','K4','K5','K6','K7','K8', 'L1','L2','L3','L4','L5','L6','L7','L8'];
+    const femaleRegularSeats = generateSeats(7, 7, false);
+    const femaleSpecialSeats = ['H1','H2','H3','H4','H5','H6','H7','H8', 'I1','I2','I3','I4','I5','I6','I7','I8'];
+
+    // 3. Assignment Engine
+    const assignGroup = (studentList, regularSeats, specialSeats) => {
+        const updates = []; const usedSeats = new Set();
+        // A. Locked
+        studentList.filter(p => p.is_seat_locked && p.dhamma_hall_seat_no).forEach(p => usedSeats.add(p.dhamma_hall_seat_no));
+        // B. To Assign
+        const toAssign = studentList.filter(p => !p.is_seat_locked);
+        // C. Sort
+        const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if(rankA !== rankB) return rankA - rankB; if(rankA === 0) return getSeniorityScore(b) - getSeniorityScore(a); return (parseInt(b.age)||0) - (parseInt(a.age)||0); };
+        const specialGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating)).sort(sorter);
+        const regularGroup = toAssign.filter(p => !p.special_seating || !['Chowky','Chair','BackRest'].includes(p.special_seating)).sort(sorter);
+
+        // D. Fill Special
+        let sIdx = 0;
+        specialGroup.forEach(p => { while(sIdx < specialSeats.length && usedSeats.has(specialSeats[sIdx])) sIdx++; if(sIdx < specialSeats.length) { const seat = specialSeats[sIdx]; updates.push({ ...p, dhamma_hall_seat_no: seat }); usedSeats.add(seat); } else { regularGroup.unshift(p); } });
+
+        // E. Fill Regular
+        let rIdx = 0;
+        regularGroup.forEach(p => { while(rIdx < regularSeats.length && usedSeats.has(regularSeats[rIdx])) rIdx++; if(rIdx < regularSeats.length) { updates.push({ ...p, dhamma_hall_seat_no: regularSeats[rIdx] }); } });
+        return updates;
+    };
+
+    const allUpdates = [...assignGroup(males, maleRegularSeats, maleSpecialSeats), ...assignGroup(females, femaleRegularSeats, femaleSpecialSeats)];
+    
+    // 4. Batch Save
+    setAssignProgress(`Saving ${allUpdates.length}...`);
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) { const batch = allUpdates.slice(i, i + BATCH_SIZE); await Promise.all(batch.map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }))); }
+    setAssignProgress(''); alert("✅ Auto-Assign Complete!"); loadStudents();
+  };
+
   const BadgeModal = ({ student, onClose }) => ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'white', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'center'}}> <div className="print-area" style={{textAlign:'center'}}> <div style={{border:'2px solid #333', padding:'20px', width:'350px', margin:'20px auto', borderRadius:'10px', background: (student.conf_no||'').startsWith('O') ? '#fff9c4' : '#fff'}}><h2>IDENTITY CARD</h2><h3>{student.full_name}</h3><p><strong>Course:</strong> {courseId}</p><p><strong>Room:</strong> {student.room_no}</p></div> <div style={{border:'2px solid #333', padding:'20px', width:'350px', margin:'20px auto', borderRadius:'10px'}}><h2>DINING CARD</h2><h1>{student.dining_seat_no}</h1><p>{['F','Floor'].includes(student.dining_seat_type) ? 'Floor' : 'Chair'}</p><p>{student.full_name}</p></div> <div className="no-print"><button onClick={() => window.print()} style={{...quickBtnStyle(true), marginRight:'10px'}}>🖨️ Print</button><button onClick={onClose} style={{...quickBtnStyle(false)}}>Close</button></div> </div> </div> );
 
   if (viewAllMode) { return ( <div style={{background:'white', padding:'20px'}}> <div className="no-print" style={{marginBottom:'20px'}}><button onClick={() => setViewAllMode(false)} style={btnStyle(false)}>← Back</button><button onClick={handleExport} style={{...quickBtnStyle(true), marginLeft:'10px'}}>Export CSV</button></div> <h2>Master List</h2> <table style={{width:'100%', fontSize:'12px', borderCollapse:'collapse'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Seat</th></tr></thead><tbody>{participants.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.age}</td><td style={tdStyle}>{p.gender}</td><td style={tdStyle}>{p.dhamma_hall_seat_no}</td></tr>))}</tbody></table> </div> ); }
   
-  if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={quickBtnStyle(true)}>CSV</button> <button onClick={() => printSection(sectionId)} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
+  if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={quickBtnStyle(true)}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
 
+  // --- DHAMMA HALL SEATING VIEW (UPDATED LAYOUT) ---
   if (viewMode === 'seating') { 
-    const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p); const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
-    const SeatBox = ({ p, label }) => { const isSelected = selectedSeat && selectedSeat.label === label; const isOld = p && getCategoryRank(p.conf_no) === 0; return ( <div onClick={() => handleSeatClick(label, p)} style={{border: isSelected ? '3px solid gold' : '1px solid #ccc', background: p ? (isOld ? '#fff9c4' : 'white') : '#f0f0f0', height:'60px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontSize:'10px', cursor:'pointer', position:'relative'}}> {p ? (<><div style={{fontWeight:'bold', fontSize:'13px', color: '#007bff'}}>{p.dhamma_hall_seat_no}</div><div style={{overflow:'hidden', textOverflow:'ellipsis', width:'90%', whiteSpace:'nowrap'}}>{(p.full_name||'').split(' ')[0]}</div><div style={{fontSize:'9px'}}>{p.conf_no}</div></>) : <span style={{color:'#ccc'}}>{label}</span>} </div> ); };
+    const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
+    const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
+    const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p); 
+    const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
+    
+    // NEW SEAT CARD
+    const SeatBox = ({ p, label }) => { 
+        const isSelected = selectedSeat && selectedSeat.label === label; 
+        const isOld = p && getCategoryRank(p.conf_no) === 0; 
+        const isLocked = p && p.is_seat_locked;
+        return ( 
+            <div onClick={() => handleSeatClick(label, p)} style={{border: isSelected ? '3px solid gold' : '1px solid #333', background: p ? (isOld ? '#fff' : '#fff') : '#f8f9fa', height:'85px', display:'flex', flexDirection:'column', justifyContent:'space-between', padding: '4px', fontSize:'11px', cursor:'pointer', position:'relative', boxSizing: 'border-box'}}> 
+                {p ? ( <> <div style={{fontWeight:'bold', fontSize:'14px', textAlign:'center', borderBottom:'1px solid #eee', paddingBottom:'2px'}}> {p.dhamma_hall_seat_no} {isLocked && <span style={{fontSize:'10px', color:'red', position:'absolute', top:2, right:2}}>🔒</span>} </div> <div style={{fontWeight:'bold', textAlign:'center', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis'}}> {p.full_name.slice(0, 10)}{p.full_name.length>10?'...':''} </div> <div style={{display:'flex', justifyContent:'space-between', fontSize:'10px', color:'#555'}}> <span>{p.conf_no}</span> <span>{p.room_no || '-'}</span> </div> <div style={{textAlign:'center', fontSize:'10px', background:'#eee', borderRadius:'2px'}}> {p.pagoda_cell_no ? `P: ${p.pagoda_cell_no}` : 'Hall'} </div> </> ) : <span style={{color:'#ccc', margin:'auto'}}>{label}</span>} 
+            </div> 
+        ); 
+    };
+
     const renderGrid = (map, cols, rows, reverseX) => { let grid = []; for (let r = 0; r < rows; r++) { let cells = []; for (let c = 0; c < cols; c++) { const colChar = reverseX ? String.fromCharCode(74 - c) : String.fromCharCode(65 + c); const label = `${colChar}${r+1}`; cells.push(<SeatBox key={label} p={map[label]} label={label} />); } grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:'4px', marginBottom:'4px'}}>{cells}</div>); } return grid; };
-    const renderSpecial = (map, r1, r2) => ( <div style={{marginTop:'15px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}> <h4 style={{textAlign:'center', margin:'5px', color:'#666'}}>Chowky / Chair</h4> <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'4px', marginBottom:'4px'}}>{Array.from({length:8}, (_,i)=><SeatBox key={`${r1}${i+1}`} p={map[`${r1}${i+1}`]} label={`${r1}${i+1}`} />)}</div> <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'4px', marginBottom:'4px'}}>{Array.from({length:8}, (_,i)=><SeatBox key={`${r2}${i+1}`} p={map[`${r2}${i+1}`]} label={`${r2}${i+1}`} />)}</div> </div> );
-    return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}> <button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button> <div style={{display:'flex', gap:'10px', alignItems:'center'}}> {assignProgress && <span style={{color:'green', fontWeight:'bold'}}>{assignProgress}</span>} <div style={{fontSize:'12px', background:'#fff3cd', padding:'5px 10px', borderRadius:'4px'}}>💡 Click a seat to Move/Swap</div> <button onClick={handleSeatingExport} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>CSV</button> <button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800', color:'white'}}>⚡ Auto-Assign</button> </div> </div> <div className="print-area" style={{display:'flex', gap:'20px'}}> <div id="print-male" style={{flex:1}}> <div className="no-print" style={{textAlign:'right'}}><button onClick={()=>printSection("print-male")} style={{...quickBtnStyle(true), background:'#007bff', color:'white'}}>Print Male</button></div> <h3 style={{textAlign:'center', background:'#e3f2fd', borderBottom:'3px solid #007bff'}}>MALE (J ← A)</h3> {renderGrid(maleMap, 10, 8, true)} {renderSpecial(maleMap, 'K', 'L')} </div> <div id="print-female" style={{flex:1}}> <div className="no-print" style={{textAlign:'right'}}><button onClick={()=>printSection("print-female")} style={{...quickBtnStyle(true), background:'#e91e63', color:'white'}}>Print Female</button></div> <h3 style={{textAlign:'center', background:'#fce4ec', borderBottom:'3px solid #e91e63'}}>FEMALE (A → G)</h3> {renderGrid(femaleMap, 7, 7, false)} {renderSpecial(femaleMap, 'H', 'I')} </div> </div> </div> );
+    const renderSpecial = (map, r1, r2) => ( <div style={{marginTop:'15px', borderTop:'2px dashed #000', paddingTop:'10px'}}> <h4 style={{textAlign:'left', margin:'5px 0 10px 0', fontSize:'14px', fontWeight:'bold'}}>SPECIAL SEATING (Chowky / Chair)</h4> <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'4px', marginBottom:'4px'}}>{Array.from({length:8}, (_,i)=><SeatBox key={`${r1}${i+1}`} p={map[`${r1}${i+1}`]} label={`${r1}${i+1}`} />)}</div> <div style={{display:'grid', gridTemplateColumns:'repeat(8, 1fr)', gap:'4px', marginBottom:'4px'}}>{Array.from({length:8}, (_,i)=><SeatBox key={`${r2}${i+1}`} p={map[`${r2}${i+1}`]} label={`${r2}${i+1}`} />)}</div> </div> );
+    const printSection = (sectionId) => { const style = document.createElement('style'); style.innerHTML = `@media print { @page { size: A3 landscape; margin: 5mm; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; } .no-print { display: none !important; } .seat-grid { page-break-inside: avoid; } }`; document.head.appendChild(style); window.print(); document.head.removeChild(style); };
+
+    return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}> <button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button> <div style={{display:'flex', gap:'10px', alignItems:'center'}}> {assignProgress && <span style={{color:'green', fontWeight:'bold'}}>{assignProgress}</span>} <div style={{fontSize:'12px', background:'#fff3cd', padding:'5px 10px', borderRadius:'4px'}}>💡 Manual Move = Auto-Lock</div> <button onClick={handleSeatingExport} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>CSV</button> <button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800', color:'white'}}>⚡ Auto-Assign (Smart)</button> </div> </div> <div className="print-area" style={{display:'flex', gap:'40px', justifyContent:'center'}}> <div id="print-male" style={{width:'100%', maxWidth:'1200px'}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> <button onClick={()=>printSection("print-male")} style={{...quickBtnStyle(true), background:'#007bff', color:'white'}}>🖨️ Print Male (A3)</button> </div> <div style={{textAlign:'center', marginBottom:'20px', borderBottom:'2px solid black', paddingBottom:'10px'}}> <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Dhamma Hall Seating Plan - MALE SIDE</h1> <h3 style={{margin:'5px 0', fontSize:'18px', fontWeight:'normal'}}>Teacher: <strong>{courses.find(c=>c.course_id===courseId)?.teacher_name || 'Goenka Ji'}</strong></h3> <p style={{margin:0, fontSize:'14px'}}>Course: {courses.find(c=>c.course_id===courseId)?.course_name}</p> </div> <div className="seat-grid">{renderGrid(maleMap, 10, 8, true)}</div> <div className="seat-grid">{renderSpecial(maleMap, 'K', 'L')}</div> </div> </div> </div> );
   }
 
-  // --- DEFAULT TABLE VIEW ---
+  // --- DEFAULT LIST VIEW ---
   return ( <div style={cardStyle}> 
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}>
-          <div style={{display:'flex', gap:'10px'}}>
-              <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
-              <input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} />
-          </div>
-          <div style={{display:'flex', gap:'5px'}}>
-              <button onClick={handleAutoNoShow} disabled={!courseId} style={{...quickBtnStyle(true), background:'#d32f2f', color:'white'}}>🚫 No-Shows</button>
-              <button onClick={handleSendReminders} disabled={!courseId} style={{...quickBtnStyle(true), background:'#ff9800', color:'white'}}>📢 Reminders</button>
-              <button onClick={() => setViewAllMode(true)} disabled={!courseId} style={{...quickBtnStyle(true), background:'#6c757d', color:'white'}}>👁️ View All</button>
-              <button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export</button>
-              <button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining</button>
-              <button onClick={() => setViewMode('seating')} disabled={!courseId} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🧘 Dhamma Hall</button>
-          </div>
+          <div style={{display:'flex', gap:'10px'}}> <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select> <input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /> </div>
+          <div style={{display:'flex', gap:'5px'}}> <button onClick={handleAutoNoShow} disabled={!courseId} style={{...quickBtnStyle(true), background:'#d32f2f', color:'white'}}>🚫 No-Shows</button> <button onClick={handleSendReminders} disabled={!courseId} style={{...quickBtnStyle(true), background:'#ff9800', color:'white'}}>📢 Reminders</button> <button onClick={() => setViewAllMode(true)} disabled={!courseId} style={{...quickBtnStyle(true), background:'#6c757d', color:'white'}}>👁️ View All</button> <button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export</button> <button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining</button> <button onClick={() => setViewMode('seating')} disabled={!courseId} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🧘 Dhamma Hall</button> </div>
       </div>
       {courseId && (<div style={{background:'#fff5f5', border:'1px solid #feb2b2', padding:'10px', borderRadius:'5px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}><span style={{color:'#c53030', fontWeight:'bold', fontSize:'13px'}}>⚠️ Admin Zone:</span><div><button onClick={handleResetCourse} style={{background:'#e53e3e', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', marginRight:'10px', fontSize:'12px'}}>Reset Data</button><button onClick={handleDeleteCourse} style={{background:'red', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Delete Course</button></div></div>)}
       <div style={{overflowX:'auto'}}><table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}><thead><tr style={{background:'#f1f1f1', textAlign:'left'}}>{['full_name','conf_no','courses_info','age','gender','dining_seat_no','dining_seat_type','room_no','pagoda_cell_no','status'].map(k=><th key={k} style={{...tdStyle, cursor:'pointer'}} onClick={()=>handleSort(k)}>{k.replace('_',' ').toUpperCase()}{sortConfig.key===k?(sortConfig.direction==='asc'?'▲':'▼'):''}</th>)}<th style={tdStyle}>ACTIONS</th></tr></thead><tbody>{sortedList.map(p => (<tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}><td style={tdStyle}><strong>{p.full_name}</strong></td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.courses_info}</td><td style={tdStyle}>{p.age}</td><td style={tdStyle}>{p.gender}</td><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{['F','Floor'].includes(p.dining_seat_type) ? 'Floor' : 'Chair'}</td><td style={tdStyle}>{p.room_no}</td><td style={tdStyle}>{p.pagoda_cell_no}</td><td style={{...tdStyle, color: p.status==='Arrived'?'green':'orange'}}>{p.status}</td><td style={tdStyle}><button onClick={() => setBadgeStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>🪪</button><button onClick={() => setViewingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>👁️</button><button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button><button onClick={() => handleCancelStudent(p)} style={{marginRight:'5px', cursor:'pointer', color:'orange'}}>🚫</button><button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button></td></tr>))}</tbody></table></div>
