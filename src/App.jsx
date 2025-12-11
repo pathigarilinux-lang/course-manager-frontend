@@ -83,7 +83,7 @@ export default function App() {
     e.preventDefault();
     if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
     
-    // 1. Create the new course object (Local UI version)
+    // 1. Create the new course object
     const courseId = `C-${Date.now()}`;
     const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
     
@@ -94,14 +94,14 @@ export default function App() {
         end_date: newCourseData.endDate 
     };
 
-    // 2. Update UI Immediately (Optimistic)
+    // 2. Force Update UI (Sticky)
     setCourses(prev => [...prev, newCourseLocal]);
 
-    // 3. Save to Backend (FIXED: PAYLOAD MATCHES BACKEND EXPECTATIONS)
+    // 3. Save to Backend
     try {
         const payload = {
-            courseName: courseName, // Backend expects 'courseName', NOT 'course_name'
-            teacherName: 'Goenka Ji', // Default teacher
+            courseName: courseName,
+            teacherName: 'Goenka Ji',
             startDate: newCourseData.startDate,
             endDate: newCourseData.endDate
         };
@@ -114,8 +114,7 @@ export default function App() {
 
         if (res.ok) {
             alert(`✅ Course Created: ${courseName}`);
-            // Fetch fresh list from server to get real DB ID
-            fetchCourses(); 
+            fetchCourses(); // Refresh list to get real ID
         } else {
             console.warn("Backend rejected save. Keeping local copy.");
         }
@@ -163,14 +162,41 @@ export default function App() {
   };
 
   const processCSV = (csvText) => {
-    const lines = csvText.split('\n');
-    if (lines.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
+    const lines = csvText.split('\n').filter(line => line.trim() !== ''); // Remove totally empty lines first
+    
+    if (lines.length < 2) { 
+        setUploadStatus({ type: 'error', msg: 'File is empty or too short.' }); 
+        return; 
+    }
 
-    const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
+    // --- 1. HEADER SNIFFER (Crucial Fix) ---
+    // Scans first 10 lines to find the REAL header row (containing "Name" AND "Gender" or "Age")
+    let headerRowIndex = -1;
+    let headers = [];
+
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+        const lineLower = lines[i].toLowerCase();
+        // Check for key columns to identify the header row
+        if (lineLower.includes('name') && (lineLower.includes('gender') || lineLower.includes('age'))) {
+            headerRowIndex = i;
+            // Clean headers: remove quotes, trim whitespace
+            headers = lines[i].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+            break;
+        }
+    }
+
+    if (headerRowIndex === -1) {
+        setUploadStatus({ type: 'error', msg: 'Could not detect headers (Name, Gender, Age). Please check CSV format.' });
+        return;
+    }
+
+    console.log(`Headers found at row ${headerRowIndex}:`, headers);
+
+    // --- 2. MAP COLUMNS ---
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
 
     const map = {
-      conf: getIndex(['conf', 'ref', 'id']),
+      conf: getIndex(['conf', 'ref', 'id', 'no.']),
       name: getIndex(['name', 'student', 'given']),
       age: getIndex(['age', 'years']),
       gender: getIndex(['gender', 'sex']),
@@ -183,14 +209,17 @@ export default function App() {
     
     console.log("Smart Mapping:", map);
 
-    const parsedStudents = lines.slice(1).map((line, index) => {
+    // --- 3. PROCESS DATA ROWS ---
+    // Start reading from the line AFTER the header row
+    const parsedStudents = lines.slice(headerRowIndex + 1).map((line, index) => {
+      // Robust Regex split to handle "LastName, FirstName"
       const row = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
       const clean = (val) => val ? val.replace(/^"|"$/g, '').trim() : '';
       
       const rawName = map.name > -1 ? clean(row[map.name]) : '';
       const rawConf = map.conf > -1 ? clean(row[map.conf]) : '';
       
-      // FIX: Strict Empty Row Check - If no name AND no ID, ignore it.
+      // Strict Empty Row Check
       if (!rawName && !rawConf) return null;
 
       return {
@@ -214,7 +243,6 @@ export default function App() {
 
   const saveToDatabase = async () => {
     if (students.length === 0) return;
-    // Find the course ID for the selected course name
     const targetCourse = courses.find(c => c.course_name === selectedCourseForUpload);
     if (!targetCourse) return alert("Please select a valid course first.");
 
@@ -231,7 +259,6 @@ export default function App() {
             phone: s.mobile
         }))};
 
-        // Use the Import Endpoint
         const res = await fetch(`${API_URL}/courses/${targetCourse.course_id}/import`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -241,7 +268,7 @@ export default function App() {
         const data = await res.json();
         if(res.ok) {
             alert(`✅ Success: ${data.message}`);
-            setStudents([]); // Clear preview on success
+            setStudents([]); 
         } else {
             alert(`❌ Error: ${data.error}`);
         }
