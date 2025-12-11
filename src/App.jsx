@@ -822,7 +822,7 @@ function ParticipantList({ courses, refreshCourses }) {
   const parseCourses = (str) => { if (!str) return { s: 0, l: 0 }; const sMatch = str.match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = str.match(/L\s*[:=-]?\s*(\d+)/i); return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; };
   const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info || ''); return (c.l * 10000) + (c.s * 10); };
   
-  // NEW: Name Formatting (Nitesh Sharma -> Nitesh S)
+  // Name Format: Nitesh Sharma -> Nitesh S
   const formatName = (name) => {
       if(!name) return "";
       const parts = name.trim().split(" ");
@@ -830,7 +830,7 @@ function ParticipantList({ courses, refreshCourses }) {
       return `${parts[0]} ${parts[parts.length-1][0]}`;
   };
 
-  // NEW: Language Code (Telugu -> T)
+  // Lang Code: Telugu -> T, English -> E
   const getLangCode = (lang) => {
       if(!lang) return "";
       const l = lang.toLowerCase();
@@ -850,14 +850,12 @@ function ParticipantList({ courses, refreshCourses }) {
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   const downloadCSV = (headers, rows, filename) => { const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", filename); document.body.appendChild(link); link.click(); };
   
-  // EXPORTS
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Age", "Gender", "Dining", "Room", "Dhamma Seat", "Status"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', p.age || '', p.gender || '', p.dining_seat_no || '', p.room_no || '', p.dhamma_hall_seat_no || '', p.status || '']); downloadCSV(headers, rows, `master_${courseId}.csv`); };
   const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Arrived'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); downloadCSV(headers, rows, `dining_${courseId}.csv`); };
   const handleSeatingExport = () => { const seated = participants.filter(p => p.dhamma_hall_seat_no); if (seated.length === 0) return alert("No seats."); const headers = ["Seat", "Name", "Gender", "Conf No", "Status"]; const rows = seated.map(p => [p.dhamma_hall_seat_no, `"${p.full_name || ''}"`, p.gender || '', p.conf_no || '', p.status || '']); downloadCSV(headers, rows, `hall_${courseId}.csv`); };
 
   const sortedList = React.useMemo(() => { let sortableItems = [...participants].filter(p => p); if (sortConfig.key) { sortableItems.sort((a, b) => { const valA = (a[sortConfig.key] || '').toString().toLowerCase(); const valB = (b[sortConfig.key] || '').toString().toLowerCase(); if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } return sortableItems.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase())); }, [participants, sortConfig, search]);
 
-  // CRUD ACTIONS
   const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
   const handleDeleteCourse = async () => { if (window.confirm("🛑 DELETE COURSE?")) { await fetch(`${API_URL}/courses/${courseId}`, { method: 'DELETE' }); refreshCourses(); setCourseId(''); } };
   const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); } };
@@ -866,7 +864,6 @@ function ParticipantList({ courses, refreshCourses }) {
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); loadStudents(); };
   const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
 
-  // --- STICKY SEAT CLICK LOGIC ---
   const handleSeatClick = async (seatLabel, student) => {
       if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); return; }
       const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null);
@@ -887,7 +884,6 @@ function ParticipantList({ courses, refreshCourses }) {
       }
   };
 
-  // --- AUTO-ASSIGN LOGIC (Corrected for Special Columns) ---
   const handleAutoAssign = async () => {
     if (!window.confirm("⚡ Auto-Assign Seats?\n\n- Locked seats preserved.\n- Male: K & L used for Chairs.\n- Female: H & I used for Chairs.")) return;
     setAssignProgress('Calculations...');
@@ -904,13 +900,13 @@ function ParticipantList({ courses, refreshCourses }) {
         return seats;
     };
     
-    // Male: A-J (Regular), K-L (Special)
-    const maleRegularSeats = generateSeats(['A','B','C','D','E','F','G','H','I','J'], 8);
-    const maleSpecialSeats = generateSeats(['K','L'], 8); // Special columns
+    // Male: L, K, J... A
+    const maleRegularSeats = generateSeats(['J','I','H','G','F','E','D','C','B','A'], 8);
+    const maleSpecialSeats = generateSeats(['L','K'], 8); 
     
-    // Female: A-G (Regular), H-I (Special)
-    const femaleRegularSeats = generateSeats(['A','B','C','D','E','F','G'], 8);
-    const femaleSpecialSeats = generateSeats(['H','I'], 8);
+    // Female: I, H, G... A
+    const femaleRegularSeats = generateSeats(['G','F','E','D','C','B','A'], 8);
+    const femaleSpecialSeats = generateSeats(['I','H'], 8);
 
     const assignGroup = (studentList, regularSeats, specialSeats) => {
         const updates = []; const usedSeats = new Set();
@@ -943,14 +939,14 @@ function ParticipantList({ courses, refreshCourses }) {
   
   if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={quickBtnStyle(true)}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
 
-  // --- DHAMMA HALL SEATING VIEW (BOTH GENDERS + A3) ---
+  // --- DHAMMA HALL SEATING VIEW (FIXED LAYOUT) ---
   if (viewMode === 'seating') { 
     const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
     const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
     const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p); 
     const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
     
-    // DETAILED SEAT BOX
+    // STATIC SEAT BOX
     const SeatBox = ({ p, label }) => { 
         const isSelected = selectedSeat && selectedSeat.label === label; 
         const isOld = p && getCategoryRank(p.conf_no) === 0; 
@@ -960,7 +956,9 @@ function ParticipantList({ courses, refreshCourses }) {
                  style={{
                      border: isSelected ? '3px solid gold' : '1px solid #333', 
                      background: 'white', 
-                     height:'90px', 
+                     height:'85px', 
+                     width: '100%',
+                     overflow: 'hidden',
                      padding: '2px', 
                      fontSize:'11px', 
                      cursor:'pointer', 
@@ -969,17 +967,17 @@ function ParticipantList({ courses, refreshCourses }) {
                      display:'flex',
                      flexDirection:'column'
                  }}> 
-                {/* Header: Seat No */}
-                <div style={{textAlign:'center', borderBottom:'1px solid #333', fontWeight:'bold', fontSize:'14px', marginBottom:'2px'}}>
+                {/* 1. Header: Seat No */}
+                <div style={{textAlign:'center', borderBottom:'1px solid #333', fontWeight:'bold', fontSize:'13px', marginBottom:'2px'}}>
                     {label} {isLocked && <span style={{color:'red', fontSize:'10px'}}>🔒</span>}
                 </div>
                 
                 {p ? ( <> 
-                    {/* Name: Nitesh S */}
-                    <div style={{textAlign:'center', fontWeight:'bold', fontSize:'13px', marginBottom:'4px', overflow:'hidden', whiteSpace:'nowrap'}}>
+                    {/* 2. Name: Nitesh S */}
+                    <div style={{textAlign:'center', fontWeight:'bold', fontSize:'13px', marginBottom:'2px', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis'}}>
                         {formatName(p.full_name)}
                     </div>
-                    {/* Grid Info */}
+                    {/* 3. Grid Info */}
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', fontSize:'11px', lineHeight:'1.2'}}>
                         <div style={{fontWeight:'500'}}>{p.conf_no}</div>
                         <div style={{textAlign:'right'}}>Cell:{p.pagoda_cell_no||'-'}</div>
@@ -991,7 +989,6 @@ function ParticipantList({ courses, refreshCourses }) {
         ); 
     };
 
-    // Updated Grid Render: Accepts Column Array
     const renderGrid = (map, cols, rows) => { 
         let grid = []; 
         for (let r = 0; r < rows; r++) { 
@@ -1000,7 +997,7 @@ function ParticipantList({ courses, refreshCourses }) {
                 const label = `${c}${r+1}`;
                 cells.push(<SeatBox key={label} p={map[label]} label={label} />); 
             });
-            grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 1fr)`, gap:'-1px'}}>{cells}</div>); // Gap -1px to collapse borders
+            grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 1fr)`, gap:'-1px'}}>{cells}</div>); 
         } 
         return grid; 
     };
@@ -1014,9 +1011,10 @@ function ParticipantList({ courses, refreshCourses }) {
                 #${sectionId}, #${sectionId} * { visibility: visible; } 
                 #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; } 
                 .no-print { display: none !important; } 
-                .seat-grid { page-break-inside: avoid; border: 1px solid #333; }
+                .seat-grid { page-break-inside: avoid; border: 1px solid #333; width: 100%; }
                 .seat-grid > div { border-bottom: 1px solid #333; }
                 .seat-grid > div > div { border-right: 1px solid #333; }
+                h1 { font-size: 24px !important; margin-bottom: 20px; }
             }
         `; 
         document.head.appendChild(style); 
@@ -1025,23 +1023,28 @@ function ParticipantList({ courses, refreshCourses }) {
     };
 
     const SeatingSheet = ({ id, title, map, cols, rows }) => (
-        <div id={id} style={{width:'100%', maxWidth:'1400px', margin:'0 auto'}}> 
+        <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto'}}> 
             <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> 
                 <button onClick={()=>printSection(id)} style={{...quickBtnStyle(true), background:'#007bff', color:'white'}}>🖨️ Print {title} (A3)</button> 
             </div> 
+            
+            {/* HEADER */}
             <div style={{textAlign:'center', marginBottom:'15px'}}> 
                 <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Dhamma Hall Seating Plan - {title}</h1> 
             </div> 
-            <div className="seat-grid" style={{border:'2px solid #333'}}>
+            
+            {/* GRID */}
+            <div className="seat-grid" style={{border:'2px solid #333', background:'#ccc'}}>
                 {renderGrid(map, cols, rows)}
             </div>
-            {/* FOOTER */}
-            <div style={{display:'flex', justifyContent:'center', marginTop:'40px'}}>
-                <div style={{border:'2px dashed #333', padding:'15px', width:'250px', height:'40px', textAlign:'center'}}>
-                    {/* Blank Box for Teacher */}
+            
+            [cite_start]{/* FOOTER [cite: 27] */}
+            <div style={{display:'flex', justifyContent:'center', marginTop:'50px'}}>
+                <div style={{textAlign:'center'}}>
+                    <div style={{border:'2px dashed #333', padding:'15px', width:'250px', height:'40px'}}></div>
+                    <div style={{fontWeight:'bold', marginTop:'5px', fontSize:'16px'}}>TEACHER</div>
                 </div>
             </div>
-            <div style={{textAlign:'center', fontWeight:'bold', marginTop:'5px'}}>TEACHER</div>
         </div>
     );
 
@@ -1057,22 +1060,22 @@ function ParticipantList({ courses, refreshCourses }) {
                 </div> 
             </div> 
             
-            <div className="print-area" style={{display:'flex', flexDirection:'column', gap:'50px'}}> 
-                {/* MALE SIDE: K&L Beside J */}
+            <div className="print-area" style={{display:'flex', flexDirection:'column', gap:'100px'}}> 
+                {/* MALE SIDE: L, K, J... A */}
                 <SeatingSheet 
                     id="print-male" 
                     title="Male Side" 
                     map={maleMap} 
-                    cols={['K','L', 'J','I','H','G','F','E','D','C','B','A']} // J-A + K,L on Left or Right? User said "Beside J". Standard is J...A. I'll put K,L on far left.
+                    cols={['L','K', 'J','I','H','G','F','E','D','C','B','A']} 
                     rows={8} 
                 />
 
-                {/* FEMALE SIDE: H&I Beside G */}
+                {/* FEMALE SIDE: I, H, G... A */}
                 <SeatingSheet 
                     id="print-female" 
                     title="Female Side" 
                     map={femaleMap} 
-                    cols={['H','I', 'G','F','E','D','C','B','A']} 
+                    cols={['I','H', 'G','F','E','D','C','B','A']} 
                     rows={8} 
                 />
             </div> 
