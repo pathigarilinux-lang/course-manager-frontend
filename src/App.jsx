@@ -742,7 +742,7 @@ function Dashboard({ courses }) {
     </div>
   );
 }
-// --- STUDENT ONBOARDING FORM (FINAL POLISH) ---
+// --- STUDENT ONBOARDING FORM (FIXED PRINTING & READ-ONLY LOCKERS) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
@@ -787,22 +787,18 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const isMale = currentGender.startsWith('m'); 
   const isFemale = currentGender.startsWith('f');
 
-  // 1. Room Filtering
+  // 1. Filter Rooms
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
 
-  // 2. Number Filtering (Dining, Pagoda, etc.)
-  // We collect ALL used numbers from both `occupancy` (global) and `participants` (current course)
+  // 2. Filter Numbers (Hide used ones)
   const allRecords = [...occupancy, ...participants].filter(p => String(p.participant_id) !== String(formData.participantId) && p.status !== 'Cancelled');
-  
   const usedDining = new Set(); 
   const usedPagoda = new Set();
 
   allRecords.forEach(p => {
-      // Numbers are unique globally or per gender? Usually global dining hall.
-      // Assuming unique per gender side for Dining, but Pagoda might be unique entirely. 
-      // Safe bet: Filter if used.
+      // Assuming numbers are unique per gender side or global. Safe to filter if used.
       if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no));
       if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no));
   });
@@ -844,10 +840,11 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
     try { 
       const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); 
       if (!res.ok) throw new Error("Check-in failed"); 
+      
       fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
       
       setStatus('✅ Success! Student Checked-In.'); 
-      window.scrollTo(0, 0); // Scroll to top to see success message
+      window.scrollTo(0, 0); // Scroll to top for visibility
 
       setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' })); 
       setSelectedStudent(null); 
@@ -856,15 +853,40 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); 
       fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(data)); 
       
-      // Auto-hide status after 3s
       setTimeout(() => setStatus(''), 5000);
-    } catch (err) { setStatus(`❌ ${err.message}`); } 
+  } catch (err) { 
+      setStatus(`❌ ${err.message}`); 
+      window.scrollTo(0, 0);
+  } 
   };
 
   const handlePrint = () => {
       if(!selectedStudent) return alert("Select a student first.");
       const style = document.createElement('style');
-      style.innerHTML = `@media print { body * { visibility: hidden; } #receipt-area, #receipt-area * { visibility: visible; } #receipt-area { position: absolute; left: 0; top: 0; width: 100%; font-family: 'Courier New', monospace; font-size: 14px; color: black; } @page { size: auto; margin: 0mm; } }`;
+      // CSS for Thermal Printer
+      style.innerHTML = `
+          @media print {
+              @page { size: auto; margin: 0; }
+              body * { visibility: hidden; }
+              #receipt-area, #receipt-area * { visibility: visible; }
+              #receipt-area { 
+                  position: absolute; 
+                  left: 0; 
+                  top: 0; 
+                  width: 100%; 
+                  max-width: 300px; /* 80mm width */
+                  font-family: 'Courier New', monospace; 
+                  font-size: 14px; 
+                  color: black; 
+                  background: white;
+                  padding: 10px;
+              }
+              .receipt-line { border-bottom: 1px dashed black; margin: 8px 0; }
+              .receipt-header { text-align: center; font-weight: bold; margin-bottom: 10px; }
+              .receipt-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+              .receipt-val { font-weight: bold; }
+          }
+      `;
       document.head.appendChild(style);
       window.print();
       document.head.removeChild(style);
@@ -898,14 +920,15 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
             <div><label style={labelStyle}>🆔 Conf No <span style={{color:'red'}}>*</span></label><input style={{...inputStyle, background: formData.confNo ? '#e8f5e9' : '#ffebee', border: formData.confNo ? '1px solid #ccc' : '1px solid red'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED" /></div> 
             <div><label style={labelStyle}>🎂 Age</label><input style={{...inputStyle, background:'#e9ecef'}} value={selectedStudent?.age || ''} disabled placeholder="Age" /></div>
             <div><label style={labelStyle}>🛏️ Room No</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Free Rooms --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div> 
-            <div><label style={labelStyle}>🍽️ Dining</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={handleDiningSeatChange} required><option value="">--</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> 
+            <div><label style={labelStyle}>🍽️ Dining</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={handleDiningSeatChange} required><option value="">-- Free --</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> 
         </div> 
 
         {sectionHeader("🔐 Lockers & Other (Auto-Synced)")} 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> 
-            <div><label style={labelStyle}>📱 Mobile</label><input style={{...inputStyle, background:'#e9ecef', color:'#555'}} value={formData.mobileLocker} readOnly placeholder="Auto" /></div> 
-            <div><label style={labelStyle}>💍 Valuables</label><input style={{...inputStyle, background:'#e9ecef', color:'#555'}} value={formData.valuablesLocker} readOnly placeholder="Auto" /></div> 
-            <div><label style={labelStyle}>🧺 Laundry</label><input style={{...inputStyle, background:'#e9ecef', color:'#555'}} value={formData.laundryToken} readOnly placeholder="Auto" /></div> 
+            {/* READ-ONLY LOCKER FIELDS */}
+            <div><label style={labelStyle}>📱 Mobile</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d', cursor:'not-allowed'}} value={formData.mobileLocker} readOnly tabIndex="-1" placeholder="Auto" /></div> 
+            <div><label style={labelStyle}>💍 Valuables</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d', cursor:'not-allowed'}} value={formData.valuablesLocker} readOnly tabIndex="-1" placeholder="Auto" /></div> 
+            <div><label style={labelStyle}>🧺 Laundry</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d', cursor:'not-allowed'}} value={formData.laundryToken} readOnly tabIndex="-1" placeholder="Auto" /></div> 
             <div><label style={labelStyle}>💻 Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> 
         </div> 
 
@@ -923,36 +946,46 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
         </div> 
       </form> 
 
-      {/* --- HIDDEN RECEIPT --- */}
-      <div id="receipt-area" style={{ display: 'none', width: '300px', padding: '10px' }}>
-          <div style={{textAlign: 'center', fontWeight: 'bold', marginBottom: '10px'}}>
+      {/* --- HIDDEN RECEIPT (Off-screen, always rendered so print catches it) --- */}
+      <div id="receipt-area" style={{ position: 'fixed', left: '-9999px', top: 0, width: '300px', backgroundColor: 'white' }}>
+          <div className="receipt-header">
               <div style={{fontSize: '16px'}}>VIPASSANA</div>
               <div style={{fontSize: '12px'}}>International Meditation Center</div>
               <div style={{fontSize: '14px', marginTop:'5px'}}>Dhamma Nagajjuna 2</div>
           </div>
-          <div style={{borderBottom: '1px dashed black', margin: '5px 0'}}></div>
+          
+          <div className="receipt-line"></div>
+          
           <div style={{fontSize: '12px', marginBottom: '10px'}}>
               <div><strong>Course:</strong> {currentCourse?.course_name || 'N/A'}</div>
               <div><strong>Teacher:</strong> {currentCourse?.teacher_name || 'Goenka Ji'}</div>
-              <div><strong>Dates:</strong> {currentCourse ? `${new Date(currentCourse.start_date).toLocaleDateString()} to ${new Date(currentCourse.end_date).toLocaleDateString()}` : ''}</div>
+              <div>
+                  <strong>From:</strong> {currentCourse ? new Date(currentCourse.start_date).toLocaleDateString() : ''} <br/>
+                  <strong>To:</strong> {currentCourse ? new Date(currentCourse.end_date).toLocaleDateString() : ''}
+              </div>
           </div>
-          <div style={{borderBottom: '1px dashed black', margin: '5px 0'}}></div>
-          <div style={{fontSize: '14px', fontWeight: 'bold', margin: '10px 0'}}>
-              <div>{selectedStudent?.full_name}</div>
-              <div>Conf No: {formData.confNo}</div>
+          
+          <div className="receipt-line"></div>
+
+          <div style={{fontSize: '14px', margin: '10px 0'}}>
+              <div className="receipt-row"><span>Conf No:</span> <span className="receipt-val">{formData.confNo}</span></div>
+              <div className="receipt-row"><span>Name:</span> <span className="receipt-val">{selectedStudent?.full_name}</span></div>
           </div>
-          <table style={{width: '100%', fontSize: '14px', borderCollapse: 'collapse'}}>
-              <tbody>
-                  <tr><td style={{padding:'2px 0'}}>Room No:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.roomNo || '-'}</td></tr>
-                  <tr><td style={{padding:'2px 0'}}>Dining Seat:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.seatNo || '-'}</td></tr>
-                  <tr><td style={{padding:'2px 0'}}>Mobile Locker:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.mobileLocker || '-'}</td></tr>
-                  <tr><td style={{padding:'2px 0'}}>Valuables Locker:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.valuablesLocker || '-'}</td></tr>
-                  <tr><td style={{padding:'2px 0'}}>Laundry Token:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.laundryToken || '-'}</td></tr>
-                  <tr><td style={{padding:'2px 0'}}>Language:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{formData.language}</td></tr>
-              </tbody>
-          </table>
-          <div style={{borderBottom: '1px dashed black', margin: '15px 0'}}></div>
-          <div style={{textAlign: 'center', fontSize: '10px', fontStyle: 'italic'}}>*** Student Copy ***<br/>Please keep this safely.<br/>Produce this slip to collect valuables.</div>
+
+          <div style={{fontSize: '14px'}}>
+              <div className="receipt-row"><span>Room No:</span> <span className="receipt-val">{formData.roomNo || '-'}</span></div>
+              <div className="receipt-row"><span>Dining Seat:</span> <span className="receipt-val">{formData.seatNo || '-'}</span></div>
+              <div className="receipt-row"><span>Mobile Locker:</span> <span className="receipt-val">{formData.mobileLocker || '-'}</span></div>
+              <div className="receipt-row"><span>Valuables Locker:</span> <span className="receipt-val">{formData.valuablesLocker || '-'}</span></div>
+              <div className="receipt-row"><span>Laundry Token:</span> <span className="receipt-val">{formData.laundryToken || '-'}</span></div>
+              <div className="receipt-row"><span>Discourse:</span> <span className="receipt-val">{formData.language}</span></div>
+          </div>
+
+          <div className="receipt-line"></div>
+          <div style={{textAlign: 'center', fontSize: '10px', fontStyle: 'italic', marginTop:'10px'}}>
+              student copy<br/>
+              keep this under dhamma seat
+          </div>
       </div>
     </div> 
   );
