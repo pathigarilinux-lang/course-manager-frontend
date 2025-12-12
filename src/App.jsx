@@ -6,13 +6,13 @@ import {
   CreditCard, DollarSign, Download, Calendar
 } from 'lucide-react';
 
-const API_URL = "https://course-manager-backend-staging.onrender.com"; // Staging URL
+const API_URL = "https://course-manager-backend-staging.onrender.com"; 
 const ADMIN_PASSCODE = "11111"; 
 
 // --- UTILS ---
 const NUMBER_OPTIONS = Array.from({length: 200}, (_, i) => i + 1);
 
-// RESTORED: Protected Rooms List (To prevent accidental deletion of infrastructure)
+// RESTORED: Protected Rooms List
 const PROTECTED_ROOMS = new Set([
   "301AI","301BI","302AI","302BI","303AI","303BI","304AI","304BI","305AI","305BI","306AI","306BI","307AW","307BW","308AW","308BW","309AW","309BW","310AW","310BW","311AW","311BW","312AW","312BW","313AW","313BW","314AW","314BW","315AW","315BW","316AW","316BW","317AI","317BI","318AI","318BI","319AI","319BI","320AI","320BI","321AW","321BW","322AW","322BW","323AW","323BW","324AW","324BW","325AW","325BW","326AW","326BW","327AW","327BW","328AW","328BW","329AI","329BI","330AI","330BI","331AI","331BI","332AI","332BI","333AI","333BI","334AI","334BI","335AI","335BI","336AI","336BI","337AW","337BW","338AW","338BW","339AW","339BW","340AW","340BW","341AW","341BW","342AW","342BW","343AW","343BW","201AI","201BI","202AI","202BI","203AI","203BI","213AW","213BW","214AW","214BW","215AW","215BW","216AW","216BW","217AW","217BW","218AW","218BW","219AW","219BW","220AW","220BW","221AW","221BW","222AW","222BW","223AW","223BW","224AW","224BW","225AW","225BW","226AW","226BW","227AW","227BW","228AI","228BI","229AI","229BI","230AI","230BI","231AW","231BW","232AW","232BW","233AW","233BW","234AW","234BW","235AW","235BW","236AW","236BW","237AW","237BW","238AW","238BW","239AW","239BW","240AW","240BW","241AW","241BW","242AW","242BW","243AW","243BW","244AW","244BW","245AW","245BW","246AW","246BW","247AW","247BW","248AW","248BW","DF1","DF2","DF3","DF4","DF5","DF6","FRC61W","FRC62W","FRC63W","FRC64W","FRC65W","FRC66W"
 ]);
@@ -81,28 +81,11 @@ export default function App() {
   const handleCreateCourse = async (e) => {
     e.preventDefault();
     if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
-    
     const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
-    
     try {
-        const payload = {
-            courseName: courseName,
-            teacherName: newCourseData.teacher || 'Goenka Ji',
-            startDate: newCourseData.startDate,
-            endDate: newCourseData.endDate
-        };
-
-        const res = await fetch(`${API_URL}/courses`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (res.ok) {
-            alert(`✅ Course Created: ${courseName}`);
-            fetchCourses(); 
-            setNewCourseData({ name: '', teacher: '', startDate: '', endDate: '' });
-        }
+        const payload = { courseName: courseName, teacherName: newCourseData.teacher || 'Goenka Ji', startDate: newCourseData.startDate, endDate: newCourseData.endDate };
+        const res = await fetch(`${API_URL}/courses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) { alert(`✅ Course Created: ${courseName}`); fetchCourses(); setNewCourseData({ name: '', teacher: '', startDate: '', endDate: '' }); }
     } catch (err) { console.error(err); }
   };
 
@@ -110,14 +93,7 @@ export default function App() {
     e.preventDefault();
     if (!selectedCourseForUpload) return alert("Please select a target course first.");
     if (!manualStudent.full_name) return alert("Name is required.");
-    const newStudent = {
-      id: Date.now(),
-      ...manualStudent,
-      conf_no: manualStudent.conf_no || `MANUAL-${Date.now()}`,
-      status: 'Active',
-      dining_seat: '',
-      room_no: ''
-    };
+    const newStudent = { id: Date.now(), ...manualStudent, conf_no: manualStudent.conf_no || `MANUAL-${Date.now()}`, status: 'Active', dining_seat: '', room_no: '' };
     setStudents(prev => [newStudent, ...prev]);
     alert(`Added ${newStudent.full_name} to the Preview list.`);
     setManualStudent({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
@@ -128,22 +104,16 @@ export default function App() {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      try { processCSV(e.target.result); } 
-      catch (err) { console.error(err); setUploadStatus({ type: 'error', msg: 'Failed to parse CSV.' }); }
-    };
+    reader.onload = (e) => { try { processCSV(e.target.result); } catch (err) { console.error(err); setUploadStatus({ type: 'error', msg: 'Failed to parse CSV.' }); } };
     reader.readAsText(file);
   };
 
   const processCSV = (csvText) => {
     const lines = csvText.split('\n').filter(line => line.trim() !== '');
     if (lines.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty or too short.' }); return; }
-
     const splitRow = (rowStr) => rowStr.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
-
     let headerRowIndex = -1;
     let headers = [];
-
     for (let i = 0; i < Math.min(lines.length, 10); i++) {
         const lineLower = lines[i].toLowerCase();
         if (lineLower.includes('name') && (lineLower.includes('gender') || lineLower.includes('age'))) {
@@ -152,48 +122,16 @@ export default function App() {
             break;
         }
     }
-
-    if (headerRowIndex === -1) {
-        setUploadStatus({ type: 'error', msg: 'Could not detect headers (Name, Gender, Age). Please check CSV format.' });
-        return;
-    }
-
+    if (headerRowIndex === -1) { setUploadStatus({ type: 'error', msg: 'Could not detect headers (Name, Gender, Age). Please check CSV format.' }); return; }
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
-
-    const map = {
-      conf: getIndex(['conf', 'ref', 'id', 'no.']),
-      name: getIndex(['name', 'student', 'given']),
-      age: getIndex(['age']), 
-      gender: getIndex(['gender', 'sex']),
-      courses: getIndex(['course', 'history']), 
-      seat: getIndex(['seat', 'dining']),
-      email: getIndex(['email']),
-      phone: getIndex(['phone', 'mobile']),
-      notes: getIndex(['notes', 'remark'])
-    };
-    
+    const map = { conf: getIndex(['conf', 'ref', 'id', 'no.']), name: getIndex(['name', 'student', 'given']), age: getIndex(['age']), gender: getIndex(['gender', 'sex']), courses: getIndex(['course', 'history']), seat: getIndex(['seat', 'dining']), email: getIndex(['email']), phone: getIndex(['phone', 'mobile']), notes: getIndex(['notes', 'remark']) };
     const parsedStudents = lines.slice(headerRowIndex + 1).map((line, index) => {
       const row = splitRow(line);
       const rawName = map.name > -1 ? row[map.name] : '';
       const rawConf = map.conf > -1 ? row[map.conf] : '';
-      
       if (!rawName && !rawConf) return null; 
-
-      return {
-        id: Date.now() + index,
-        conf_no: rawConf || `TEMP-${index + 1}`,
-        full_name: rawName || 'Unknown Student',
-        age: map.age > -1 ? row[map.age] : '',
-        gender: map.gender > -1 ? row[map.gender] : '',
-        courses_info: map.courses > -1 ? row[map.courses] : '', 
-        dining_seat: map.seat > -1 ? row[map.seat] : '',
-        email: map.email > -1 ? row[map.email] : '',
-        mobile: map.phone > -1 ? row[map.phone] : '',
-        notes: map.notes > -1 ? row[map.notes] : '',
-        status: rawConf ? 'Active' : 'Pending ID'
-      };
+      return { id: Date.now() + index, conf_no: rawConf || `TEMP-${index + 1}`, full_name: rawName || 'Unknown Student', age: map.age > -1 ? row[map.age] : '', gender: map.gender > -1 ? row[map.gender] : '', courses_info: map.courses > -1 ? row[map.courses] : '', dining_seat: map.seat > -1 ? row[map.seat] : '', email: map.email > -1 ? row[map.email] : '', mobile: map.phone > -1 ? row[map.phone] : '', notes: map.notes > -1 ? row[map.notes] : '', status: rawConf ? 'Active' : 'Pending ID' };
     }).filter(s => s !== null);
-
     setStudents(parsedStudents);
     setUploadStatus({ type: 'success', msg: `Ready! Loaded ${parsedStudents.length} valid students.` });
   };
@@ -202,60 +140,30 @@ export default function App() {
     if (students.length === 0) return;
     const targetCourse = courses.find(c => c.course_name === selectedCourseForUpload);
     if (!targetCourse) return alert("Please select a valid course first.");
-
     if (!window.confirm(`Save ${students.length} students to ${selectedCourseForUpload}?`)) return;
-
     try {
-        const payload = { students: students.map(s => ({
-            name: s.full_name,
-            confNo: s.conf_no,
-            age: s.age,
-            gender: s.gender,
-            courses: s.courses_info,
-            email: s.email,
-            phone: s.mobile
-        }))};
-
-        const res = await fetch(`${API_URL}/courses/${targetCourse.course_id}/import`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
+        const payload = { students: students.map(s => ({ name: s.full_name, confNo: s.conf_no, age: s.age, gender: s.gender, courses: s.courses_info, email: s.email, phone: s.mobile }))};
+        const res = await fetch(`${API_URL}/courses/${targetCourse.course_id}/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const data = await res.json();
-        if(res.ok) {
-            alert(`✅ Success: ${data.message}`);
-            setStudents([]); 
-        } else {
-            alert(`❌ Error: ${data.error}`);
-        }
-    } catch(err) {
-        alert("Network Error: Failed to save data.");
-        console.error(err);
-    }
+        if(res.ok) { alert(`✅ Success: ${data.message}`); setStudents([]); } else { alert(`❌ Error: ${data.error}`); }
+    } catch(err) { alert("Network Error: Failed to save data."); console.error(err); }
   };
 
   const renderCourseAdmin = () => (
     <div style={cardStyle}>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-        <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}>
-          <Upload size={24} className="text-blue-600"/> Course Admin
-        </h2>
+        <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><Upload size={24} className="text-blue-600"/> Course Admin</h2>
         <div style={{display:'flex', gap:'5px'}}>
            <button onClick={()=>setAdminSubTab('create')} style={quickBtnStyle(adminSubTab==='create')}>+ New Course</button>
            <button onClick={()=>setAdminSubTab('upload')} style={quickBtnStyle(adminSubTab==='upload')}>📂 Upload CSV</button>
            <button onClick={()=>setAdminSubTab('manual')} style={quickBtnStyle(adminSubTab==='manual')}>✍️ Manual Entry</button>
         </div>
       </div>
-
       {adminSubTab === 'create' && (
         <form onSubmit={handleCreateCourse} style={{maxWidth:'500px', margin:'0 auto', display:'flex', flexDirection:'column', gap:'15px'}}>
           <h3 style={{textAlign:'center'}}>Create New Course</h3>
           <div><label style={labelStyle}>Course Name</label><input style={inputStyle} placeholder="e.g. 10-Day" value={newCourseData.name} onChange={e=>setNewCourseData({...newCourseData, name:e.target.value})} /></div>
-          
-          {/* TEACHER FIELD */}
           <div><label style={labelStyle}>Teacher Name</label><input style={inputStyle} placeholder="e.g. Goenka Ji" value={newCourseData.teacher || ''} onChange={e=>setNewCourseData({...newCourseData, teacher:e.target.value})} /></div>
-          
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
             <div><label style={labelStyle}>Start</label><input type="date" style={inputStyle} value={newCourseData.startDate} onChange={e=>setNewCourseData({...newCourseData, startDate:e.target.value})} /></div>
             <div><label style={labelStyle}>End</label><input type="date" style={inputStyle} value={newCourseData.endDate} onChange={e=>setNewCourseData({...newCourseData, endDate:e.target.value})} /></div>
@@ -263,7 +171,6 @@ export default function App() {
           <button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Create Course</button>
         </form>
       )}
-
       {adminSubTab === 'upload' && (
         <>
           <div style={{marginBottom:'20px'}}>
@@ -275,10 +182,7 @@ export default function App() {
           </div>
           <div style={{border:'2px dashed #ccc', borderRadius:'8px', padding:'30px', textAlign:'center', background:'#f9f9f9', position:'relative'}}>
             <input type="file" accept=".csv" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
-            <div style={{pointerEvents:'none'}}>
-              <Database size={40} color="#999" />
-              <p style={{margin:'10px 0', color:'#555'}}>Click to upload .CSV file</p>
-            </div>
+            <div style={{pointerEvents:'none'}}><Database size={40} color="#999" /><p style={{margin:'10px 0', color:'#555'}}>Click to upload .CSV file</p></div>
           </div>
           {uploadStatus && <div style={{marginTop:'15px', padding:'10px', background:'#e6fffa', color:'#2c7a7b'}}>{uploadStatus.msg}</div>}
           {students.length > 0 && (
@@ -289,46 +193,20 @@ export default function App() {
                </div>
                <div style={{maxHeight:'300px', overflowY:'auto', border:'1px solid #eee'}}>
                  <table style={{width:'100%', fontSize:'13px', borderCollapse:'collapse'}}>
-                   <thead style={{position:'sticky', top:0, background:'#f1f1f1'}}>
-                     <tr><th style={thPrint}>Conf</th><th style={thPrint}>Name</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Courses</th></tr>
-                   </thead>
-                   <tbody>
-                     {students.map(s => (
-                       <tr key={s.id} style={{borderBottom:'1px solid #eee'}}>
-                         <td style={{padding:'8px', color: s.status === 'Pending ID' ? 'orange' : 'blue'}}>{s.conf_no}</td>
-                         <td style={{padding:'8px'}}>{s.full_name}</td>
-                         <td style={{padding:'8px'}}>{s.age}</td>
-                         <td style={{padding:'8px'}}>{s.gender}</td>
-                         <td style={{padding:'8px', color:'#666'}}>{s.courses_info}</td>
-                       </tr>
-                     ))}
-                   </tbody>
+                   <thead style={{position:'sticky', top:0, background:'#f1f1f1'}}><tr><th style={thPrint}>Conf</th><th style={thPrint}>Name</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Courses</th></tr></thead>
+                   <tbody>{students.map(s => (<tr key={s.id} style={{borderBottom:'1px solid #eee'}}><td style={{padding:'8px', color: s.status === 'Pending ID' ? 'orange' : 'blue'}}>{s.conf_no}</td><td style={{padding:'8px'}}>{s.full_name}</td><td style={{padding:'8px'}}>{s.age}</td><td style={{padding:'8px'}}>{s.gender}</td><td style={{padding:'8px', color:'#666'}}>{s.courses_info}</td></tr>))}</tbody>
                  </table>
                </div>
             </div>
           )}
         </>
       )}
-
       {adminSubTab === 'manual' && (
         <form onSubmit={handleManualSubmit} style={{maxWidth:'600px', margin:'0 auto'}}>
           <h3 style={{textAlign:'center', marginBottom:'20px'}}>Add Single Student</h3>
-          <div style={{marginBottom:'15px'}}>
-            <label style={labelStyle}>Target Course</label>
-            <select style={inputStyle} value={selectedCourseForUpload} onChange={(e) => setSelectedCourseForUpload(e.target.value)} required>
-              <option value="">-- Select Course --</option>
-              {courses.map(c => <option key={c.course_id} value={c.course_name}>{c.course_name}</option>)}
-            </select>
-          </div>
-          <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'15px', marginBottom:'15px'}}>
-             <div><label style={labelStyle}>Full Name</label><input style={inputStyle} value={manualStudent.full_name} onChange={e=>setManualStudent({...manualStudent, full_name:e.target.value})} required /></div>
-             <div><label style={labelStyle}>Conf No</label><input style={inputStyle} value={manualStudent.conf_no} onChange={e=>setManualStudent({...manualStudent, conf_no:e.target.value})} /></div>
-          </div>
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr', gap:'15px', marginBottom:'15px'}}>
-             <div><label style={labelStyle}>Gender</label><select style={inputStyle} value={manualStudent.gender} onChange={e=>setManualStudent({...manualStudent, gender:e.target.value})}><option>Male</option><option>Female</option></select></div>
-             <div><label style={labelStyle}>Age</label><input type="number" style={inputStyle} value={manualStudent.age} onChange={e=>setManualStudent({...manualStudent, age:e.target.value})} /></div>
-             <div><label style={labelStyle}>Courses Info</label><input style={inputStyle} value={manualStudent.courses_info} onChange={e=>setManualStudent({...manualStudent, courses_info:e.target.value})} placeholder="e.g. S:3 L:1" /></div>
-          </div>
+          <div style={{marginBottom:'15px'}}><label style={labelStyle}>Target Course</label><select style={inputStyle} value={selectedCourseForUpload} onChange={(e) => setSelectedCourseForUpload(e.target.value)} required><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_name}>{c.course_name}</option>)}</select></div>
+          <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'15px', marginBottom:'15px'}}><div><label style={labelStyle}>Full Name</label><input style={inputStyle} value={manualStudent.full_name} onChange={e=>setManualStudent({...manualStudent, full_name:e.target.value})} required /></div><div><label style={labelStyle}>Conf No</label><input style={inputStyle} value={manualStudent.conf_no} onChange={e=>setManualStudent({...manualStudent, conf_no:e.target.value})} /></div></div>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr', gap:'15px', marginBottom:'15px'}}><div><label style={labelStyle}>Gender</label><select style={inputStyle} value={manualStudent.gender} onChange={e=>setManualStudent({...manualStudent, gender:e.target.value})}><option>Male</option><option>Female</option></select></div><div><label style={labelStyle}>Age</label><input type="number" style={inputStyle} value={manualStudent.age} onChange={e=>setManualStudent({...manualStudent, age:e.target.value})} /></div><div><label style={labelStyle}>Courses Info</label><input style={inputStyle} value={manualStudent.courses_info} onChange={e=>setManualStudent({...manualStudent, courses_info:e.target.value})} placeholder="e.g. S:3 L:1" /></div></div>
           <button type="submit" style={{...btnStyle(true), width:'100%', background:'#007bff', color:'white'}}>+ Add to Preview</button>
         </form>
       )}
@@ -340,10 +218,7 @@ export default function App() {
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}>
         <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
           <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Center Admin</h1>
-          <form onSubmit={handleLogin}>
-            <input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} />
-            <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button>
-          </form>
+          <form onSubmit={handleLogin}><input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} /><button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button></form>
           {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>}
         </div>
       </div>
@@ -365,9 +240,7 @@ export default function App() {
         </div>
         <button onClick={handleLogout} style={{ ...btnStyle(false), border: '1px solid #dc3545', color: '#dc3545' }}>🔒 Logout</button>
       </nav>
-
       {error && <div className="no-print" style={{ padding: '12px', background: '#ffebee', color: '#c62828', borderRadius: '5px', marginBottom: '20px' }}>⚠️ {error}</div>}
-
       {view === 'dashboard' && <Dashboard courses={courses} />}
       {view === 'ta-panel' && <ATPanel courses={courses} />}
       {view === 'room-view' && <GlobalAccommodationManager courses={courses} onRoomClick={handleRoomClick} />}
@@ -881,13 +754,12 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   );
 }
 
-// --- PARTICIPANT LIST (CRASH PROOF & BOLD PRINT) ---
+// --- PARTICIPANT LIST (RESTORED FEATURES & GRID) ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
   const [search, setSearch] = useState(''); 
   const [editingStudent, setEditingStudent] = useState(null); 
-  const [viewingStudent, setViewingStudent] = useState(null); 
   const [viewAllMode, setViewAllMode] = useState(false); 
   const [viewMode, setViewMode] = useState('list'); 
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
@@ -933,9 +805,7 @@ function ParticipantList({ courses, refreshCourses }) {
   const sortedList = React.useMemo(() => { let sortableItems = [...participants].filter(p => p); if (sortConfig.key) { sortableItems.sort((a, b) => { const valA = (a[sortConfig.key] || '').toString().toLowerCase(); const valB = (b[sortConfig.key] || '').toString().toLowerCase(); if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } return sortableItems.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase())); }, [participants, sortConfig, search]);
 
   const prepareReceipt = (student) => {
-      // Crash fix: Use safe matching '==' and optional chaining
       const courseObj = courses.find(c => c.course_id == student.course_id) || courses.find(c => c.course_id == courseId);
-      
       setPrintReceiptData({
           courseName: courseObj?.course_name || 'Unknown',
           teacherName: courseObj?.teacher_name || 'Goenka Ji',
@@ -957,6 +827,8 @@ function ParticipantList({ courses, refreshCourses }) {
       setTimeout(() => window.print(), 500);
   };
 
+  const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
+  const handleDeleteCourse = async () => { if (window.confirm("🛑 DELETE COURSE?")) { await fetch(`${API_URL}/courses/${courseId}`, { method: 'DELETE' }); refreshCourses(); setCourseId(''); } };
   const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); } };
   const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingStudent) }); setEditingStudent(null); loadStudents(); };
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); loadStudents(); };
@@ -967,15 +839,78 @@ function ParticipantList({ courses, refreshCourses }) {
   
   if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={quickBtnStyle(true)}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
 
-  if (viewMode === 'seating') { return <div style={cardStyle}><div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> <p style={{padding:'20px'}}>Please use "Dhamma Hall" button in Student Form or Auto-Assign to view grid.</p> </div>; }
+  if (viewMode === 'seating') { 
+    // --- PROFESSIONAL GRID VIEW (RESTORED FROM PREVIOUS STEP) ---
+    const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
+    const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
+    const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p); 
+    const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
+    
+    // Seat Box Component
+    const SeatBox = ({ p, label }) => { 
+        const isSelected = selectedSeat && selectedSeat.label === label; 
+        const isLocked = p && p.is_seat_locked;
+        return ( 
+            <div onClick={() => setSelectedSeat({ label, p })} 
+                 style={{ 
+                     border: isSelected ? '3px solid gold' : '1px solid black', 
+                     background: 'white', height:'100%', width: '100%', fontSize:'10px', 
+                     cursor:'pointer', position:'relative', boxSizing: 'border-box', 
+                     display:'flex', flexDirection:'column', fontFamily: 'Arial, sans-serif' 
+                 }}> 
+                <div style={{textAlign:'center', borderBottom:'1px solid black', fontWeight:'bold', fontSize:'14px', padding:'2px 0', background:'white'}}> {label} {isLocked && <span style={{color:'red', fontSize:'10px'}}>🔒</span>} </div>
+                {p ? ( <> <div style={{textAlign:'center', fontWeight:'bold', fontSize:'12px', borderBottom:'1px solid black', padding:'4px 2px', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis', height: '22px'}}> {formatName(p.full_name)} </div> <div style={{display:'flex', borderBottom:'1px solid black', height:'18px'}}> <div style={{flex:1, textAlign:'center', borderRight:'1px solid black', lineHeight:'18px'}}>{p.conf_no}</div> <div style={{flex:1, textAlign:'center', lineHeight:'18px'}}>Cell:{p.pagoda_cell_no||'-'}</div> </div> <div style={{display:'flex', height:'18px'}}> <div style={{flex:1, textAlign:'center', borderRight:'1px solid black', lineHeight:'18px'}}>DS:{p.dining_seat_no||'-'}</div> <div style={{flex:1, textAlign:'center', fontWeight:'bold', lineHeight:'18px'}}>{getLangCode(p.discourse_language)}</div> </div> </> ) : null} 
+            </div> 
+        ); 
+    };
 
-  // --- RESTORED LIST VIEW ---
+    const renderGrid = (map, cols, rows) => { 
+        let grid = []; 
+        for (let r = 0; r < rows; r++) { 
+            let cells = []; 
+            cols.forEach(c => { const label = `${c}${r+1}`; cells.push(<SeatBox key={label} p={map[label]} label={label} />); });
+            grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 110px)`, gridAutoRows:'85px', gap:'-1px', marginBottom:'-1px'}}>{cells}</div>); 
+        } 
+        return grid; 
+    };
+
+    const printSection = (sectionId) => { const style = document.createElement('style'); style.innerHTML = `@media print { @page { size: A3 landscape; margin: 5mm; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; flexDirection: column; alignItems: center; } .no-print { display: none !important; } .seat-grid { page-break-inside: avoid; border-top: 1px solid black; border-left: 1px solid black; } h1 { font-size: 24px !important; margin: 0 0 10px 0; } }`; document.head.appendChild(style); window.print(); document.head.removeChild(style); };
+
+    const SeatingSheet = ({ id, title, map, cols, rows }) => (
+        <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto'}}> 
+            <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> <button onClick={()=>printSection(id)} style={{...quickBtnStyle(true), background:'#007bff', color:'white'}}>🖨️ Print {title} (A3)</button> </div> 
+            <div style={{textAlign:'center', marginBottom:'10px'}}> <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Dhamma Hall Seating Plan - {title}</h1> </div> 
+            <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content'}}> {renderGrid(map, cols, rows)} </div> </div>
+            <div style={{display:'flex', justifyContent:'center', marginTop:'30px'}}> <div style={{textAlign:'center'}}> <div style={{border:'2px dashed black', width:'300px', height:'50px'}}></div> <div style={{fontWeight:'bold', marginTop:'5px', fontSize:'16px'}}>TEACHER</div> </div> </div>
+        </div>
+    );
+
+    return ( <div style={cardStyle}> 
+        <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}> <button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button> <div style={{display:'flex', gap:'10px', alignItems:'center'}}> {assignProgress && <span style={{color:'green', fontWeight:'bold'}}>{assignProgress}</span>} <div style={{fontSize:'12px', background:'#fff3cd', padding:'5px 10px', borderRadius:'4px'}}>💡 Manual Move = Auto-Lock</div> <button onClick={handleSeatingExport} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>CSV</button> <button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800', color:'white'}}>⚡ Auto-Assign (Smart)</button> </div> </div> 
+        <div className="print-area" style={{display:'flex', flexDirection:'column', gap:'100px'}}> 
+            <SeatingSheet id="print-male" title="Male Side" map={maleMap} cols={['L','K', 'J','I','H','G','F','E','D','C','B','A']} rows={8} />
+            <SeatingSheet id="print-female" title="Female Side" map={femaleMap} cols={['I','H', 'G','F','E','D','C','B','A']} rows={8} />
+        </div> 
+    </div> );
+  }
+
+  // --- RESTORED LIST VIEW (WITH ADMIN ZONE & TOOLBAR) ---
   return ( <div style={cardStyle}> 
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}>
           <div style={{display:'flex', gap:'10px'}}> <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select> <input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /> </div>
-          <div style={{display:'flex', gap:'5px'}}> <button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export</button> <button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining</button> </div>
+          <div style={{display:'flex', gap:'5px'}}> 
+              <button onClick={handleAutoNoShow} disabled={!courseId} style={{...quickBtnStyle(true), background:'#d32f2f', color:'white'}}>🚫 No-Shows</button> 
+              <button onClick={handleSendReminders} disabled={!courseId} style={{...quickBtnStyle(true), background:'#ff9800', color:'white'}}>📢 Reminders</button> 
+              <button onClick={() => setViewAllMode(true)} disabled={!courseId} style={{...quickBtnStyle(true), background:'#6c757d', color:'white'}}>👁️ View All</button> 
+              <button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export</button> 
+              <button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining</button> 
+              <button onClick={() => setViewMode('seating')} disabled={!courseId} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🧘 Dhamma Hall</button> 
+          </div>
       </div>
       
+      {/* ADMIN ZONE (RESTORED) */}
+      {courseId && (<div style={{background:'#fff5f5', border:'1px solid #feb2b2', padding:'10px', borderRadius:'5px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}><span style={{color:'#c53030', fontWeight:'bold', fontSize:'13px'}}>⚠️ Admin Zone:</span><div><button onClick={handleResetCourse} style={{background:'#e53e3e', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', marginRight:'10px', fontSize:'12px'}}>Reset Data</button><button onClick={handleDeleteCourse} style={{background:'red', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Delete Course</button></div></div>)}
+
       <div style={{overflowX:'auto'}}>
         <table style={{width:'100%', borderCollapse:'collapse', fontSize:'13px'}}>
           <thead>
@@ -1018,7 +953,6 @@ function ParticipantList({ courses, refreshCourses }) {
               <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'320px', position:'relative'}}>
                   <button onClick={() => setPrintReceiptData(null)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button>
                   <div id="receipt-print-area" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'5px'}}>
-                      {/* COPY BOX LAYOUT FROM STUDENT FORM (IDENTICAL) */}
                       <div style={{textAlign: 'center', fontWeight: 'bold', marginBottom: '8px'}}>
                           <div style={{fontSize: '18px', textTransform:'uppercase'}}>VIPASSANA</div>
                           <div style={{fontSize: '11px'}}>International Meditation Center</div>
