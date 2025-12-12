@@ -916,7 +916,8 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
     </div> 
   );
 }
-// --- STUDENT ONBOARDING FORM (BOX LAYOUT PRINT) ---
+
+// --- STUDENT ONBOARDING FORM (PROFESSIONAL BOX LAYOUT) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
@@ -1084,7 +1085,6 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
     </div> 
   );
 }
-
 function ExpenseTracker({ courses }) {
   const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [selectedStudentId, setSelectedStudentId] = useState(''); const [studentToken, setStudentToken] = useState(''); const [expenseType, setExpenseType] = useState('Laundry Token'); const [amount, setAmount] = useState(''); const [history, setHistory] = useState([]); const [status, setStatus] = useState(''); const [showInvoice, setShowInvoice] = useState(false); const [reportMode, setReportMode] = useState(''); const [financialData, setFinancialData] = useState([]); const [editingId, setEditingId] = useState(null);
   useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data)?data:[])).catch(console.error); }, [courseId]);
