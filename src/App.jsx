@@ -748,7 +748,7 @@ function Dashboard({ courses }) {
     </div>
   );
 }
-// --- STUDENT ONBOARDING FORM (BOX LAYOUT PRINT) ---
+// --- STUDENT ONBOARDING FORM (PROFESSIONAL BOX LAYOUT) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
@@ -916,7 +916,6 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
     </div> 
   );
 }
-
 // --- STUDENT ONBOARDING FORM (BOX LAYOUT PRINT) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
