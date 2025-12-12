@@ -748,7 +748,7 @@ function Dashboard({ courses }) {
     </div>
   );
 }
-// --- STUDENT ONBOARDING FORM (PROFESSIONAL PRINT) ---
+// --- STUDENT ONBOARDING FORM (BOX LAYOUT PRINT) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
@@ -785,7 +785,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       } 
   }, [formData.courseId]);
 
-  // Logic & Handlers (Kept Same)
+  // Logic
   const normalize = (str) => str ? str.toString().replace(/[\s-]+/g, '').toUpperCase() : '';
   const cleanNum = (val) => val ? String(val).trim() : '';
   const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
@@ -793,6 +793,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const isMale = currentGender.startsWith('m'); const isFemale = currentGender.startsWith('f');
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
+  
   const allRecords = [...occupancy, ...participants].filter(p => String(p.participant_id) !== String(formData.participantId) && p.status !== 'Cancelled');
   const usedDining = new Set(); const usedPagoda = new Set();
   allRecords.forEach(p => { if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no)); if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no)); });
@@ -816,11 +817,15 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       setStatus('✅ Success! Student Checked-In.'); 
       window.scrollTo(0, 0);
 
-      const courseObj = courses.find(c => c.course_id === formData.courseId);
+      // DATA PREP FOR RECEIPT (Use loose equality '==' to match string vs int IDs)
+      const courseObj = courses.find(c => c.course_id == formData.courseId);
+      
       setPrintData({
           courseName: courseObj?.course_name || 'N/A',
           teacherName: courseObj?.teacher_name || 'Goenka Ji',
-          dates: courseObj ? `${new Date(courseObj.start_date).toLocaleDateString()} to ${new Date(courseObj.end_date).toLocaleDateString()}` : '',
+          // Safe date parsing
+          from: courseObj && courseObj.start_date ? new Date(courseObj.start_date).toLocaleDateString() : '...',
+          to: courseObj && courseObj.end_date ? new Date(courseObj.end_date).toLocaleDateString() : '...',
           studentName: selectedStudent?.full_name || 'Student',
           confNo: formData.confNo,
           roomNo: formData.roomNo,
@@ -859,230 +864,226 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
         <div style={{marginTop:'30px', textAlign:'right'}}><button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Confirm & Save</button></div> 
       </form> 
 
-      {/* --- PROFESSIONAL RECEIPT MODAL --- */}
+      {/* --- PROFESSIONAL BOXED RECEIPT --- */}
       {showReceipt && printData && (
           <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
               <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'320px', position:'relative'}}>
                   <button onClick={() => setShowReceipt(false)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button>
-                  <div id="receipt-print-area" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'10px', border:'1px solid #eee'}}>
-                      <div style={{textAlign: 'center', fontWeight: 'bold', marginBottom: '10px'}}>
+                  
+                  {/* PRINT CONTENT */}
+                  <div id="receipt-print-area" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'5px'}}>
+                      <div style={{textAlign: 'center', fontWeight: 'bold', marginBottom: '8px'}}>
                           <div style={{fontSize: '18px', textTransform:'uppercase'}}>VIPASSANA</div>
-                          <div style={{fontSize: '12px'}}>International Meditation Center</div>
-                          <div style={{fontSize: '14px', marginTop:'5px'}}>Dhamma Nagajjuna 2</div>
+                          <div style={{fontSize: '11px'}}>International Meditation Center</div>
+                          <div style={{fontSize: '13px', marginTop:'2px'}}>Dhamma Nagajjuna 2</div>
                       </div>
-                      <div style={{borderBottom: '2px solid black', margin: '5px 0'}}></div>
-                      <div style={{fontSize: '12px', marginBottom: '10px'}}>
-                          <div><strong>Course:</strong> {printData.courseName}</div>
-                          <div><strong>Teacher:</strong> {printData.teacherName}</div>
-                          <div><strong>Dates:</strong> {printData.dates}</div>
-                      </div>
-                      <div style={{borderBottom: '2px solid black', margin: '5px 0'}}></div>
-                      <div style={{fontSize: '16px', fontWeight: 'bold', margin: '10px 0'}}>
-                          <div>{printData.studentName}</div>
-                          <div style={{fontSize:'14px'}}>Conf: {printData.confNo}</div>
-                      </div>
-                      <table style={{width: '100%', fontSize: '14px', borderCollapse: 'collapse', marginTop:'10px'}}>
+                      
+                      {/* COURSE BOX */}
+                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'11px', marginBottom:'10px'}}>
                           <tbody>
-                              <tr><td style={{padding:'4px 0'}}>Room No:</td><td style={{fontWeight:'bold', textAlign:'right', fontSize:'16px'}}>{printData.roomNo || '-'}</td></tr>
-                              <tr><td style={{padding:'4px 0'}}>Dining Seat:</td><td style={{fontWeight:'bold', textAlign:'right', fontSize:'16px'}}>{printData.seatNo || '-'}</td></tr>
-                              <tr><td style={{padding:'4px 0'}}>Lockers:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{printData.lockers || '-'}</td></tr>
-                              <tr><td style={{padding:'4px 0'}}>Language:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{printData.language}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>Course</td><td style={{border:'1px solid black', padding:'4px'}}>{printData.courseName}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>Teacher</td><td style={{border:'1px solid black', padding:'4px'}}>{printData.teacherName}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>From</td><td style={{border:'1px solid black', padding:'4px'}}>{printData.from}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>To</td><td style={{border:'1px solid black', padding:'4px'}}>{printData.to}</td></tr>
                           </tbody>
                       </table>
-                      <div style={{borderBottom: '2px solid black', margin: '15px 0'}}></div>
-                      <div style={{textAlign: 'center', fontSize: '11px', fontWeight:'bold', marginTop:'10px'}}>*** Student Copy ***</div>
+
+                      {/* STUDENT BOX */}
+                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'12px', marginBottom:'10px'}}>
+                          <tbody>
+                              <tr><td style={{border:'1px solid black', padding:'4px', width:'30%'}}>Conf No</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.confNo}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Name</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.studentName}</td></tr>
+                          </tbody>
+                      </table>
+
+                      {/* DETAILS BOX */}
+                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'12px', marginBottom:'10px'}}>
+                          <tbody>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Room No</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold', fontSize:'14px'}}>{printData.roomNo || '-'}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Dining Seat</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold', fontSize:'14px'}}>{printData.seatNo || '-'}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Lockers</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.lockers || '-'}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Language</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.language}</td></tr>
+                          </tbody>
+                      </table>
+
+                      <div style={{textAlign: 'center', fontSize: '10px', fontStyle: 'italic', marginTop:'5px'}}>*** Student Copy ***</div>
                   </div>
               </div>
-              <style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; } @page { size: auto; margin: 0mm; } }`}</style>
+              {/* Force fit to 1 page */}
+              <style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; } @page { size: auto; margin: 0; } }`}</style>
           </div>
       )}
     </div> 
   );
 }
 
-// --- PARTICIPANT LIST (WITH RE-PRINT & SEAT TOKEN) ---
-function ParticipantList({ courses, refreshCourses }) {
-  const [courseId, setCourseId] = useState(''); 
+// --- STUDENT ONBOARDING FORM (BOX LAYOUT PRINT) ---
+function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
-  const [search, setSearch] = useState(''); 
-  const [editingStudent, setEditingStudent] = useState(null); 
-  const [viewingStudent, setViewingStudent] = useState(null); 
-  const [viewAllMode, setViewAllMode] = useState(false); 
-  const [viewMode, setViewMode] = useState('list'); 
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-  const [assignProgress, setAssignProgress] = useState(''); 
-  const [selectedSeat, setSelectedSeat] = useState(null);
-  const [badgeStudent, setBadgeStudent] = useState(null);
-
-  // Print States
-  const [printReceiptData, setPrintReceiptData] = useState(null);
-  const [printTokenData, setPrintTokenData] = useState(null);
-
-  const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = String(seatNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF')) return 'Old'; if (s.startsWith('NM') || s.startsWith('NF')) return 'New'; if (s.startsWith('SM') || s.startsWith('SF')) return 'DS'; return 'New'; };
-  const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = String(confNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
-  const parseCourses = (str) => { if (!str) return { s: 0, l: 0 }; const sMatch = str.match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = str.match(/L\s*[:=-]?\s*(\d+)/i); return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; };
-  const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info || ''); return (c.l * 10000) + (c.s * 10); };
+  const [rooms, setRooms] = useState([]); 
+  const [occupancy, setOccupancy] = useState([]); 
+  const [selectedStudent, setSelectedStudent] = useState(null); 
+  const [status, setStatus] = useState('');
   
-  const formatName = (name) => {
-      if(!name) return "";
-      const parts = name.trim().split(" ");
-      if(parts.length === 1) return parts[0];
-      return `${parts[0]} ${parts[parts.length-1][0]}`;
-  };
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [printData, setPrintData] = useState(null);
 
-  const getLangCode = (lang) => {
-      if(!lang) return "";
-      const l = lang.toLowerCase();
-      if(l.includes('telugu')) return 'T';
-      if(l.includes('hindi')) return 'H';
-      if(l.includes('english')) return 'E';
-      if(l.includes('marathi')) return 'M';
-      return l[0].toUpperCase();
-  };
+  const [formData, setFormData] = useState({ 
+      courseId: '', participantId: '', roomNo: '', seatNo: '', 
+      laundryToken: '', mobileLocker: '', valuablesLocker: '', 
+      language: 'English', pagodaCell: '', laptop: 'No', 
+      confNo: '', specialSeating: 'None', seatType: 'Chair',
+      dhammaSeat: '' 
+  }); 
 
-  const loadStudents = () => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
-  useEffect(loadStudents, [courseId]);
+  useEffect(() => { 
+      fetch(`${API_URL}/rooms`).then(res=>res.json()).then(data => setRooms(Array.isArray(data)?data:[])); 
+      fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(Array.isArray(data)?data:[])); 
+  }, []);
+
+  useEffect(() => { 
+      if (preSelectedRoom) { 
+          setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); 
+          if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); 
+      } 
+  }, [preSelectedRoom, courses]);
+
+  useEffect(() => { 
+      if (formData.courseId) { 
+          fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); 
+      } 
+  }, [formData.courseId]);
+
+  // Logic
+  const normalize = (str) => str ? str.toString().replace(/[\s-]+/g, '').toUpperCase() : '';
+  const cleanNum = (val) => val ? String(val).trim() : '';
+  const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
+  const currentGender = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
+  const isMale = currentGender.startsWith('m'); const isFemale = currentGender.startsWith('f');
+  let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
+  if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
   
-  const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
-  const downloadCSV = (headers, rows, filename) => { const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", filename); document.body.appendChild(link); link.click(); };
-  
-  const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Age", "Gender", "Dining", "Room", "Dhamma Seat", "Status"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', p.age || '', p.gender || '', p.dining_seat_no || '', p.room_no || '', p.dhamma_hall_seat_no || '', p.status || '']); downloadCSV(headers, rows, `master_${courseId}.csv`); };
-  const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Arrived'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); downloadCSV(headers, rows, `dining_${courseId}.csv`); };
-  const handleSeatingExport = () => { const seated = participants.filter(p => p.dhamma_hall_seat_no); if (seated.length === 0) return alert("No seats."); const headers = ["Seat", "Name", "Gender", "Conf No", "Status"]; const rows = seated.map(p => [p.dhamma_hall_seat_no, `"${p.full_name || ''}"`, p.gender || '', p.conf_no || '', p.status || '']); downloadCSV(headers, rows, `hall_${courseId}.csv`); };
+  const allRecords = [...occupancy, ...participants].filter(p => String(p.participant_id) !== String(formData.participantId) && p.status !== 'Cancelled');
+  const usedDining = new Set(); const usedPagoda = new Set();
+  allRecords.forEach(p => { if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no)); if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no)); });
+  const getAvailableOptions = (usedSet) => NUMBER_OPTIONS.filter(n => !usedSet.has(String(n)));
+  const availableDiningOpts = getAvailableOptions(usedDining); const availablePagodaOpts = getAvailableOptions(usedPagoda);
+  const studentsPending = participants.filter(p => p.status !== 'Arrived');
 
-  const sortedList = React.useMemo(() => { let sortableItems = [...participants].filter(p => p); if (sortConfig.key) { sortableItems.sort((a, b) => { const valA = (a[sortConfig.key] || '').toString().toLowerCase(); const valB = (b[sortConfig.key] || '').toString().toLowerCase(); if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } return sortableItems.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase())); }, [participants, sortConfig, search]);
+  const handleStudentChange = (e) => { const selectedId = e.target.value; const student = participants.find(p => p.participant_id == selectedId); setSelectedStudent(student); setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); };
+  const handleDiningSeatChange = (e) => { const val = e.target.value; setFormData(prev => ({ ...prev, seatNo: val, mobileLocker: val, valuablesLocker: val, laundryToken: val })); };
 
-  // --- PRINT PREPARATION ---
-  const prepareReceipt = (student) => {
-      const courseObj = courses.find(c => c.course_id === student.course_id) || courses.find(c => c.course_id === courseId);
-      setPrintReceiptData({
-          courseName: courseObj?.course_name,
-          teacherName: courseObj?.teacher_name || 'Goenka Ji',
-          dates: courseObj ? `${new Date(courseObj.start_date).toLocaleDateString()} to ${new Date(courseObj.end_date).toLocaleDateString()}` : '',
-          studentName: student.full_name,
-          confNo: student.conf_no,
-          roomNo: student.room_no,
-          seatNo: student.dining_seat_no,
-          lockers: student.mobile_locker_no || student.dining_seat_no, // Fallback if sync failed previously
-          language: student.discourse_language
-      });
-      setTimeout(() => window.print(), 500);
-  };
-
-  const prepareToken = (student) => {
-      if (!student.dhamma_hall_seat_no) return alert("No Dhamma Seat assigned yet.");
-      setPrintTokenData({
-          seat: student.dhamma_hall_seat_no,
-          name: formatName(student.full_name),
-          conf: student.conf_no
-      });
-      setTimeout(() => window.print(), 500);
-  };
-
-  // ... (Keep existing CRUD functions: Reset, Delete, Edit, etc. - Omitting for brevity, they remain same) ...
-  const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); } };
-  const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingStudent) }); setEditingStudent(null); loadStudents(); };
-  
-  // --- DEFAULT LIST VIEW ---
-  return ( <div style={cardStyle}> 
-      <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}>
-          <div style={{display:'flex', gap:'10px'}}> <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select> <input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /> </div>
-          <div style={{display:'flex', gap:'5px'}}> <button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export</button> <button onClick={() => setViewMode('seating')} disabled={!courseId} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🧘 Dhamma Hall</button> </div>
-      </div>
+  const handleSubmit = async (e) => { 
+    e.preventDefault(); 
+    if (!formData.confNo || formData.confNo.trim() === '') { return alert("⛔ STOP: Student is missing a Confirmation Number."); }
+    setStatus('Submitting...'); 
+    const payload = { ...formData, diningSeatType: formData.seatType }; 
+    try { 
+      const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); 
+      if (!res.ok) throw new Error("Check-in failed"); 
+      fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
       
-      <div style={{overflowX:'auto'}}>
-        <table style={{width:'100%', borderCollapse:'collapse', fontSize:'13px'}}>
-          <thead>
-            <tr style={{background:'#f1f1f1', textAlign:'left'}}>
-              {['full_name','conf_no','age','room_no', 'dhamma_hall_seat_no', 'status'].map(k=><th key={k} style={{...tdStyle, cursor:'pointer'}} onClick={()=>handleSort(k)}>{k.replace(/_/g,' ').toUpperCase()}</th>)}
-              <th style={tdStyle}>PRINTS</th>
-              <th style={tdStyle}>ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedList.map(p => (
-              <tr key={p.participant_id} style={{borderBottom:'1px solid #eee', background: p.status === 'Arrived' ? 'white' : '#fff5f5'}}>
-                <td style={tdStyle}><strong>{p.full_name}</strong></td>
-                <td style={tdStyle}>{p.conf_no}</td>
-                <td style={tdStyle}>{p.age}</td>
-                <td style={tdStyle}>{p.room_no}</td>
-                <td style={{...tdStyle, fontWeight:'bold', color:'#007bff'}}>{p.dhamma_hall_seat_no}</td>
-                <td style={{...tdStyle, color: p.status==='Arrived'?'green':'orange'}}>{p.status}</td>
-                
-                {/* NEW PRINT COLUMN */}
-                <td style={tdStyle}>
-                   <div style={{display:'flex', gap:'5px'}}>
-                      <button onClick={() => prepareReceipt(p)} style={{padding:'4px 8px', border:'1px solid #ccc', borderRadius:'4px', background:'#e3f2fd', cursor:'pointer', title:'Print Receipt'}}>🖨️ Receipt</button>
-                      <button onClick={() => prepareToken(p)} style={{padding:'4px 8px', border:'1px solid #ccc', borderRadius:'4px', background:'#fff3cd', cursor:'pointer', title:'Print Token'}}>🎫 Token</button>
-                   </div>
-                </td>
+      setStatus('✅ Success! Student Checked-In.'); 
+      window.scrollTo(0, 0);
 
-                <td style={tdStyle}>
-                   <button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button>
-                   <button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      // DATA PREP FOR RECEIPT (Use loose equality '==' to match string vs int IDs)
+      const courseObj = courses.find(c => c.course_id == formData.courseId);
+      
+      setPrintData({
+          courseName: courseObj?.course_name || 'N/A',
+          teacherName: courseObj?.teacher_name || 'Goenka Ji',
+          // Safe date parsing
+          from: courseObj && courseObj.start_date ? new Date(courseObj.start_date).toLocaleDateString() : '...',
+          to: courseObj && courseObj.end_date ? new Date(courseObj.end_date).toLocaleDateString() : '...',
+          studentName: selectedStudent?.full_name || 'Student',
+          confNo: formData.confNo,
+          roomNo: formData.roomNo,
+          seatNo: formData.seatNo,
+          lockers: formData.mobileLocker,
+          language: formData.language
+      });
 
-      {/* --- PRINT MODAL: RECEIPT --- */}
-      {printReceiptData && (
+      setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' })); 
+      setSelectedStudent(null); 
+      clearRoom(); 
+      fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); 
+      fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(data)); 
+      
+      setTimeout(() => setStatus(''), 5000);
+    } catch (err) { setStatus(`❌ ${err.message}`); window.scrollTo(0, 0); } 
+  };
+
+  const triggerPrint = () => { setShowReceipt(true); setTimeout(() => { window.print(); }, 500); };
+  const sectionHeader = (title) => <div style={{fontSize:'14px', fontWeight:'bold', color:'#007bff', borderBottom:'1px solid #eee', paddingBottom:'5px', marginTop:'15px', marginBottom:'10px'}}>{title}</div>;
+  
+  return ( 
+    <div style={cardStyle}> 
+      <h2>📝 Student Onboarding Form</h2> 
+      {status && (<div style={{marginBottom:'20px', padding:'15px', borderRadius:'6px', background: status.includes('Success') ? '#d4edda' : '#f8d7da', color: status.includes('Success') ? '#155724' : '#721c24', textAlign:'center', fontWeight:'bold', fontSize:'16px', boxShadow:'0 2px 4px rgba(0,0,0,0.1)'}}>{status}</div>)}
+      {printData && !selectedStudent && (<div style={{marginBottom:'20px', padding:'20px', background:'#e3f2fd', borderRadius:'8px', textAlign:'center', border:'2px dashed #2196f3'}}><h3 style={{marginTop:0}}>🎉 Check-in Complete!</h3><p>Student: <strong>{printData.studentName}</strong></p><button onClick={triggerPrint} style={{padding:'15px 30px', fontSize:'18px', background:'#28a745', color:'white', border:'none', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', gap:'10px', margin:'0 auto'}}>🖨️ Print Receipt Now</button></div>)}
+
+      <form onSubmit={handleSubmit} style={{ maxWidth: '900px' }}> 
+        <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}> <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'20px'}}> <div><label style={labelStyle}>1. Select Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> <div><label style={labelStyle}>2. Select Student</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no||'No ID'})</option>)}</select></div> </div> {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (<div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}><strong>⚠️ SPECIAL ATTENTION:</strong> {selectedStudent.evening_food && <div>🍛 Food: {selectedStudent.evening_food}</div>} {selectedStudent.medical_info && <div>🏥 Medical: {selectedStudent.medical_info}</div>}</div>)} </div> 
+        {sectionHeader("📍 Allocation Details")} 
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr', gap:'15px'}}> <div><label style={labelStyle}>🆔 Conf No <span style={{color:'red'}}>*</span></label><input style={{...inputStyle, background: formData.confNo ? '#e8f5e9' : '#ffebee', border: formData.confNo ? '1px solid #ccc' : '1px solid red'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED" /></div> <div><label style={labelStyle}>🎂 Age</label><input style={{...inputStyle, background:'#e9ecef'}} value={selectedStudent?.age || ''} disabled placeholder="Age" /></div><div><label style={labelStyle}>🛏️ Room No</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Free Rooms --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div> <div><label style={labelStyle}>🍽️ Dining</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={handleDiningSeatChange} required><option value="">-- Free --</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> </div> 
+        {sectionHeader("🔐 Lockers & Other (Auto-Synced)")} 
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> <div><label style={labelStyle}>📱 Mobile</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d', cursor:'not-allowed'}} value={formData.mobileLocker} readOnly tabIndex="-1" placeholder="Auto" /></div> <div><label style={labelStyle}>💍 Valuables</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d', cursor:'not-allowed'}} value={formData.valuablesLocker} readOnly tabIndex="-1" placeholder="Auto" /></div> <div><label style={labelStyle}>🧺 Laundry</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d', cursor:'not-allowed'}} value={formData.laundryToken} readOnly tabIndex="-1" placeholder="Auto" /></div> <div><label style={labelStyle}>💻 Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> </div> 
+        {sectionHeader("🧘 Hall & Meditation")} 
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> <div><label style={labelStyle}>🗣️ Lang</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>Odia</option><option>Bengali</option><option>Mandarin Chinese</option><option>Spanish</option><option>French</option><option>Portuguese</option><option>Russian</option><option>German</option><option>Vietnamese</option><option>Thai</option><option>Japanese</option></select></div> <div><label style={labelStyle}>🛖 Pagoda</label><select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}><option value="">None</option>{availablePagodaOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div><div><label style={labelStyle}>🧘 DS Seat</label><input style={inputStyle} value={formData.dhammaSeat} onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} placeholder="e.g. A1" /></div><div><label style={labelStyle}>💺 Special</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div> </div> 
+        <div style={{marginTop:'30px', textAlign:'right'}}><button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Confirm & Save</button></div> 
+      </form> 
+
+      {/* --- PROFESSIONAL BOXED RECEIPT --- */}
+      {showReceipt && printData && (
           <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
               <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'320px', position:'relative'}}>
-                  <button onClick={() => setPrintReceiptData(null)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button>
-                  <div id="receipt-print-area" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'10px', border:'1px solid #eee'}}>
-                      <div style={{textAlign: 'center', fontWeight: 'bold', marginBottom: '10px'}}>
+                  <button onClick={() => setShowReceipt(false)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button>
+                  
+                  {/* PRINT CONTENT */}
+                  <div id="receipt-print-area" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'5px'}}>
+                      <div style={{textAlign: 'center', fontWeight: 'bold', marginBottom: '8px'}}>
                           <div style={{fontSize: '18px', textTransform:'uppercase'}}>VIPASSANA</div>
-                          <div style={{fontSize: '12px'}}>International Meditation Center</div>
-                          <div style={{fontSize: '14px', marginTop:'5px'}}>Dhamma Nagajjuna 2</div>
+                          <div style={{fontSize: '11px'}}>International Meditation Center</div>
+                          <div style={{fontSize: '13px', marginTop:'2px'}}>Dhamma Nagajjuna 2</div>
                       </div>
-                      <div style={{borderBottom: '2px solid black', margin: '5px 0'}}></div>
-                      <div style={{fontSize: '12px', marginBottom: '10px'}}>
-                          <div><strong>Course:</strong> {printReceiptData.courseName}</div>
-                          <div><strong>Teacher:</strong> {printReceiptData.teacherName}</div>
-                          <div><strong>Dates:</strong> {printReceiptData.dates}</div>
-                      </div>
-                      <div style={{borderBottom: '2px solid black', margin: '5px 0'}}></div>
-                      <div style={{fontSize: '16px', fontWeight: 'bold', margin: '10px 0'}}>
-                          <div>{printReceiptData.studentName}</div>
-                          <div style={{fontSize:'14px'}}>Conf: {printReceiptData.confNo}</div>
-                      </div>
-                      <table style={{width: '100%', fontSize: '14px', borderCollapse: 'collapse', marginTop:'10px'}}>
+                      
+                      {/* COURSE BOX */}
+                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'11px', marginBottom:'10px'}}>
                           <tbody>
-                              <tr><td style={{padding:'4px 0'}}>Room No:</td><td style={{fontWeight:'bold', textAlign:'right', fontSize:'16px'}}>{printReceiptData.roomNo || '-'}</td></tr>
-                              <tr><td style={{padding:'4px 0'}}>Dining Seat:</td><td style={{fontWeight:'bold', textAlign:'right', fontSize:'16px'}}>{printReceiptData.seatNo || '-'}</td></tr>
-                              <tr><td style={{padding:'4px 0'}}>Lockers:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{printReceiptData.lockers || '-'}</td></tr>
-                              <tr><td style={{padding:'4px 0'}}>Language:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{printReceiptData.language}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>Course</td><td style={{border:'1px solid black', padding:'4px'}}>{printData.courseName}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>Teacher</td><td style={{border:'1px solid black', padding:'4px'}}>{printData.teacherName}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>From</td><td style={{border:'1px solid black', padding:'4px'}}>{printData.from}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>To</td><td style={{border:'1px solid black', padding:'4px'}}>{printData.to}</td></tr>
                           </tbody>
                       </table>
-                      <div style={{borderBottom: '2px solid black', margin: '15px 0'}}></div>
-                      <div style={{textAlign: 'center', fontSize: '11px', fontWeight:'bold', marginTop:'10px'}}>*** Student Copy ***</div>
+
+                      {/* STUDENT BOX */}
+                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'12px', marginBottom:'10px'}}>
+                          <tbody>
+                              <tr><td style={{border:'1px solid black', padding:'4px', width:'30%'}}>Conf No</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.confNo}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Name</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.studentName}</td></tr>
+                          </tbody>
+                      </table>
+
+                      {/* DETAILS BOX */}
+                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'12px', marginBottom:'10px'}}>
+                          <tbody>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Room No</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold', fontSize:'14px'}}>{printData.roomNo || '-'}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Dining Seat</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold', fontSize:'14px'}}>{printData.seatNo || '-'}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Lockers</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.lockers || '-'}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Language</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.language}</td></tr>
+                          </tbody>
+                      </table>
+
+                      <div style={{textAlign: 'center', fontSize: '10px', fontStyle: 'italic', marginTop:'5px'}}>*** Student Copy ***</div>
                   </div>
               </div>
-              <style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; } @page { size: auto; margin: 0mm; } }`}</style>
+              {/* Force fit to 1 page */}
+              <style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; } @page { size: auto; margin: 0; } }`}</style>
           </div>
       )}
-
-      {/* --- PRINT MODAL: TOKEN --- */}
-      {printTokenData && (
-          <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
-              <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'300px', position:'relative'}}>
-                  <button onClick={() => setPrintTokenData(null)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button>
-                  <div id="token-print-area" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'20px', textAlign:'center', border:'2px solid black'}}>
-                      <div style={{fontSize:'16px', fontWeight:'bold', marginBottom:'10px'}}>DHAMMA SEAT TOKEN</div>
-                      <div style={{fontSize:'60px', fontWeight:'900', margin:'10px 0'}}>{printTokenData.seat}</div>
-                      <div style={{fontSize:'14px', fontWeight:'bold'}}>{printTokenData.name}</div>
-                      <div style={{fontSize:'12px', color:'#555'}}>{printTokenData.conf}</div>
-                  </div>
-              </div>
-              <style>{`@media print { body * { visibility: hidden; } #token-print-area, #token-print-area * { visibility: visible; } #token-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; } @page { size: auto; margin: 0mm; } }`}</style>
-          </div>
-      )}
-
-      {editingStudent && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'500px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave} style={{display:'flex', flexDirection:'column', gap:'10px'}}><label>Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e => setEditingStudent({...editingStudent, full_name: e.target.value})} /><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Conf No</label><input style={inputStyle} value={editingStudent.conf_no||''} onChange={e => setEditingStudent({...editingStudent, conf_no: e.target.value})} /></div><div><label>Lang</label><input style={inputStyle} value={editingStudent.discourse_language||''} onChange={e => setEditingStudent({...editingStudent, discourse_language: e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Dining Seat</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div><div><label>Room</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e => setEditingStudent({...editingStudent, room_no: e.target.value})} /></div></div><div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div></form></div></div>)}
-  </div> );
+    </div> 
+  );
 }
 
 function ExpenseTracker({ courses }) {
