@@ -742,13 +742,17 @@ function Dashboard({ courses }) {
     </div>
   );
 }
-// --- STUDENT ONBOARDING FORM (FIXED PRINTING & READ-ONLY LOCKERS) ---
+// --- STUDENT ONBOARDING FORM (FIXED VISIBLE RECEIPT) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
   const [selectedStudent, setSelectedStudent] = useState(null); 
   const [status, setStatus] = useState('');
+  
+  // New State for Printing
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [printData, setPrintData] = useState(null); // Stores data for the receipt
 
   const [formData, setFormData] = useState({ 
       courseId: '', participantId: '', roomNo: '', seatNo: '', 
@@ -787,18 +791,15 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const isMale = currentGender.startsWith('m'); 
   const isFemale = currentGender.startsWith('f');
 
-  // 1. Filter Rooms
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
 
-  // 2. Filter Numbers (Hide used ones)
   const allRecords = [...occupancy, ...participants].filter(p => String(p.participant_id) !== String(formData.participantId) && p.status !== 'Cancelled');
   const usedDining = new Set(); 
   const usedPagoda = new Set();
 
   allRecords.forEach(p => {
-      // Assuming numbers are unique per gender side or global. Safe to filter if used.
       if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no));
       if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no));
   });
@@ -844,65 +845,69 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
       
       setStatus('✅ Success! Student Checked-In.'); 
-      window.scrollTo(0, 0); // Scroll to top for visibility
+      window.scrollTo(0, 0);
 
+      // PREPARE RECEIPT DATA BEFORE RESETTING
+      const courseObj = courses.find(c => c.course_id === formData.courseId);
+      setPrintData({
+          courseName: courseObj?.course_name || 'N/A',
+          teacherName: courseObj?.teacher_name || 'Goenka Ji',
+          startDate: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '',
+          endDate: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '',
+          studentName: selectedStudent?.full_name || 'Student',
+          confNo: formData.confNo,
+          roomNo: formData.roomNo,
+          seatNo: formData.seatNo,
+          mobileLocker: formData.mobileLocker,
+          valuablesLocker: formData.valuablesLocker,
+          laundryToken: formData.laundryToken,
+          language: formData.language,
+          dhammaSeat: formData.dhammaSeat
+      });
+
+      // Show Print Button logic (handled by `printData` existence)
+      
+      // Reset Form
       setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' })); 
       setSelectedStudent(null); 
       clearRoom(); 
-      // Refresh Data
       fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); 
       fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(data)); 
       
       setTimeout(() => setStatus(''), 5000);
-  } catch (err) { 
+    } catch (err) { 
       setStatus(`❌ ${err.message}`); 
       window.scrollTo(0, 0);
-  } 
+    } 
   };
 
-  const handlePrint = () => {
-      if(!selectedStudent) return alert("Select a student first.");
-      const style = document.createElement('style');
-      // CSS for Thermal Printer
-      style.innerHTML = `
-          @media print {
-              @page { size: auto; margin: 0; }
-              body * { visibility: hidden; }
-              #receipt-area, #receipt-area * { visibility: visible; }
-              #receipt-area { 
-                  position: absolute; 
-                  left: 0; 
-                  top: 0; 
-                  width: 100%; 
-                  max-width: 300px; /* 80mm width */
-                  font-family: 'Courier New', monospace; 
-                  font-size: 14px; 
-                  color: black; 
-                  background: white;
-                  padding: 10px;
-              }
-              .receipt-line { border-bottom: 1px dashed black; margin: 8px 0; }
-              .receipt-header { text-align: center; font-weight: bold; margin-bottom: 10px; }
-              .receipt-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
-              .receipt-val { font-weight: bold; }
-          }
-      `;
-      document.head.appendChild(style);
-      window.print();
-      document.head.removeChild(style);
+  const triggerPrint = () => {
+      setShowReceipt(true);
+      setTimeout(() => {
+          window.print();
+      }, 500); // Wait for modal to render
   };
 
-  const currentCourse = courses.find(c => c.course_id === formData.courseId);
   const sectionHeader = (title) => <div style={{fontSize:'14px', fontWeight:'bold', color:'#007bff', borderBottom:'1px solid #eee', paddingBottom:'5px', marginTop:'15px', marginBottom:'10px'}}>{title}</div>;
   
   return ( 
     <div style={cardStyle}> 
       <h2>📝 Student Onboarding Form</h2> 
       
-      {/* STATUS MESSAGE (TOP) */}
       {status && (
           <div style={{marginBottom:'20px', padding:'15px', borderRadius:'6px', background: status.includes('Success') ? '#d4edda' : '#f8d7da', color: status.includes('Success') ? '#155724' : '#721c24', textAlign:'center', fontWeight:'bold', fontSize:'16px', boxShadow:'0 2px 4px rgba(0,0,0,0.1)'}}>
               {status}
+          </div>
+      )}
+
+      {/* PRINT BUTTON - Appears after successful save */}
+      {printData && !selectedStudent && (
+          <div style={{marginBottom:'20px', padding:'20px', background:'#e3f2fd', borderRadius:'8px', textAlign:'center', border:'2px dashed #2196f3'}}>
+              <h3 style={{marginTop:0}}>🎉 Check-in Complete!</h3>
+              <p>Student: <strong>{printData.studentName}</strong></p>
+              <button onClick={triggerPrint} style={{padding:'15px 30px', fontSize:'18px', background:'#28a745', color:'white', border:'none', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', gap:'10px', margin:'0 auto'}}>
+                  🖨️ Print Receipt Now
+              </button>
           </div>
       )}
 
@@ -920,12 +925,11 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
             <div><label style={labelStyle}>🆔 Conf No <span style={{color:'red'}}>*</span></label><input style={{...inputStyle, background: formData.confNo ? '#e8f5e9' : '#ffebee', border: formData.confNo ? '1px solid #ccc' : '1px solid red'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED" /></div> 
             <div><label style={labelStyle}>🎂 Age</label><input style={{...inputStyle, background:'#e9ecef'}} value={selectedStudent?.age || ''} disabled placeholder="Age" /></div>
             <div><label style={labelStyle}>🛏️ Room No</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Free Rooms --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div> 
-            <div><label style={labelStyle}>🍽️ Dining</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={handleDiningSeatChange} required><option value="">-- Free --</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> 
+            <div><label style={labelStyle}>🍽️ Dining</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={handleDiningSeatChange} required><option value="">--</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> 
         </div> 
 
         {sectionHeader("🔐 Lockers & Other (Auto-Synced)")} 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> 
-            {/* READ-ONLY LOCKER FIELDS */}
             <div><label style={labelStyle}>📱 Mobile</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d', cursor:'not-allowed'}} value={formData.mobileLocker} readOnly tabIndex="-1" placeholder="Auto" /></div> 
             <div><label style={labelStyle}>💍 Valuables</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d', cursor:'not-allowed'}} value={formData.valuablesLocker} readOnly tabIndex="-1" placeholder="Auto" /></div> 
             <div><label style={labelStyle}>🧺 Laundry</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d', cursor:'not-allowed'}} value={formData.laundryToken} readOnly tabIndex="-1" placeholder="Auto" /></div> 
@@ -940,53 +944,64 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
             <div><label style={labelStyle}>💺 Special</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div> 
         </div> 
 
-        <div style={{marginTop:'30px', textAlign:'right', display:'flex', justifyContent:'flex-end', gap:'10px'}}>
-            <button type="button" onClick={handlePrint} disabled={!selectedStudent} style={{padding:'12px 20px', background:'#6c757d', color:'white', border:'none', borderRadius:'6px', cursor:'pointer'}}>🖨️ Print Slip</button>
+        <div style={{marginTop:'30px', textAlign:'right'}}>
             <button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Confirm & Save</button>
         </div> 
       </form> 
 
-      {/* --- HIDDEN RECEIPT (Off-screen, always rendered so print catches it) --- */}
-      <div id="receipt-area" style={{ position: 'fixed', left: '-9999px', top: 0, width: '300px', backgroundColor: 'white' }}>
-          <div className="receipt-header">
-              <div style={{fontSize: '16px'}}>VIPASSANA</div>
-              <div style={{fontSize: '12px'}}>International Meditation Center</div>
-              <div style={{fontSize: '14px', marginTop:'5px'}}>Dhamma Nagajjuna 2</div>
-          </div>
-          
-          <div className="receipt-line"></div>
-          
-          <div style={{fontSize: '12px', marginBottom: '10px'}}>
-              <div><strong>Course:</strong> {currentCourse?.course_name || 'N/A'}</div>
-              <div><strong>Teacher:</strong> {currentCourse?.teacher_name || 'Goenka Ji'}</div>
-              <div>
-                  <strong>From:</strong> {currentCourse ? new Date(currentCourse.start_date).toLocaleDateString() : ''} <br/>
-                  <strong>To:</strong> {currentCourse ? new Date(currentCourse.end_date).toLocaleDateString() : ''}
+      {/* --- VISIBLE PRINT MODAL (Guarantee Print) --- */}
+      {showReceipt && printData && (
+          <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
+              <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'320px', position:'relative'}}>
+                  <button onClick={() => setShowReceipt(false)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button>
+                  
+                  {/* PRINT AREA */}
+                  <div id="receipt-print-area" style={{fontFamily:'Courier New', color:'black'}}>
+                      <div style={{textAlign: 'center', fontWeight: 'bold', marginBottom: '10px'}}>
+                          <div style={{fontSize: '16px'}}>VIPASSANA</div>
+                          <div style={{fontSize: '12px'}}>International Meditation Center</div>
+                          <div style={{fontSize: '14px', marginTop:'5px'}}>Dhamma Nagajjuna 2</div>
+                      </div>
+                      <div style={{borderBottom: '1px dashed black', margin: '5px 0'}}></div>
+                      <div style={{fontSize: '12px', marginBottom: '10px'}}>
+                          <div><strong>Course:</strong> {printData.courseName}</div>
+                          <div><strong>Teacher:</strong> {printData.teacherName}</div>
+                          <div><strong>From:</strong> {printData.startDate} <br/> <strong>To:</strong> {printData.endDate}</div>
+                      </div>
+                      <div style={{borderBottom: '1px dashed black', margin: '5px 0'}}></div>
+                      <div style={{fontSize: '16px', fontWeight: 'bold', margin: '10px 0'}}>
+                          <div>{printData.studentName}</div>
+                          <div style={{fontSize:'14px'}}>Conf: {printData.confNo}</div>
+                      </div>
+                      <table style={{width: '100%', fontSize: '14px', borderCollapse: 'collapse'}}>
+                          <tbody>
+                              <tr><td style={{padding:'4px 0'}}>Room No:</td><td style={{fontWeight:'bold', textAlign:'right', fontSize:'16px'}}>{printData.roomNo || '-'}</td></tr>
+                              <tr><td style={{padding:'4px 0'}}>Dining Seat:</td><td style={{fontWeight:'bold', textAlign:'right', fontSize:'16px'}}>{printData.seatNo || '-'}</td></tr>
+                              <tr><td style={{padding:'4px 0'}}>Lockers:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{printData.mobileLocker || '-'}</td></tr>
+                              <tr><td style={{padding:'4px 0'}}>Language:</td><td style={{fontWeight:'bold', textAlign:'right'}}>{printData.language}</td></tr>
+                          </tbody>
+                      </table>
+                      <div style={{borderBottom: '1px dashed black', margin: '15px 0'}}></div>
+                      <div style={{textAlign: 'center', fontSize: '10px', fontStyle: 'italic'}}>*** Student Copy ***<br/>keep this under dhamma seat</div>
+                  </div>
+
+                  {/* PRINT ACTIONS */}
+                  <div className="no-print" style={{marginTop:'20px', textAlign:'center', display:'flex', gap:'10px'}}>
+                      <button onClick={() => window.print()} style={{flex:1, padding:'10px', background:'#007bff', color:'white', border:'none', borderRadius:'5px', cursor:'pointer'}}>🖨️ PRINT</button>
+                      <button onClick={() => setShowReceipt(false)} style={{flex:1, padding:'10px', background:'#6c757d', color:'white', border:'none', borderRadius:'5px', cursor:'pointer'}}>Close</button>
+                  </div>
               </div>
+              {/* CSS to hide everything else during print */}
+              <style>{`
+                  @media print {
+                      body * { visibility: hidden; }
+                      #receipt-print-area, #receipt-print-area * { visibility: visible; }
+                      #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+                      @page { size: auto; margin: 0mm; }
+                  }
+              `}</style>
           </div>
-          
-          <div className="receipt-line"></div>
-
-          <div style={{fontSize: '14px', margin: '10px 0'}}>
-              <div className="receipt-row"><span>Conf No:</span> <span className="receipt-val">{formData.confNo}</span></div>
-              <div className="receipt-row"><span>Name:</span> <span className="receipt-val">{selectedStudent?.full_name}</span></div>
-          </div>
-
-          <div style={{fontSize: '14px'}}>
-              <div className="receipt-row"><span>Room No:</span> <span className="receipt-val">{formData.roomNo || '-'}</span></div>
-              <div className="receipt-row"><span>Dining Seat:</span> <span className="receipt-val">{formData.seatNo || '-'}</span></div>
-              <div className="receipt-row"><span>Mobile Locker:</span> <span className="receipt-val">{formData.mobileLocker || '-'}</span></div>
-              <div className="receipt-row"><span>Valuables Locker:</span> <span className="receipt-val">{formData.valuablesLocker || '-'}</span></div>
-              <div className="receipt-row"><span>Laundry Token:</span> <span className="receipt-val">{formData.laundryToken || '-'}</span></div>
-              <div className="receipt-row"><span>Discourse:</span> <span className="receipt-val">{formData.language}</span></div>
-          </div>
-
-          <div className="receipt-line"></div>
-          <div style={{textAlign: 'center', fontSize: '10px', fontStyle: 'italic', marginTop:'10px'}}>
-              student copy<br/>
-              keep this under dhamma seat
-          </div>
-      </div>
+      )}
     </div> 
   );
 }
