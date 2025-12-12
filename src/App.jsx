@@ -40,6 +40,231 @@ export default function App() {
   const [error, setError] = useState('');
   const [preSelectedRoom, setPreSelectedRoom] = useState('');
 
+  // --- COURSE ADMIN STATE ---
+  const [students, setStudents] = useState([]);
+  const [uploadStatus, setUploadStatus] = useState(null);
+  const [selectedCourseForUpload, setSelectedCourseForUpload] = useState('');
+  const [adminSubTab, setAdminSubTab] = useState('upload'); 
+  const [newCourseData, setNewCourseData] = useState({ name: '', startDate: '', endDate: '' });
+  const [manualStudent, setManualStudent] = useState({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
+
+  useEffect(() => {
+    const savedAuth = localStorage.getItem('admin_auth');
+    if (savedAuth === 'true') setIsAuthenticated(true);
+    fetchCourses();
+  }, []);
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (pinInput === ADMIN_PASSCODE) {
+      setIsAuthenticated(true);
+      localStorage.setItem('admin_auth', 'true');
+    } else {
+      setLoginError('❌ Incorrect Passcode');
+      setPinInput('');
+    }
+  };
+
+  const handleLogout = () => { setIsAuthenticated(false); localStorage.removeItem('admin_auth'); setView('dashboard'); };
+  
+  const fetchCourses = () => { 
+    fetch(`${API_URL}/courses`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => Array.isArray(data) ? setCourses(data) : setCourses([]))
+      .catch(err => { console.error(err); setError("Connection Error: Could not load courses."); }); 
+  };
+
+  const handleRoomClick = (roomNo) => {
+    setPreSelectedRoom(roomNo);
+    setView('onboarding');
+  };
+
+  // ==============================================================================
+  // --- COURSE ADMIN LOGIC -------------------------------------------------------
+  // ==============================================================================
+
+  const handleCreateCourse = async (e) => {
+    e.preventDefault();
+    if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
+    
+    // 1. Create the new course object
+    const courseId = `C-${Date.now()}`;
+    const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
+    
+    const newCourseLocal = { 
+        course_id: courseId, 
+        course_name: courseName, 
+        start_date: newCourseData.startDate, 
+        end_date: newCourseData.endDate 
+    };
+
+    // 2. Force Update UI (Sticky)
+    setCourses(prev => [...prev, newCourseLocal]);
+
+    // 3. Save to Backend
+    try {
+        const payload = {
+            courseName: courseName,
+            teacherName: 'Goenka Ji',
+            startDate: newCourseData.startDate,
+            endDate: newCourseData.endDate
+        };
+
+        const res = await fetch(`${API_URL}/courses`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            alert(`✅ Course Created: ${courseName}`);
+            fetchCourses(); 
+        } else {
+            console.warn("Backend rejected save. Keeping local copy.");
+        }
+    } catch (err) {
+        console.error("Backend Error:", err);
+    }
+    
+    setNewCourseData({ name: '', startDate: '', endDate: '' });
+    setSelectedCourseForUpload(courseName);
+    setAdminSubTab('upload');
+  };
+
+  const handleManualSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedCourseForUpload) return alert("Please select a target course first.");
+    if (!manualStudent.full_name) return alert("Name is required.");
+    const newStudent = {
+      id: Date.now(),
+      ...manualStudent,
+      conf_no: manualStudent.conf_no || `MANUAL-${Date.now()}`,
+      status: 'Active',
+      dining_seat: '',
+      room_no: ''
+    };
+    setStudents(prev => [newStudent, ...prev]);
+    alert(`Added ${newStudent.full_name} to the Preview list.`);
+    setManualStudent({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
+    setAdminSubTab('upload');
+  };
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      alert("❌ Format Error! Please upload a .CSV file.");
+      event.target.value = null; 
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try { processCSV(e.target.result); } 
+      catch (err) { console.error(err); setUploadStatus({ type: 'error', msg: 'Failed to parse CSV.' }); }
+    };
+    reader.readAsText(file);
+  };
+
+  const processCSV = (csvText) => {
+    const lines = csvText.split('\n').filter(line => line.trim() !== '');
+    if (lines.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty or too short.' }); return; }
+
+    const splitRow = (rowStr) => rowStr.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
+
+    let headerRowIndex = -1;
+    let headers = [];
+
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+        const lineLower = lines[i].toLowerCase();
+        if (lineLower.includes('name') && (lineLower.includes('gender') || lineLower.includes('age'))) {
+            headerRowIndex = i;
+            headers = splitRow(lines[i]).map(h => h.toLowerCase());
+            break;
+        }
+    }
+
+    if (headerRowIndex === -1) {
+        setUploadStatus({ type: 'error', msg: 'Could not detect headers (Name, Gender, Age). Please check CSV format.' });
+        return;
+    }
+
+    const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
+
+    const map = {
+      conf: getIndex(['conf', 'ref', 'id', 'no.']),
+      name: getIndex(['name', 'student', 'given']),
+      age: getIndex(['age']), 
+      gender: getIndex(['gender', 'sex']),
+      courses: getIndex(['course', 'history']), 
+      seat: getIndex(['seat', 'dining']),
+      email: getIndex(['email']),
+      phone: getIndex(['phone', 'mobile']),
+      notes: getIndex(['notes', 'remark'])
+    };
+    
+    const parsedStudents = lines.slice(headerRowIndex + 1).map((line, index) => {
+      const row = splitRow(line);
+      const rawName = map.name > -1 ? row[map.name] : '';
+      const rawConf = map.conf > -1 ? row[map.conf] : '';
+      
+      if (!rawName && !rawConf) return null; 
+
+      return {
+        id: Date.now() + index,
+        conf_no: rawConf || `TEMP-${index + 1}`,
+        full_name: rawName || 'Unknown Student',
+        age: map.age > -1 ? row[map.age] : '',
+        gender: map.gender > -1 ? row[map.gender] : '',
+        courses_info: map.courses > -1 ? row[map.courses] : '', 
+        dining_seat: map.seat > -1 ? row[map.seat] : '',
+        email: map.email > -1 ? row[map.email] : '',
+        mobile: map.phone > -1 ? row[map.phone] : '',
+        notes: map.notes > -1 ? row[map.notes] : '',
+        status: rawConf ? 'Active' : 'Pending ID'
+      };
+    }).filter(s => s !== null);
+
+    setStudents(parsedStudents);
+    setUploadStatus({ type: 'success', msg: `Ready! Loaded ${parsedStudents.length} valid students.` });
+  };
+
+  const saveToDatabase = async () => {
+    if (students.length === 0) return;
+    const targetCourse = courses.find(c => c.course_name === selectedCourseForUpload);
+    if (!targetCourse) return alert("Please select a valid course first.");
+
+    if (!window.confirm(`Save ${students.length} students to ${selectedCourseForUpload}?`)) return;
+
+    try {
+        const payload = { students: students.map(s => ({
+            name: s.full_name,
+            confNo: s.conf_no,
+            age: s.age,
+            gender: s.gender,
+            courses: s.courses_info,
+            email: s.email,
+            phone: s.mobile
+        }))};
+
+        const res = await fetch(`${API_URL}/courses/${targetCourse.course_id}/import`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if(res.ok) {
+            alert(`✅ Success: ${data.message}`);
+            setStudents([]); 
+        } else {
+            alert(`❌ Error: ${data.error}`);
+        }
+    } catch(err) {
+        alert("Network Error: Failed to save data.");
+        console.error(err);
+    }
+  };
+
   // --- UPDATED COURSE ADMIN (WITH TEACHER NAME) ---
   const renderCourseAdmin = () => (
     <div style={cardStyle}>
@@ -141,6 +366,50 @@ export default function App() {
       )}
     </div>
   );
+
+  if (!isAuthenticated) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}>
+        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
+          <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Center Admin</h1>
+          <form onSubmit={handleLogin}>
+            <input type="password" placeholder="Enter Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} />
+            <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button>
+          </form>
+          {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-container" style={{ fontFamily: 'Segoe UI, sans-serif', padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
+      <style>{`@media print { .no-print { display: none !important; } .app-container { background: white !important; padding: 0 !important; } body { font-size: 10pt; } .print-hide { display: none; } }`}</style>
+      <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button onClick={() => setView('dashboard')} style={btnStyle(view === 'dashboard')}>📊 Zero Day Stag Dashboard</button>
+          <button onClick={() => setView('ta-panel')} style={btnStyle(view === 'ta-panel')}>AT Panel</button>
+          <button onClick={() => setView('room-view')} style={btnStyle(view === 'room-view')}>🛏️ Global Accommodation</button>
+          <button onClick={() => setView('onboarding')} style={btnStyle(view === 'onboarding')}>📝 Student Onboarding</button>
+          <button onClick={() => setView('participants')} style={btnStyle(view === 'participants')}>👥 Manage Students</button>
+          <button onClick={() => setView('expenses')} style={btnStyle(view === 'expenses')}>🛒 Store</button>
+          <button onClick={() => setView('course-admin')} style={btnStyle(view === 'course-admin')}>⚙️ Course Admin</button>
+        </div>
+        <button onClick={handleLogout} style={{ ...btnStyle(false), border: '1px solid #dc3545', color: '#dc3545' }}>🔒 Logout</button>
+      </nav>
+
+      {error && <div className="no-print" style={{ padding: '12px', background: '#ffebee', color: '#c62828', borderRadius: '5px', marginBottom: '20px' }}>⚠️ {error}</div>}
+
+      {view === 'dashboard' && <Dashboard courses={courses} />}
+      {view === 'ta-panel' && <ATPanel courses={courses} />}
+      {view === 'room-view' && <GlobalAccommodationManager courses={courses} onRoomClick={handleRoomClick} />}
+      {view === 'onboarding' && <StudentForm courses={courses} preSelectedRoom={preSelectedRoom} clearRoom={() => setPreSelectedRoom('')} />}
+      {view === 'expenses' && <ExpenseTracker courses={courses} />}
+      {view === 'participants' && <ParticipantList courses={courses} refreshCourses={fetchCourses} />}
+      {view === 'course-admin' && renderCourseAdmin()}
+    </div>
+  );
+}
 
 // --- GLOBAL ACCOMMODATION (FIXED MANUAL ADD) ---
 function GlobalAccommodationManager({ courses, onRoomClick }) {
