@@ -852,7 +852,8 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
     </div> 
   );
       }
-// --- PARTICIPANT LIST (FIXED: STICKY SEATS & NEW PAGODA TAB) ---
+
+// --- PARTICIPANT LIST (BULK TOKENS & SINGLE PAGE FIX) ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
@@ -868,8 +869,8 @@ function ParticipantList({ courses, refreshCourses }) {
   // Print States
   const [printReceiptData, setPrintReceiptData] = useState(null);
   const [printTokenData, setPrintTokenData] = useState(null);
+  const [printBulkData, setPrintBulkData] = useState(null); // NEW: Bulk Print State
 
-  // --- HELPERS ---
   const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = String(seatNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF')) return 'Old'; if (s.startsWith('NM') || s.startsWith('NF')) return 'New'; if (s.startsWith('SM') || s.startsWith('SF')) return 'DS'; return 'New'; };
   const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = String(confNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   const parseCourses = (str) => { if (!str) return { s: 0, l: 0 }; const sMatch = str.match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = str.match(/L\s*[:=-]?\s*(\d+)/i); return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; };
@@ -930,6 +931,26 @@ function ParticipantList({ courses, refreshCourses }) {
           cell: student.pagoda_cell_no || '-',
           room: student.room_no || '-'
       });
+      setTimeout(() => window.print(), 500);
+  };
+
+  // --- BULK TOKEN LOGIC ---
+  const prepareBulkTokens = () => {
+      const validStudents = participants.filter(p => p.status === 'Arrived' && p.dhamma_hall_seat_no);
+      if (validStudents.length === 0) return alert("No arrived students with assigned seats found.");
+      
+      if(!window.confirm(`Print tokens for ${validStudents.length} students?\n\nTip: Ensure your thermal printer is ready.`)) return;
+
+      // Sort by Seat Number (A1, A2... B1...)
+      const tokens = validStudents.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric: true})).map(s => ({
+          seat: s.dhamma_hall_seat_no,
+          name: formatName(s.full_name),
+          conf: s.conf_no,
+          cell: s.pagoda_cell_no || '-',
+          room: s.room_no || '-'
+      }));
+      
+      setPrintBulkData(tokens);
       setTimeout(() => window.print(), 500);
   };
 
@@ -996,27 +1017,15 @@ function ParticipantList({ courses, refreshCourses }) {
     setAssignProgress(''); alert(`✅ Auto-Assign Complete! Assigned ${allUpdates.length} seats.`); loadStudents();
   };
 
-  // --- STICKY SEAT CLICK (FIXED) ---
   const handleSeatClick = async (seatLabel, student) => {
-      // 1. SELECT SOURCE
-      if (!selectedSeat) { 
-          setSelectedSeat({ label: seatLabel, p: student }); 
-          return; 
-      }
-      
-      // 2. TARGET SELECTED -> EXECUTE
-      const source = selectedSeat; 
-      const target = { label: seatLabel, p: student }; 
-      setSelectedSeat(null); // Reset selection
-
-      if (source.label === target.label) return; 
-      if (!source.p) return; // Cannot move empty seat
-
+      if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); return; }
+      const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null);
+      if (source.label === target.label) return;
+      if (!source.p) return; 
       const isSourceMale = (source.p.gender || '').toLowerCase().startsWith('m');
       if (target.p) { const isTargetMale = (target.p.gender || '').toLowerCase().startsWith('m'); if (isSourceMale !== isTargetMale) return alert("⛔ Gender Mismatch!"); }
 
       if (window.confirm(`Confirm Move/Swap?\nFrom ${source.label} (${source.p.full_name})\nTo ${target.label} ${target.p ? '('+target.p.full_name+')' : '(Empty)'}`)) {
-          // LOCK SEAT after move
           if (!target.p) { 
                await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); 
           } else { 
@@ -1033,7 +1042,6 @@ function ParticipantList({ courses, refreshCourses }) {
   
   if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={quickBtnStyle(true)}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
 
-  // --- NEW PAGODA VIEW ---
   if (viewMode === 'pagoda') { 
       const assigned = participants.filter(p => p.status==='Arrived' && p.pagoda_cell_no); 
       const sorter = (a,b) => String(a.pagoda_cell_no || '0').localeCompare(String(b.pagoda_cell_no || '0'), undefined, { numeric: true });
@@ -1062,7 +1070,6 @@ function ParticipantList({ courses, refreshCourses }) {
         const isSelected = selectedSeat && selectedSeat.label === label; 
         const isLocked = p && p.is_seat_locked;
         return ( 
-            // FIXED: Using handleSeatClick directly here
             <div onClick={() => handleSeatClick(label, p)} 
                  style={{ 
                      border: isSelected ? '3px solid gold' : '1px solid black', 
@@ -1119,6 +1126,7 @@ function ParticipantList({ courses, refreshCourses }) {
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}>
           <div style={{display:'flex', gap:'10px'}}> <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select> <input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /> </div>
           <div style={{display:'flex', gap:'5px'}}> 
+              <button onClick={() => setPrintBulkData([]) /* Trigger function later */} onClick={prepareBulkTokens} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>🎫 Bulk Tokens</button>
               <button onClick={handleAutoNoShow} disabled={!courseId} style={{...quickBtnStyle(true), background:'#d32f2f', color:'white'}}>🚫 No-Shows</button> 
               <button onClick={handleSendReminders} disabled={!courseId} style={{...quickBtnStyle(true), background:'#ff9800', color:'white'}}>📢 Reminders</button> 
               <button onClick={() => setViewAllMode(true)} disabled={!courseId} style={{...quickBtnStyle(true), background:'#6c757d', color:'white'}}>👁️ View All</button> 
@@ -1209,7 +1217,7 @@ function ParticipantList({ courses, refreshCourses }) {
           </div>
       )}
 
-      {/* TOKEN MODAL */}
+      {/* SINGLE TOKEN MODAL (FIXED PAGE BREAK) */}
       {printTokenData && (
           <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
               <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'300px', position:'relative'}}>
@@ -1217,7 +1225,7 @@ function ParticipantList({ courses, refreshCourses }) {
                   <div id="token-print-area" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'20px', textAlign:'center', border:'2px solid black'}}>
                       <div style={{fontSize:'16px', fontWeight:'bold', marginBottom:'10px'}}>DHAMMA SEAT TOKEN</div>
                       <div style={{fontSize:'60px', fontWeight:'900', margin:'10px 0'}}>{printTokenData.seat}</div>
-                      <div style={{fontSize:'14px', fontWeight:'bold'}}>{printTokenData.name}</div>
+                      <div style={{fontSize:'14px', fontWeight:'bold', marginBottom:'5px'}}>{printTokenData.name}</div>
                       <div style={{fontSize:'12px', color:'#555', marginBottom:'10px'}}>{printTokenData.conf}</div>
                       
                       <div style={{display:'flex', justifyContent:'space-between', borderTop:'1px solid black', paddingTop:'10px'}}>
@@ -1232,7 +1240,48 @@ function ParticipantList({ courses, refreshCourses }) {
                       </div>
                   </div>
               </div>
-              <style>{`@media print { body * { visibility: hidden; } #token-print-area, #token-print-area * { visibility: visible; } #token-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; } @page { size: auto; margin: 0mm; } }`}</style>
+              <style>{`@media print { 
+                  @page { size: auto; margin: 0; }
+                  body, html { height: 100%; overflow: hidden; margin: 0; padding: 0; }
+                  body * { visibility: hidden; } 
+                  #token-print-area, #token-print-area * { visibility: visible; } 
+                  #token-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 10px; } 
+              }`}</style>
+          </div>
+      )}
+
+      {/* BULK TOKENS MODAL (FIXED PAGE BREAKS) */}
+      {printBulkData && (
+          <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
+              <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'350px', maxHeight:'80vh', overflowY:'auto', position:'relative'}}>
+                  <button onClick={() => setPrintBulkData(null)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button>
+                  <h3 style={{textAlign:'center', margin:'0 0 20px 0'}}>🖨️ Bulk Printing...</h3>
+                  
+                  <div id="bulk-token-print-area">
+                      {printBulkData.map((t, i) => (
+                          <div key={i} className="bulk-token-container" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'20px', textAlign:'center', border:'2px solid black', marginBottom:'20px'}}>
+                              <div style={{fontSize:'16px', fontWeight:'bold', marginBottom:'10px'}}>DHAMMA SEAT TOKEN</div>
+                              <div style={{fontSize:'60px', fontWeight:'900', margin:'10px 0'}}>{t.seat}</div>
+                              <div style={{fontSize:'14px', fontWeight:'bold', marginBottom:'5px'}}>{t.name}</div>
+                              <div style={{fontSize:'12px', color:'#555', marginBottom:'10px'}}>{t.conf}</div>
+                              <div style={{display:'flex', justifyContent:'space-between', borderTop:'1px solid black', paddingTop:'10px'}}>
+                                  <div style={{textAlign:'left'}}><div style={{fontSize:'10px'}}>Cell</div><div style={{fontWeight:'bold', fontSize:'14px'}}>{t.cell}</div></div>
+                                  <div style={{textAlign:'right'}}><div style={{fontSize:'10px'}}>Room</div><div style={{fontWeight:'bold', fontSize:'14px'}}>{t.room}</div></div>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+              <style>{`
+                  @media print {
+                      @page { size: auto; margin: 0; }
+                      body * { visibility: hidden; }
+                      #bulk-token-print-area, #bulk-token-print-area * { visibility: visible; }
+                      #bulk-token-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+                      .bulk-token-container { page-break-after: always; display: block; height: auto; border-bottom: 2px dashed black !important; margin-bottom: 5px; padding-bottom: 20px; }
+                      .bulk-token-container:last-child { page-break-after: auto; }
+                  }
+              `}</style>
           </div>
       )}
 
@@ -1244,7 +1293,7 @@ function ParticipantList({ courses, refreshCourses }) {
       </div>
       <div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div></form></div></div>)}
   </div> );
-          }
+  }
 
 function ExpenseTracker({ courses }) {
   const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [selectedStudentId, setSelectedStudentId] = useState(''); const [studentToken, setStudentToken] = useState(''); const [expenseType, setExpenseType] = useState('Laundry Token'); const [amount, setAmount] = useState(''); const [history, setHistory] = useState([]); const [status, setStatus] = useState(''); const [showInvoice, setShowInvoice] = useState(false); const [reportMode, setReportMode] = useState(''); const [financialData, setFinancialData] = useState([]); const [editingId, setEditingId] = useState(null);
