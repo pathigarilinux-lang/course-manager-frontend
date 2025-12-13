@@ -754,7 +754,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   );
 }
 
-// --- PARTICIPANT LIST (RESTORED FEATURES & GRID) ---
+// --- PARTICIPANT LIST (FIXED: RESTORED DHAMMA HALL GRID) ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
@@ -765,12 +765,12 @@ function ParticipantList({ courses, refreshCourses }) {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [assignProgress, setAssignProgress] = useState(''); 
   const [selectedSeat, setSelectedSeat] = useState(null);
-  const [badgeStudent, setBadgeStudent] = useState(null);
-
+  
   // Print States
   const [printReceiptData, setPrintReceiptData] = useState(null);
   const [printTokenData, setPrintTokenData] = useState(null);
 
+  // --- HELPERS ---
   const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = String(seatNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF')) return 'Old'; if (s.startsWith('NM') || s.startsWith('NF')) return 'New'; if (s.startsWith('SM') || s.startsWith('SF')) return 'DS'; return 'New'; };
   const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = String(confNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   const parseCourses = (str) => { if (!str) return { s: 0, l: 0 }; const sMatch = str.match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = str.match(/L\s*[:=-]?\s*(\d+)/i); return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; };
@@ -789,6 +789,9 @@ function ParticipantList({ courses, refreshCourses }) {
       if(l.includes('telugu')) return 'T';
       if(l.includes('hindi')) return 'H';
       if(l.includes('english')) return 'E';
+      if(l.includes('marathi')) return 'M';
+      if(l.includes('tamil')) return 'Ta';
+      if(l.includes('kannada')) return 'K';
       return l[0].toUpperCase();
   };
 
@@ -804,6 +807,7 @@ function ParticipantList({ courses, refreshCourses }) {
 
   const sortedList = React.useMemo(() => { let sortableItems = [...participants].filter(p => p); if (sortConfig.key) { sortableItems.sort((a, b) => { const valA = (a[sortConfig.key] || '').toString().toLowerCase(); const valB = (b[sortConfig.key] || '').toString().toLowerCase(); if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } return sortableItems.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase())); }, [participants, sortConfig, search]);
 
+  // --- PRINT PREP ---
   const prepareReceipt = (student) => {
       const courseObj = courses.find(c => c.course_id == student.course_id) || courses.find(c => c.course_id == courseId);
       setPrintReceiptData({
@@ -827,20 +831,91 @@ function ParticipantList({ courses, refreshCourses }) {
       setTimeout(() => window.print(), 500);
   };
 
-  const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
-  const handleDeleteCourse = async () => { if (window.confirm("🛑 DELETE COURSE?")) { await fetch(`${API_URL}/courses/${courseId}`, { method: 'DELETE' }); refreshCourses(); setCourseId(''); } };
+  // --- ACTIONS ---
   const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); } };
   const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingStudent) }); setEditingStudent(null); loadStudents(); };
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); loadStudents(); };
   const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
+  const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
+  const handleDeleteCourse = async () => { if (window.confirm("🛑 DELETE COURSE?")) { await fetch(`${API_URL}/courses/${courseId}`, { method: 'DELETE' }); refreshCourses(); setCourseId(''); } };
 
-  // --- SEATING / DINING / ALL MODES (SAFEGUARDS ADDED) ---
+  // --- AUTO-ASSIGN LOGIC (Restored) ---
+  const handleAutoAssign = async () => {
+    if (!window.confirm("⚡ Auto-Assign Seats?\n\n- ONLY 'Arrived' students.\n- Locked/Manual seats preserved.\n- Prevents Duplicates.")) return;
+    setAssignProgress('Calculations...');
+    
+    const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
+    const allP = await res.json();
+    const activeStudents = allP.filter(p => p.status === 'Arrived'); 
+
+    const males = activeStudents.filter(p => (p.gender || '').toLowerCase().startsWith('m'));
+    const females = activeStudents.filter(p => (p.gender || '').toLowerCase().startsWith('f'));
+
+    const generateSeats = (cols, rows) => {
+        let seats = [];
+        for(let r=1; r<=rows; r++) { cols.forEach(c => seats.push(`${c}${r}`)); }
+        return seats;
+    };
+    
+    const maleRegular = generateSeats(['J','I','H','G','F','E','D','C','B','A'], 8);
+    const maleSpecial = generateSeats(['L','K'], 8); 
+    const femaleRegular = generateSeats(['G','F','E','D','C','B','A'], 8);
+    const femaleSpecial = generateSeats(['I','H'], 8);
+
+    const assignGroup = (studentList, regularSeats, specialSeats) => {
+        const updates = [];
+        const lockedSeatSet = new Set();
+        studentList.forEach(p => { if (p.is_seat_locked && p.dhamma_hall_seat_no) lockedSeatSet.add(p.dhamma_hall_seat_no); });
+        const availableRegular = regularSeats.filter(s => !lockedSeatSet.has(s));
+        const availableSpecial = specialSeats.filter(s => !lockedSeatSet.has(s));
+        const toAssign = studentList.filter(p => !p.is_seat_locked);
+        const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if(rankA !== rankB) return rankA - rankB; if(rankA === 0) return getSeniorityScore(b) - getSeniorityScore(a); return (parseInt(b.age)||0) - (parseInt(a.age)||0); };
+        
+        const specialGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating)).sort(sorter);
+        const regularGroup = toAssign.filter(p => !p.special_seating || !['Chowky','Chair','BackRest'].includes(p.special_seating)).sort(sorter);
+
+        specialGroup.forEach(p => { if (availableSpecial.length > 0) { updates.push({ ...p, dhamma_hall_seat_no: availableSpecial.shift() }); } else { regularGroup.unshift(p); } });
+        regularGroup.forEach(p => { if (availableRegular.length > 0) { updates.push({ ...p, dhamma_hall_seat_no: availableRegular.shift() }); } });
+        return updates;
+    };
+
+    const allUpdates = [...assignGroup(males, maleRegular, maleSpecial), ...assignGroup(females, femaleRegular, femaleSpecial)];
+    
+    if(allUpdates.length === 0) { setAssignProgress(''); return alert("No assignments needed."); }
+
+    setAssignProgress(`Saving ${allUpdates.length}...`);
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) { const batch = allUpdates.slice(i, i + BATCH_SIZE); await Promise.all(batch.map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }))); }
+    setAssignProgress(''); alert(`✅ Auto-Assign Complete! Assigned ${allUpdates.length} seats.`); loadStudents();
+  };
+
+  const handleSeatClick = async (seatLabel, student) => {
+      if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); return; }
+      const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null);
+      if (source.label === target.label) return;
+      if (!source.p) return; 
+      const isSourceMale = (source.p.gender || '').toLowerCase().startsWith('m');
+      if (target.p) { const isTargetMale = (target.p.gender || '').toLowerCase().startsWith('m'); if (isSourceMale !== isTargetMale) return alert("⛔ Gender Mismatch!"); }
+
+      if (window.confirm(`Confirm Move/Swap?\nFrom ${source.label} (${source.p.full_name})\nTo ${target.label} ${target.p ? '('+target.p.full_name+')' : '(Empty)'}`)) {
+          if (!target.p) { 
+               await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); 
+          } else { 
+               await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP', is_seat_locked: true}) }); 
+               await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); 
+               await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); 
+          }
+          loadStudents();
+      }
+  };
+
+  // --- VIEWS ---
   if (viewAllMode) { return ( <div style={{background:'white', padding:'20px'}}> <div className="no-print" style={{marginBottom:'20px'}}><button onClick={() => setViewAllMode(false)} style={btnStyle(false)}>← Back</button><button onClick={handleExport} style={{...quickBtnStyle(true), marginLeft:'10px'}}>Export CSV</button></div> <h2>Master List</h2> <table style={{width:'100%', fontSize:'12px', borderCollapse:'collapse'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Seat</th></tr></thead><tbody>{participants.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.age}</td><td style={tdStyle}>{p.gender}</td><td style={tdStyle}>{p.dhamma_hall_seat_no}</td></tr>))}</tbody></table> </div> ); }
   
   if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={quickBtnStyle(true)}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
 
+  // --- FULL DHAMMA HALL SEATING GRID (RESTORED) ---
   if (viewMode === 'seating') { 
-    // --- PROFESSIONAL GRID VIEW (RESTORED FROM PREVIOUS STEP) ---
     const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
     const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
     const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p); 
@@ -894,7 +969,7 @@ function ParticipantList({ courses, refreshCourses }) {
     </div> );
   }
 
-  // --- RESTORED LIST VIEW (WITH ADMIN ZONE & TOOLBAR) ---
+  // --- DEFAULT LIST VIEW (RESTORED ADMIN BUTTONS & COLUMNS) ---
   return ( <div style={cardStyle}> 
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}>
           <div style={{display:'flex', gap:'10px'}}> <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select> <input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /> </div>
