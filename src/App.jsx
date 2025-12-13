@@ -1126,7 +1126,7 @@ function ParticipantList({ courses, refreshCourses }) {
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}>
           <div style={{display:'flex', gap:'10px'}}> <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select> <input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /> </div>
           <div style={{display:'flex', gap:'5px'}}> 
-              <button onClick={() => setPrintBulkData([]) /* Trigger function later */} onClick={prepareBulkTokens} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>🎫 Bulk Tokens</button>
+              <button onClick={prepareBulkTokens} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>🎫 Bulk Tokens</button>
               <button onClick={handleAutoNoShow} disabled={!courseId} style={{...quickBtnStyle(true), background:'#d32f2f', color:'white'}}>🚫 No-Shows</button> 
               <button onClick={handleSendReminders} disabled={!courseId} style={{...quickBtnStyle(true), background:'#ff9800', color:'white'}}>📢 Reminders</button> 
               <button onClick={() => setViewAllMode(true)} disabled={!courseId} style={{...quickBtnStyle(true), background:'#6c757d', color:'white'}}>👁️ View All</button> 
