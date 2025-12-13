@@ -754,7 +754,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   );
 }
 
-// --- PARTICIPANT LIST (RESTORED COLUMNS & EDITABLE LOCKERS) ---
+// --- PARTICIPANT LIST (RESTORED MISSING COLUMNS) ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
@@ -789,7 +789,6 @@ function ParticipantList({ courses, refreshCourses }) {
       if(l.includes('telugu')) return 'T';
       if(l.includes('hindi')) return 'H';
       if(l.includes('english')) return 'E';
-      if(l.includes('marathi')) return 'M';
       return l[0].toUpperCase();
   };
 
@@ -865,7 +864,14 @@ function ParticipantList({ courses, refreshCourses }) {
         const availableRegular = regularSeats.filter(s => !lockedSeatSet.has(s));
         const availableSpecial = specialSeats.filter(s => !lockedSeatSet.has(s));
         const toAssign = studentList.filter(p => !p.is_seat_locked);
-        const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if(rankA !== rankB) return rankA - rankB; if(rankA === 0) return getSeniorityScore(b) - getSeniorityScore(a); return (parseInt(b.age)||0) - (parseInt(a.age)||0); };
+        
+        // Sorting Logic: Old (Score) -> New (Age)
+        const sorter = (a,b) => { 
+            const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); 
+            if(rankA !== rankB) return rankA - rankB; 
+            if(rankA === 0) return getSeniorityScore(b) - getSeniorityScore(a); 
+            return (parseInt(b.age)||0) - (parseInt(a.age)||0); 
+        };
         
         const specialGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating)).sort(sorter);
         const regularGroup = toAssign.filter(p => !p.special_seating || !['Chowky','Chair','BackRest'].includes(p.special_seating)).sort(sorter);
@@ -911,7 +917,7 @@ function ParticipantList({ courses, refreshCourses }) {
   if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={quickBtnStyle(true)}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
 
   if (viewMode === 'seating') { 
-    // --- PROFESSIONAL GRID VIEW (RESTORED) ---
+    // --- PROFESSIONAL GRID VIEW ---
     const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
     const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
     const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p); 
@@ -979,14 +985,14 @@ function ParticipantList({ courses, refreshCourses }) {
           </div>
       </div>
       
-      {/* ADMIN ZONE (RESTORED) */}
+      {/* ADMIN ZONE */}
       {courseId && (<div style={{background:'#fff5f5', border:'1px solid #feb2b2', padding:'10px', borderRadius:'5px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}><span style={{color:'#c53030', fontWeight:'bold', fontSize:'13px'}}>⚠️ Admin Zone:</span><div><button onClick={handleResetCourse} style={{background:'#e53e3e', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', marginRight:'10px', fontSize:'12px'}}>Reset Data</button><button onClick={handleDeleteCourse} style={{background:'red', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Delete Course</button></div></div>)}
 
       <div style={{overflowX:'auto'}}>
         <table style={{width:'100%', borderCollapse:'collapse', fontSize:'13px'}}>
           <thead>
             <tr style={{background:'#f1f1f1', textAlign:'left'}}>
-              {['full_name','conf_no','courses_info','age','gender','room_no','dhamma_hall_seat_no', 'status'].map(k=><th key={k} style={{...tdStyle, cursor:'pointer'}} onClick={()=>handleSort(k)}>{k.replace(/_/g,' ').toUpperCase()}</th>)}
+              {['full_name','conf_no','courses_info','age','gender','room_no','dining_seat_no', 'pagoda_cell_no', 'dhamma_hall_seat_no', 'status'].map(k=><th key={k} style={{...tdStyle, cursor:'pointer'}} onClick={()=>handleSort(k)}>{k.replace(/_/g,' ').toUpperCase()}</th>)}
               <th style={tdStyle}>PRINTS</th>
               <th style={tdStyle}>ACTIONS</th>
             </tr>
@@ -1000,6 +1006,8 @@ function ParticipantList({ courses, refreshCourses }) {
                 <td style={tdStyle}>{p.age}</td>
                 <td style={tdStyle}>{p.gender}</td>
                 <td style={tdStyle}>{p.room_no}</td>
+                <td style={tdStyle}>{p.dining_seat_no} ({p.dining_seat_type === 'Floor' ? 'F' : 'C'})</td>
+                <td style={tdStyle}>{p.pagoda_cell_no}</td>
                 <td style={{...tdStyle, fontWeight:'bold', color:'#007bff'}}>{p.dhamma_hall_seat_no}</td>
                 <td style={{...tdStyle, color: p.status==='Arrived'?'green':'orange'}}>{p.status}</td>
                 <td style={tdStyle}>
@@ -1083,7 +1091,7 @@ function ParticipantList({ courses, refreshCourses }) {
       </div>
       <div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div></form></div></div>)}
   </div> );
-  }
+    }
 
 function ExpenseTracker({ courses }) {
   const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [selectedStudentId, setSelectedStudentId] = useState(''); const [studentToken, setStudentToken] = useState(''); const [expenseType, setExpenseType] = useState('Laundry Token'); const [amount, setAmount] = useState(''); const [history, setHistory] = useState([]); const [status, setStatus] = useState(''); const [showInvoice, setShowInvoice] = useState(false); const [reportMode, setReportMode] = useState(''); const [financialData, setFinancialData] = useState([]); const [editingId, setEditingId] = useState(null);
