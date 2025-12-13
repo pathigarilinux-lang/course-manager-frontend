@@ -552,8 +552,7 @@ function ATPanel({ courses }) {
     </div>
   );
 }
-
-// --- DASHBOARD (FIXED MARQUEE OTH) ---
+// --- DASHBOARD (FIXED LIVE COUNTS & MARQUEE) ---
 function Dashboard({ courses }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [stats, setStats] = useState(null);
@@ -573,27 +572,111 @@ function Dashboard({ courses }) {
       return 'OTH';
   };
 
-  const arrivalData = stats ? [{ name: 'Arrived', Male: stats.arrived_m, Female: stats.arrived_f }, { name: 'Pending', Male: stats.pending_m, Female: stats.pending_f }, { name: 'Cancelled', Male: stats.cancelled_m, Female: stats.cancelled_f }] : [];
-  const typeData = stats ? [{ name: 'Old', Male: stats.om, Female: stats.of }, { name: 'New', Male: stats.nm, Female: stats.nf }, { name: 'Server', Male: stats.sm, Female: stats.sf }] : [];
-  const attendanceString = courses.map(c => { const total = (c.arrived || 0) + (c.pending || 0); const pct = total > 0 ? Math.round((c.arrived || 0) / total * 100) : 0; return `${getSmartShortName(c.course_name)}: ${c.arrived}/${total} (${pct}%)`; }).join("  ✦  ");
+  // Data Preparation for Charts
+  const arrivalData = stats ? [
+      { name: 'Arrived', Male: stats.arrived_m, Female: stats.arrived_f }, 
+      { name: 'Pending', Male: stats.pending_m, Female: stats.pending_f }, 
+      { name: 'Cancelled', Male: stats.cancelled_m, Female: stats.cancelled_f }
+  ] : [];
+
+  const typeData = stats ? [
+      { name: 'Old', Male: stats.om, Female: stats.of }, 
+      { name: 'New', Male: stats.nm, Female: stats.nf }, 
+      { name: 'Server', Male: stats.sm, Female: stats.sf }
+  ] : [];
+
+  const attendanceString = courses.map(c => { 
+      const total = (c.arrived || 0) + (c.pending || 0); 
+      const pct = total > 0 ? Math.round((c.arrived || 0) / total * 100) : 0; 
+      return `${getSmartShortName(c.course_name)}: ${c.arrived}/${total} (${pct}%)`; 
+  }).join("  ✦  ");
 
   return (
     <div>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
         <h2 style={{margin:0, color:'#333'}}>Zero Day Dashboard</h2>
-        <select style={{padding:'10px', borderRadius:'6px', border:'1px solid #ccc', fontSize:'14px', minWidth:'200px'}} onChange={e=>setSelectedCourse(e.target.value)} value={selectedCourse || ''}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+        <select style={{padding:'10px', borderRadius:'6px', border:'1px solid #ccc', fontSize:'14px', minWidth:'200px'}} onChange={e=>setSelectedCourse(e.target.value)} value={selectedCourse || ''}>
+            {courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
+        </select>
       </div>
-      <div style={{background:'#e3f2fd', color:'#333', padding:'8px', marginBottom:'20px', overflow:'hidden', whiteSpace:'nowrap', borderRadius:'4px', border:'1px solid #90caf9', fontWeight:'bold', fontSize:'14px'}}><marquee>{attendanceString || "Loading Course Data..."}</marquee></div>
+      
+      <div style={{background:'#e3f2fd', color:'#333', padding:'8px', marginBottom:'20px', overflow:'hidden', whiteSpace:'nowrap', borderRadius:'4px', border:'1px solid #90caf9', fontWeight:'bold', fontSize:'14px'}}>
+          <marquee>{attendanceString || "Loading Course Data..."}</marquee>
+      </div>
+      
       {stats && selectedCourse ? (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', animation: 'fadeIn 0.5s' }}>
-          <div style={cardStyle}><h3 style={{marginTop:0}}>Status Overview</h3><div style={{height:'250px'}}><ResponsiveContainer><BarChart data={arrivalData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name"/><YAxis/><Tooltip/><Legend/><Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar><Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar></BarChart></ResponsiveContainer></div></div>
-          <div style={cardStyle}><h3 style={{marginTop:0}}>Discourse Count</h3>{stats.languages && stats.languages.length > 0 ? (<div style={{maxHeight:'250px', overflowY:'auto'}}><table style={{width:'100%', fontSize:'13px'}}><thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Lang</th><th style={{width:'30px'}}>M</th><th style={{width:'30px'}}>F</th><th style={{textAlign:'right'}}>Tot</th></tr></thead><tbody>{stats.languages.map((l, i) => (<tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}><td style={{padding:'4px 0'}}>{l.discourse_language}</td><td style={{padding:'4px 0', color:'#007bff'}}>{l.male_count}</td><td style={{padding:'4px 0', color:'#e91e63'}}>{l.female_count}</td><td style={{padding:'4px 0', textAlign:'right'}}>{l.total}</td></tr>))}</tbody></table></div>) : <p style={{color:'#888'}}>No data.</p>}</div>
-          <div style={cardStyle}><h3 style={{marginTop:0}}>Live Counts</h3><div style={{height:'250px'}}><ResponsiveContainer><BarChart data={typeData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name"/><YAxis/><Tooltip/><Legend/><Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar><Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar></BarChart></ResponsiveContainer></div></div>
+          
+          {/* 1. STATUS OVERVIEW */}
+          <div style={cardStyle}>
+              <h3 style={{marginTop:0}}>Status Overview</h3>
+              <div style={{height:'250px'}}>
+                  <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={arrivalData} margin={{top: 20, right: 30, left: 0, bottom: 5}}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar>
+                          <Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar>
+                      </BarChart>
+                  </ResponsiveContainer>
+              </div>
+          </div>
+
+          {/* 2. DISCOURSE LANGUAGES */}
+          <div style={cardStyle}>
+              <h3 style={{marginTop:0}}>Discourse Count</h3>
+              {stats.languages && stats.languages.length > 0 ? (
+                  <div style={{maxHeight:'250px', overflowY:'auto'}}>
+                      <table style={{width:'100%', fontSize:'13px', borderCollapse:'collapse'}}>
+                          <thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Lang</th><th style={{width:'30px'}}>M</th><th style={{width:'30px'}}>F</th><th style={{textAlign:'right'}}>Tot</th></tr></thead>
+                          <tbody>
+                              {stats.languages.map((l, i) => (
+                                  <tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}>
+                                      <td style={{padding:'4px 0'}}>{l.discourse_language}</td>
+                                      <td style={{padding:'4px 0', color:'#007bff'}}>{l.male_count}</td>
+                                      <td style={{padding:'4px 0', color:'#e91e63'}}>{l.female_count}</td>
+                                      <td style={{padding:'4px 0', textAlign:'right'}}>{l.total}</td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                  </div>
+              ) : <p style={{color:'#888', fontStyle:'italic'}}>No language data yet.</p>}
+          </div>
+
+          {/* 3. LIVE COUNTS (Fixed) */}
+          <div style={cardStyle}>
+              <h3 style={{marginTop:0}}>Live Counts (Student Types)</h3>
+              <div style={{height:'250px'}}>
+                  {/* Debug check: If counts are zero, show text */}
+                  {(stats.om + stats.nm + stats.sm + stats.of + stats.nf + stats.sf) === 0 ? (
+                      <div style={{display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'#888', textAlign:'center', fontSize:'13px'}}>
+                          No "Arrived" students<br/>with Conf No (OM/NM/SM) found.
+                      </div>
+                  ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={typeData} margin={{top: 20, right: 30, left: 0, bottom: 5}}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" />
+                              <YAxis />
+                              <Tooltip />
+                              <Legend />
+                              <Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar>
+                              <Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar>
+                          </BarChart>
+                      </ResponsiveContainer>
+                  )}
+              </div>
+          </div>
+
         </div>
       ) : <p style={{padding:'40px', textAlign:'center', color:'#888'}}>Select a course to view stats.</p>}
     </div>
   );
-}
+          }
 
 // --- STUDENT ONBOARDING FORM (SINGLE PAGE PRINT FIX) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
