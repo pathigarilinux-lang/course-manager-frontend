@@ -12,9 +12,15 @@ const ADMIN_PASSCODE = "11111";
 // --- UTILS ---
 const NUMBER_OPTIONS = Array.from({length: 200}, (_, i) => i + 1);
 
-// RESTORED: Protected Rooms List
+// --- RESTORED & UPDATED: Protected Rooms List ---
 const PROTECTED_ROOMS = new Set([
-  "301AI","301BI","302AI","302BI","303AI","303BI","304AI","304BI","305AI","305BI","306AI","306BI","307AW","307BW","308AW","308BW","309AW","309BW","310AW","310BW","311AW","311BW","312AW","312BW","313AW","313BW","314AW","314BW","315AW","315BW","316AW","316BW","317AI","317BI","318AI","318BI","319AI","319BI","320AI","320BI","321AW","321BW","322AW","322BW","323AW","323BW","324AW","324BW","325AW","325BW","326AW","326BW","327AW","327BW","328AW","328BW","329AI","329BI","330AI","330BI","331AI","331BI","332AI","332BI","333AI","333BI","334AI","334BI","335AI","335BI","336AI","336BI","337AW","337BW","338AW","338BW","339AW","339BW","340AW","340BW","341AW","341BW","342AW","342BW","343AW","343BW","201AI","201BI","202AI","202BI","203AI","203BI","213AW","213BW","214AW","214BW","215AW","215BW","216AW","216BW","217AW","217BW","218AW","218BW","219AW","219BW","220AW","220BW","221AW","221BW","222AW","222BW","223AW","223BW","224AW","224BW","225AW","225BW","226AW","226BW","227AW","227BW","228AI","228BI","229AI","229BI","230AI","230BI","231AW","231BW","232AW","232BW","233AW","233BW","234AW","234BW","235AW","235BW","236AW","236BW","237AW","237BW","238AW","238BW","239AW","239BW","240AW","240BW","241AW","241BW","242AW","242BW","243AW","243BW","244AW","244BW","245AW","245BW","246AW","246BW","247AW","247BW","248AW","248BW","DF1","DF2","DF3","DF4","DF5","DF6","FRC61W","FRC62W","FRC63W","FRC64W","FRC65W","FRC66W"
+  // ... Existing Rooms ...
+  "301AI","301BI","302AI","302BI","303AI","303BI","304AI","304BI","305AI","305BI","306AI","306BI","307AW","307BW","308AW","308BW","309AW","309BW","310AW","310BW","311AW","311BW","312AW","312BW","313AW","313BW","314AW","314BW","315AW","315BW","316AW","316BW","317AI","317BI","318AI","318BI","319AI","319BI","320AI","320BI","321AW","321BW","322AW","322BW","323AW","323BW","324AW","324BW","325AW","325BW","326AW","326BW","327AW","327BW","328AW","328BW","329AI","329BI","330AI","330BI","331AI","331BI","332AI","332BI","333AI","333BI","334AI","334BI","335AI","335BI","336AI","336BI","337AW","337BW","338AW","338BW","339AW","339BW","340AW","340BW","341AW","341BW","342AW","342BW","343AW","343BW",
+  "201AI","201BI","202AI","202BI","203AI","203BI","213AW","213BW","214AW","214BW","215AW","215BW","216AW","216BW","217AW","217BW","218AW","218BW","219AW","219BW","220AW","220BW","221AW","221BW","222AW","222BW","223AW","223BW","224AW","224BW","225AW","225BW","226AW","226BW","227AW","227BW","228AI","228BI","229AI","229BI","230AI","230BI","231AW","231BW","232AW","232BW","233AW","233BW","234AW","234BW","235AW","235BW","236AW","236BW","237AW","237BW","238AW","238BW","239AW","239BW","240AW","240BW","241AW","241BW","242AW","242BW","243AW","243BW","244AW","244BW","245AW","245BW","246AW","246BW","247AW","247BW","248AW","248BW","DF1","DF2","DF3","DF4","DF5","DF6","FRC61W","FRC62W","FRC63W","FRC64W","FRC65W","FRC66W",
+  // ... NEW ROOMS (344-363) ...
+  "344AW","344BW","345AW","345BW","346AW","346BW","347AW","347BW","348AW","348BW","349AW","349BW","350AW","350BW",
+  "351AW","351BW","352AW","352BW","353AW","353BW","354AW","354BW","355AW","355BW","356AW","356BW","357AW","357BW",
+  "358AW","358BW","359AW","359BW","360AW","360BW","361AW","361BW","362AW","362BW","363AW","363BW"
 ]);
 
 const getShortCourseName = (name) => {
@@ -589,7 +595,7 @@ function Dashboard({ courses }) {
   );
 }
 
-// --- STUDENT ONBOARDING FORM (PROFESSIONAL BOX LAYOUT) ---
+// --- STUDENT ONBOARDING FORM (SINGLE PAGE PRINT FIX) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
@@ -658,13 +664,11 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       setStatus('✅ Success! Student Checked-In.'); 
       window.scrollTo(0, 0);
 
-      // DATA PREP FOR RECEIPT (Use loose equality '==' to match string vs int IDs)
       const courseObj = courses.find(c => c.course_id == formData.courseId);
       
       setPrintData({
           courseName: courseObj?.course_name || 'N/A',
           teacherName: courseObj?.teacher_name || 'Goenka Ji',
-          // Safe date parsing
           from: courseObj && courseObj.start_date ? new Date(courseObj.start_date).toLocaleDateString() : '...',
           to: courseObj && courseObj.end_date ? new Date(courseObj.end_date).toLocaleDateString() : '...',
           studentName: selectedStudent?.full_name || 'Student',
@@ -705,7 +709,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
         <div style={{marginTop:'30px', textAlign:'right'}}><button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Confirm & Save</button></div> 
       </form> 
 
-      {/* --- BOXED & BOLD PRINT MODAL --- */}
+      {/* --- BOXED RECEIPT (SINGLE PAGE ENFORCED) --- */}
       {showReceipt && printData && (
           <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
               <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'320px', position:'relative'}}>
@@ -717,8 +721,6 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                           <div style={{fontSize: '11px'}}>International Meditation Center</div>
                           <div style={{fontSize: '13px', marginTop:'2px'}}>Dhamma Nagajjuna 2</div>
                       </div>
-                      
-                      {/* COURSE & TEACHER (BOLD) */}
                       <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'11px', marginBottom:'10px'}}>
                           <tbody>
                               <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>Course</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.courseName}</td></tr>
@@ -727,14 +729,12 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                               <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>To</td><td style={{border:'1px solid black', padding:'4px'}}>{printData.to}</td></tr>
                           </tbody>
                       </table>
-
                       <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'12px', marginBottom:'10px'}}>
                           <tbody>
                               <tr><td style={{border:'1px solid black', padding:'4px', width:'30%'}}>Conf No</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.confNo}</td></tr>
                               <tr><td style={{border:'1px solid black', padding:'4px'}}>Name</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.studentName}</td></tr>
                           </tbody>
                       </table>
-
                       <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'12px', marginBottom:'10px'}}>
                           <tbody>
                               <tr><td style={{border:'1px solid black', padding:'4px'}}>Room No</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold', fontSize:'14px'}}>{printData.roomNo || '-'}</td></tr>
@@ -743,17 +743,32 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                               <tr><td style={{border:'1px solid black', padding:'4px'}}>Language</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.language}</td></tr>
                           </tbody>
                       </table>
-
                       <div style={{textAlign: 'center', fontSize: '10px', fontStyle: 'italic', marginTop:'5px'}}>*** Student Copy ***</div>
                   </div>
               </div>
-              <style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; } @page { size: auto; margin: 0; } }`}</style>
+              
+              {/* --- CSS TO FORCE SINGLE PAGE --- */}
+              <style>{`
+                  @media print {
+                      @page { margin: 0; size: auto; }
+                      body, html { height: 100%; overflow: hidden; margin: 0; padding: 0; }
+                      body * { visibility: hidden; }
+                      #receipt-print-area, #receipt-print-area * { visibility: visible; }
+                      #receipt-print-area { 
+                          position: absolute; 
+                          left: 0; top: 0; 
+                          width: 100%; 
+                          margin: 0; padding: 5px; 
+                          page-break-after: avoid; 
+                          page-break-inside: avoid;
+                      }
+                  }
+              `}</style>
           </div>
       )}
     </div> 
   );
-}
-
+      }
 // --- PARTICIPANT LIST (FIXED: STICKY SEATS & NEW PAGODA TAB) ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); 
