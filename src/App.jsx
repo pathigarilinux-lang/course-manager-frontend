@@ -6,65 +6,35 @@ import {
   CreditCard, DollarSign, Download, Calendar
 } from 'lucide-react';
 
-// ------------------------------------------------------------------
-// 🟢 PRODUCTION CONFIGURATION
-// ------------------------------------------------------------------
 const API_URL = "https://course-manager-backend-cd1m.onrender.com"; 
-const ADMIN_PASSCODE = "11111"; 
+const ADMIN_PASSCODE = "0"; 
 
-// ------------------------------------------------------------------
-// 🎨 STYLES (DEFINED AT TOP TO PREVENT CRASHES)
-// ------------------------------------------------------------------
-const btnStyle = (isActive) => ({ 
-  padding: '8px 16px', border: '1px solid #ddd', borderRadius: '20px', 
-  cursor: 'pointer', background: isActive ? '#007bff' : '#fff', 
-  color: isActive ? 'white' : '#555', fontWeight: '600', fontSize:'13px', 
-  display:'flex', alignItems:'center', gap:'5px' 
-});
-
-const quickBtnStyle = (isActive) => ({ 
-  padding: '6px 12px', border: '1px solid #ccc', borderRadius: '15px', 
-  background: isActive ? '#007bff' : '#f1f1f1', color: isActive ? 'white' : 'black', 
-  cursor: 'pointer', fontSize: '13px' 
-});
-
-// Custom Colored Button for Manage Students Toolbar
-const toolBtn = (bg) => ({ 
-  padding: '8px 16px', border: 'none', borderRadius: '20px', 
-  background: bg, color: 'white', cursor: 'pointer', 
-  fontSize: '13px', fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px' 
-});
-
-const cardStyle = { background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginBottom: '20px' };
-const inputStyle = { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px' };
-const labelStyle = { fontSize: '14px', color: '#555', fontWeight: 'bold', marginBottom: '5px', display: 'block' };
-const thPrint = { textAlign: 'left', padding: '12px', borderBottom: '2px solid #eee', fontSize:'12px', color:'#555', textTransform:'uppercase' };
-const tdStyle = { padding: '12px', borderBottom: '1px solid #eee', fontSize:'13px', verticalAlign:'middle' };
-
-// ------------------------------------------------------------------
-// 🛠 UTILS & CONSTANTS
-// ------------------------------------------------------------------
+// --- UTILS ---
 const NUMBER_OPTIONS = Array.from({length: 200}, (_, i) => i + 1);
+
+// --- RESTORED & UPDATED: Protected Rooms List ---
 const PROTECTED_ROOMS = new Set([
-  "301AI","301BI","302AI","302BI","303AI","303BI","304AI","304BI","305AI","305BI","306AI","306BI","307AW","307BW","308AW","308BW","309AW","309BW","310AW","310BW","311AW","311BW","312AW","312BW","313AW","313BW","314AW","314BW","315AW","315BW","316AW","316BW","317AI","317BI","318AI","318BI","319AI","319BI","320AI","320BI","321AW","321BW","322AW","322BW","323AW","323BW","324AW","324BW","325AW","325BW","326AW","326BW","327AW","327BW","328AW","328BW","329AI","329BI","330AI","330BI","331AI","331BI","332AI","332BI","333AI","333BI","334AI","334BI","335AI","335BI","336AI","336BI","337AW","337BW","338AW","338BW","339AW","339BW","340AW","340BW","341AW","341BW","342AW","342BW","343AW","343BW","201AI","201BI","202AI","202BI","203AI","203BI","213AW","213BW","214AW","214BW","215AW","215BW","216AW","216BW","217AW","217BW","218AW","218BW","219AW","219BW","220AW","220BW","221AW","221BW","222AW","222BW","223AW","223BW","224AW","224BW","225AW","225BW","226AW","226BW","227AW","227BW","228AI","228BI","229AI","229BI","230AI","230BI","231AW","231BW","232AW","232BW","233AW","233BW","234AW","234BW","235AW","235BW","236AW","236BW","237AW","237BW","238AW","238BW","239AW","239BW","240AW","240BW","241AW","241BW","242AW","242BW","243AW","243BW","244AW","244BW","245AW","245BW","246AW","246BW","247AW","247BW","248AW","248BW","DF1","DF2","DF3","DF4","DF5","DF6","FRC61W","FRC62W","FRC63W","FRC64W","FRC65W","FRC66W",
-  "344AW","344BW","345AW","345BW","346AW","346BW","347AW","347BW","348AW","348BW","349AW","349BW","350AW","350BW","351AW","351BW","352AW","352BW","353AW","353BW","354AW","354BW","355AW","355BW","356AW","356BW","357AW","357BW","358AW","358BW","359AW","359BW","360AW","360BW","361AW","361BW","362AW","362BW","363AW","363BW"
+  // ... Existing Rooms ...
+  "301AI","301BI","302AI","302BI","303AI","303BI","304AI","304BI","305AI","305BI","306AI","306BI","307AW","307BW","308AW","308BW","309AW","309BW","310AW","310BW","311AW","311BW","312AW","312BW","313AW","313BW","314AW","314BW","315AW","315BW","316AW","316BW","317AI","317BI","318AI","318BI","319AI","319BI","320AI","320BI","321AW","321BW","322AW","322BW","323AW","323BW","324AW","324BW","325AW","325BW","326AW","326BW","327AW","327BW","328AW","328BW","329AI","329BI","330AI","330BI","331AI","331BI","332AI","332BI","333AI","333BI","334AI","334BI","335AI","335BI","336AI","336BI","337AW","337BW","338AW","338BW","339AW","339BW","340AW","340BW","341AW","341BW","342AW","342BW","343AW","343BW",
+  "201AI","201BI","202AI","202BI","203AI","203BI","213AW","213BW","214AW","214BW","215AW","215BW","216AW","216BW","217AW","217BW","218AW","218BW","219AW","219BW","220AW","220BW","221AW","221BW","222AW","222BW","223AW","223BW","224AW","224BW","225AW","225BW","226AW","226BW","227AW","227BW","228AI","228BI","229AI","229BI","230AI","230BI","231AW","231BW","232AW","232BW","233AW","233BW","234AW","234BW","235AW","235BW","236AW","236BW","237AW","237BW","238AW","238BW","239AW","239BW","240AW","240BW","241AW","241BW","242AW","242BW","243AW","243BW","244AW","244BW","245AW","245BW","246AW","246BW","247AW","247BW","248AW","248BW","DF1","DF2","DF3","DF4","DF5","DF6","FRC61W","FRC62W","FRC63W","FRC64W","FRC65W","FRC66W",
+  // ... NEW ROOMS (344-363) ...
+  "344AW","344BW","345AW","345BW","346AW","346BW","347AW","347BW","348AW","348BW","349AW","349BW","350AW","350BW",
+  "351AW","351BW","352AW","352BW","353AW","353BW","354AW","354BW","355AW","355BW","356AW","356BW","357AW","357BW",
+  "358AW","358BW","359AW","359BW","360AW","360BW","361AW","361BW","362AW","362BW","363AW","363BW"
 ]);
 
 const getShortCourseName = (name) => {
   if (!name) return 'Unknown';
-  const n = name.toUpperCase();
-  if (n.includes('45-DAY')) return '45D';
-  if (n.includes('30-DAY')) return '30D';
-  if (n.includes('20-DAY')) return '20D';
-  if (n.includes('10-DAY')) return '10D';
-  if (n.includes('SATIPATTHANA')) return 'ST';
-  if (n.includes('SERVICE')) return 'SVC';
+  if (name.includes('45-Day')) return '45D';
+  if (name.includes('30-Day')) return '30D';
+  if (name.includes('20-Day')) return '20D';
+  if (name.includes('10-Day')) return '10D';
+  if (name.includes('Satipatthana')) return 'ST';
+  if (name.includes('Gratitude')) return 'GT';
+  if (name.includes('Service')) return 'SVC';
   return 'OTH';
 };
 
-// ------------------------------------------------------------------
-// 🧩 MAIN APP COMPONENT
-// ------------------------------------------------------------------
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -74,7 +44,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [preSelectedRoom, setPreSelectedRoom] = useState('');
 
-  // Course Admin State
+  // --- COURSE ADMIN STATE ---
   const [students, setStudents] = useState([]);
   const [uploadStatus, setUploadStatus] = useState(null);
   const [selectedCourseForUpload, setSelectedCourseForUpload] = useState('');
@@ -113,23 +83,15 @@ export default function App() {
     setView('onboarding');
   };
 
+  // --- COURSE ADMIN LOGIC ---
   const handleCreateCourse = async (e) => {
     e.preventDefault();
     if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
     const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
     try {
-        const payload = {
-            courseName: courseName,
-            teacherName: newCourseData.teacher || 'Goenka Ji',
-            startDate: newCourseData.startDate,
-            endDate: newCourseData.endDate
-        };
+        const payload = { courseName: courseName, teacherName: newCourseData.teacher || 'Goenka Ji', startDate: newCourseData.startDate, endDate: newCourseData.endDate };
         const res = await fetch(`${API_URL}/courses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (res.ok) {
-            alert(`✅ Course Created: ${courseName}`);
-            fetchCourses(); 
-            setNewCourseData({ name: '', teacher: '', startDate: '', endDate: '' });
-        }
+        if (res.ok) { alert(`✅ Course Created: ${courseName}`); fetchCourses(); setNewCourseData({ name: '', teacher: '', startDate: '', endDate: '' }); }
     } catch (err) { console.error(err); }
   };
 
@@ -296,8 +258,7 @@ export default function App() {
   );
 }
 
-// --- SUB-COMPONENTS ---
-
+// --- GLOBAL ACCOMMODATION (FIXED MANUAL ADD) ---
 function GlobalAccommodationManager({ courses, onRoomClick }) {
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
@@ -314,10 +275,10 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
   const getSmartShortName = (name) => {
       if (!name) return 'Unknown';
       const n = name.toUpperCase();
-      if (n.includes('45-DAY')) return '45D';
-      if (n.includes('30-DAY')) return '30D';
-      if (n.includes('20-DAY')) return '20D';
-      if (n.includes('10-DAY')) return '10D';
+      if (n.includes('45-DAY') || n.includes('45 DAY')) return '45D';
+      if (n.includes('30-DAY') || n.includes('30 DAY')) return '30D';
+      if (n.includes('20-DAY') || n.includes('20 DAY')) return '20D';
+      if (n.includes('10-DAY') || n.includes('10 DAY')) return '10D';
       if (n.includes('SATIPATTHANA')) return 'ST';
       if (n.includes('SERVICE')) return 'SVC';
       return 'OTH';
@@ -346,10 +307,13 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
       if (!editingRoom || !editingRoom.p) return;
       const targetRoomNo = editingRoom.newRoomNo.trim();
       if(!targetRoomNo) return alert("Enter Target Room.");
+      
       const normalize = (s) => s ? s.toString().trim().toUpperCase() : '';
       const targetNorm = normalize(targetRoomNo);
       const currentNorm = normalize(editingRoom.p.room_no);
+
       if (targetNorm === currentNorm) { alert("Same room!"); return; }
+
       const targetOccupant = occupancy.find(p => p.room_no && normalize(p.room_no) === targetNorm);
       const currentStudent = editingRoom.p;
       
@@ -365,9 +329,11 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
       loadData();
   };
 
+  // Logic
   const normalize = (str) => str ? str.toString().trim().toUpperCase() : '';
   const courseGroups = {};
   courses.forEach(c => { courseGroups[c.course_id] = { name: c.course_name, males: [], females: [], stats: { old: 0, new: 0, total: 0 } }; });
+
   const occupiedSet = new Set();
   occupancy.forEach(p => {
       if (p.room_no) {
@@ -392,14 +358,25 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
       const bgColor = type === 'available' ? 'white' : (isOld ? '#e1bee7' : '#c8e6c9'); 
       const borderColor = type === 'available' ? '#ccc' : (isOld ? '#8e24aa' : '#2e7d32');
       const genderBorder = r.gender_type === 'Female' ? '4px solid #e91e63' : '4px solid #007bff';
+
       return (
-          <div onClick={() => type === 'occupied' ? setEditingRoom({ p, newRoomNo: '' }) : onRoomClick(r.room_no)}
-            style={{ border: `1px solid ${borderColor}`, borderLeft: genderBorder, background: bgColor, borderRadius: '4px', padding: '5px', minHeight: '60px', fontSize: '11px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+          <div 
+            onClick={() => type === 'occupied' ? setEditingRoom({ p, newRoomNo: '' }) : onRoomClick(r.room_no)}
+            style={{ border: `1px solid ${borderColor}`, borderLeft: genderBorder, background: bgColor, borderRadius: '4px', padding: '5px', minHeight: '60px', fontSize: '11px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}
+          >
               <div style={{fontWeight:'bold', display:'flex', justifyContent:'space-between'}}>
                   {r.room_no}
                   {type === 'available' && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(r.room_id, r.room_no)}} style={{border:'none', background:'none', color:'#ccc', cursor:'pointer'}}>×</button>}
               </div>
-              {type === 'occupied' && (<div style={{marginTop:'2px'}}><div style={{fontWeight:'bold', fontSize:'12px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{p.full_name}</div><div style={{display:'flex', justifyContent:'space-between', marginTop:'2px'}}><span style={{fontWeight:'bold', color:'#333'}}>{p.conf_no || '-'}</span><span style={{color:'#666'}}>{p.age}</span></div></div>)}
+              {type === 'occupied' && (
+                  <div style={{marginTop:'2px'}}>
+                      <div style={{fontWeight:'bold', fontSize:'12px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{p.full_name}</div>
+                      <div style={{display:'flex', justifyContent:'space-between', marginTop:'2px'}}>
+                          <span style={{fontWeight:'bold', color:'#333'}}>{p.conf_no || '-'}</span>
+                          <span style={{color:'#666'}}>{p.age}</span>
+                      </div>
+                  </div>
+              )}
           </div>
       );
   };
@@ -411,15 +388,21 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
         <div style={{display:'flex', gap:'5px', background:'#f9f9f9', padding:'5px', borderRadius:'5px'}}> 
             <input style={{...inputStyle, width:'60px', padding:'5px'}} placeholder="Room" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} /> 
             <select style={{...inputStyle, width:'80px', padding:'5px'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select> 
-            <button onClick={handleAddRoom} style={{...toolBtn('#007bff')}}>+ Add Room</button> 
+            <button onClick={handleAddRoom} style={{...quickBtnStyle(true), background:'#007bff', color:'white', padding:'5px 10px'}}>+ Add Room</button> 
         </div>
         <button onClick={loadData} style={{...btnStyle(false), fontSize:'12px'}}>↻ Refresh</button> 
       </div> 
+
+      {/* DASHBOARD STATS */}
       <div style={{display:'flex', gap:'15px', marginBottom:'20px', overflowX:'auto', paddingBottom:'10px'}}>
           {Object.values(courseGroups).map((g, i) => (
               <div key={i} style={{background:'#fff', border:'1px solid #ddd', borderRadius:'8px', padding:'10px', minWidth:'180px', borderTop:'4px solid #28a745'}}>
                   <div style={{fontWeight:'bold', fontSize:'13px', marginBottom:'5px'}}>{getSmartShortName(g.name)}</div>
-                  <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px'}}><span>Old: <b>{g.stats.old}</b></span><span>New: <b>{g.stats.new}</b></span><span>Total: <b>{g.stats.total}</b></span></div>
+                  <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px'}}>
+                      <span>Old: <b>{g.stats.old}</b></span>
+                      <span>New: <b>{g.stats.new}</b></span>
+                      <span>Total: <b>{g.stats.total}</b></span>
+                  </div>
               </div>
           ))}
           <div style={{background:'#fff', border:'1px solid #ddd', borderRadius:'8px', padding:'10px', minWidth:'180px', borderTop:'4px solid #6c757d'}}>
@@ -430,32 +413,64 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
               </div>
           </div>
       </div>
+
+      {/* ACTIVE COURSE BLOCKS */}
       {Object.values(courseGroups).map((g, i) => ( g.stats.total > 0 &&
           <div key={i} style={{marginBottom:'20px', border:'1px solid #ccc', borderRadius:'8px', overflow:'hidden'}}>
               <div style={{background:'#333', color:'white', padding:'10px', fontWeight:'bold'}}>{getSmartShortName(g.name)} (Allocated)</div>
               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
+                  {/* MALE SIDE */}
                   <div style={{padding:'10px', borderRight:'1px solid #eee'}}>
-                      <div style={{fontSize:'13px', fontWeight:'bold', color:'white', background:'#007bff', padding:'5px 10px', borderRadius:'4px', marginBottom:'10px'}}>MALE ({g.males.length})</div>
-                      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'5px'}}>{g.males.sort((a,b)=>a.room_no.localeCompare(b.room_no)).map(p => (<RoomCard key={p.room_no} r={{room_no: p.room_no, gender_type: 'Male'}} p={p} type="occupied" />))}</div>
+                      <div style={{fontSize:'13px', fontWeight:'bold', color:'white', background:'#007bff', padding:'5px 10px', borderRadius:'4px', marginBottom:'10px'}}>
+                          MALE ({g.males.length})
+                      </div>
+                      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'5px'}}>
+                          {g.males.sort((a,b)=>a.room_no.localeCompare(b.room_no)).map(p => (
+                              <RoomCard key={p.room_no} r={{room_no: p.room_no, gender_type: 'Male'}} p={p} type="occupied" />
+                          ))}
+                      </div>
                   </div>
+                  {/* FEMALE SIDE */}
                   <div style={{padding:'10px'}}>
-                      <div style={{fontSize:'13px', fontWeight:'bold', color:'white', background:'#e91e63', padding:'5px 10px', borderRadius:'4px', marginBottom:'10px'}}>FEMALE ({g.females.length})</div>
-                      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'5px'}}>{g.females.sort((a,b)=>a.room_no.localeCompare(b.room_no)).map(p => (<RoomCard key={p.room_no} r={{room_no: p.room_no, gender_type: 'Female'}} p={p} type="occupied" />))}</div>
+                      <div style={{fontSize:'13px', fontWeight:'bold', color:'white', background:'#e91e63', padding:'5px 10px', borderRadius:'4px', marginBottom:'10px'}}>
+                          FEMALE ({g.females.length})
+                      </div>
+                      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'5px'}}>
+                          {g.females.sort((a,b)=>a.room_no.localeCompare(b.room_no)).map(p => (
+                              <RoomCard key={p.room_no} r={{room_no: p.room_no, gender_type: 'Female'}} p={p} type="occupied" />
+                          ))}
+                      </div>
                   </div>
               </div>
           </div>
       ))}
+
+      {/* AVAILABLE POOL */}
       <div style={{border:'2px dashed #ccc', borderRadius:'8px', padding:'10px'}}>
           <div style={{textAlign:'center', fontWeight:'bold', color:'#777', marginBottom:'10px'}}>🟢 AVAILABLE POOL</div>
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
-              <div><h4 style={{margin:'0 0 10px 0', color:'#007bff', borderBottom:'2px solid #007bff'}}>MALE WING</h4><div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(60px, 1fr))', gap:'5px'}}>{maleAvailable.map(r => <RoomCard key={r.room_id} r={r} type="available" />)}</div></div>
-              <div><h4 style={{margin:'0 0 10px 0', color:'#e91e63', borderBottom:'2px solid #e91e63'}}>FEMALE WING</h4><div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(60px, 1fr))', gap:'5px'}}>{femaleAvailable.map(r => <RoomCard key={r.room_id} r={r} type="available" />)}</div></div>
+              <div>
+                  <h4 style={{margin:'0 0 10px 0', color:'#007bff', borderBottom:'2px solid #007bff'}}>MALE WING</h4>
+                  <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(60px, 1fr))', gap:'5px'}}>
+                      {maleAvailable.map(r => <RoomCard key={r.room_id} r={r} type="available" />)}
+                  </div>
+              </div>
+              <div>
+                  <h4 style={{margin:'0 0 10px 0', color:'#e91e63', borderBottom:'2px solid #e91e63'}}>FEMALE WING</h4>
+                  <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(60px, 1fr))', gap:'5px'}}>
+                      {femaleAvailable.map(r => <RoomCard key={r.room_id} r={r} type="available" />)}
+                  </div>
+              </div>
           </div>
       </div>
+
+      {/* SWAP MODAL */}
       {editingRoom && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}> <h3>🔄 Change/Swap Room</h3> <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}> <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name}</strong></p> <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p> </div> <label style={labelStyle}>New Room Number:</label> <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter target room no" /> <div style={{marginTop:'20px', display:'flex', gap:'10px'}}> <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Update / Swap</button> <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button> </div> </div> </div> )} 
     </div> 
   );
 }
+
+// --- SUB-COMPONENTS ---
 
 function ATPanel({ courses }) {
   const [courseId, setCourseId] = useState('');
@@ -466,18 +481,29 @@ function ATPanel({ courses }) {
 
   useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(setParticipants); }, [courseId]);
 
-  const handleLocalChange = (field, value) => setEditingStudent(prev => ({ ...prev, [field]: value }));
+  const handleLocalChange = (field, value) => {
+    setEditingStudent(prev => ({ ...prev, [field]: value }));
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
     if (!editingStudent) return;
     setParticipants(prev => prev.map(p => p.participant_id === editingStudent.participant_id ? editingStudent : p));
-    await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingStudent) });
+    await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingStudent)
+    });
     setEditingStudent(null);
   };
 
   const toggleSort = () => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
-  const filtered = participants.filter(p => p.full_name.toLowerCase().includes(searchTerm.toLowerCase())).sort((a, b) => { const valA = a.conf_no || ''; const valB = b.conf_no || ''; return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA); });
+  const filtered = participants
+    .filter(p => p.full_name.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+        const valA = a.conf_no || '';
+        const valB = b.conf_no || '';
+        return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    });
 
   return (
     <div style={cardStyle}>
@@ -489,16 +515,44 @@ function ATPanel({ courses }) {
       {courseId && (
         <div style={{maxHeight:'500px', overflowY:'auto'}}>
            <table style={{width:'100%', borderCollapse:'collapse', fontSize:'14px'}}>
-             <thead><tr style={{textAlign:'left', borderBottom:'2px solid #eee', background:'#f9f9f9'}}><th style={{padding:'10px'}}>Name</th><th style={{padding:'10px', cursor:'pointer'}} onClick={toggleSort}>Conf {sortOrder==='asc'?'▲':'▼'}</th><th style={{padding:'10px'}}>Special SEAT</th><th style={{padding:'10px'}}>Food</th><th style={{padding:'10px'}}>Medical</th><th style={{padding:'10px'}}>Action</th></tr></thead>
-             <tbody>{filtered.map(p => (<tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}><td style={{padding:'10px'}}><strong>{p.full_name}</strong></td><td style={{padding:'10px'}}>{p.conf_no}</td><td style={{padding:'10px'}}>{p.special_seating || '-'}</td><td style={{padding:'10px'}}>{p.evening_food || '-'}</td><td style={{padding:'10px'}}>{p.medical_info || '-'}</td><td style={{padding:'10px'}}><button onClick={() => setEditingStudent(p)} style={{...toolBtn('#007bff'), padding:'5px 10px'}}>✏️ Detail</button></td></tr>))}</tbody>
+             <thead><tr style={{textAlign:'left', borderBottom:'2px solid #eee', background:'#f9f9f9'}}>
+               <th style={{padding:'10px'}}>Name</th>
+               <th style={{padding:'10px', cursor:'pointer', userSelect:'none'}} onClick={toggleSort}>Conf {sortOrder==='asc'?'▲':'▼'}</th>
+               <th style={{padding:'10px'}}>Special SEAT</th><th style={{padding:'10px'}}>Evening Food</th><th style={{padding:'10px'}}>Medical</th><th style={{padding:'10px'}}>Action</th>
+             </tr></thead>
+             <tbody>
+               {filtered.map(p => (
+                 <tr key={p.participant_id} style={{borderBottom:'1px solid #eee'}}>
+                   <td style={{padding:'10px'}}><strong>{p.full_name}</strong></td>
+                   <td style={{padding:'10px'}}>{p.conf_no}</td>
+                   <td style={{padding:'10px'}}>{p.special_seating || '-'}</td>
+                   <td style={{padding:'10px', color: p.evening_food ? '#e65100' : '#ccc'}}>{p.evening_food || '-'}</td>
+                   <td style={{padding:'10px', color: p.medical_info ? '#c62828' : '#ccc'}}>{p.medical_info || '-'}</td>
+                   <td style={{padding:'10px'}}><button onClick={() => setEditingStudent(p)} style={quickBtnStyle(true)}>✏️ Detail</button></td>
+                 </tr>
+               ))}
+             </tbody>
            </table>
         </div>
       )}
-      {editingStudent && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'500px'}}><h3>Update: {editingStudent.full_name}</h3><form onSubmit={handleSave} style={{display:'flex', flexDirection:'column', gap:'15px'}}><div><label style={labelStyle}>Special Seating</label><select style={inputStyle} value={editingStudent.special_seating || ''} onChange={(e) => handleLocalChange('special_seating', e.target.value)}><option value="">None</option><option value="Chowky">Chowky</option><option value="Chair">Chair</option><option value="BackRest">BackRest</option></select></div><div><label style={labelStyle}>Evening Food</label><select style={inputStyle} value={editingStudent.evening_food || ''} onChange={e => handleLocalChange('evening_food', e.target.value)}><option value="">None</option><option value="Lemon Water">Lemon Water</option><option value="Milk">Milk</option><option value="Fruit">Fruit</option></select></div><div><label style={labelStyle}>Medical</label><textarea style={{...inputStyle, height:'80px'}} value={editingStudent.medical_info || ''} onChange={e => handleLocalChange('medical_info', e.target.value)} /></div><div><label style={labelStyle}>Notes</label><input style={inputStyle} value={editingStudent.teacher_notes || ''} onChange={e => handleLocalChange('teacher_notes', e.target.value)} /></div><div style={{textAlign:'right', display:'flex', gap:'10px', justifyContent:'flex-end'}}><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false)}}>Cancel</button><button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Save</button></div></form></div></div>)}
+      {editingStudent && (
+        <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}>
+          <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'500px'}}>
+            <h3>Update Details: {editingStudent.full_name}</h3>
+            <form onSubmit={handleSave} style={{display:'flex', flexDirection:'column', gap:'15px'}}>
+               <div><label style={labelStyle}>Special Seating</label><select style={inputStyle} value={editingStudent.special_seating || ''} onChange={(e) => handleLocalChange('special_seating', e.target.value)}><option value="">None</option><option value="Chowky">Chowky</option><option value="Chair">Chair</option><option value="BackRest">BackRest</option></select></div>
+               <div><label style={labelStyle}>Evening Food</label><select style={inputStyle} value={editingStudent.evening_food || ''} onChange={e => handleLocalChange('evening_food', e.target.value)}><option value="">None</option><option value="Lemon Water">Lemon Water</option><option value="Milk">Milk</option><option value="Fruit">Fruit</option><option value="Other">Other</option></select></div>
+               <div><label style={labelStyle}>Medical Info</label><textarea style={{...inputStyle, height:'80px'}} value={editingStudent.medical_info || ''} onChange={e => handleLocalChange('medical_info', e.target.value)} /></div>
+               <div><label style={labelStyle}>Teacher Notes</label><input style={inputStyle} value={editingStudent.teacher_notes || ''} onChange={e => handleLocalChange('teacher_notes', e.target.value)} /></div>
+               <div style={{marginTop:'10px', textAlign:'right', display:'flex', gap:'10px', justifyContent:'flex-end'}}><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false)}}>Cancel</button><button type="submit" style={{...btnStyle(true), background:'#28a745', color:'white'}}>Done & Save</button></div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
+// --- DASHBOARD (FIXED LIVE COUNTS & MARQUEE) ---
 function Dashboard({ courses }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [stats, setStats] = useState(null);
@@ -509,42 +563,159 @@ function Dashboard({ courses }) {
   const getSmartShortName = (name) => {
       if (!name) return 'Unknown';
       const n = name.toUpperCase();
-      if (n.includes('45-DAY')) return '45D'; if (n.includes('30-DAY')) return '30D'; if (n.includes('20-DAY')) return '20D'; if (n.includes('10-DAY')) return '10D'; return 'OTH';
+      if (n.includes('45-DAY') || n.includes('45 DAY')) return '45D';
+      if (n.includes('30-DAY') || n.includes('30 DAY')) return '30D';
+      if (n.includes('20-DAY') || n.includes('20 DAY')) return '20D';
+      if (n.includes('10-DAY') || n.includes('10 DAY')) return '10D';
+      if (n.includes('SATIPATTHANA')) return 'ST';
+      if (n.includes('SERVICE')) return 'SVC';
+      return 'OTH';
   };
 
-  const arrivalData = stats ? [{ name: 'Arrived', Male: stats.arrived_m, Female: stats.arrived_f }, { name: 'Pending', Male: stats.pending_m, Female: stats.pending_f }, { name: 'Cancelled', Male: stats.cancelled_m, Female: stats.cancelled_f }] : [];
-  const typeData = stats ? [{ name: 'Old', Male: stats.om, Female: stats.of }, { name: 'New', Male: stats.nm, Female: stats.nf }, { name: 'Server', Male: stats.sm, Female: stats.sf }] : [];
-  const attendanceString = courses.map(c => { const total = (c.arrived || 0) + (c.pending || 0); const pct = total > 0 ? Math.round((c.arrived || 0) / total * 100) : 0; return `${getSmartShortName(c.course_name)}: ${c.arrived}/${total} (${pct}%)`; }).join("  ✦  ");
+  // Data Preparation for Charts
+  const arrivalData = stats ? [
+      { name: 'Arrived', Male: stats.arrived_m, Female: stats.arrived_f }, 
+      { name: 'Pending', Male: stats.pending_m, Female: stats.pending_f }, 
+      { name: 'Cancelled', Male: stats.cancelled_m, Female: stats.cancelled_f }
+  ] : [];
+
+  const typeData = stats ? [
+      { name: 'Old', Male: stats.om, Female: stats.of }, 
+      { name: 'New', Male: stats.nm, Female: stats.nf }, 
+      { name: 'Server', Male: stats.sm, Female: stats.sf }
+  ] : [];
+
+  const attendanceString = courses.map(c => { 
+      const total = (c.arrived || 0) + (c.pending || 0); 
+      const pct = total > 0 ? Math.round((c.arrived || 0) / total * 100) : 0; 
+      return `${getSmartShortName(c.course_name)}: ${c.arrived}/${total} (${pct}%)`; 
+  }).join("  ✦  ");
 
   return (
     <div>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}><h2 style={{margin:0, color:'#333'}}>Zero Day Dashboard</h2><select style={{padding:'10px', borderRadius:'6px', border:'1px solid #ccc', fontSize:'14px', minWidth:'200px'}} onChange={e=>setSelectedCourse(e.target.value)} value={selectedCourse || ''}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div>
-      <div style={{background:'#e3f2fd', color:'#333', padding:'8px', marginBottom:'20px', overflow:'hidden', borderRadius:'4px', border:'1px solid #90caf9', fontWeight:'bold', fontSize:'14px'}}><marquee>{attendanceString || "Loading..."}</marquee></div>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+        <h2 style={{margin:0, color:'#333'}}>Zero Day Dashboard</h2>
+        <select style={{padding:'10px', borderRadius:'6px', border:'1px solid #ccc', fontSize:'14px', minWidth:'200px'}} onChange={e=>setSelectedCourse(e.target.value)} value={selectedCourse || ''}>
+            {courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
+        </select>
+      </div>
+      
+      <div style={{background:'#e3f2fd', color:'#333', padding:'8px', marginBottom:'20px', overflow:'hidden', whiteSpace:'nowrap', borderRadius:'4px', border:'1px solid #90caf9', fontWeight:'bold', fontSize:'14px'}}>
+          <marquee>{attendanceString || "Loading Course Data..."}</marquee>
+      </div>
+      
       {stats && selectedCourse ? (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', animation: 'fadeIn 0.5s' }}>
-          <div style={cardStyle}><h3 style={{marginTop:0}}>Status Overview</h3><div style={{height:'250px'}}><ResponsiveContainer><BarChart data={arrivalData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name"/><YAxis/><Tooltip/><Legend/><Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar><Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar></BarChart></ResponsiveContainer></div></div>
-          <div style={cardStyle}><h3 style={{marginTop:0}}>Discourse Count</h3>{stats.languages && <div style={{maxHeight:'250px', overflowY:'auto'}}><table style={{width:'100%', fontSize:'13px'}}><thead><tr style={{textAlign:'left'}}><th>Lang</th><th>M</th><th>F</th><th>Tot</th></tr></thead><tbody>{stats.languages.map((l,i)=><tr key={i}><td>{l.discourse_language}</td><td style={{color:'#007bff'}}>{l.male_count}</td><td style={{color:'#e91e63'}}>{l.female_count}</td><td>{l.total}</td></tr>)}</tbody></table></div>}</div>
-          <div style={cardStyle}><h3 style={{marginTop:0}}>Live Counts</h3><div style={{height:'250px'}}>{(stats.om + stats.nm + stats.sm + stats.of + stats.nf + stats.sf) === 0 ? <div style={{display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'#888', textAlign:'center'}}>No Arrived Students found.</div> : <ResponsiveContainer><BarChart data={typeData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name"/><YAxis/><Tooltip/><Legend/><Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar><Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar></BarChart></ResponsiveContainer>}</div></div>
+          
+          {/* 1. STATUS OVERVIEW */}
+          <div style={cardStyle}>
+              <h3 style={{marginTop:0}}>Status Overview</h3>
+              <div style={{height:'250px'}}>
+                  <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={arrivalData} margin={{top: 20, right: 30, left: 0, bottom: 5}}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar>
+                          <Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar>
+                      </BarChart>
+                  </ResponsiveContainer>
+              </div>
+          </div>
+
+          {/* 2. DISCOURSE LANGUAGES */}
+          <div style={cardStyle}>
+              <h3 style={{marginTop:0}}>Discourse Count</h3>
+              {stats.languages && stats.languages.length > 0 ? (
+                  <div style={{maxHeight:'250px', overflowY:'auto'}}>
+                      <table style={{width:'100%', fontSize:'13px', borderCollapse:'collapse'}}>
+                          <thead><tr style={{textAlign:'left', borderBottom:'1px solid #eee'}}><th>Lang</th><th style={{width:'30px'}}>M</th><th style={{width:'30px'}}>F</th><th style={{textAlign:'right'}}>Tot</th></tr></thead>
+                          <tbody>
+                              {stats.languages.map((l, i) => (
+                                  <tr key={i} style={{borderBottom:'1px solid #f4f4f4'}}>
+                                      <td style={{padding:'4px 0'}}>{l.discourse_language}</td>
+                                      <td style={{padding:'4px 0', color:'#007bff'}}>{l.male_count}</td>
+                                      <td style={{padding:'4px 0', color:'#e91e63'}}>{l.female_count}</td>
+                                      <td style={{padding:'4px 0', textAlign:'right'}}>{l.total}</td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                  </div>
+              ) : <p style={{color:'#888', fontStyle:'italic'}}>No language data yet.</p>}
+          </div>
+
+          {/* 3. LIVE COUNTS (Fixed) */}
+          <div style={cardStyle}>
+              <h3 style={{marginTop:0}}>Live Counts (Student Types)</h3>
+              <div style={{height:'250px'}}>
+                  {/* Debug check: If counts are zero, show text */}
+                  {(stats.om + stats.nm + stats.sm + stats.of + stats.nf + stats.sf) === 0 ? (
+                      <div style={{display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'#888', textAlign:'center', fontSize:'13px'}}>
+                          No "Arrived" students<br/>with Conf No (OM/NM/SM) found.
+                      </div>
+                  ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={typeData} margin={{top: 20, right: 30, left: 0, bottom: 5}}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" />
+                              <YAxis />
+                              <Tooltip />
+                              <Legend />
+                              <Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar>
+                              <Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar>
+                          </BarChart>
+                      </ResponsiveContainer>
+                  )}
+              </div>
+          </div>
+
         </div>
-      ) : <p style={{padding:'40px', textAlign:'center', color:'#888'}}>Select a course.</p>}
+      ) : <p style={{padding:'40px', textAlign:'center', color:'#888'}}>Select a course to view stats.</p>}
     </div>
   );
-}
+          }
 
+// --- STUDENT ONBOARDING FORM (SINGLE PAGE PRINT FIX) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
   const [selectedStudent, setSelectedStudent] = useState(null); 
   const [status, setStatus] = useState('');
+  
   const [showReceipt, setShowReceipt] = useState(false);
   const [printData, setPrintData] = useState(null);
-  const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Chair', dhammaSeat: '' }); 
 
-  useEffect(() => { fetch(`${API_URL}/rooms`).then(res=>res.json()).then(setRooms); fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(setOccupancy); }, []);
-  useEffect(() => { if (preSelectedRoom) { setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); } }, [preSelectedRoom, courses]);
-  useEffect(() => { if (formData.courseId) fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants); }, [formData.courseId]);
+  const [formData, setFormData] = useState({ 
+      courseId: '', participantId: '', roomNo: '', seatNo: '', 
+      laundryToken: '', mobileLocker: '', valuablesLocker: '', 
+      language: 'English', pagodaCell: '', laptop: 'No', 
+      confNo: '', specialSeating: 'None', seatType: 'Chair',
+      dhammaSeat: '' 
+  }); 
 
+  useEffect(() => { 
+      fetch(`${API_URL}/rooms`).then(res=>res.json()).then(data => setRooms(Array.isArray(data)?data:[])); 
+      fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(Array.isArray(data)?data:[])); 
+  }, []);
+
+  useEffect(() => { 
+      if (preSelectedRoom) { 
+          setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); 
+          if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); 
+      } 
+  }, [preSelectedRoom, courses]);
+
+  useEffect(() => { 
+      if (formData.courseId) { 
+          fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); 
+      } 
+  }, [formData.courseId]);
+
+  // Logic
   const normalize = (str) => str ? str.toString().replace(/[\s-]+/g, '').toUpperCase() : '';
   const cleanNum = (val) => val ? String(val).trim() : '';
   const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
@@ -552,6 +723,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const isMale = currentGender.startsWith('m'); const isFemale = currentGender.startsWith('f');
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female'); 
+  
   const allRecords = [...occupancy, ...participants].filter(p => String(p.participant_id) !== String(formData.participantId) && p.status !== 'Cancelled');
   const usedDining = new Set(); const usedPagoda = new Set();
   allRecords.forEach(p => { if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no)); if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no)); });
@@ -564,60 +736,124 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const handleSubmit = async (e) => { 
     e.preventDefault(); 
-    if (!formData.confNo || formData.confNo.trim() === '') return alert("Missing Conf No");
+    if (!formData.confNo || formData.confNo.trim() === '') { return alert("⛔ STOP: Student is missing a Confirmation Number."); }
     setStatus('Submitting...'); 
+    const payload = { ...formData, diningSeatType: formData.seatType }; 
     try { 
-      const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...formData, diningSeatType: formData.seatType }) }); 
+      const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); 
       if (!res.ok) throw new Error("Check-in failed"); 
-      await fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
-      setStatus('✅ Success!'); window.scrollTo(0, 0);
+      fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
+      
+      setStatus('✅ Success! Student Checked-In.'); 
+      window.scrollTo(0, 0);
+
       const courseObj = courses.find(c => c.course_id == formData.courseId);
-      setPrintData({ courseName: courseObj?.course_name, teacherName: courseObj?.teacher_name || 'Goenka Ji', from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', studentName: selectedStudent?.full_name, confNo: formData.confNo, roomNo: formData.roomNo, seatNo: formData.seatNo, lockers: formData.mobileLocker, language: formData.language });
-      setShowReceipt(true);
+      
+      setPrintData({
+          courseName: courseObj?.course_name || 'N/A',
+          teacherName: courseObj?.teacher_name || 'Goenka Ji',
+          from: courseObj && courseObj.start_date ? new Date(courseObj.start_date).toLocaleDateString() : '...',
+          to: courseObj && courseObj.end_date ? new Date(courseObj.end_date).toLocaleDateString() : '...',
+          studentName: selectedStudent?.full_name || 'Student',
+          confNo: formData.confNo,
+          roomNo: formData.roomNo,
+          seatNo: formData.seatNo,
+          lockers: formData.mobileLocker,
+          language: formData.language
+      });
+
       setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' })); 
-      setSelectedStudent(null); clearRoom(); 
-      fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants); 
-      fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(setOccupancy); 
+      setSelectedStudent(null); 
+      clearRoom(); 
+      fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(data => setParticipants(data)); 
+      fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(data => setOccupancy(data)); 
+      
       setTimeout(() => setStatus(''), 5000);
     } catch (err) { setStatus(`❌ ${err.message}`); window.scrollTo(0, 0); } 
   };
 
   const triggerPrint = () => { setShowReceipt(true); setTimeout(() => { window.print(); }, 500); };
-
+  const sectionHeader = (title) => <div style={{fontSize:'14px', fontWeight:'bold', color:'#007bff', borderBottom:'1px solid #eee', paddingBottom:'5px', marginTop:'15px', marginBottom:'10px'}}>{title}</div>;
+  
   return ( 
     <div style={cardStyle}> 
       <h2>📝 Student Onboarding Form</h2> 
-      {status && <div style={{marginBottom:'20px', padding:'15px', background:'#d4edda', color:'#155724', borderRadius:'6px', textAlign:'center', fontWeight:'bold'}}>{status}</div>}
+      {status && (<div style={{marginBottom:'20px', padding:'15px', borderRadius:'6px', background: status.includes('Success') ? '#d4edda' : '#f8d7da', color: status.includes('Success') ? '#155724' : '#721c24', textAlign:'center', fontWeight:'bold', fontSize:'16px', boxShadow:'0 2px 4px rgba(0,0,0,0.1)'}}>{status}</div>)}
+      {printData && !selectedStudent && (<div style={{marginBottom:'20px', padding:'20px', background:'#e3f2fd', borderRadius:'8px', textAlign:'center', border:'2px dashed #2196f3'}}><h3 style={{marginTop:0}}>🎉 Check-in Complete!</h3><p>Student: <strong>{printData.studentName}</strong></p><button onClick={triggerPrint} style={{padding:'15px 30px', fontSize:'18px', background:'#28a745', color:'white', border:'none', borderRadius:'8px', cursor:'pointer', display:'flex', alignItems:'center', gap:'10px', margin:'0 auto'}}>🖨️ Print Receipt Now</button></div>)}
+
       <form onSubmit={handleSubmit} style={{ maxWidth: '900px' }}> 
-        <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}> <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'20px'}}> <div><label style={labelStyle}>1. Select Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> <div><label style={labelStyle}>2. Select Student</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no||'No ID'})</option>)}</select></div> </div> {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (<div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}><strong>⚠️ ATTENTION:</strong> {selectedStudent.evening_food} {selectedStudent.medical_info}</div>)} </div> 
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr', gap:'15px'}}> <div><label style={labelStyle}>🆔 Conf No</label><input style={{...inputStyle}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} /></div> <div><label style={labelStyle}>Age</label><input style={{...inputStyle, background:'#e9ecef'}} value={selectedStudent?.age || ''} disabled /></div><div><label style={labelStyle}>Room</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Free --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom}</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div> <div><label style={labelStyle}>Dining</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={handleDiningSeatChange} required><option value="">--</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> </div> 
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px', marginTop:'15px'}}> <div><label style={labelStyle}>Mobile</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d'}} value={formData.mobileLocker} readOnly /></div> <div><label style={labelStyle}>Valuables</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d'}} value={formData.valuablesLocker} readOnly /></div> <div><label style={labelStyle}>Laundry</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d'}} value={formData.laundryToken} readOnly /></div> <div><label style={labelStyle}>Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> </div> 
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px', marginTop:'15px'}}> <div><label style={labelStyle}>Lang</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>French</option><option>German</option></select></div> <div><label style={labelStyle}>Pagoda</label><select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}><option value="">None</option>{availablePagodaOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div><div><label style={labelStyle}>DS Seat</label><input style={inputStyle} value={formData.dhammaSeat} onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} /></div><div><label style={labelStyle}>Special</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div> </div> 
-        <div style={{marginTop:'30px', textAlign:'right', display:'flex', gap:'10px', justifyContent:'flex-end'}}>
-             <button type="button" onClick={triggerPrint} disabled={!selectedStudent} style={{...quickBtnStyle(true), background:'#6c757d', color:'white'}}>🖨️ Print Slip</button>
-             <button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Confirm & Save</button>
-        </div> 
+        <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}> <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'20px'}}> <div><label style={labelStyle}>1. Select Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> <div><label style={labelStyle}>2. Select Student</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no||'No ID'})</option>)}</select></div> </div> {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (<div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}><strong>⚠️ SPECIAL ATTENTION:</strong> {selectedStudent.evening_food && <div>🍛 Food: {selectedStudent.evening_food}</div>} {selectedStudent.medical_info && <div>🏥 Medical: {selectedStudent.medical_info}</div>}</div>)} </div> 
+        {sectionHeader("📍 Allocation Details")} 
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr', gap:'15px'}}> <div><label style={labelStyle}>🆔 Conf No <span style={{color:'red'}}>*</span></label><input style={{...inputStyle, background: formData.confNo ? '#e8f5e9' : '#ffebee', border: formData.confNo ? '1px solid #ccc' : '1px solid red'}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} placeholder="REQUIRED" /></div> <div><label style={labelStyle}>🎂 Age</label><input style={{...inputStyle, background:'#e9ecef'}} value={selectedStudent?.age || ''} disabled placeholder="Age" /></div><div><label style={labelStyle}>🛏️ Room No</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Free Rooms --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom} (Selected)</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div> <div><label style={labelStyle}>🍽️ Dining</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={handleDiningSeatChange} required><option value="">-- Free --</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> </div> 
+        {sectionHeader("🔐 Lockers & Other (Auto-Synced)")} 
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> <div><label style={labelStyle}>📱 Mobile</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d', cursor:'not-allowed'}} value={formData.mobileLocker} readOnly tabIndex="-1" placeholder="Auto" /></div> <div><label style={labelStyle}>💍 Valuables</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d', cursor:'not-allowed'}} value={formData.valuablesLocker} readOnly tabIndex="-1" placeholder="Auto" /></div> <div><label style={labelStyle}>🧺 Laundry</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d', cursor:'not-allowed'}} value={formData.laundryToken} readOnly tabIndex="-1" placeholder="Auto" /></div> <div><label style={labelStyle}>💻 Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> </div> 
+        {sectionHeader("🧘 Hall & Meditation")} 
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px'}}> <div><label style={labelStyle}>🗣️ Lang</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>Odia</option><option>Bengali</option><option>Mandarin Chinese</option><option>Spanish</option><option>French</option><option>Portuguese</option><option>Russian</option><option>German</option><option>Vietnamese</option><option>Thai</option><option>Japanese</option></select></div> <div><label style={labelStyle}>🛖 Pagoda</label><select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}><option value="">None</option>{availablePagodaOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div><div><label style={labelStyle}>🧘 DS Seat</label><input style={inputStyle} value={formData.dhammaSeat} onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} placeholder="e.g. A1" /></div><div><label style={labelStyle}>💺 Special</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div> </div> 
+        <div style={{marginTop:'30px', textAlign:'right'}}><button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Confirm & Save</button></div> 
       </form> 
+
+      {/* --- BOXED RECEIPT (SINGLE PAGE ENFORCED) --- */}
       {showReceipt && printData && (
           <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
-              <div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}>
-                  <button onClick={() => setShowReceipt(false)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button>
-                  <div id="receipt-print-area" style={{padding:'10px', border:'1px dashed #ccc', fontFamily:'Helvetica, Arial, sans-serif', color:'black'}}>
-                      <div style={{textAlign:'center', fontWeight:'bold', marginBottom:'8px'}}><div style={{fontSize:'18px'}}>VIPASSANA</div><div style={{fontSize:'12px'}}>International Meditation Center</div><div style={{fontSize:'14px'}}>Dhamma Nagajjuna 2</div></div><div style={{borderBottom:'2px solid black', margin:'10px 0'}}></div>
-                      <div style={{fontSize:'12px', marginBottom:'10px'}}><div><strong>Course:</strong> {printData.courseName}</div><div><strong>Teacher:</strong> {printData.teacherName}</div><div><strong>Dates:</strong> {printData.from} to {printData.to}</div></div><div style={{borderBottom:'1px solid black', margin:'10px 0'}}></div>
-                      <div style={{fontSize:'16px', fontWeight:'bold', margin:'10px 0'}}><div>{printData.studentName}</div><div style={{fontSize:'14px'}}>Conf: {printData.confNo}</div></div>
-                      <table style={{width:'100%', fontSize:'14px', border:'1px solid black', borderCollapse:'collapse'}}><tbody><tr><td style={{border:'1px solid black', padding:'5px'}}>Room</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.roomNo}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Dining</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.seatNo}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Lockers</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.lockers}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Lang</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.language}</td></tr></tbody></table>
-                      <div style={{textAlign:'center', fontSize:'10px', fontStyle:'italic', marginTop:'10px'}}>*** Student Copy ***</div>
+              <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'320px', position:'relative'}}>
+                  <button onClick={() => setShowReceipt(false)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button>
+                  
+                  <div id="receipt-print-area" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'5px'}}>
+                      <div style={{textAlign: 'center', fontWeight: 'bold', marginBottom: '8px'}}>
+                          <div style={{fontSize: '18px', textTransform:'uppercase'}}>VIPASSANA</div>
+                          <div style={{fontSize: '11px'}}>International Meditation Center</div>
+                          <div style={{fontSize: '13px', marginTop:'2px'}}>Dhamma Nagajjuna 2</div>
+                      </div>
+                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'11px', marginBottom:'10px'}}>
+                          <tbody>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>Course</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.courseName}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>Teacher</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.teacherName}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>From</td><td style={{border:'1px solid black', padding:'4px'}}>{printData.from}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>To</td><td style={{border:'1px solid black', padding:'4px'}}>{printData.to}</td></tr>
+                          </tbody>
+                      </table>
+                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'12px', marginBottom:'10px'}}>
+                          <tbody>
+                              <tr><td style={{border:'1px solid black', padding:'4px', width:'30%'}}>Conf No</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.confNo}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Name</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.studentName}</td></tr>
+                          </tbody>
+                      </table>
+                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'12px', marginBottom:'10px'}}>
+                          <tbody>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Room No</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold', fontSize:'14px'}}>{printData.roomNo || '-'}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Dining Seat</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold', fontSize:'14px'}}>{printData.seatNo || '-'}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Lockers</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.lockers || '-'}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Language</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printData.language}</td></tr>
+                          </tbody>
+                      </table>
+                      <div style={{textAlign: 'center', fontSize: '10px', fontStyle: 'italic', marginTop:'5px'}}>*** Student Copy ***</div>
                   </div>
-                  <div className="no-print" style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={() => window.print()} style={{flex:1, padding:'12px', background:'#007bff', color:'white', border:'none', borderRadius:'6px'}}>PRINT</button></div>
               </div>
-              <style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none; } @page { size: auto; margin: 0; } }`}</style>
+              
+              {/* --- CSS TO FORCE SINGLE PAGE --- */}
+              <style>{`
+                  @media print {
+                      @page { margin: 0; size: auto; }
+                      body, html { height: 100%; overflow: hidden; margin: 0; padding: 0; }
+                      body * { visibility: hidden; }
+                      #receipt-print-area, #receipt-print-area * { visibility: visible; }
+                      #receipt-print-area { 
+                          position: absolute; 
+                          left: 0; top: 0; 
+                          width: 100%; 
+                          margin: 0; padding: 5px; 
+                          page-break-after: avoid; 
+                          page-break-inside: avoid;
+                      }
+                  }
+              `}</style>
           </div>
       )}
     </div> 
   );
-}
+      }
 
+// --- PARTICIPANT LIST (BULK TOKENS & SINGLE PAGE FIX) ---
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
@@ -628,74 +864,54 @@ function ParticipantList({ courses, refreshCourses }) {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [assignProgress, setAssignProgress] = useState(''); 
   const [selectedSeat, setSelectedSeat] = useState(null);
+  const [badgeStudent, setBadgeStudent] = useState(null);
+
+  // Print States
   const [printReceiptData, setPrintReceiptData] = useState(null);
   const [printTokenData, setPrintTokenData] = useState(null);
-  const [printBulkData, setPrintBulkData] = useState(null);
+  const [printBulkData, setPrintBulkData] = useState(null); // NEW: Bulk Print State
+
+  const getCategory = (seatNo) => { if (!seatNo) return '-'; const s = String(seatNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF')) return 'Old'; if (s.startsWith('NM') || s.startsWith('NF')) return 'New'; if (s.startsWith('SM') || s.startsWith('SF')) return 'DS'; return 'New'; };
+  const getCategoryRank = (confNo) => { if (!confNo) return 2; const s = String(confNo).toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
+  const parseCourses = (str) => { if (!str) return { s: 0, l: 0 }; const sMatch = str.match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = str.match(/L\s*[:=-]?\s*(\d+)/i); return { s: sMatch ? parseInt(sMatch[1]) : 0, l: lMatch ? parseInt(lMatch[1]) : 0 }; };
+  const getSeniorityScore = (p) => { const c = parseCourses(p.courses_info || ''); return (c.l * 10000) + (c.s * 10); };
+  
+  const formatName = (name) => {
+      if(!name) return "";
+      const parts = name.trim().split(" ");
+      if(parts.length === 1) return parts[0];
+      return `${parts[0]} ${parts[parts.length-1][0]}`;
+  };
+
+  const getLangCode = (lang) => {
+      if(!lang) return "";
+      const l = lang.toLowerCase();
+      if(l.includes('telugu')) return 'T';
+      if(l.includes('hindi')) return 'H';
+      if(l.includes('english')) return 'E';
+      if(l.includes('marathi')) return 'M';
+      return l[0].toUpperCase();
+  };
 
   const loadStudents = () => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
   useEffect(loadStudents, [courseId]);
-
-  const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
-  const sortedList = React.useMemo(() => { let items = [...participants]; if (sortConfig.key) items.sort((a,b) => (a[sortConfig.key]||'').toString().localeCompare((b[sortConfig.key]||'').toString()) * (sortConfig.direction === 'asc' ? 1 : -1)); return items.filter(p => p.full_name.toLowerCase().includes(search.toLowerCase())); }, [participants, sortConfig, search]);
-
-  const getCategoryRank = (conf) => { if (!conf) return 2; const s = conf.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
-  const getSeniorityScore = (p) => { const sMatch = (p.courses_info||'').match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = (p.courses_info||'').match(/L\s*[:=-]?\s*(\d+)/i); const s = sMatch ? parseInt(sMatch[1]) : 0; const l = lMatch ? parseInt(lMatch[1]) : 0; return (l * 10000) + (s * 10); };
   
-  const handleAutoAssign = async () => {
-    if (!window.confirm("⚡ Auto-Assign Seats?")) return;
-    setAssignProgress('Calculating...');
-    const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
-    const allP = await res.json();
-    const active = allP.filter(p => p.status === 'Arrived' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre)));
-    const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
-    const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
+  const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
+  const downloadCSV = (headers, rows, filename) => { const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", filename); document.body.appendChild(link); link.click(); };
+  
+  const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Age", "Gender", "Dining", "Room", "Dhamma Seat", "Status"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', p.age || '', p.gender || '', p.dining_seat_no || '', p.room_no || '', p.dhamma_hall_seat_no || '', p.status || '']); downloadCSV(headers, rows, `master_${courseId}.csv`); };
+  const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Arrived'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); downloadCSV(headers, rows, `dining_${courseId}.csv`); };
+  const handleSeatingExport = () => { const seated = participants.filter(p => p.dhamma_hall_seat_no); if (seated.length === 0) return alert("No seats."); const headers = ["Seat", "Name", "Gender", "Conf No", "Status"]; const rows = seated.map(p => [p.dhamma_hall_seat_no, `"${p.full_name || ''}"`, p.gender || '', p.conf_no || '', p.status || '']); downloadCSV(headers, rows, `hall_${courseId}.csv`); };
 
-    const genSeats = (cols, rows) => { let s=[]; for(let r=1; r<=rows; r++) cols.forEach(c=>s.push(c+r)); return s; };
-    const mReg = genSeats(['A','B','C','D','E','F','G','H','I','J'], 8);
-    const mSpec = genSeats(['L','K'], 8);
-    const fReg = genSeats(['A','B','C','D','E','F','G'], 8);
-    const fSpec = genSeats(['I','H'], 8);
-
-    const assign = (list, regSeats, specSeats) => {
-        const updates = []; const locked = new Set();
-        list.forEach(p => { if(p.is_seat_locked && p.dhamma_hall_seat_no) locked.add(p.dhamma_hall_seat_no); });
-        const availReg = regSeats.filter(s => !locked.has(s));
-        const availSpec = specSeats.filter(s => !locked.has(s));
-        const toAssign = list.filter(p => !p.is_seat_locked).sort((a,b) => {
-            const rA = getCategoryRank(a.conf_no), rB = getCategoryRank(b.conf_no);
-            if (rA !== rB) return rA - rB;
-            if (rA === 0) return getSeniorityScore(b) - getSeniorityScore(a);
-            return (parseInt(b.age)||0) - (parseInt(a.age)||0);
-        });
-        const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating));
-        const regGroup = toAssign.filter(p => !specGroup.includes(p));
-
-        specGroup.forEach(p => { if(availSpec.length) updates.push({...p, dhamma_hall_seat_no: availSpec.shift()}); else regGroup.unshift(p); });
-        regGroup.forEach(p => { if(availReg.length) updates.push({...p, dhamma_hall_seat_no: availReg.shift()}); });
-        return updates;
-    };
-    const updates = [...assign(males, mReg, mSpec), ...assign(females, fReg, fSpec)];
-    if(updates.length === 0) { setAssignProgress(''); return alert("No assignments needed."); }
-    setAssignProgress(`Saving ${updates.length}...`);
-    const BATCH = 5;
-    for(let i=0; i<updates.length; i+=BATCH) await Promise.all(updates.slice(i, i+BATCH).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) })));
-    setAssignProgress(''); alert("Done!"); loadStudents();
-  };
-
-  const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(editingStudent) }); setEditingStudent(null); loadStudents(); };
-  const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); } };
-  const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
-  const handleDeleteCourse = async () => { if (window.confirm("🛑 DELETE COURSE?")) { await fetch(`${API_URL}/courses/${courseId}`, { method: 'DELETE' }); refreshCourses(); setCourseId(''); } };
-  const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); loadStudents(); };
-  const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
+  const sortedList = React.useMemo(() => { let sortableItems = [...participants].filter(p => p); if (sortConfig.key) { sortableItems.sort((a, b) => { const valA = (a[sortConfig.key] || '').toString().toLowerCase(); const valB = (b[sortConfig.key] || '').toString().toLowerCase(); if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } return sortableItems.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase())); }, [participants, sortConfig, search]);
 
   const prepareReceipt = (student) => {
       const courseObj = courses.find(c => c.course_id == student.course_id) || courses.find(c => c.course_id == courseId);
       setPrintReceiptData({
-          courseName: courseObj?.course_name,
+          courseName: courseObj?.course_name || 'Unknown',
           teacherName: courseObj?.teacher_name || 'Goenka Ji',
-          from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '',
-          to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '',
+          from: courseObj && courseObj.start_date ? new Date(courseObj.start_date).toLocaleDateString() : '...',
+          to: courseObj && courseObj.end_date ? new Date(courseObj.end_date).toLocaleDateString() : '...',
           studentName: student.full_name,
           confNo: student.conf_no,
           roomNo: student.room_no,
@@ -708,137 +924,379 @@ function ParticipantList({ courses, refreshCourses }) {
 
   const prepareToken = (student) => {
       if (!student.dhamma_hall_seat_no) return alert("No Dhamma Seat assigned.");
-      setPrintTokenData({ seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no });
+      setPrintTokenData({ 
+          seat: student.dhamma_hall_seat_no, 
+          name: formatName(student.full_name), 
+          conf: student.conf_no,
+          cell: student.pagoda_cell_no || '-',
+          room: student.room_no || '-'
+      });
       setTimeout(() => window.print(), 500);
   };
 
+  // --- BULK TOKEN LOGIC ---
   const prepareBulkTokens = () => {
-    const valid = participants.filter(p => p.status === 'Arrived' && p.dhamma_hall_seat_no);
-    if(valid.length === 0) return alert("No seats assigned");
-    setPrintBulkData(valid.sort((a,b)=>a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(s=>({seat: s.dhamma_hall_seat_no, name: s.full_name, conf: s.conf_no})));
-    setTimeout(()=>window.print(), 500);
+      const validStudents = participants.filter(p => p.status === 'Arrived' && p.dhamma_hall_seat_no);
+      if (validStudents.length === 0) return alert("No arrived students with assigned seats found.");
+      
+      if(!window.confirm(`Print tokens for ${validStudents.length} students?\n\nTip: Ensure your thermal printer is ready.`)) return;
+
+      // Sort by Seat Number (A1, A2... B1...)
+      const tokens = validStudents.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric: true})).map(s => ({
+          seat: s.dhamma_hall_seat_no,
+          name: formatName(s.full_name),
+          conf: s.conf_no,
+          cell: s.pagoda_cell_no || '-',
+          room: s.room_no || '-'
+      }));
+      
+      setPrintBulkData(tokens);
+      setTimeout(() => window.print(), 500);
   };
 
-  const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Age", "Gender", "Dining", "Room", "Dhamma Seat", "Status"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', p.age || '', p.gender || '', p.dining_seat_no || '', p.room_no || '', p.dhamma_hall_seat_no || '', p.status || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
-  const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Arrived'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `dining_${courseId}.csv`); document.body.appendChild(link); link.click(); };
-  
-  if (viewAllMode) { return ( <div style={{background:'white', padding:'20px'}}> <div className="no-print" style={{marginBottom:'20px'}}><button onClick={() => setViewAllMode(false)} style={btnStyle(false)}>← Back</button><button onClick={handleExport} style={{...quickBtnStyle(true), marginLeft:'10px'}}>Export CSV</button></div> <h2>Master List</h2> <table style={{width:'100%', fontSize:'12px', borderCollapse:'collapse'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Seat</th></tr></thead><tbody>{participants.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.age}</td><td style={tdStyle}>{p.gender}</td><td style={tdStyle}>{p.dhamma_hall_seat_no}</td></tr>))}</tbody></table> </div> ); }
+  const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); } };
+  const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editingStudent) }); setEditingStudent(null); loadStudents(); };
+  const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); loadStudents(); };
+  const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
+  const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); loadStudents(); } };
+  const handleDeleteCourse = async () => { if (window.confirm("🛑 DELETE COURSE?")) { await fetch(`${API_URL}/courses/${courseId}`, { method: 'DELETE' }); refreshCourses(); setCourseId(''); } };
 
+  // --- AUTO-ASSIGN LOGIC ---
+  const handleAutoAssign = async () => {
+    if (!window.confirm("⚡ Auto-Assign Seats?\n\n- Skips Servers (SM/SF)\n- Old: Seniority Score\n- New: Age (High->Low)\n- Order: A1->B1...")) return;
+    setAssignProgress('Calculations...');
+    
+    const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
+    const allP = await res.json();
+    const activeStudents = allP.filter(p => p.status === 'Arrived' && !(p.conf_no && (p.conf_no.startsWith('SM') || p.conf_no.startsWith('SF')))); 
+
+    const males = activeStudents.filter(p => (p.gender || '').toLowerCase().startsWith('m'));
+    const females = activeStudents.filter(p => (p.gender || '').toLowerCase().startsWith('f'));
+
+    const generateSeats = (cols, rows) => {
+        let seats = [];
+        for(let r=1; r<=rows; r++) { cols.forEach(c => seats.push(`${c}${r}`)); }
+        return seats;
+    };
+    
+    const maleRegular = generateSeats(['A','B','C','D','E','F','G','H','I','J'], 8);
+    const maleSpecial = generateSeats(['L','K'], 8); 
+    const femaleRegular = generateSeats(['A','B','C','D','E','F','G'], 8);
+    const femaleSpecial = generateSeats(['I','H'], 8);
+
+    const assignGroup = (studentList, regularSeats, specialSeats) => {
+        const updates = [];
+        const lockedSeatSet = new Set();
+        studentList.forEach(p => { if (p.is_seat_locked && p.dhamma_hall_seat_no) lockedSeatSet.add(p.dhamma_hall_seat_no); });
+        const availableRegular = regularSeats.filter(s => !lockedSeatSet.has(s));
+        const availableSpecial = specialSeats.filter(s => !lockedSeatSet.has(s));
+        const toAssign = studentList.filter(p => !p.is_seat_locked);
+        
+        const sortedList = toAssign.sort((a,b) => { 
+            const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); 
+            if(rankA !== rankB) return rankA - rankB; 
+            if(rankA === 0) return getSeniorityScore(b) - getSeniorityScore(a); 
+            return (parseInt(b.age)||0) - (parseInt(a.age)||0); 
+        });
+        
+        const specialGroup = sortedList.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating));
+        const regularGroup = sortedList.filter(p => !p.special_seating || !['Chowky','Chair','BackRest'].includes(p.special_seating));
+
+        specialGroup.forEach(p => { if (availableSpecial.length > 0) { updates.push({ ...p, dhamma_hall_seat_no: availableSpecial.shift() }); } else { regularGroup.unshift(p); } });
+        regularGroup.forEach(p => { if (availableRegular.length > 0) { updates.push({ ...p, dhamma_hall_seat_no: availableRegular.shift() }); } });
+        return updates;
+    };
+
+    const allUpdates = [...assignGroup(males, maleRegular, maleSpecial), ...assignGroup(females, femaleRegular, femaleSpecial)];
+    
+    if(allUpdates.length === 0) { setAssignProgress(''); return alert("No assignments needed."); }
+
+    setAssignProgress(`Saving ${allUpdates.length}...`);
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) { const batch = allUpdates.slice(i, i + BATCH_SIZE); await Promise.all(batch.map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }))); }
+    setAssignProgress(''); alert(`✅ Auto-Assign Complete! Assigned ${allUpdates.length} seats.`); loadStudents();
+  };
+
+  const handleSeatClick = async (seatLabel, student) => {
+      if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); return; }
+      const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null);
+      if (source.label === target.label) return;
+      if (!source.p) return; 
+      const isSourceMale = (source.p.gender || '').toLowerCase().startsWith('m');
+      if (target.p) { const isTargetMale = (target.p.gender || '').toLowerCase().startsWith('m'); if (isSourceMale !== isTargetMale) return alert("⛔ Gender Mismatch!"); }
+
+      if (window.confirm(`Confirm Move/Swap?\nFrom ${source.label} (${source.p.full_name})\nTo ${target.label} ${target.p ? '('+target.p.full_name+')' : '(Empty)'}`)) {
+          if (!target.p) { 
+               await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); 
+          } else { 
+               await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP', is_seat_locked: true}) }); 
+               await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); 
+               await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); 
+          }
+          loadStudents();
+      }
+  };
+
+  // --- VIEWS ---
+  if (viewAllMode) { return ( <div style={{background:'white', padding:'20px'}}> <div className="no-print" style={{marginBottom:'20px'}}><button onClick={() => setViewAllMode(false)} style={btnStyle(false)}>← Back</button><button onClick={handleExport} style={{...quickBtnStyle(true), marginLeft:'10px'}}>Export CSV</button></div> <h2>Master List</h2> <table style={{width:'100%', fontSize:'12px', borderCollapse:'collapse'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Seat</th></tr></thead><tbody>{participants.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.age}</td><td style={tdStyle}>{p.gender}</td><td style={tdStyle}>{p.dhamma_hall_seat_no}</td></tr>))}</tbody></table> </div> ); }
+  
   if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={quickBtnStyle(true)}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
 
-  if (viewMode === 'pagoda') { const assigned = participants.filter(p => p.status==='Arrived' && p.pagoda_cell_no); const sorter = (a,b) => String(a.pagoda_cell_no || '0').localeCompare(String(b.pagoda_cell_no || '0'), undefined, { numeric: true }); const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Pagoda Cells</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Cell</th><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.pagoda_cell_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-pm")} {renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-pf")} </div> ); }
-
-  if (viewMode === 'seating') {
-      const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.status!=='Cancelled');
-      const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.status!=='Cancelled');
-      const mM = {}, fM = {}; males.forEach(p=>mM[p.dhamma_hall_seat_no]=p); females.forEach(p=>fM[p.dhamma_hall_seat_no]=p);
-      const Box = ({p, l}) => (
-          <div style={{border: p&&p.is_seat_locked?'2px solid red':'1px solid black', background:'white', height:'100%', fontSize:'10px', display:'flex', flexDirection:'column', cursor:'pointer', position:'relative'}}>
-              <div style={{textAlign:'center', borderBottom:'1px solid black', fontWeight:'bold', fontSize:'14px', background:'#f0f0f0'}}>{l} {p&&p.is_seat_locked&&'🔒'}</div>
-              {p && <><div style={{textAlign:'center', fontWeight:'bold', padding:'2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{p.full_name.split(' ')[0]} {p.full_name.split(' ').pop()[0]}</div><div style={{display:'flex', borderTop:'1px solid black'}}><div style={{flex:1, borderRight:'1px solid black', textAlign:'center'}}>{p.conf_no}</div><div style={{flex:1, textAlign:'center'}}>C:{p.pagoda_cell_no||'-'}</div></div></>}
-          </div>
-      );
-      const Grid = ({map, cols, rows}) => {
-          let g=[]; for(let r=1; r<=rows; r++) { let cells=[]; cols.forEach(c => cells.push(<Box key={c+r} l={c+r} p={map[c+r]} />)); g.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 100px)`, gridAutoRows:'80px', gap:'-1px'}}>{cells}</div>); } return g;
-      };
-      return (
-          <div style={cardStyle}>
-              <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div>
-              <div style={{display:'flex', gap:'50px', padding:'20px'}}>
-                  <div><h3>MALE SIDE</h3><Grid map={mM} cols={['L','K','J','I','H','G','F','E','D','C','B','A']} rows={8} /></div>
-                  <div><h3>FEMALE SIDE</h3><Grid map={fM} cols={['I','H','G','F','E','D','C','B','A']} rows={8} /></div>
-              </div>
-          </div>
-      );
+  if (viewMode === 'pagoda') { 
+      const assigned = participants.filter(p => p.status==='Arrived' && p.pagoda_cell_no); 
+      const sorter = (a,b) => String(a.pagoda_cell_no || '0').localeCompare(String(b.pagoda_cell_no || '0'), undefined, { numeric: true });
+      
+      const renderTable = (list, title, color, sectionId) => ( 
+          <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> 
+              <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}>
+                  <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...quickBtnStyle(true), background: color, color:'white'}}>Print {title}</button>
+              </div> 
+              <h2 style={{color:color, textAlign:'center'}}>{title} Pagoda Cells</h2> 
+              <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>Cell</th><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map(p=>(<tr key={p.participant_id}><td style={tdStyle}>{p.pagoda_cell_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> 
+          </div> 
+      ); 
+      return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-pm")} {renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-pf")} </div> ); 
   }
 
-  return (
-    <div style={cardStyle}>
-      <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center'}}>
-         <div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e=>setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><input style={inputStyle} placeholder="Search..." onChange={e=>setSearch(e.target.value)} disabled={!courseId} /></div>
-         <div style={{display:'flex', gap:'8px'}}>
-             <button onClick={()=>setPrintBulkData([]) || prepareBulkTokens()} disabled={!courseId} style={toolBtn('#17a2b8')}>🎫 Bulk Tokens</button>
-             <button onClick={handleAutoNoShow} disabled={!courseId} style={toolBtn('#d32f2f')}>🚫 No-Shows</button>
-             <button onClick={handleSendReminders} disabled={!courseId} style={toolBtn('#ff9800')}>📢 Reminders</button>
-             <button onClick={()=>setViewAllMode(true)} disabled={!courseId} style={toolBtn('#6c757d')}>👁️ View All</button>
-             <button onClick={handleExport} disabled={!courseId} style={toolBtn('#17a2b8')}>📥 Export</button>
-             <button onClick={()=>setViewMode('dining')} disabled={!courseId} style={toolBtn('#007bff')}>🍽️ Dining</button>
-             <button onClick={()=>setViewMode('pagoda')} disabled={!courseId} style={toolBtn('#007bff')}>🛖 Pagoda</button>
-             <button onClick={()=>setViewMode('seating')} disabled={!courseId} style={toolBtn('#28a745')}>🧘 Dhamma Hall</button>
-         </div>
+  if (viewMode === 'seating') { 
+    // --- PROFESSIONAL GRID VIEW (WITH STICKY FIX) ---
+    const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
+    const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.dhamma_hall_seat_no && p.status!=='Cancelled'); 
+    const maleMap = {}; males.forEach(p => maleMap[p.dhamma_hall_seat_no] = p); 
+    const femaleMap = {}; females.forEach(p => femaleMap[p.dhamma_hall_seat_no] = p);
+    
+    // Seat Box Component
+    const SeatBox = ({ p, label }) => { 
+        const isSelected = selectedSeat && selectedSeat.label === label; 
+        const isLocked = p && p.is_seat_locked;
+        return ( 
+            <div onClick={() => handleSeatClick(label, p)} 
+                 style={{ 
+                     border: isSelected ? '3px solid gold' : '1px solid black', 
+                     background: 'white', height:'100%', width: '100%', fontSize:'10px', 
+                     cursor:'pointer', position:'relative', boxSizing: 'border-box', 
+                     display:'flex', flexDirection:'column', fontFamily: 'Arial, sans-serif' 
+                 }}> 
+                <div style={{textAlign:'center', borderBottom:'1px solid black', fontWeight:'bold', fontSize:'14px', padding:'2px 0', background:'white'}}> {label} {isLocked && <span style={{color:'red', fontSize:'10px'}}>🔒</span>} </div>
+                {p ? ( <> <div style={{textAlign:'center', fontWeight:'bold', fontSize:'12px', borderBottom:'1px solid black', padding:'4px 2px', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis', height: '22px'}}> {formatName(p.full_name)} </div> <div style={{display:'flex', borderBottom:'1px solid black', height:'18px'}}> <div style={{flex:1, textAlign:'center', borderRight:'1px solid black', lineHeight:'18px'}}>{p.conf_no}</div> <div style={{flex:1, textAlign:'center', lineHeight:'18px'}}>Cell:{p.pagoda_cell_no||'-'}</div> </div> <div style={{display:'flex', height:'18px'}}> <div style={{flex:1, textAlign:'center', borderRight:'1px solid black', lineHeight:'18px'}}>DS:{p.dining_seat_no||'-'}</div> <div style={{flex:1, textAlign:'center', fontWeight:'bold', lineHeight:'18px'}}>{getLangCode(p.discourse_language)}</div> </div> </> ) : null} 
+            </div> 
+        ); 
+    };
+
+    const renderGrid = (map, cols, rows) => { 
+        let grid = []; 
+        for (let r = 0; r < rows; r++) { 
+            let cells = []; 
+            cols.forEach(c => { const label = `${c}${r+1}`; cells.push(<SeatBox key={label} p={map[label]} label={label} />); });
+            grid.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 110px)`, gridAutoRows:'85px', gap:'-1px', marginBottom:'-1px'}}>{cells}</div>); 
+        } 
+        return grid; 
+    };
+
+    const printSection = (sectionId) => { const style = document.createElement('style'); style.innerHTML = `@media print { @page { size: A3 landscape; margin: 5mm; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; flexDirection: column; alignItems: center; } .no-print { display: none !important; } .seat-grid { page-break-inside: avoid; border-top: 1px solid black; border-left: 1px solid black; } h1 { font-size: 24px !important; margin: 0 0 10px 0; } }`; document.head.appendChild(style); window.print(); document.head.removeChild(style); };
+
+    const SeatingSheet = ({ id, title, map, cols, rows }) => (
+        <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto'}}> 
+            <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> <button onClick={()=>printSection(id)} style={{...quickBtnStyle(true), background:'#007bff', color:'white'}}>🖨️ Print {title} (A3)</button> </div> 
+            
+            <div style={{display:'flex', justifyContent:'center', marginBottom:'30px'}}> 
+                <div style={{textAlign:'center'}}> 
+                    <div style={{border:'2px dashed black', width:'300px', height:'50px'}}></div> 
+                    <div style={{fontWeight:'bold', marginTop:'5px', fontSize:'16px'}}>TEACHER</div> 
+                </div> 
+            </div>
+
+            <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content'}}> {renderGrid(map, cols, rows)} </div> </div>
+            
+            <div style={{textAlign:'center', marginTop:'30px'}}> <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Dhamma Hall Seating Plan - {title}</h1> </div> 
+        </div>
+    );
+
+    return ( <div style={cardStyle}> 
+        <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}> <button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button> <div style={{display:'flex', gap:'10px', alignItems:'center'}}> {assignProgress && <span style={{color:'green', fontWeight:'bold'}}>{assignProgress}</span>} <div style={{fontSize:'12px', background:'#fff3cd', padding:'5px 10px', borderRadius:'4px'}}>💡 Manual Move = Auto-Lock</div> <button onClick={handleSeatingExport} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>CSV</button> <button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800', color:'white'}}>⚡ Auto-Assign (Smart)</button> </div> </div> 
+        <div className="print-area" style={{display:'flex', flexDirection:'column', gap:'100px'}}> 
+            <SeatingSheet id="print-male" title="Male Side" map={maleMap} cols={['L','K', 'J','I','H','G','F','E','D','C','B','A']} rows={8} />
+            <SeatingSheet id="print-female" title="Female Side" map={femaleMap} cols={['I','H', 'G','F','E','D','C','B','A']} rows={8} />
+        </div> 
+    </div> );
+  }
+
+  // --- DEFAULT LIST VIEW ---
+  return ( <div style={cardStyle}> 
+      <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', flexWrap:'wrap', gap:'10px'}}>
+          <div style={{display:'flex', gap:'10px'}}> <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select> <input style={inputStyle} placeholder="Search..." onChange={e => setSearch(e.target.value)} disabled={!courseId} /> </div>
+          <div style={{display:'flex', gap:'5px'}}> 
+              <button onClick={prepareBulkTokens} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>🎫 Bulk Tokens</button>
+              <button onClick={handleAutoNoShow} disabled={!courseId} style={{...quickBtnStyle(true), background:'#d32f2f', color:'white'}}>🚫 No-Shows</button> 
+              <button onClick={handleSendReminders} disabled={!courseId} style={{...quickBtnStyle(true), background:'#ff9800', color:'white'}}>📢 Reminders</button> 
+              <button onClick={() => setViewAllMode(true)} disabled={!courseId} style={{...quickBtnStyle(true), background:'#6c757d', color:'white'}}>👁️ View All</button> 
+              <button onClick={handleExport} disabled={!courseId} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>📥 Export</button> 
+              <button onClick={() => setViewMode('dining')} disabled={!courseId} style={quickBtnStyle(true)}>🍽️ Dining</button> 
+              <button onClick={() => setViewMode('pagoda')} disabled={!courseId} style={quickBtnStyle(true)}>🛖 Pagoda</button>
+              <button onClick={() => setViewMode('seating')} disabled={!courseId} style={{...quickBtnStyle(true), background:'#28a745', color:'white'}}>🧘 Dhamma Hall</button> 
+          </div>
       </div>
       
-      {courseId && <div style={{marginBottom:'15px', padding:'15px', background:'#fff0f0', border:'1px solid red', borderRadius:'5px', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
-          <span style={{fontWeight:'bold', color:'red', display:'flex', alignItems:'center', gap:'5px'}}><AlertTriangle size={18}/> Admin Zone:</span>
-          <div>
-              <button onClick={handleResetCourse} style={{padding:'8px 16px', background:'#dc3545', color:'white', border:'none', borderRadius:'5px', cursor:'pointer', marginRight:'10px'}}>Reset Data</button>
-              <button onClick={handleDeleteCourse} style={{padding:'8px 16px', background:'red', color:'white', border:'none', borderRadius:'5px', cursor:'pointer'}}>Delete Course</button>
-          </div>
-      </div>}
+      {courseId && (<div style={{background:'#fff5f5', border:'1px solid #feb2b2', padding:'10px', borderRadius:'5px', marginBottom:'20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}><span style={{color:'#c53030', fontWeight:'bold', fontSize:'13px'}}>⚠️ Admin Zone:</span><div><button onClick={handleResetCourse} style={{background:'#e53e3e', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', marginRight:'10px', fontSize:'12px'}}>Reset Data</button><button onClick={handleDeleteCourse} style={{background:'red', color:'white', border:'none', padding:'5px 10px', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Delete Course</button></div></div>)}
 
-      <div style={{overflowX:'auto', border:'1px solid #eee', borderRadius:'8px'}}>
-        <table style={{width:'100%', fontSize:'13px', borderCollapse:'collapse'}}>
-            <thead><tr style={{background:'#f8f9fa', textAlign:'left'}}>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>FULL NAME</th>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>CONF NO</th>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>COURSES INFO</th>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>AGE</th>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>GENDER</th>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>DINING SEAT NO</th>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>DINING SEAT TYPE</th>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>ROOM NO</th>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>PAGODA CELL NO</th>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>DHAMMA HALL SEAT NO</th>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>STATUS</th>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>PRINTS</th>
-                <th style={{padding:'12px', borderBottom:'2px solid #ddd'}}>ACTIONS</th>
-            </tr></thead>
-            <tbody>{sortedList.map(p=>(
-                <tr key={p.participant_id} style={{borderBottom:'1px solid #eee', background: p.status === 'Arrived' ? 'white' : '#fff5f5'}}>
-                    <td style={{padding:'12px', fontWeight:'bold'}}>{p.full_name}</td>
-                    <td style={{padding:'12px'}}>{p.conf_no}</td>
-                    <td style={{padding:'12px', fontSize:'11px', color:'#666'}}>{p.courses_info}</td>
-                    <td style={{padding:'12px'}}>{p.age}</td>
-                    <td style={{padding:'12px'}}>{p.gender}</td>
-                    <td style={{padding:'12px'}}>{p.dining_seat_no}</td>
-                    <td style={{padding:'12px'}}>{p.dining_seat_type}</td>
-                    <td style={{padding:'12px'}}>{p.room_no}</td>
-                    <td style={{padding:'12px'}}>{p.pagoda_cell_no}</td>
-                    <td style={{padding:'12px', fontWeight:'bold', color:'#007bff'}}>{p.dhamma_hall_seat_no}</td>
-                    <td style={{padding:'12px', color: p.status==='Arrived'?'green':'orange', fontWeight:'bold'}}>{p.status}</td>
-                    <td style={{padding:'12px'}}>
-                        <div style={{display:'flex', gap:'5px'}}>
-                            <button onClick={()=>prepareReceipt(p)} style={{padding:'5px 10px', background:'#e3f2fd', border:'1px solid #90caf9', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Receipt</button>
-                            <button onClick={()=>prepareToken(p)} style={{padding:'5px 10px', background:'#fff3cd', border:'1px solid #ffeeba', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Token</button>
-                        </div>
-                    </td>
-                    <td style={{padding:'12px'}}>
-                        <div style={{display:'flex', gap:'10px'}}>
-                            <button onClick={()=>setEditingStudent(p)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'16px'}}>✏️</button>
-                            <button onClick={()=>handleDelete(p.participant_id)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'16px'}}>🗑️</button>
-                        </div>
-                    </td>
-                </tr>
-            ))}</tbody>
+      <div style={{overflowX:'auto'}}>
+        <table style={{width:'100%', borderCollapse:'collapse', fontSize:'13px'}}>
+          <thead>
+            <tr style={{background:'#f1f1f1', textAlign:'left'}}>
+              {['full_name','conf_no','courses_info','age','gender','room_no','dining_seat_no', 'pagoda_cell_no', 'dhamma_hall_seat_no', 'status'].map(k=><th key={k} style={{...tdStyle, cursor:'pointer'}} onClick={()=>handleSort(k)}>{k.replace(/_/g,' ').toUpperCase()}</th>)}
+              <th style={tdStyle}>PRINTS</th>
+              <th style={tdStyle}>ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedList.map(p => (
+              <tr key={p.participant_id} style={{borderBottom:'1px solid #eee', background: p.status === 'Arrived' ? 'white' : '#fff5f5'}}>
+                <td style={tdStyle}><strong>{p.full_name}</strong></td>
+                <td style={tdStyle}>{p.conf_no}</td>
+                <td style={tdStyle}>{p.courses_info}</td>
+                <td style={tdStyle}>{p.age}</td>
+                <td style={tdStyle}>{p.gender}</td>
+                <td style={tdStyle}>{p.room_no}</td>
+                <td style={tdStyle}>{p.dining_seat_no} ({p.dining_seat_type === 'Floor' ? 'F' : 'C'})</td>
+                <td style={tdStyle}>{p.pagoda_cell_no}</td>
+                <td style={{...tdStyle, fontWeight:'bold', color:'#007bff'}}>{p.dhamma_hall_seat_no}</td>
+                <td style={{...tdStyle, color: p.status==='Arrived'?'green':'orange'}}>{p.status}</td>
+                <td style={tdStyle}>
+                   <div style={{display:'flex', gap:'5px'}}>
+                      <button onClick={() => prepareReceipt(p)} style={{padding:'4px 8px', border:'1px solid #ccc', borderRadius:'4px', background:'#e3f2fd', cursor:'pointer'}}>Receipt</button>
+                      <button onClick={() => prepareToken(p)} style={{padding:'4px 8px', border:'1px solid #ccc', borderRadius:'4px', background:'#fff3cd', cursor:'pointer'}}>Token</button>
+                   </div>
+                </td>
+                <td style={tdStyle}>
+                   <button onClick={() => setEditingStudent(p)} style={{marginRight:'5px', cursor:'pointer'}}>✏️</button>
+                   <button onClick={() => handleDelete(p.participant_id)} style={{color:'red', cursor:'pointer'}}>🗑️</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
 
-      {/* Print Modals (Same as before) */}
-      {printReceiptData && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}><button onClick={()=>setPrintReceiptData(null)} style={{float:'right'}}>X</button><div id="receipt-print-area" style={{border:'1px dashed black', padding:'10px'}}><h3>{printReceiptData.courseName}</h3><p>{printReceiptData.studentName}</p></div><button onClick={()=>window.print()} style={{marginTop:'10px', width:'100%'}}>Print</button></div><style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; } }`}</style></div>}
-      {printTokenData && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'300px'}}><button onClick={()=>setPrintTokenData(null)} style={{float:'right'}}>X</button><div id="token-print-area" style={{border:'2px solid black', padding:'20px', textAlign:'center'}}><h1>{printTokenData.seat}</h1><p>{printTokenData.name}</p></div><button onClick={()=>window.print()} style={{marginTop:'10px', width:'100%'}}>Print</button></div><style>{`@media print { body * { visibility: hidden; } #token-print-area, #token-print-area * { visibility: visible; } #token-print-area { position: absolute; left: 0; top: 0; width: 100%; } }`}</style></div>}
+      {/* RE-PRINT MODAL */}
+      {printReceiptData && (
+          <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
+              <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'320px', position:'relative'}}>
+                  <button onClick={() => setPrintReceiptData(null)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button>
+                  <div id="receipt-print-area" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'5px'}}>
+                      <div style={{textAlign: 'center', fontWeight: 'bold', marginBottom: '8px'}}>
+                          <div style={{fontSize: '18px', textTransform:'uppercase'}}>VIPASSANA</div>
+                          <div style={{fontSize: '11px'}}>International Meditation Center</div>
+                          <div style={{fontSize: '13px', marginTop:'2px'}}>Dhamma Nagajjuna 2</div>
+                      </div>
+                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'11px', marginBottom:'10px'}}>
+                          <tbody>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>Course</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printReceiptData.courseName}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>Teacher</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printReceiptData.teacherName}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>From</td><td style={{border:'1px solid black', padding:'4px'}}>{printReceiptData.from}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>To</td><td style={{border:'1px solid black', padding:'4px'}}>{printReceiptData.to}</td></tr>
+                          </tbody>
+                      </table>
+                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'12px', marginBottom:'10px'}}>
+                          <tbody>
+                              <tr><td style={{border:'1px solid black', padding:'4px', width:'30%'}}>Conf No</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printReceiptData.confNo}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Name</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printReceiptData.studentName}</td></tr>
+                          </tbody>
+                      </table>
+                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', fontSize:'12px', marginBottom:'10px'}}>
+                          <tbody>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Room No</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold', fontSize:'14px'}}>{printReceiptData.roomNo || '-'}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Dining Seat</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold', fontSize:'14px'}}>{printReceiptData.seatNo || '-'}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Lockers</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printReceiptData.lockers || '-'}</td></tr>
+                              <tr><td style={{border:'1px solid black', padding:'4px'}}>Language</td><td style={{border:'1px solid black', padding:'4px', fontWeight:'bold'}}>{printReceiptData.language}</td></tr>
+                          </tbody>
+                      </table>
+                      <div style={{textAlign: 'center', fontSize: '10px', fontStyle: 'italic', marginTop:'5px'}}>*** Student Copy ***</div>
+                  </div>
+              </div>
+              <style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; } @page { size: auto; margin: 0; } }`}</style>
+          </div>
+      )}
 
-      {/* Edit Modal with Lockers */}
-      {editingStudent && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'30px', width:'600px', borderRadius:'10px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave}><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'15px'}}><div><label>Full Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e=>setEditingStudent({...editingStudent, full_name:e.target.value})} /></div><div><label>Conf No</label><input style={inputStyle} value={editingStudent.conf_no||''} onChange={e=>setEditingStudent({...editingStudent, conf_no:e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'15px'}}><div><label>Room No</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e=>setEditingStudent({...editingStudent, room_no:e.target.value})} /></div><div><label>Dining Seat</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e=>setEditingStudent({...editingStudent, dining_seat_no:e.target.value})} /></div><div><label>Pagoda Cell</label><input style={inputStyle} value={editingStudent.pagoda_cell_no||''} onChange={e=>setEditingStudent({...editingStudent, pagoda_cell_no:e.target.value})} /></div></div>
-      <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}><h4 style={{marginTop:0}}>Manual Locker Override</h4><div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}><div><label>Mobile</label><input style={inputStyle} value={editingStudent.mobile_locker_no||''} onChange={e=>setEditingStudent({...editingStudent, mobile_locker_no:e.target.value})} /></div><div><label>Valuables</label><input style={inputStyle} value={editingStudent.valuables_locker_no||''} onChange={e=>setEditingStudent({...editingStudent, valuables_locker_no:e.target.value})} /></div><div><label>Laundry</label><input style={inputStyle} value={editingStudent.laundry_token_no||''} onChange={e=>setEditingStudent({...editingStudent, laundry_token_no:e.target.value})} /></div></div></div>
-      <div style={{textAlign:'right'}}><button onClick={()=>setEditingStudent(null)} style={{marginRight:'10px', padding:'8px 16px', border:'1px solid #ccc', background:'white', borderRadius:'5px', cursor:'pointer'}}>Cancel</button><button type="submit" style={{padding:'8px 16px', background:'#007bff', color:'white', border:'none', borderRadius:'5px', cursor:'pointer'}}>Save Changes</button></div></form></div></div>)}
-    </div>
-  );
-}
+      {/* SINGLE TOKEN MODAL (FIXED PAGE BREAK) */}
+      {printTokenData && (
+          <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
+              <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'300px', position:'relative'}}>
+                  <button onClick={() => setPrintTokenData(null)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button>
+                  <div id="token-print-area" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'20px', textAlign:'center', border:'2px solid black'}}>
+                      <div style={{fontSize:'16px', fontWeight:'bold', marginBottom:'10px'}}>DHAMMA SEAT TOKEN</div>
+                      <div style={{fontSize:'60px', fontWeight:'900', margin:'10px 0'}}>{printTokenData.seat}</div>
+                      <div style={{fontSize:'14px', fontWeight:'bold', marginBottom:'5px'}}>{printTokenData.name}</div>
+                      <div style={{fontSize:'12px', color:'#555', marginBottom:'10px'}}>{printTokenData.conf}</div>
+                      
+                      <div style={{display:'flex', justifyContent:'space-between', borderTop:'1px solid black', paddingTop:'10px'}}>
+                          <div style={{textAlign:'left'}}>
+                              <div style={{fontSize:'10px'}}>Cell No</div>
+                              <div style={{fontWeight:'bold', fontSize:'14px'}}>{printTokenData.cell}</div>
+                          </div>
+                          <div style={{textAlign:'right'}}>
+                              <div style={{fontSize:'10px'}}>Room No</div>
+                              <div style={{fontWeight:'bold', fontSize:'14px'}}>{printTokenData.room}</div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+              <style>{`@media print { 
+                  @page { size: auto; margin: 0; }
+                  body, html { height: 100%; overflow: hidden; margin: 0; padding: 0; }
+                  body * { visibility: hidden; } 
+                  #token-print-area, #token-print-area * { visibility: visible; } 
+                  #token-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 10px; } 
+              }`}</style>
+          </div>
+      )}
 
-// --- FULL EXPENSE TRACKER (RESTORED FEATURES) ---
+      {/* BULK TOKENS MODAL (FIXED PAGE BREAKS) */}
+      {printBulkData && (
+          <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
+              <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'350px', maxHeight:'80vh', overflowY:'auto', position:'relative'}}>
+                  <button onClick={() => setPrintBulkData(null)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button>
+                  <h3 style={{textAlign:'center', margin:'0 0 20px 0'}}>🖨️ Bulk Printing...</h3>
+                  
+                  <div id="bulk-token-print-area">
+                      {printBulkData.map((t, i) => (
+                          <div key={i} className="bulk-token-container" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'20px', textAlign:'center', border:'2px solid black', marginBottom:'20px'}}>
+                              <div style={{fontSize:'16px', fontWeight:'bold', marginBottom:'10px'}}>DHAMMA SEAT TOKEN</div>
+                              <div style={{fontSize:'60px', fontWeight:'900', margin:'10px 0'}}>{t.seat}</div>
+                              <div style={{fontSize:'14px', fontWeight:'bold', marginBottom:'5px'}}>{t.name}</div>
+                              <div style={{fontSize:'12px', color:'#555', marginBottom:'10px'}}>{t.conf}</div>
+                              <div style={{display:'flex', justifyContent:'space-between', borderTop:'1px solid black', paddingTop:'10px'}}>
+                                  <div style={{textAlign:'left'}}><div style={{fontSize:'10px'}}>Cell</div><div style={{fontWeight:'bold', fontSize:'14px'}}>{t.cell}</div></div>
+                                  <div style={{textAlign:'right'}}><div style={{fontSize:'10px'}}>Room</div><div style={{fontWeight:'bold', fontSize:'14px'}}>{t.room}</div></div>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+              <style>{`
+                  @media print {
+                      @page { size: auto; margin: 0; }
+                      body * { visibility: hidden; }
+                      #bulk-token-print-area, #bulk-token-print-area * { visibility: visible; }
+                      #bulk-token-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+                      .bulk-token-container { page-break-after: always; display: block; height: auto; border-bottom: 2px dashed black !important; margin-bottom: 5px; padding-bottom: 20px; }
+                      .bulk-token-container:last-child { page-break-after: auto; }
+                  }
+              `}</style>
+          </div>
+      )}
+
+      {editingStudent && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'500px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave} style={{display:'flex', flexDirection:'column', gap:'10px'}}><label>Name</label><input style={inputStyle} value={editingStudent.full_name} onChange={e => setEditingStudent({...editingStudent, full_name: e.target.value})} /><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Conf No</label><input style={inputStyle} value={editingStudent.conf_no||''} onChange={e => setEditingStudent({...editingStudent, conf_no: e.target.value})} /></div><div><label>Lang</label><input style={inputStyle} value={editingStudent.discourse_language||''} onChange={e => setEditingStudent({...editingStudent, discourse_language: e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}><div><label>Dining Seat</label><input style={inputStyle} value={editingStudent.dining_seat_no||''} onChange={e => setEditingStudent({...editingStudent, dining_seat_no: e.target.value})} /></div><div><label>Room</label><input style={inputStyle} value={editingStudent.room_no||''} onChange={e => setEditingStudent({...editingStudent, room_no: e.target.value})} /></div></div>
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}>
+          <div><label>Mobile</label><input style={inputStyle} value={editingStudent.mobile_locker_no||''} onChange={e => setEditingStudent({...editingStudent, mobile_locker_no: e.target.value})} /></div>
+          <div><label>Valuables</label><input style={inputStyle} value={editingStudent.valuables_locker_no||''} onChange={e => setEditingStudent({...editingStudent, valuables_locker_no: e.target.value})} /></div>
+          <div><label>Laundry</label><input style={inputStyle} value={editingStudent.laundry_token_no||''} onChange={e => setEditingStudent({...editingStudent, laundry_token_no: e.target.value})} /></div>
+      </div>
+      <div style={{display:'flex', gap:'10px', marginTop:'15px'}}><button type="submit" style={{...btnStyle(true), flex:1, background:'#28a745', color:'white'}}>Save</button><button type="button" onClick={() => setEditingStudent(null)} style={{...btnStyle(false), flex:1}}>Cancel</button></div></form></div></div>)}
+  </div> );
+  }
+
 function ExpenseTracker({ courses }) {
   const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [selectedStudentId, setSelectedStudentId] = useState(''); const [studentToken, setStudentToken] = useState(''); const [expenseType, setExpenseType] = useState('Laundry Token'); const [amount, setAmount] = useState(''); const [history, setHistory] = useState([]); const [status, setStatus] = useState(''); const [showInvoice, setShowInvoice] = useState(false); const [reportMode, setReportMode] = useState(''); const [financialData, setFinancialData] = useState([]); const [editingId, setEditingId] = useState(null);
-
   useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data)?data:[])).catch(console.error); }, [courseId]);
   useEffect(() => { if (selectedStudentId) { const student = participants.find(p => p.participant_id == selectedStudentId); setStudentToken(student ? student.laundry_token_no : ''); fetch(`${API_URL}/participants/${selectedStudentId}/expenses`).then(res => res.json()).then(data => setHistory(Array.isArray(data)?data:[])).catch(console.error); } else { setHistory([]); setStudentToken(''); } }, [selectedStudentId]);
   const loadFinancialReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => setFinancialData(Array.isArray(data) ? data : [])); setReportMode('summary'); };
@@ -877,3 +1335,12 @@ function ExpenseTracker({ courses }) {
     </div>
   );
 }
+
+// --- STYLES ---
+const btnStyle = (isActive) => ({ padding: '10px 20px', border: '1px solid #ddd', borderRadius: '5px', cursor: 'pointer', background: isActive ? '#007bff' : '#fff', color: isActive ? 'white' : '#333', fontWeight: '500' });
+const quickBtnStyle = (isActive) => ({ padding: '6px 12px', border: '1px solid #ccc', borderRadius: '15px', background: isActive ? '#007bff' : '#f1f1f1', color: isActive ? 'white' : 'black', cursor: 'pointer', fontSize: '13px' });
+const cardStyle = { background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginBottom: '20px' };
+const inputStyle = { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px' };
+const labelStyle = { fontSize: '14px', color: '#555', fontWeight: 'bold', marginBottom: '5px', display: 'block' };
+const thPrint = { textAlign: 'left', padding: '10px', borderBottom: '1px solid #000' };
+const tdStyle = { padding: '12px', borderBottom: '1px solid #eee' };
