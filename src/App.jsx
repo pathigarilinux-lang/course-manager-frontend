@@ -484,9 +484,42 @@ function GatekeeperPanel({ courses }) {
 function Dashboard({ courses }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [stats, setStats] = useState(null);
+  const [participants, setParticipants] = useState([]);
 
   useEffect(() => { if (courses.length > 0 && !selectedCourse) setSelectedCourse(courses[0].course_id); }, [courses]);
-  useEffect(() => { if (selectedCourse) fetch(`${API_URL}/courses/${selectedCourse}/stats`).then(res => res.json()).then(setStats).catch(console.error); }, [selectedCourse]);
+  
+  useEffect(() => { 
+      if (selectedCourse) {
+          fetch(`${API_URL}/courses/${selectedCourse}/stats`).then(res => res.json()).then(setStats).catch(console.error); 
+          fetch(`${API_URL}/courses/${selectedCourse}/participants`).then(res => res.json()).then(setParticipants).catch(console.error); 
+      }
+  }, [selectedCourse]);
+
+  // --- REUSE CALCULATION LOGIC FOR DETAILED STATS ---
+  const all = participants.filter(p => p.status !== 'Cancelled');
+  const arrived = all.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending');
+  const pending = all.filter(p => p.status === 'No Response');
+  
+  const getBreakdown = (list, filterFn) => list.filter(filterFn).length;
+  const isMale = (p) => (p.gender||'').toLowerCase().startsWith('m');
+  const isFemale = (p) => (p.gender||'').toLowerCase().startsWith('f');
+  
+  // Dashboard Specific Stats
+  const detailedStats = {
+      m: { tot: getBreakdown(all, isMale), arr: getBreakdown(arrived, isMale), pend: getBreakdown(pending, isMale) },
+      f: { tot: getBreakdown(all, isFemale), arr: getBreakdown(arrived, isFemale), pend: getBreakdown(pending, isFemale) },
+  };
+
+  const StatBox = ({ label, v1, v2, v3, color }) => (
+      <div style={{background:'white', padding:'15px', borderRadius:'8px', borderTop:`4px solid ${color}`, textAlign:'center', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}>
+          <div style={{fontSize:'12px', color:'#777', fontWeight:'bold', textTransform:'uppercase', marginBottom:'10px'}}>{label}</div>
+          <div style={{display:'flex', justifyContent:'space-between', fontSize:'14px'}}>
+              <span title="Total">Exp: <b>{v1}</b></span>
+              <span title="Arrived" style={{color:'green'}}>Arr: <b>{v2}</b></span>
+              <span title="Pending" style={{color:'red'}}>Pen: <b>{v3}</b></span>
+          </div>
+      </div>
+  );
 
   const ActionCard = ({ title, count, color, icon, desc }) => (
       <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)', display:'flex', alignItems:'center', borderLeft:`5px solid ${color}`}}>
@@ -507,6 +540,12 @@ function Dashboard({ courses }) {
                 <ActionCard title="Onboarded" count={stats.attending} color="#28a745" icon={<UserCheck size={20}/>} desc="Room Assigned" />
                 <ActionCard title="Pending" count={stats.no_response} color="#dc3545" icon={<AlertTriangle size={20}/>} desc="Not yet arrived" />
             </div>
+
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'30px'}}>
+                <StatBox label="Male Statistics" v1={detailedStats.m.tot} v2={detailedStats.m.arr} v3={detailedStats.m.pend} color="#007bff" />
+                <StatBox label="Female Statistics" v1={detailedStats.f.tot} v2={detailedStats.f.arr} v3={detailedStats.f.pend} color="#e91e63" />
+            </div>
+
             <div style={{display:'flex', gap:'20px'}}>
                 <div style={{flex:2, ...cardStyle}}>
                     <h3>Arrival Flow (Male vs Female)</h3>
