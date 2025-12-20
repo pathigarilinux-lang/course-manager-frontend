@@ -13,6 +13,7 @@ import {
 const API_URL = "https://course-manager-backend-cd1m.onrender.com"; 
 const ADMIN_PASSCODE = "0"; 
 const GATEKEEPER_PASSCODE = "1";
+const TEACHER_PASSCODE = "2";
 
 // ------------------------------------------------------------------
 // 🎨 STYLES
@@ -70,7 +71,7 @@ const getSmartShortName = (name) => getShortCourseName(name);
 // 🧩 MAIN APP COMPONENT
 // ------------------------------------------------------------------
 export default function App() {
-  const [authLevel, setAuthLevel] = useState('none'); 
+  const [authLevel, setAuthLevel] = useState('none'); // 'none', 'admin', 'gatekeeper', 'teacher'
   const [pinInput, setPinInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [view, setView] = useState('dashboard');
@@ -101,6 +102,10 @@ export default function App() {
       setAuthLevel('gatekeeper');
       localStorage.setItem('auth_level', 'gatekeeper');
       setView('gate-panel'); 
+    } else if (pinInput === TEACHER_PASSCODE) {
+      setAuthLevel('teacher');
+      localStorage.setItem('auth_level', 'teacher');
+      setView('ta-panel');
     } else {
       setLoginError('❌ Incorrect Passcode');
       setPinInput('');
@@ -302,7 +307,7 @@ export default function App() {
             <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button>
           </form>
           {loginError && <p style={{ color: 'red', marginTop: '15px', fontWeight: 'bold' }}>{loginError}</p>}
-          <p style={{marginTop:'20px', fontSize:'12px', color:'#777'}}>0 = Admin | 1 = Gatekeeper</p>
+          <p style={{marginTop:'20px', fontSize:'12px', color:'#777'}}>0=Admin | 1=Gate | 2=Teacher</p>
         </div>
       </div>
     );
@@ -318,6 +323,21 @@ export default function App() {
                       <button onClick={handleLogout} style={{...btnStyle(false), background:'#dc3545', color:'white'}}>Logout</button>
                   </div>
                   <GatekeeperPanel courses={courses} />
+              </div>
+          </div>
+      );
+  }
+  
+  // --- TEACHER VIEW (NEW) ---
+  if (authLevel === 'teacher') {
+      return (
+          <div className="app-container" style={{ fontFamily: 'Segoe UI, sans-serif', padding: '20px', backgroundColor: '#fff3e0', minHeight: '100vh' }}>
+              <div style={{maxWidth:'1000px', margin:'0 auto'}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+                      <h2 style={{margin:0}}>🧘 AT Panel</h2>
+                      <button onClick={handleLogout} style={{...btnStyle(false), background:'#dc3545', color:'white'}}>Logout</button>
+                  </div>
+                  <ATPanel courses={courses} />
               </div>
           </div>
       );
@@ -373,7 +393,16 @@ function GatekeeperPanel({ courses }) {
         if (!window.confirm(`Mark ${p.full_name} as ARRIVED at Gate?`)) return;
         try {
             await fetch(`${API_URL}/gate-checkin`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ participantId: p.participant_id }) });
-            // Refresh list
+            const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
+            const data = await res.json();
+            setParticipants(data);
+        } catch (err) { alert("Error"); }
+    };
+
+    const handleGateCancel = async (p) => {
+        if (!window.confirm(`Mark ${p.full_name} as CANCELLED?`)) return;
+        try {
+            await fetch(`${API_URL}/gate-cancel`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ participantId: p.participant_id }) });
             const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
             const data = await res.json();
             setParticipants(data);
@@ -403,10 +432,12 @@ function GatekeeperPanel({ courses }) {
     const filtered = participants.filter(p => {
         const match = p.full_name.toLowerCase().includes(search.toLowerCase()) || (p.conf_no && p.conf_no.toLowerCase().includes(search.toLowerCase()));
         if (!match) return false;
-        if (p.status === 'Cancelled') return false;
+        
+        // IMPORTANT: Show cancelled ONLY if searching specific user, otherwise hide
+        if (p.status === 'Cancelled' && !search) return false;
         
         // "Disappearing" Logic: Show pending by default. Show Arrived only if history enabled.
-        if (!showHistory) return p.status === 'No Response' || !p.status;
+        if (!showHistory && !search) return p.status === 'No Response' || !p.status;
         return true;
     });
 
@@ -468,11 +499,15 @@ function GatekeeperPanel({ courses }) {
                             <div style={{marginTop:'5px'}}>
                                 {p.status === 'Gate Check-In' && <span style={{background:'#ffc107', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>AT GATE</span>}
                                 {p.status === 'Attending' && <span style={{background:'#28a745', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>INSIDE (DONE)</span>}
+                                {p.status === 'Cancelled' && <span style={{background:'#dc3545', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>CANCELLED</span>}
                                 {(p.status === 'No Response' || !p.status) && <span style={{background:'#eee', padding:'2px 6px', borderRadius:'4px', fontSize:'12px'}}>PENDING</span>}
                             </div>
                         </div>
-                        {p.status !== 'Attending' && p.status !== 'Gate Check-In' && (
-                            <button onClick={()=>handleGateCheckIn(p)} style={{...btnStyle(true), background:'#007bff', color:'white', padding:'10px 20px'}}>Mark Arrived</button>
+                        {p.status !== 'Attending' && p.status !== 'Gate Check-In' && p.status !== 'Cancelled' && (
+                            <div style={{display:'flex', gap:'10px'}}>
+                                <button onClick={()=>handleGateCheckIn(p)} style={{...btnStyle(true), background:'#007bff', color:'white', padding:'10px 20px'}}>Mark Arrived</button>
+                                <button onClick={()=>handleGateCancel(p)} style={{...btnStyle(true), background:'#dc3545', color:'white', padding:'10px'}}>Cancel</button>
+                            </div>
                         )}
                     </div>
                 ))}
@@ -585,7 +620,11 @@ function Dashboard({ courses }) {
   );
 }
 
+// ... Include other components (GlobalAccommodationManager, ATPanel, StudentForm, ParticipantList, ExpenseTracker) as defined previously
+// (For brevity, ensure you copy the full implementations from the previous complete App.jsx provided, as they haven't changed except for context usage)
+
 function GlobalAccommodationManager({ courses, onRoomClick }) {
+  // ... (Paste full implementation from previous response)
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
   const [newRoom, setNewRoom] = useState({ roomNo: '', type: 'Male' }); 
