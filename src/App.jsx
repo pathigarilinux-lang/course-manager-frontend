@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, Resp
 import { 
   Users, Upload, Save, Database, AlertTriangle, CheckCircle, 
   Search, Home, Coffee, FileText, Trash2, X, Edit, Plus,
-  CreditCard, DollarSign, Download, Calendar
+  CreditCard, DollarSign, Download, Calendar, Printer
 } from 'lucide-react';
 
 // ------------------------------------------------------------------
@@ -13,7 +13,7 @@ const API_URL = "https://course-manager-backend-cd1m.onrender.com";
 const ADMIN_PASSCODE = "0"; 
 
 // ------------------------------------------------------------------
-// 🎨 STYLES (DEFINED AT TOP TO PREVENT CRASHES)
+// 🎨 STYLES
 // ------------------------------------------------------------------
 const btnStyle = (isActive) => ({ 
   padding: '8px 16px', border: '1px solid #ddd', borderRadius: '20px', 
@@ -39,7 +39,6 @@ const inputStyle = { width: '100%', padding: '10px', borderRadius: '6px', border
 const labelStyle = { fontSize: '14px', color: '#555', fontWeight: 'bold', marginBottom: '5px', display: 'block' };
 const thPrint = { textAlign: 'left', padding: '12px', borderBottom: '2px solid #eee', fontSize:'12px', color:'#555', textTransform:'uppercase' };
 const tdStyle = { padding: '12px', borderBottom: '1px solid #eee', fontSize:'13px', verticalAlign:'middle' };
-const sectionHeaderStyle = { fontSize:'14px', fontWeight:'bold', color:'#007bff', borderBottom:'1px solid #eee', paddingBottom:'5px', marginTop:'15px', marginBottom:'10px' };
 
 // ------------------------------------------------------------------
 // 🛠 UTILS & CONSTANTS
@@ -62,6 +61,11 @@ const getShortCourseName = (name) => {
   return 'OTH';
 };
 
+const getSmartShortName = (name) => getShortCourseName(name);
+
+// ------------------------------------------------------------------
+// 🧩 MAIN APP COMPONENT
+// ------------------------------------------------------------------
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -293,7 +297,9 @@ export default function App() {
   );
 }
 
-// --- SUB-COMPONENTS ---
+// ------------------------------------------------------------------
+// 🧩 SUB-COMPONENTS
+// ------------------------------------------------------------------
 
 function GlobalAccommodationManager({ courses, onRoomClick }) {
   const [rooms, setRooms] = useState([]); 
@@ -307,18 +313,6 @@ function GlobalAccommodationManager({ courses, onRoomClick }) {
   };
   
   useEffect(loadData, []);
-
-  const getSmartShortName = (name) => {
-      if (!name) return 'Unknown';
-      const n = name.toUpperCase();
-      if (n.includes('45-DAY')) return '45D';
-      if (n.includes('30-DAY')) return '30D';
-      if (n.includes('20-DAY')) return '20D';
-      if (n.includes('10-DAY')) return '10D';
-      if (n.includes('SATIPATTHANA')) return 'ST';
-      if (n.includes('SERVICE')) return 'SVC';
-      return 'OTH';
-  };
 
   const handleAddRoom = async () => { 
       if (!newRoom.roomNo) return alert("Enter Room Number"); 
@@ -505,12 +499,6 @@ function Dashboard({ courses }) {
   useEffect(() => { if (courses.length > 0 && !selectedCourse) setSelectedCourse(courses[0].course_id); }, [courses]);
   useEffect(() => { if (selectedCourse) fetch(`${API_URL}/courses/${selectedCourse}/stats`).then(res => res.json()).then(setStats).catch(console.error); }, [selectedCourse]);
 
-  const getSmartShortName = (name) => {
-      if (!name) return 'Unknown';
-      const n = name.toUpperCase();
-      if (n.includes('45-DAY')) return '45D'; if (n.includes('30-DAY')) return '30D'; if (n.includes('20-DAY')) return '20D'; if (n.includes('10-DAY')) return '10D'; return 'OTH';
-  };
-
   const arrivalData = stats ? [{ name: 'Arrived', Male: stats.arrived_m, Female: stats.arrived_f }, { name: 'Pending', Male: stats.pending_m, Female: stats.pending_f }, { name: 'Cancelled', Male: stats.cancelled_m, Female: stats.cancelled_f }] : [];
   const typeData = stats ? [{ name: 'Old', Male: stats.om, Female: stats.of }, { name: 'New', Male: stats.nm, Female: stats.nf }, { name: 'Server', Male: stats.sm, Female: stats.sf }] : [];
   const attendanceString = courses.map(c => { const total = (c.arrived || 0) + (c.pending || 0); const pct = total > 0 ? Math.round((c.arrived || 0) / total * 100) : 0; return `${getSmartShortName(c.course_name)}: ${c.arrived}/${total} (${pct}%)`; }).join("  ✦  ");
@@ -634,6 +622,11 @@ function ParticipantList({ courses, refreshCourses }) {
   const loadStudents = () => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
   useEffect(loadStudents, [courseId]);
 
+  // --- HELPER FUNCTIONS ---
+  const getCategoryRank = (conf) => { if (!conf) return 2; const s = conf.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
+  const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
+  const getLangCode = (lang) => { if(!lang) return 'ENG'; const map = { 'Hindi': 'HIN', 'English': 'ENG', 'Marathi': 'MAR', 'Telugu': 'TEL', 'Tamil': 'TAM', 'Kannada': 'KAN', 'Malayalam': 'MAL', 'Gujarati': 'GUJ' }; return map[lang] || lang.substring(0,3).toUpperCase(); };
+  
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   const sortedList = React.useMemo(() => { 
       let items = [...participants]; 
@@ -658,7 +651,6 @@ function ParticipantList({ courses, refreshCourses }) {
       return items.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase())); 
   }, [participants, sortConfig, search]);
 
-  const getCategoryRank = (conf) => { if (!conf) return 2; const s = conf.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   const getSeniorityScore = (p) => { const sMatch = (p.courses_info||'').match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = (p.courses_info||'').match(/L\s*[:=-]?\s*(\d+)/i); const s = sMatch ? parseInt(sMatch[1]) : 0; const l = lMatch ? parseInt(lMatch[1]) : 0; return (l * 10000) + (s * 10); };
   
   const handleAutoAssign = async () => {
@@ -746,7 +738,8 @@ function ParticipantList({ courses, refreshCourses }) {
 
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses Info", "Age", "Gender", "Room", "Dining Seat", "Pagoda", "Dhamma Seat", "Status", "Mobile Locker", "Valuables Locker", "Laundry Token", "Language"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', `"${p.courses_info || ''}"`, p.age || '', p.gender || '', p.room_no || '', p.dining_seat_no || '', p.pagoda_cell_no || '', p.dhamma_hall_seat_no || '', p.status || '', p.mobile_locker_no || '', p.valuables_locker_no || '', p.laundry_token_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Arrived'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `dining_${courseId}.csv`); document.body.appendChild(link); link.click(); };
-  
+  const handleSeatingExport = () => { const arrived = participants.filter(p => p.status === 'Arrived'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Name", "Conf", "Gender", "Pagoda", "Room"]; const rows = arrived.map(p => [p.dhamma_hall_seat_no || '', `"${p.full_name || ''}"`, p.conf_no || '', p.gender || '', p.pagoda_cell_no || '', p.room_no || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `seating_${courseId}.csv`); document.body.appendChild(link); link.click(); };
+
   if (viewAllMode) { return ( <div style={{background:'white', padding:'20px'}}> <div className="no-print" style={{marginBottom:'20px'}}><button onClick={() => setViewAllMode(false)} style={btnStyle(false)}>← Back</button><button onClick={handleExport} style={{...toolBtn('#17a2b8'), marginLeft:'10px'}}>Export CSV</button></div> <h2>Master List</h2> <div style={{overflowX:'auto'}}><table style={{width:'100%', fontSize:'12px', borderCollapse:'collapse'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Courses</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Room</th><th style={thPrint}>Dining</th><th style={thPrint}>Pagoda</th><th style={thPrint}>DH Seat</th><th style={thPrint}>Status</th><th style={thPrint}>Mobile</th><th style={thPrint}>Val</th><th style={thPrint}>Laundry</th><th style={thPrint}>Lang</th></tr></thead><tbody>{participants.map((p,i)=>(<tr key={p.participant_id}><td style={tdStyle}>{i+1}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.courses_info}</td><td style={tdStyle}>{p.age}</td><td style={tdStyle}>{p.gender}</td><td style={tdStyle}>{p.room_no}</td><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.pagoda_cell_no}</td><td style={tdStyle}>{p.dhamma_hall_seat_no}</td><td style={tdStyle}>{p.status}</td><td style={tdStyle}>{p.mobile_locker_no}</td><td style={tdStyle}>{p.valuables_locker_no}</td><td style={tdStyle}>{p.laundry_token_no}</td><td style={tdStyle}>{p.discourse_language}</td></tr>))}</tbody></table></div> </div> ); }
 
   if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={toolBtn('#17a2b8')}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...toolBtn(color), marginLeft:'10px'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>S.N.</th><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={tdStyle}>{i+1}</td><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
@@ -783,7 +776,8 @@ function ParticipantList({ courses, refreshCourses }) {
               {p && <><div style={{textAlign:'center', fontWeight:'bold', padding:'2px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{p.full_name.split(' ')[0]} {p.full_name.split(' ').pop()[0]}</div><div style={{display:'flex', borderTop:'1px solid black'}}><div style={{flex:1, borderRight:'1px solid black', textAlign:'center'}}>{p.conf_no}</div><div style={{flex:1, textAlign:'center'}}>C:{p.pagoda_cell_no||'-'}</div></div><div style={{display:'flex', height:'18px'}}><div style={{flex:1, textAlign:'center', borderRight:'1px solid black', lineHeight:'18px'}}>DS:{p.dining_seat_no||'-'}</div><div style={{flex:1, textAlign:'center', fontWeight:'bold', lineHeight:'18px'}}>{getLangCode(p.discourse_language)}</div></div></>}
           </div>
       );
-      const Grid = ({map, cols, rows}) => {
+      
+      const renderGrid = (map, cols, rows) => {
           let g=[]; for(let r=1; r<=rows; r++) { let cells=[]; cols.forEach(c => cells.push(<Box key={c+r} l={c+r} p={map[c+r]} />)); g.push(<div key={r} style={{display:'grid', gridTemplateColumns:`repeat(${cols.length}, 100px)`, gridAutoRows:'80px', gap:'-1px'}}>{cells}</div>); } return g;
       };
       
@@ -809,6 +803,12 @@ function ParticipantList({ courses, refreshCourses }) {
   }
 
   // --- DEFAULT LIST VIEW ---
+  const getStatusColor = (s) => {
+    if (s === 'Arrived') return '#28a745'; // Green
+    if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; // Red
+    return '#fd7e14'; // Orange
+  };
+
   return (
     <div style={cardStyle}>
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center'}}>
@@ -856,16 +856,18 @@ function ParticipantList({ courses, refreshCourses }) {
                 <td style={tdStyle}>{p.pagoda_cell_no}</td>
                 <td style={{...tdStyle, fontWeight:'bold', color:'#007bff'}}>{p.dhamma_hall_seat_no}</td>
                 <td style={tdStyle}>{p.laundry_token_no}</td>
-                <td style={{...tdStyle, color: p.status==='Arrived'?'green':'orange', fontWeight:'bold'}}>{p.status}</td>
+                <td style={{...tdStyle, color: getStatusColor(p.status), fontWeight:'bold'}}>{p.status}</td>
                 <td style={tdStyle}>
-                   <div style={{display:'flex', gap:'5px'}}>
-                      <button onClick={() => prepareReceipt(p)} style={{padding:'5px 10px', background:'#e3f2fd', border:'1px solid #90caf9', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Receipt</button>
-                      <button onClick={() => prepareToken(p)} style={{padding:'5px 10px', background:'#fff3cd', border:'1px solid #ffeeba', borderRadius:'4px', cursor:'pointer', fontSize:'12px'}}>Token</button>
+                   <div style={{display:'flex', gap:'5px', flexDirection:'column'}}>
+                      <button onClick={() => prepareReceipt(p)} style={{padding:'4px 8px', background:'#e3f2fd', border:'1px solid #90caf9', borderRadius:'4px', cursor:'pointer', fontSize:'11px', color:'#0d47a1', display:'flex', alignItems:'center', gap:'3px'}}><Printer size={12}/> Receipt</button>
+                      <button onClick={() => prepareToken(p)} style={{padding:'4px 8px', background:'#fff3cd', border:'1px solid #ffeeba', borderRadius:'4px', cursor:'pointer', fontSize:'11px', color:'#856404', display:'flex', alignItems:'center', gap:'3px'}}><Printer size={12}/> Token</button>
                    </div>
                 </td>
                 <td style={tdStyle}>
-                   <button onClick={() => setEditingStudent(p)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'16px', marginRight:'10px'}}>✏️</button>
-                   <button onClick={() => handleDelete(p.participant_id)} style={{background:'none', border:'none', cursor:'pointer', fontSize:'16px'}}>🗑️</button>
+                   <div style={{display:'flex', gap:'5px'}}>
+                      <button onClick={() => setEditingStudent(p)} style={{padding:'5px', background:'#f8f9fa', border:'1px solid #ddd', borderRadius:'4px', cursor:'pointer'}}><Edit size={16} color="#555"/></button>
+                      <button onClick={() => handleDelete(p.participant_id)} style={{padding:'5px', background:'#fff5f5', border:'1px solid #ffcdd2', borderRadius:'4px', cursor:'pointer'}}><Trash2 size={16} color="#d32f2f"/></button>
+                   </div>
                 </td>
               </tr>
             ))}
@@ -919,7 +921,6 @@ function ParticipantList({ courses, refreshCourses }) {
   );
 }
 
-// --- FULL EXPENSE TRACKER (RESTORED FEATURES) ---
 function ExpenseTracker({ courses }) {
   const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [selectedStudentId, setSelectedStudentId] = useState(''); const [studentToken, setStudentToken] = useState(''); const [expenseType, setExpenseType] = useState('Laundry Token'); const [amount, setAmount] = useState(''); const [history, setHistory] = useState([]); const [status, setStatus] = useState(''); const [showInvoice, setShowInvoice] = useState(false); const [reportMode, setReportMode] = useState(''); const [financialData, setFinancialData] = useState([]); const [editingId, setEditingId] = useState(null);
 
