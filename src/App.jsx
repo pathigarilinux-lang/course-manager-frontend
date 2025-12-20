@@ -70,7 +70,7 @@ const getSmartShortName = (name) => getShortCourseName(name);
 // 🧩 MAIN APP COMPONENT
 // ------------------------------------------------------------------
 export default function App() {
-  const [authLevel, setAuthLevel] = useState('none'); // 'none', 'admin', 'gatekeeper'
+  const [authLevel, setAuthLevel] = useState('none'); 
   const [pinInput, setPinInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [view, setView] = useState('dashboard');
