@@ -11,9 +11,9 @@ import {
 // 🟢 PRODUCTION CONFIGURATION
 // ------------------------------------------------------------------
 const API_URL = "https://course-manager-backend-cd1m.onrender.com"; 
-const ADMIN_PASSCODE = "0"; 
-const GATEKEEPER_PASSCODE = "1";
-const TEACHER_PASSCODE = "2";
+const ADMIN_PASSCODE = "0000"; 
+const GATEKEEPER_PASSCODE = "1111";
+const TEACHER_PASSCODE = "2222";
 
 // ------------------------------------------------------------------
 // 🎨 STYLES
