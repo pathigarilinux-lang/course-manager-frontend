@@ -4,7 +4,7 @@ import {
   Users, Upload, Save, Database, AlertTriangle, CheckCircle, 
   Search, Home, Coffee, FileText, Trash2, X, Edit, Plus,
   CreditCard, DollarSign, Download, Calendar, Printer, Settings,
-  LayoutGrid, LogOut, Utensils, MapPin, UserCheck
+  LayoutGrid, LogOut, Utensils, MapPin, UserCheck, History, Eye, EyeOff
 } from 'lucide-react';
 
 // ------------------------------------------------------------------
@@ -359,6 +359,7 @@ function GatekeeperPanel({ courses }) {
     const [courseId, setCourseId] = useState('');
     const [participants, setParticipants] = useState([]);
     const [search, setSearch] = useState('');
+    const [showHistory, setShowHistory] = useState(false);
 
     useEffect(() => { 
         if (courses.length > 0) setCourseId(courses[0].course_id); 
@@ -372,7 +373,6 @@ function GatekeeperPanel({ courses }) {
         if (!window.confirm(`Mark ${p.full_name} as ARRIVED at Gate?`)) return;
         try {
             await fetch(`${API_URL}/gate-checkin`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ participantId: p.participant_id }) });
-            alert("✅ Checked In at Gate");
             // Refresh list
             const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
             const data = await res.json();
@@ -380,22 +380,87 @@ function GatekeeperPanel({ courses }) {
         } catch (err) { alert("Error"); }
     };
 
+    // --- GATE DASHBOARD METRICS ---
+    const all = participants.filter(p => p.status !== 'Cancelled');
+    const arrived = all.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending');
+    const pending = all.filter(p => p.status === 'No Response');
+    
+    const getBreakdown = (list, filterFn) => list.filter(filterFn).length;
+    const isMale = (p) => (p.gender||'').toLowerCase().startsWith('m');
+    const isFemale = (p) => (p.gender||'').toLowerCase().startsWith('f');
+    const isOld = (p) => (p.conf_no||'').startsWith('O') || (p.conf_no||'').startsWith('S');
+    const isNew = (p) => (p.conf_no||'').startsWith('N');
+
+    const stats = {
+        total: all.length,
+        arrived: arrived.length,
+        pending: pending.length,
+        m: { tot: getBreakdown(all, isMale), arr: getBreakdown(arrived, isMale), pend: getBreakdown(pending, isMale) },
+        f: { tot: getBreakdown(all, isFemale), arr: getBreakdown(arrived, isFemale), pend: getBreakdown(pending, isFemale) },
+        cat: { old: getBreakdown(arrived, isOld), new: getBreakdown(arrived, isNew) }
+    };
+
     const filtered = participants.filter(p => {
         const match = p.full_name.toLowerCase().includes(search.toLowerCase()) || (p.conf_no && p.conf_no.toLowerCase().includes(search.toLowerCase()));
-        return match && p.status !== 'Cancelled';
+        if (!match) return false;
+        if (p.status === 'Cancelled') return false;
+        
+        // "Disappearing" Logic: Show pending by default. Show Arrived only if history enabled.
+        if (!showHistory) return p.status === 'No Response' || !p.status;
+        return true;
     });
+
+    const StatBox = ({ label, v1, v2, v3, color }) => (
+        <div style={{background:'white', padding:'10px', borderRadius:'6px', borderTop:`3px solid ${color}`, textAlign:'center', flex:1}}>
+            <div style={{fontSize:'11px', color:'#777', fontWeight:'bold', textTransform:'uppercase'}}>{label}</div>
+            <div style={{display:'flex', justifyContent:'space-between', marginTop:'5px', fontSize:'13px'}}>
+                <span title="Total">T:<b>{v1}</b></span>
+                <span title="Arrived" style={{color:'green'}}>A:<b>{v2}</b></span>
+                <span title="Pending" style={{color:'red'}}>P:<b>{v3}</b></span>
+            </div>
+        </div>
+    );
 
     return (
         <div style={cardStyle}>
-            <div style={{marginBottom:'20px'}}>
-                <label style={labelStyle}>Select Course</label>
-                <select style={inputStyle} value={courseId} onChange={e=>setCourseId(e.target.value)}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+            {/* GATE DASHBOARD */}
+            <div style={{background:'#f1f3f5', padding:'15px', borderRadius:'8px', marginBottom:'20px'}}>
+                <h3 style={{margin:'0 0 10px 0', fontSize:'16px'}}>Gate Dashboard</h3>
+                <div style={{display:'flex', gap:'10px', marginBottom:'10px'}}>
+                    <div style={{background:'white', padding:'10px', borderRadius:'6px', flex:1, textAlign:'center'}}>
+                        <div style={{fontSize:'12px', color:'#777'}}>Total Expected</div>
+                        <div style={{fontSize:'20px', fontWeight:'bold'}}>{stats.total}</div>
+                    </div>
+                    <div style={{background:'white', padding:'10px', borderRadius:'6px', flex:1, textAlign:'center', border:'1px solid #28a745'}}>
+                        <div style={{fontSize:'12px', color:'green'}}>Checked In</div>
+                        <div style={{fontSize:'20px', fontWeight:'bold', color:'green'}}>{stats.arrived}</div>
+                    </div>
+                    <div style={{background:'white', padding:'10px', borderRadius:'6px', flex:1, textAlign:'center', border:'1px solid #dc3545'}}>
+                        <div style={{fontSize:'12px', color:'red'}}>Pending</div>
+                        <div style={{fontSize:'20px', fontWeight:'bold', color:'red'}}>{stats.pending}</div>
+                    </div>
+                </div>
+                <div style={{display:'flex', gap:'10px'}}>
+                    <StatBox label="Male" v1={stats.m.tot} v2={stats.m.arr} v3={stats.m.pend} color="#007bff" />
+                    <StatBox label="Female" v1={stats.f.tot} v2={stats.f.arr} v3={stats.f.pend} color="#e91e63" />
+                </div>
+                <div style={{marginTop:'10px', fontSize:'12px', textAlign:'center', color:'#555'}}>
+                    <b>Arrived Breakdown:</b> Old Students: {stats.cat.old} | New Students: {stats.cat.new}
+                </div>
             </div>
+
+            <div style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
+                <select style={{...inputStyle, flex:1}} value={courseId} onChange={e=>setCourseId(e.target.value)}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+                <button onClick={()=>setShowHistory(!showHistory)} style={{...btnStyle(showHistory), flexShrink:0}}>{showHistory ? <EyeOff size={16}/> : <History size={16}/>} {showHistory ? 'Hide Arrived' : 'View History'}</button>
+            </div>
+            
             <div style={{marginBottom:'20px'}}>
                 <input style={{...inputStyle, padding:'15px', fontSize:'18px'}} placeholder="🔍 Search Name or Conf No..." value={search} onChange={e=>setSearch(e.target.value)} autoFocus />
             </div>
+
             <div style={{height:'400px', overflowY:'auto'}}>
-                {filtered.map(p => (
+                {filtered.length === 0 ? <div style={{textAlign:'center', color:'#999', padding:'20px'}}>No pending students found matching filter.</div> : 
+                filtered.map(p => (
                     <div key={p.participant_id} style={{background:'white', border:'1px solid #ddd', padding:'15px', borderRadius:'8px', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                         <div>
                             <div style={{fontWeight:'bold', fontSize:'16px'}}>{p.full_name}</div>
@@ -435,6 +500,7 @@ function Dashboard({ courses }) {
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}><h2 style={{margin:0, color:'#333'}}>Zero Day Dashboard v2.0</h2><select style={{padding:'10px', borderRadius:'6px', border:'1px solid #ccc', fontSize:'14px', minWidth:'200px'}} onChange={e=>setSelectedCourse(e.target.value)} value={selectedCourse || ''}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div>
       {stats && selectedCourse ? (
         <>
+            {/* THE FUNNEL */}
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px', marginBottom:'30px'}}>
                 <ActionCard title="Expected" count={stats.attending + stats.gate_checkin + stats.no_response} color="#6c757d" icon={<Users size={20}/>} desc="Total Confirmed" />
                 <ActionCard title="At Gate" count={stats.gate_checkin} color="#ff9800" icon={<MapPin size={20}/>} desc="Arrived at Campus" />
