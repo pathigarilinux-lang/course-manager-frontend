@@ -3,7 +3,8 @@ import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, Resp
 import { 
   Users, Upload, Save, Database, AlertTriangle, CheckCircle, 
   Search, Home, Coffee, FileText, Trash2, X, Edit, Plus,
-  CreditCard, DollarSign, Download, Calendar, Printer, Settings
+  CreditCard, DollarSign, Download, Calendar, Printer, Settings,
+  LayoutGrid, LogOut, Utensils
 } from 'lucide-react';
 
 // ------------------------------------------------------------------
@@ -195,6 +196,28 @@ export default function App() {
     } catch(err) { alert("Network Error: Failed to save data."); console.error(err); }
   };
 
+  const handleDownloadBackup = async () => {
+      // Strategic Recommendation: DB Backup
+      try {
+          const resCourses = await fetch(`${API_URL}/courses`);
+          const coursesData = await resCourses.json();
+          let allData = { timestamp: new Date().toISOString(), courses: coursesData, participants: [] };
+          // Naive backup: fetch participants for active courses
+          for (let c of coursesData) {
+              const resP = await fetch(`${API_URL}/courses/${c.course_id}/participants`);
+              const pData = await resP.json();
+              allData.participants.push(...pData);
+          }
+          const blob = new Blob([JSON.stringify(allData, null, 2)], {type : 'application/json'});
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = `dhamma_backup_${new Date().toISOString().split('T')[0]}.json`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+      } catch(e) { alert("Backup Failed"); }
+  };
+
   const renderCourseAdmin = () => (
     <div style={cardStyle}>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
@@ -203,6 +226,7 @@ export default function App() {
            <button onClick={()=>setAdminSubTab('create')} style={quickBtnStyle(adminSubTab==='create')}>+ New Course</button>
            <button onClick={()=>setAdminSubTab('upload')} style={quickBtnStyle(adminSubTab==='upload')}>📂 Upload CSV</button>
            <button onClick={()=>setAdminSubTab('manual')} style={quickBtnStyle(adminSubTab==='manual')}>✍️ Manual Entry</button>
+           <button onClick={handleDownloadBackup} style={{...quickBtnStyle(false), background:'#6c757d', color:'white'}}>💾 Backup DB</button>
         </div>
       </div>
       {adminSubTab === 'create' && (
@@ -455,6 +479,7 @@ function ATPanel({ courses }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingStudent, setEditingStudent] = useState(null);
   const [sortOrder, setSortOrder] = useState('desc');
+  const [showKitchenReport, setShowKitchenReport] = useState(false);
 
   useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(setParticipants); }, [courseId]);
 
@@ -471,9 +496,34 @@ function ATPanel({ courses }) {
   const toggleSort = () => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
   const filtered = participants.filter(p => p.full_name.toLowerCase().includes(searchTerm.toLowerCase())).sort((a, b) => { const valA = a.conf_no || ''; const valB = b.conf_no || ''; return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA); });
 
+  const printKitchenReport = () => {
+      // Logic for Kitchen Report
+      setShowKitchenReport(true);
+      setTimeout(() => window.print(), 500);
+  };
+
+  if (showKitchenReport) {
+      const kitchenData = participants.filter(p => (p.evening_food && p.evening_food !== 'None') || (p.medical_info && p.medical_info.trim() !== ''));
+      return (
+          <div style={cardStyle}>
+              <div className="no-print"><button onClick={() => setShowKitchenReport(false)} style={btnStyle(false)}>← Back</button></div>
+              <div className="print-area">
+                  <h1 style={{textAlign:'center'}}>Kitchen & Medical Report</h1>
+                  <table style={{width:'100%', borderCollapse:'collapse', marginTop:'20px'}}>
+                      <thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>Room</th><th style={thPrint}>Name</th><th style={thPrint}>Evening Food</th><th style={thPrint}>Medical/Notes</th></tr></thead>
+                      <tbody>{kitchenData.map(p => (<tr key={p.participant_id}><td style={tdPrint}><strong>{p.room_no}</strong></td><td style={tdPrint}>{p.full_name}</td><td style={tdPrint}>{p.evening_food}</td><td style={tdPrint}>{p.medical_info}</td></tr>))}</tbody>
+                  </table>
+              </div>
+          </div>
+      );
+  }
+
   return (
     <div style={cardStyle}>
-      <h2>AT Panel</h2>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+          <h2>AT Panel</h2>
+          <button onClick={printKitchenReport} disabled={!courseId} style={{...toolBtn('#ff9800')}}><Utensils size={16}/> Kitchen Report</button>
+      </div>
       <div style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
         <select style={inputStyle} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
         <input style={inputStyle} placeholder="Search Student..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} disabled={!courseId} />
@@ -500,20 +550,42 @@ function Dashboard({ courses }) {
   useEffect(() => { if (courses.length > 0 && !selectedCourse) setSelectedCourse(courses[0].course_id); }, [courses]);
   useEffect(() => { if (selectedCourse) fetch(`${API_URL}/courses/${selectedCourse}/stats`).then(res => res.json()).then(setStats).catch(console.error); }, [selectedCourse]);
 
-  const arrivalData = stats ? [{ name: 'Arrived', Male: stats.arrived_m, Female: stats.arrived_f }, { name: 'Pending', Male: stats.pending_m, Female: stats.pending_f }, { name: 'Cancelled', Male: stats.cancelled_m, Female: stats.cancelled_f }] : [];
-  const typeData = stats ? [{ name: 'Old', Male: stats.om, Female: stats.of }, { name: 'New', Male: stats.nm, Female: stats.nf }, { name: 'Server', Male: stats.sm, Female: stats.sf }] : [];
-  const attendanceString = courses.map(c => { const total = (c.arrived || 0) + (c.pending || 0); const pct = total > 0 ? Math.round((c.arrived || 0) / total * 100) : 0; return `${getSmartShortName(c.course_name)}: ${c.arrived}/${total} (${pct}%)`; }).join("  ✦  ");
+  const ActionCard = ({ title, count, color, icon }) => (
+      <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)', display:'flex', alignItems:'center', borderLeft:`5px solid ${color}`}}>
+          <div style={{background: color, borderRadius:'50%', padding:'10px', color:'white', marginRight:'15px'}}>{icon}</div>
+          <div><div style={{fontSize:'12px', color:'#777', textTransform:'uppercase', fontWeight:'bold'}}>{title}</div><div style={{fontSize:'24px', fontWeight:'bold', color:'#333'}}>{count}</div></div>
+      </div>
+  );
 
   return (
     <div>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}><h2 style={{margin:0, color:'#333'}}>Zero Day Dashboard</h2><select style={{padding:'10px', borderRadius:'6px', border:'1px solid #ccc', fontSize:'14px', minWidth:'200px'}} onChange={e=>setSelectedCourse(e.target.value)} value={selectedCourse || ''}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div>
-      <div style={{background:'#e3f2fd', color:'#333', padding:'8px', marginBottom:'20px', overflow:'hidden', borderRadius:'4px', border:'1px solid #90caf9', fontWeight:'bold', fontSize:'14px'}}><marquee>{attendanceString || "Loading..."}</marquee></div>
       {stats && selectedCourse ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', animation: 'fadeIn 0.5s' }}>
-          <div style={cardStyle}><h3 style={{marginTop:0}}>Status Overview</h3><div style={{height:'250px'}}><ResponsiveContainer><BarChart data={arrivalData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name"/><YAxis/><Tooltip/><Legend/><Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar><Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar></BarChart></ResponsiveContainer></div></div>
-          <div style={cardStyle}><h3 style={{marginTop:0}}>Discourse Count</h3>{stats.languages && <div style={{maxHeight:'250px', overflowY:'auto'}}><table style={{width:'100%', fontSize:'13px'}}><thead><tr style={{textAlign:'left'}}><th>Lang</th><th>M</th><th>F</th><th>Tot</th></tr></thead><tbody>{stats.languages.map((l,i)=><tr key={i}><td>{l.discourse_language}</td><td style={{color:'#007bff'}}>{l.male_count}</td><td style={{color:'#e91e63'}}>{l.female_count}</td><td>{l.total}</td></tr>)}</tbody></table></div>}</div>
-          <div style={cardStyle}><h3 style={{marginTop:0}}>Live Counts</h3><div style={{height:'250px'}}>{(stats.om + stats.nm + stats.sm + stats.of + stats.nf + stats.sf) === 0 ? <div style={{display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'#888', textAlign:'center'}}>No Arrived Students found.</div> : <ResponsiveContainer><BarChart data={typeData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name"/><YAxis/><Tooltip/><Legend/><Bar dataKey="Male" fill="#007bff"><LabelList dataKey="Male" position="top" fill="#007bff" /></Bar><Bar dataKey="Female" fill="#e91e63"><LabelList dataKey="Female" position="top" fill="#e91e63" /></Bar></BarChart></ResponsiveContainer>}</div></div>
-        </div>
+        <>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px', marginBottom:'20px'}}>
+                <ActionCard title="Arrived" count={stats.arrived} color="#28a745" icon={<CheckCircle size={20}/>} />
+                <ActionCard title="Pending" count={stats.no_response} color="#ffc107" icon={<AlertTriangle size={20}/>} />
+                <ActionCard title="Cancelled" count={stats.cancelled} color="#dc3545" icon={<X size={20}/>} />
+                <ActionCard title="Total" count={stats.arrived + stats.no_response} color="#007bff" icon={<Users size={20}/>} />
+            </div>
+            <div style={{display:'flex', gap:'20px'}}>
+                <div style={{flex:2, ...cardStyle}}>
+                    <h3>Real-time Check-in Status</h3>
+                    <div style={{height:'300px'}}><ResponsiveContainer><BarChart data={[{ name: 'Male', Arrived: stats.arrived_m, Pending: stats.pending_m }, { name: 'Female', Arrived: stats.arrived_f, Pending: stats.pending_f }]}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name"/><YAxis/><Tooltip/><Legend/><Bar dataKey="Arrived" stackId="a" fill="#28a745" /><Bar dataKey="Pending" stackId="a" fill="#ffc107" /></BarChart></ResponsiveContainer></div>
+                </div>
+                <div style={{flex:1, ...cardStyle}}>
+                    <h3>Occupancy</h3>
+                    <div style={{marginBottom:'20px'}}>
+                        <div style={{display:'flex', justifyContent:'space-between', marginBottom:'5px'}}><span>Male Rooms</span><span>{stats.arrived_m}/100</span></div>
+                        <div style={{height:'10px', background:'#eee', borderRadius:'5px'}}><div style={{width:`${Math.min(100, (stats.arrived_m/100)*100)}%`, height:'100%', background:'#007bff', borderRadius:'5px'}}></div></div>
+                    </div>
+                    <div>
+                        <div style={{display:'flex', justifyContent:'space-between', marginBottom:'5px'}}><span>Female Rooms</span><span>{stats.arrived_f}/80</span></div>
+                        <div style={{height:'10px', background:'#eee', borderRadius:'5px'}}><div style={{width:`${Math.min(100, (stats.arrived_f/80)*100)}%`, height:'100%', background:'#e91e63', borderRadius:'5px'}}></div></div>
+                    </div>
+                </div>
+            </div>
+        </>
       ) : <p style={{padding:'40px', textAlign:'center', color:'#888'}}>Select a course.</p>}
     </div>
   );
@@ -528,6 +600,8 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [showReceipt, setShowReceipt] = useState(false);
   const [printData, setPrintData] = useState(null);
   const [formData, setFormData] = useState({ courseId: '', participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', language: 'English', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Chair', dhammaSeat: '' }); 
+  const [showVisualRoom, setShowVisualRoom] = useState(false);
+  const [showVisualDining, setShowVisualDining] = useState(false);
 
   useEffect(() => { fetch(`${API_URL}/rooms`).then(res=>res.json()).then(setRooms); fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(setOccupancy); }, []);
   useEffect(() => { if (preSelectedRoom) { setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); } }, [preSelectedRoom, courses]);
@@ -548,7 +622,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const studentsPending = participants.filter(p => p.status !== 'Arrived');
 
   const handleStudentChange = (e) => { const selectedId = e.target.value; const student = participants.find(p => p.participant_id == selectedId); setSelectedStudent(student); setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); };
-  const handleDiningSeatChange = (e) => { const val = e.target.value; setFormData(prev => ({ ...prev, seatNo: val, mobileLocker: val, valuablesLocker: val, laundryToken: val })); };
+  const handleDiningSeatChange = (val) => { setFormData(prev => ({ ...prev, seatNo: val, mobileLocker: val, valuablesLocker: val, laundryToken: val })); setShowVisualDining(false); };
 
   const handleSubmit = async (e) => { 
     e.preventDefault(); 
@@ -560,7 +634,18 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       await fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
       setStatus('✅ Success!'); window.scrollTo(0, 0);
       const courseObj = courses.find(c => c.course_id == formData.courseId);
-      setPrintData({ courseName: courseObj?.course_name, teacherName: courseObj?.teacher_name || 'Goenka Ji', from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', studentName: selectedStudent?.full_name, confNo: formData.confNo, roomNo: formData.roomNo, seatNo: formData.seatNo, lockers: formData.mobileLocker, language: formData.language });
+      
+      // PREPARE PRINT DATA - Only include special/pagoda if assigned
+      const pData = { 
+          courseName: courseObj?.course_name, teacherName: courseObj?.teacher_name || 'Goenka Ji', 
+          from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', 
+          to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', 
+          studentName: selectedStudent?.full_name, confNo: formData.confNo, 
+          roomNo: formData.roomNo, seatNo: formData.seatNo, lockers: formData.mobileLocker, language: formData.language,
+          pagoda: (formData.pagodaCell && formData.pagodaCell !== 'None') ? formData.pagodaCell : null,
+          special: (formData.specialSeating && formData.specialSeating !== 'None') ? formData.specialSeating : null
+      };
+      setPrintData(pData);
       setShowReceipt(true);
       setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' })); 
       setSelectedStudent(null); clearRoom(); 
@@ -572,20 +657,75 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const triggerPrint = () => { setShowReceipt(true); setTimeout(() => { window.print(); }, 500); };
 
+  // --- VISUAL SELECTOR COMPONENT ---
+  const VisualSelector = ({ title, options, occupied, selected, onSelect, onClose }) => (
+      <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'center'}}>
+          <div style={{background:'white', padding:'20px', borderRadius:'10px', width:'80%', maxHeight:'80vh', overflowY:'auto'}}>
+              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}><h3>Select {title}</h3><button onClick={onClose}>Close</button></div>
+              <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(60px, 1fr))', gap:'10px'}}>
+                  {options.map(opt => {
+                      const isOcc = occupied.has(String(opt));
+                      const isSel = String(selected) === String(opt);
+                      return (
+                          <button key={opt} type="button" onClick={() => !isOcc && onSelect(opt)} disabled={isOcc}
+                              style={{padding:'10px', borderRadius:'5px', border:'none', cursor: isOcc?'not-allowed':'pointer', background: isOcc ? '#ffcdd2' : isSel ? '#007bff' : '#c8e6c9', color: isSel?'white':'black', fontWeight:'bold'}}>
+                              {opt}
+                          </button>
+                      );
+                  })}
+              </div>
+          </div>
+      </div>
+  );
+
   return ( 
     <div style={cardStyle}> 
       <h2>📝 Student Onboarding Form</h2> 
       {status && <div style={{marginBottom:'20px', padding:'15px', background:'#d4edda', color:'#155724', borderRadius:'6px', textAlign:'center', fontWeight:'bold'}}>{status}</div>}
       <form onSubmit={handleSubmit} style={{ maxWidth: '900px' }}> 
+        {/* Course & Student Selection */}
         <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}> <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'20px'}}> <div><label style={labelStyle}>1. Select Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> <div><label style={labelStyle}>2. Select Student</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required><option value="">-- Select --</option>{studentsPending.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no||'No ID'})</option>)}</select></div> </div> {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (<div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}><strong>⚠️ ATTENTION:</strong> {selectedStudent.evening_food} {selectedStudent.medical_info}</div>)} </div> 
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr', gap:'15px'}}> <div><label style={labelStyle}>🆔 Conf No</label><input style={{...inputStyle}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} /></div> <div><label style={labelStyle}>Age</label><input style={{...inputStyle, background:'#e9ecef'}} value={selectedStudent?.age || ''} disabled /></div><div><label style={labelStyle}>Room</label><select style={{...inputStyle, background: preSelectedRoom ? '#e8f5e9' : 'white'}} value={formData.roomNo} onChange={e => setFormData({...formData, roomNo: e.target.value})} required><option value="">-- Free --</option>{preSelectedRoom && <option value={preSelectedRoom}>{preSelectedRoom}</option>}{availableRooms.map(r => <option key={r.room_id} value={r.room_no}>{r.room_no}</option>)}</select></div> <div><label style={labelStyle}>Dining</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><select style={inputStyle} value={formData.seatNo} onChange={handleDiningSeatChange} required><option value="">--</option>{availableDiningOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div></div> </div> 
+        
+        {/* ROOM & DINING - VISUAL STYLE */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr', gap:'15px'}}> 
+            <div><label style={labelStyle}>🆔 Conf No</label><input style={{...inputStyle}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} /></div> 
+            <div><label style={labelStyle}>Age</label><input style={{...inputStyle, background:'#e9ecef'}} value={selectedStudent?.age || ''} disabled /></div>
+            
+            {/* Visual Room Selector Trigger */}
+            <div>
+                <label style={labelStyle}>Room</label>
+                <button type="button" onClick={() => setShowVisualRoom(true)} style={{...inputStyle, textAlign:'left', background: formData.roomNo ? '#e8f5e9' : 'white', cursor:'pointer'}}>
+                    {formData.roomNo || "Select Room (Grid)"}
+                </button>
+            </div> 
+            
+            {/* Visual Dining Selector Trigger */}
+            <div>
+                <label style={labelStyle}>Dining</label>
+                <div style={{display:'flex', gap:'5px'}}>
+                    <select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select>
+                    <button type="button" onClick={() => setShowVisualDining(true)} style={{...inputStyle, textAlign:'left', background: formData.seatNo ? '#e8f5e9' : 'white', cursor:'pointer'}}>
+                        {formData.seatNo || "--"}
+                    </button>
+                </div>
+            </div> 
+        </div> 
+
+        {/* Lockers & Extras */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px', marginTop:'15px'}}> <div><label style={labelStyle}>Mobile</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d'}} value={formData.mobileLocker} readOnly /></div> <div><label style={labelStyle}>Valuables</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d'}} value={formData.valuablesLocker} readOnly /></div> <div><label style={labelStyle}>Laundry</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d'}} value={formData.laundryToken} readOnly /></div> <div><label style={labelStyle}>Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> </div> 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px', marginTop:'15px'}}> <div><label style={labelStyle}>Lang</label><select style={inputStyle} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option>English</option><option>Hindi</option><option>Marathi</option><option>Telugu</option><option>Kannada</option><option>Tamil</option><option>Malayalam</option><option>Gujarati</option><option>French</option><option>German</option></select></div> <div><label style={labelStyle}>Pagoda</label><select style={inputStyle} value={formData.pagodaCell} onChange={e => setFormData({...formData, pagodaCell: e.target.value})}><option value="">None</option>{availablePagodaOpts.map(n=><option key={n} value={n}>{n}</option>)}</select></div><div><label style={labelStyle}>DS Seat</label><input style={inputStyle} value={formData.dhammaSeat} onChange={e => setFormData({...formData, dhammaSeat: e.target.value})} /></div><div><label style={labelStyle}>Special</label><select style={inputStyle} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option>Chowky</option><option>Chair</option><option>BackRest</option></select></div> </div> 
+        
         <div style={{marginTop:'30px', textAlign:'right', display:'flex', gap:'10px', justifyContent:'flex-end'}}>
              <button type="button" onClick={triggerPrint} disabled={!selectedStudent} style={{...quickBtnStyle(true), background:'#6c757d', color:'white'}}>🖨️ Print Slip</button>
              <button type="submit" style={{padding:'12px 30px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Confirm & Save</button>
         </div> 
       </form> 
+
+      {/* Visual Modals */}
+      {showVisualRoom && <VisualSelector title="Room" options={rooms.filter(r => (isMale ? r.gender_type==='Male' : r.gender_type==='Female')).map(r=>r.room_no)} occupied={occupiedRoomsSet} selected={formData.roomNo} onSelect={(val)=>{setFormData({...formData, roomNo:val}); setShowVisualRoom(false)}} onClose={()=>setShowVisualRoom(false)} />}
+      {showVisualDining && <VisualSelector title="Dining Seat" options={NUMBER_OPTIONS} occupied={usedDining} selected={formData.seatNo} onSelect={handleDiningSeatChange} onClose={()=>setShowVisualDining(false)} />}
+
+      {/* Receipt Print */}
       {showReceipt && printData && (
           <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
               <div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}>
@@ -594,7 +734,10 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                       <div style={{textAlign:'center', fontWeight:'bold', marginBottom:'8px'}}><div style={{fontSize:'18px'}}>VIPASSANA</div><div style={{fontSize:'12px'}}>International Meditation Center</div><div style={{fontSize:'14px'}}>Dhamma Nagajjuna 2</div></div><div style={{borderBottom:'2px solid black', margin:'10px 0'}}></div>
                       <div style={{fontSize:'12px', marginBottom:'10px'}}><div><strong>Course:</strong> {printData.courseName}</div><div><strong>Teacher:</strong> {printData.teacherName}</div><div><strong>Dates:</strong> {printData.from} to {printData.to}</div></div><div style={{borderBottom:'1px solid black', margin:'10px 0'}}></div>
                       <div style={{fontSize:'16px', fontWeight:'bold', margin:'10px 0'}}><div>{printData.studentName}</div><div style={{fontSize:'14px'}}>Conf: {printData.confNo}</div></div>
-                      <table style={{width:'100%', fontSize:'14px', border:'1px solid black', borderCollapse:'collapse'}}><tbody><tr><td style={{border:'1px solid black', padding:'5px'}}>Room</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.roomNo}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Dining</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.seatNo}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Lockers</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.lockers}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Lang</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.language}</td></tr></tbody></table>
+                      <table style={{width:'100%', fontSize:'14px', border:'1px solid black', borderCollapse:'collapse'}}><tbody><tr><td style={{border:'1px solid black', padding:'5px'}}>Room</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.roomNo}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Dining</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.seatNo}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Lockers</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.lockers}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Lang</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.language}</td></tr>
+                      {printData.pagoda && <tr><td style={{border:'1px solid black', padding:'5px'}}>Pagoda</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.pagoda}</td></tr>}
+                      {printData.special && <tr><td style={{border:'1px solid black', padding:'5px'}}>Special</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printData.special}</td></tr>}
+                      </tbody></table>
                       <div style={{textAlign:'center', fontSize:'10px', fontStyle:'italic', marginTop:'10px'}}>*** Student Copy ***</div>
                   </div>
                   <div className="no-print" style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={() => window.print()} style={{flex:1, padding:'12px', background:'#007bff', color:'white', border:'none', borderRadius:'6px'}}>PRINT</button></div>
@@ -620,12 +763,10 @@ function ParticipantList({ courses, refreshCourses }) {
   const [printTokenData, setPrintTokenData] = useState(null);
   const [printBulkData, setPrintBulkData] = useState(null);
   const [showAutoAssignModal, setShowAutoAssignModal] = useState(false);
+  const [showSummaryReport, setShowSummaryReport] = useState(false);
   
   // --- DYNAMIC SEATING CONFIGURATION ---
-  const [seatingConfig, setSeatingConfig] = useState({
-      mCols: 10, mRows: 8, mChowky: 2,
-      fCols: 7, fRows: 8, fChowky: 2
-  });
+  const [seatingConfig, setSeatingConfig] = useState({ mCols: 10, mRows: 8, mChowky: 2, fCols: 7, fRows: 8, fChowky: 2 });
 
   const loadStudents = () => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
   useEffect(loadStudents, [courseId]);
@@ -662,65 +803,10 @@ function ParticipantList({ courses, refreshCourses }) {
   const getSeniorityScore = (p) => { const sMatch = (p.courses_info||'').match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = (p.courses_info||'').match(/L\s*[:=-]?\s*(\d+)/i); const s = sMatch ? parseInt(sMatch[1]) : 0; const l = lMatch ? parseInt(lMatch[1]) : 0; return (l * 10000) + (s * 10); };
   
   // --- DYNAMIC GRID GENERATOR ---
-  const generateColLabels = (count) => {
-      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-      return letters.slice(0, count).reverse(); // Standard Dhamma Hall: A is Center (so reverse order usually for display: J I H... C B A)
-  };
-  
-  const generateChowkyLabels = (count) => {
-       const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-       return letters.slice(0, count).reverse().map(l => `CW-${l}`);
-  };
+  const generateColLabels = (count) => { const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return letters.slice(0, count).reverse(); };
+  const generateChowkyLabels = (count) => { const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return letters.slice(0, count).reverse().map(l => `CW-${l}`); };
 
-  const handleAutoAssign = async () => {
-    setShowAutoAssignModal(false); // Close Modal
-    setAssignProgress('Calculating...');
-    const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
-    const allP = await res.json();
-    const active = allP.filter(p => p.status === 'Arrived' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre)));
-    const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
-    const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
-
-    // Dynamic Generation based on Config
-    const genSeats = (cols, rows) => { let s=[]; for(let r=1; r<=rows; r++) cols.forEach(c=>s.push(c+r)); return s; };
-    
-    // Male Config
-    const mColsArr = generateColLabels(seatingConfig.mCols);
-    const mChowkyArr = generateChowkyLabels(seatingConfig.mChowky);
-    const mReg = genSeats(mColsArr, seatingConfig.mRows);
-    const mSpec = genSeats(mChowkyArr, seatingConfig.mRows);
-
-    // Female Config
-    const fColsArr = generateColLabels(seatingConfig.fCols);
-    const fChowkyArr = generateChowkyLabels(seatingConfig.fChowky);
-    const fReg = genSeats(fColsArr, seatingConfig.fRows);
-    const fSpec = genSeats(fChowkyArr, seatingConfig.fRows);
-
-    const assign = (list, regSeats, specSeats) => {
-        const updates = []; const locked = new Set();
-        list.forEach(p => { if(p.is_seat_locked && p.dhamma_hall_seat_no) locked.add(p.dhamma_hall_seat_no); });
-        const availReg = regSeats.filter(s => !locked.has(s));
-        const availSpec = specSeats.filter(s => !locked.has(s));
-        const toAssign = list.filter(p => !p.is_seat_locked).sort((a,b) => {
-            const rA = getCategoryRank(a.conf_no), rB = getCategoryRank(b.conf_no);
-            if (rA !== rB) return rA - rB;
-            if (rA === 0) return getSeniorityScore(b) - getSeniorityScore(a);
-            return (parseInt(b.age)||0) - (parseInt(a.age)||0);
-        });
-        const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating));
-        const regGroup = toAssign.filter(p => !specGroup.includes(p));
-
-        specGroup.forEach(p => { if(availSpec.length) updates.push({...p, dhamma_hall_seat_no: availSpec.shift()}); else regGroup.unshift(p); });
-        regGroup.forEach(p => { if(availReg.length) updates.push({...p, dhamma_hall_seat_no: availReg.shift()}); });
-        return updates;
-    };
-    const updates = [...assign(males, mReg, mSpec), ...assign(females, fReg, fSpec)];
-    if(updates.length === 0) { setAssignProgress(''); return alert("No assignments needed."); }
-    setAssignProgress(`Saving ${updates.length}...`);
-    const BATCH = 5;
-    for(let i=0; i<updates.length; i+=BATCH) await Promise.all(updates.slice(i, i+BATCH).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) })));
-    setAssignProgress(''); alert("Done!"); loadStudents();
-  };
+  const handleAutoAssign = async () => { /* (Logic same as previous version - condensed for brevity) */ setShowAutoAssignModal(false); setAssignProgress('Calculating...'); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); const allP = await res.json(); const active = allP.filter(p => p.status === 'Arrived' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre))); const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m')); const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f')); const genSeats = (cols, rows) => { let s=[]; for(let r=1; r<=rows; r++) cols.forEach(c=>s.push(c+r)); return s; }; const mReg = genSeats(generateColLabels(seatingConfig.mCols), seatingConfig.mRows); const mSpec = genSeats(generateChowkyLabels(seatingConfig.mChowky), seatingConfig.mRows); const fReg = genSeats(generateColLabels(seatingConfig.fCols), seatingConfig.fRows); const fSpec = genSeats(generateChowkyLabels(seatingConfig.fChowky), seatingConfig.fRows); const assign = (list, regSeats, specSeats) => { const updates = []; const locked = new Set(); list.forEach(p => { if(p.is_seat_locked && p.dhamma_hall_seat_no) locked.add(p.dhamma_hall_seat_no); }); const availReg = regSeats.filter(s => !locked.has(s)); const availSpec = specSeats.filter(s => !locked.has(s)); const toAssign = list.filter(p => !p.is_seat_locked).sort((a,b) => { const rA = getCategoryRank(a.conf_no), rB = getCategoryRank(b.conf_no); if (rA !== rB) return rA - rB; if (rA === 0) return getSeniorityScore(b) - getSeniorityScore(a); return (parseInt(b.age)||0) - (parseInt(a.age)||0); }); const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating)); const regGroup = toAssign.filter(p => !specGroup.includes(p)); specGroup.forEach(p => { if(availSpec.length) updates.push({...p, dhamma_hall_seat_no: availSpec.shift()}); else regGroup.unshift(p); }); regGroup.forEach(p => { if(availReg.length) updates.push({...p, dhamma_hall_seat_no: availReg.shift()}); }); return updates; }; const updates = [...assign(males, mReg, mSpec), ...assign(females, fReg, fSpec)]; if(updates.length === 0) { setAssignProgress(''); return alert("No assignments needed."); } setAssignProgress(`Saving ${updates.length}...`); const BATCH = 5; for(let i=0; i<updates.length; i+=BATCH) await Promise.all(updates.slice(i, i+BATCH).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) }))); setAssignProgress(''); alert("Done!"); loadStudents(); };
 
   const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(editingStudent) }); setEditingStudent(null); loadStudents(); };
   const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); loadStudents(); } };
@@ -729,57 +815,77 @@ function ParticipantList({ courses, refreshCourses }) {
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); loadStudents(); };
   const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
 
-  const prepareReceipt = (student) => {
-      const courseObj = courses.find(c => c.course_id == student.course_id) || courses.find(c => c.course_id == courseId);
-      setPrintReceiptData({
-          courseName: courseObj?.course_name,
-          teacherName: courseObj?.teacher_name || 'Goenka Ji',
-          from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '',
-          to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '',
-          studentName: student.full_name,
-          confNo: student.conf_no,
-          roomNo: student.room_no,
-          seatNo: student.dining_seat_no,
-          lockers: student.mobile_locker_no || student.dining_seat_no, 
-          language: student.discourse_language
-      });
-      setTimeout(() => window.print(), 500);
-  };
-
-  const prepareToken = (student) => {
-      if (!student.dhamma_hall_seat_no) return alert("No Dhamma Seat assigned.");
-      let sVal = '-', lVal = '-';
-      if (student.courses_info) {
-         const sMatch = student.courses_info.match(/S\s*[:=-]?\s*(\d+)/i);
-         const lMatch = student.courses_info.match(/L\s*[:=-]?\s*(\d+)/i);
-         if(sMatch) sVal = sMatch[1];
-         if(lMatch) lVal = lMatch[1];
-      }
-      setPrintTokenData({ 
-          seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, 
-          cell: student.pagoda_cell_no||'-', room: student.room_no||'-',
-          age: student.age, cat: getCategory(student.conf_no), sVal, lVal
-      });
-      setTimeout(() => window.print(), 500);
-  };
-
-  const prepareBulkTokens = () => {
-    const valid = participants.filter(p => p.status === 'Arrived' && p.dhamma_hall_seat_no);
-    if(valid.length === 0) return alert("No seats assigned");
-    setPrintBulkData(valid.sort((a,b)=>a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(student=>({
-        seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, 
-        cell: student.pagoda_cell_no||'-', room: student.room_no||'-',
-        age: student.age, cat: getCategory(student.conf_no), 
-        sVal: (student.courses_info.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], 
-        lVal: (student.courses_info.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1]
-    })));
-    setTimeout(()=>window.print(), 500);
-  };
-
+  // --- PRINT PREPARATION FUNCTIONS ---
+  const prepareReceipt = (student) => { const courseObj = courses.find(c => c.course_id == student.course_id) || courses.find(c => c.course_id == courseId); setPrintReceiptData({ courseName: courseObj?.course_name, teacherName: courseObj?.teacher_name || 'Goenka Ji', from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', studentName: student.full_name, confNo: student.conf_no, roomNo: student.room_no, seatNo: student.dining_seat_no, lockers: student.mobile_locker_no || student.dining_seat_no, language: student.discourse_language, pagoda: student.pagoda_cell_no && student.pagoda_cell_no !== 'None' ? student.pagoda_cell_no : null, special: student.special_seating && student.special_seating !== 'None' ? student.special_seating : null }); setTimeout(() => window.print(), 500); };
+  const prepareToken = (student) => { if (!student.dhamma_hall_seat_no) return alert("No Dhamma Seat assigned."); setPrintTokenData({ seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no||'-', room: student.room_no||'-', age: student.age, cat: getCategory(student.conf_no), sVal: (student.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] }); setTimeout(() => window.print(), 500); };
+  const prepareBulkTokens = () => { const valid = participants.filter(p => p.status === 'Arrived' && p.dhamma_hall_seat_no); if(valid.length === 0) return alert("No seats assigned"); setPrintBulkData(valid.sort((a,b)=>a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(student=>({ seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no||'-', room: student.room_no||'-', age: student.age, cat: getCategory(student.conf_no), sVal: (student.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] }))); setTimeout(()=>window.print(), 500); };
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses Info", "Age", "Gender", "Room", "Dining Seat", "Pagoda", "Dhamma Seat", "Status", "Mobile Locker", "Valuables Locker", "Laundry Token", "Language"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', `"${p.courses_info || ''}"`, p.age || '', p.gender || '', p.room_no || '', p.dining_seat_no || '', p.pagoda_cell_no || '', p.dhamma_hall_seat_no || '', p.status || '', p.mobile_locker_no || '', p.valuables_locker_no || '', p.laundry_token_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Arrived'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `dining_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   const handleSeatingExport = () => { const arrived = participants.filter(p => p.status === 'Arrived'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Name", "Conf", "Gender", "Pagoda", "Room"]; const rows = arrived.map(p => [p.dhamma_hall_seat_no || '', `"${p.full_name || ''}"`, p.conf_no || '', p.gender || '', p.pagoda_cell_no || '', p.room_no || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `seating_${courseId}.csv`); document.body.appendChild(link); link.click(); };
 
+  // --- COURSE SUMMARY REPORT COMPONENT ---
+  if (showSummaryReport) {
+      const arrived = participants.filter(p => p.status === 'Arrived');
+      const getCount = (gender, type) => arrived.filter(p => {
+          const g = (p.gender || '').toLowerCase().startsWith(gender);
+          const c = (p.conf_no || '').toUpperCase();
+          if (type === 'OLD') return g && (c.startsWith('O') || c.startsWith('S'));
+          if (type === 'NEW') return g && c.startsWith('N');
+          return false;
+      }).length;
+      
+      return (
+          <div style={cardStyle}>
+              <div className="no-print"><button onClick={() => setShowSummaryReport(false)} style={btnStyle(false)}>← Back</button><button onClick={() => window.print()} style={{...toolBtn('#007bff'), marginLeft:'10px'}}>Print PDF</button></div>
+              <div className="print-area" id="print-summary" style={{padding:'20px'}}>
+                  <h2 style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px'}}>COURSE SUMMARY REPORT</h2>
+                  <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
+                      <div><strong>Centre Name:</strong> Dhamma Nagajjuna 2</div>
+                      <div><strong>Course Date:</strong> {courses.find(c=>c.course_id==courseId)?.start_date}</div>
+                  </div>
+                  
+                  <h3 style={{background:'#eee', padding:'5px'}}>COURSE DETAILS</h3>
+                  <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', marginBottom:'20px'}}>
+                      <thead>
+                          <tr style={{background:'#f0f0f0'}}>
+                              <th rowSpan="2" style={thPrint}>Category</th>
+                              <th colSpan="2" style={thPrint}>INDIAN</th>
+                              <th colSpan="2" style={thPrint}>FOREIGNER</th>
+                              <th rowSpan="2" style={thPrint}>TOTAL</th>
+                          </tr>
+                          <tr style={{background:'#f0f0f0'}}>
+                              <th style={thPrint}>OLD</th><th style={thPrint}>NEW</th>
+                              <th style={thPrint}>OLD</th><th style={thPrint}>NEW</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          <tr>
+                              <td style={tdPrint}>MALE</td>
+                              <td style={tdPrint}>{getCount('m', 'OLD')}</td><td style={tdPrint}>{getCount('m', 'NEW')}</td>
+                              <td style={tdPrint}>0</td><td style={tdPrint}>0</td>
+                              <td style={tdPrint}><strong>{getCount('m', 'OLD') + getCount('m', 'NEW')}</strong></td>
+                          </tr>
+                          <tr>
+                              <td style={tdPrint}>FEMALE</td>
+                              <td style={tdPrint}>{getCount('f', 'OLD')}</td><td style={tdPrint}>{getCount('f', 'NEW')}</td>
+                              <td style={tdPrint}>0</td><td style={tdPrint}>0</td>
+                              <td style={tdPrint}><strong>{getCount('f', 'OLD') + getCount('f', 'NEW')}</strong></td>
+                          </tr>
+                          <tr style={{background:'#f0f0f0', fontWeight:'bold'}}>
+                              <td style={tdPrint}>TOTAL</td>
+                              <td style={tdPrint}>{getCount('m', 'OLD') + getCount('f', 'OLD')}</td>
+                              <td style={tdPrint}>{getCount('m', 'NEW') + getCount('f', 'NEW')}</td>
+                              <td style={tdPrint}>0</td><td style={tdPrint}>0</td>
+                              <td style={tdPrint}>{arrived.length}</td>
+                          </tr>
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      );
+  }
+
+  // --- STANDARD VIEWS ---
   if (viewAllMode) { return ( <div style={{background:'white', padding:'20px'}}> <div className="no-print" style={{marginBottom:'20px'}}><button onClick={() => setViewAllMode(false)} style={btnStyle(false)}>← Back</button><button onClick={handleExport} style={{...toolBtn('#17a2b8'), marginLeft:'10px'}}>Export CSV</button></div> <h2>Master List</h2> <div style={{overflowX:'auto'}}><table style={{width:'100%', fontSize:'12px', borderCollapse:'collapse'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Courses</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Room</th><th style={thPrint}>Dining</th><th style={thPrint}>Pagoda</th><th style={thPrint}>DH Seat</th><th style={thPrint}>Status</th><th style={thPrint}>Mobile</th><th style={thPrint}>Val</th><th style={thPrint}>Laundry</th><th style={thPrint}>Lang</th></tr></thead><tbody>{participants.map((p,i)=>(<tr key={p.participant_id}><td style={tdStyle}>{i+1}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.courses_info}</td><td style={tdStyle}>{p.age}</td><td style={tdStyle}>{p.gender}</td><td style={tdStyle}>{p.room_no}</td><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.pagoda_cell_no}</td><td style={tdStyle}>{p.dhamma_hall_seat_no}</td><td style={tdStyle}>{p.status}</td><td style={tdStyle}>{p.mobile_locker_no}</td><td style={tdStyle}>{p.valuables_locker_no}</td><td style={tdStyle}>{p.laundry_token_no}</td><td style={tdStyle}>{p.discourse_language}</td></tr>))}</tbody></table></div> </div> ); }
 
   if (viewMode === 'dining') { const currentCourse = courses.find(c=>c.course_id == courseId); const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={toolBtn('#17a2b8')}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...toolBtn(color), marginLeft:'10px'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining Plan - {currentCourse?.course_name}</h2> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}><thead><tr><th style={thPrint}>S.N.</th><th style={thPrint} onClick={()=>handleSort('dining_seat_no')}>Seat ↕</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th><th style={thPrint}>Pagoda</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={tdPrint}>{i+1}</td><td style={tdPrint}><strong>{p.dining_seat_no}</strong></td><td style={tdPrint}>{p.full_name}</td><td style={tdPrint}>{getCategory(p.conf_no)}</td><td style={tdPrint}>{p.room_no}</td><td style={tdPrint}>{p.pagoda_cell_no||'-'}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
@@ -867,7 +973,6 @@ function ParticipantList({ courses, refreshCourses }) {
         </div>
       );
 
-      // Generate Dynamic Columns for Display
       const mCols = [...generateChowkyLabels(seatingConfig.mChowky), ...generateColLabels(seatingConfig.mCols)];
       const fCols = [...generateChowkyLabels(seatingConfig.fChowky), ...generateColLabels(seatingConfig.fCols)];
 
@@ -886,14 +991,14 @@ function ParticipantList({ courses, refreshCourses }) {
                           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}>
                               <div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}>
                                   <h4 style={{marginTop:0, color:'#007bff'}}>Male Side (Right)</h4>
-                                  <label style={labelStyle}>Standard Cols (SeatsPerRow)</label><input type="number" style={inputStyle} value={seatingConfig.mCols} onChange={e=>setSeatingConfig({...seatingConfig, mCols: parseInt(e.target.value)||0})} />
-                                  <label style={labelStyle}>Chowky Cols (Side)</label><input type="number" style={inputStyle} value={seatingConfig.mChowky} onChange={e=>setSeatingConfig({...seatingConfig, mChowky: parseInt(e.target.value)||0})} />
+                                  <label style={labelStyle}>Standard Cols</label><input type="number" style={inputStyle} value={seatingConfig.mCols} onChange={e=>setSeatingConfig({...seatingConfig, mCols: parseInt(e.target.value)||0})} />
+                                  <label style={labelStyle}>Chowky Cols</label><input type="number" style={inputStyle} value={seatingConfig.mChowky} onChange={e=>setSeatingConfig({...seatingConfig, mChowky: parseInt(e.target.value)||0})} />
                                   <label style={labelStyle}>Total Rows</label><input type="number" style={inputStyle} value={seatingConfig.mRows} onChange={e=>setSeatingConfig({...seatingConfig, mRows: parseInt(e.target.value)||0})} />
                               </div>
                               <div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}>
                                   <h4 style={{marginTop:0, color:'#e91e63'}}>Female Side (Left)</h4>
-                                  <label style={labelStyle}>Standard Cols (SeatsPerRow)</label><input type="number" style={inputStyle} value={seatingConfig.fCols} onChange={e=>setSeatingConfig({...seatingConfig, fCols: parseInt(e.target.value)||0})} />
-                                  <label style={labelStyle}>Chowky Cols (Side)</label><input type="number" style={inputStyle} value={seatingConfig.fChowky} onChange={e=>setSeatingConfig({...seatingConfig, fChowky: parseInt(e.target.value)||0})} />
+                                  <label style={labelStyle}>Standard Cols</label><input type="number" style={inputStyle} value={seatingConfig.fCols} onChange={e=>setSeatingConfig({...seatingConfig, fCols: parseInt(e.target.value)||0})} />
+                                  <label style={labelStyle}>Chowky Cols</label><input type="number" style={inputStyle} value={seatingConfig.fChowky} onChange={e=>setSeatingConfig({...seatingConfig, fChowky: parseInt(e.target.value)||0})} />
                                   <label style={labelStyle}>Total Rows</label><input type="number" style={inputStyle} value={seatingConfig.fRows} onChange={e=>setSeatingConfig({...seatingConfig, fRows: parseInt(e.target.value)||0})} />
                               </div>
                           </div>
@@ -921,6 +1026,7 @@ function ParticipantList({ courses, refreshCourses }) {
          <div style={{display:'flex', gap:'10px'}}><select style={inputStyle} onChange={e=>setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select><input style={inputStyle} placeholder="Search..." onChange={e=>setSearch(e.target.value)} disabled={!courseId} /></div>
          <div style={{display:'flex', gap:'8px'}}>
              <button onClick={prepareBulkTokens} disabled={!courseId} style={toolBtn('#17a2b8')}>🎫 Bulk Tokens</button>
+             <button onClick={() => setShowSummaryReport(true)} disabled={!courseId} style={toolBtn('#28a745')}>📈 Summary Report</button>
              <button onClick={handleAutoNoShow} disabled={!courseId} style={toolBtn('#d32f2f')}>🚫 No-Shows</button>
              <button onClick={handleSendReminders} disabled={!courseId} style={toolBtn('#ff9800')}>📢 Reminders</button>
              <button onClick={()=>setViewAllMode(true)} disabled={!courseId} style={toolBtn('#6c757d')}>👁️ View All</button>
@@ -1033,7 +1139,7 @@ function ParticipantList({ courses, refreshCourses }) {
 }
 
 function ExpenseTracker({ courses }) {
-  const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [selectedStudentId, setSelectedStudentId] = useState(''); const [studentToken, setStudentToken] = useState(''); const [expenseType, setExpenseType] = useState('Laundry Token'); const [amount, setAmount] = useState(''); const [history, setHistory] = useState([]); const [status, setStatus] = useState(''); const [showInvoice, setShowInvoice] = useState(false); const [reportMode, setReportMode] = useState(''); const [financialData, setFinancialData] = useState([]); const [editingId, setEditingId] = useState(null);
+  const [courseId, setCourseId] = useState(''); const [participants, setParticipants] = useState([]); const [selectedStudentId, setSelectedStudentId] = useState(''); const [studentToken, setStudentToken] = useState(''); const [expenseType, setExpenseType] = useState('Laundry Token'); const [amount, setAmount] = useState(''); const [history, setHistory] = useState([]); const [status, setStatus] = useState(''); const [showInvoice, setShowInvoice] = useState(false); const [reportMode, setReportMode] = useState(''); const [financialData, setFinancialData] = useState([]); const [editingId, setEditingId] = useState(null); const [checkoutMode, setCheckoutMode] = useState(false);
 
   useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data)?data:[])).catch(err => console.error(err)); }, [courseId]);
   useEffect(() => { if (selectedStudentId) { const student = participants.find(p => p.participant_id == selectedStudentId); setStudentToken(student ? student.laundry_token_no : ''); fetch(`${API_URL}/participants/${selectedStudentId}/expenses`).then(res => res.json()).then(data => setHistory(Array.isArray(data)?data:[])).catch(console.error); } else { setHistory([]); setStudentToken(''); } }, [selectedStudentId]);
@@ -1051,6 +1157,32 @@ function ExpenseTracker({ courses }) {
 
   if (reportMode === 'laundry') { return ( <div style={cardStyle}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={btnStyle(false)}>← Back</button> <button onClick={() => window.print()} style={{...btnStyle(true), background:'#007bff', color:'white'}}>🖨️ Print List</button> </div> <div className="print-area"> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Laundry Token List</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Laundry Token</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Dining Seat</th></tr></thead><tbody>{financialData.sort((a,b)=> (parseInt(a.laundry_token_no)||999)-(parseInt(b.laundry_token_no)||999)).map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding:'10px'}}>{i+1}</td><td style={{padding: '10px', fontWeight:'bold', fontSize:'16px'}}>{p.laundry_token_no || '-'}</td><td style={{padding: '10px'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td></tr>))}</tbody></table> </div> </div> ); }
 
+  if (checkoutMode) {
+      // VALUABLES CHECK-OUT MODE (Strategic Rec #2)
+      return (
+          <div style={cardStyle}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+                  <h2 style={{color:'#d32f2f'}}>🔐 Valuables Check-Out Mode</h2>
+                  <button onClick={()=>setCheckoutMode(false)} style={btnStyle(false)}>Exit Mode</button>
+              </div>
+              <div style={{background:'#fff5f5', padding:'20px', borderRadius:'10px', border:'2px solid #ffcdd2'}}>
+                  <select style={inputStyle} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} required> <option value="">-- Select Student to Return Valuables --</option> {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no || '-'})</option>)} </select>
+                  {currentStudent && (
+                      <div style={{marginTop:'20px', padding:'20px', background:'white', borderRadius:'10px', boxShadow:'0 2px 5px rgba(0,0,0,0.1)'}}>
+                          <h3 style={{marginTop:0}}>{currentStudent.full_name}</h3>
+                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px', marginBottom:'20px'}}>
+                              <div style={{padding:'15px', background:'#e3f2fd', borderRadius:'5px'}}><h4>Mobile Locker</h4><div style={{fontSize:'24px', fontWeight:'bold'}}>{currentStudent.mobile_locker_no || 'None'}</div></div>
+                              <div style={{padding:'15px', background:'#fff3cd', borderRadius:'5px'}}><h4>Valuables Locker</h4><div style={{fontSize:'24px', fontWeight:'bold'}}>{currentStudent.valuables_locker_no || 'None'}</div></div>
+                              <div style={{padding:'15px', background:'#e8f5e9', borderRadius:'5px'}}><h4>Room Key</h4><div style={{fontSize:'24px', fontWeight:'bold'}}>{currentStudent.room_no || 'None'}</div></div>
+                          </div>
+                          <button onClick={()=>{alert(`✅ Items Returned to ${currentStudent.full_name}`); setSelectedStudentId('');}} style={{...btnStyle(true), width:'100%', padding:'15px', fontSize:'18px', background:'#28a745'}}>CONFIRM ITEMS RETURNED</button>
+                      </div>
+                  )}
+              </div>
+          </div>
+      );
+  }
+
   return (
     <div style={cardStyle}>
       <h2>🛒 Store</h2>
@@ -1062,6 +1194,7 @@ function ExpenseTracker({ courses }) {
           <button onClick={() => setReportMode('invoice')} disabled={!selectedStudentId} style={{...quickBtnStyle(!!selectedStudentId), background: selectedStudentId ? '#17a2b8' : '#e2e6ea', color: selectedStudentId ? 'white' : '#999', cursor: selectedStudentId ? 'pointer' : 'not-allowed'}}>🖨️ Print Invoice</button>
           <button onClick={loadFinancialReport} disabled={!courseId} style={{...quickBtnStyle(!!courseId), background: courseId ? '#28a745' : '#e2e6ea', color: courseId ? 'white' : '#999', cursor: courseId ? 'pointer' : 'not-allowed'}}>💰 Course Summary</button>
           <button onClick={loadLaundryReport} disabled={!courseId} style={{...quickBtnStyle(!!courseId), background: courseId ? '#007bff' : '#e2e6ea', color: courseId ? 'white' : '#999', cursor: courseId ? 'pointer' : 'not-allowed'}}>📋 Laundry List</button>
+          <button onClick={() => setCheckoutMode(true)} disabled={!courseId} style={{...quickBtnStyle(!!courseId), background: courseId ? '#d32f2f' : '#e2e6ea', color: courseId ? 'white' : '#999', cursor: courseId ? 'pointer' : 'not-allowed'}}><LogOut size={14}/> Check-Out Valuables</button>
         </div>
       </div>
 
