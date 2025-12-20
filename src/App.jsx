@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
 import { 
   Users, Upload, Save, Database, AlertTriangle, CheckCircle, 
   Search, Home, Coffee, FileText, Trash2, X, Edit, Plus,
-  CreditCard, DollarSign, Download, Calendar, Printer
+  CreditCard, DollarSign, Download, Calendar, Printer, Settings
 } from 'lucide-react';
 
 // ------------------------------------------------------------------
@@ -37,7 +37,8 @@ const toolBtn = (bg) => ({
 const cardStyle = { background: 'white', padding: '25px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginBottom: '20px' };
 const inputStyle = { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px' };
 const labelStyle = { fontSize: '14px', color: '#555', fontWeight: 'bold', marginBottom: '5px', display: 'block' };
-const thPrint = { textAlign: 'left', padding: '12px', borderBottom: '2px solid #eee', fontSize:'12px', color:'#555', textTransform:'uppercase' };
+const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
+const tdPrint = { padding: '8px', border: '1px solid #000', fontSize:'12px', verticalAlign:'middle' };
 const tdStyle = { padding: '12px', borderBottom: '1px solid #eee', fontSize:'13px', verticalAlign:'middle' };
 
 // ------------------------------------------------------------------
@@ -141,6 +142,7 @@ export default function App() {
     const newStudent = { id: Date.now(), ...manualStudent, conf_no: manualStudent.conf_no || `MANUAL-${Date.now()}`, status: 'Active', dining_seat: '', room_no: '' };
     setStudents(prev => [newStudent, ...prev]);
     alert(`Added ${newStudent.full_name} to the Preview list.`);
+    setManualStudent({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
     setManualStudent({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
     setAdminSubTab('upload');
   };
@@ -618,6 +620,13 @@ function ParticipantList({ courses, refreshCourses }) {
   const [printReceiptData, setPrintReceiptData] = useState(null);
   const [printTokenData, setPrintTokenData] = useState(null);
   const [printBulkData, setPrintBulkData] = useState(null);
+  const [showAutoAssignModal, setShowAutoAssignModal] = useState(false);
+  
+  // --- DYNAMIC SEATING CONFIGURATION ---
+  const [seatingConfig, setSeatingConfig] = useState({
+      mCols: 10, mRows: 8, mChowky: 2,
+      fCols: 7, fRows: 8, fChowky: 2
+  });
 
   const loadStudents = () => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : [])); };
   useEffect(loadStudents, [courseId]);
@@ -653,8 +662,19 @@ function ParticipantList({ courses, refreshCourses }) {
 
   const getSeniorityScore = (p) => { const sMatch = (p.courses_info||'').match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = (p.courses_info||'').match(/L\s*[:=-]?\s*(\d+)/i); const s = sMatch ? parseInt(sMatch[1]) : 0; const l = lMatch ? parseInt(lMatch[1]) : 0; return (l * 10000) + (s * 10); };
   
+  // --- DYNAMIC GRID GENERATOR ---
+  const generateColLabels = (count) => {
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+      return letters.slice(0, count).reverse(); // Standard Dhamma Hall: A is Center (so reverse order usually for display: J I H... C B A)
+  };
+  
+  const generateChowkyLabels = (count) => {
+       const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+       return letters.slice(0, count).reverse().map(l => `CW-${l}`);
+  };
+
   const handleAutoAssign = async () => {
-    if (!window.confirm("⚡ Auto-Assign Seats?")) return;
+    setShowAutoAssignModal(false); // Close Modal
     setAssignProgress('Calculating...');
     const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
     const allP = await res.json();
@@ -662,11 +682,20 @@ function ParticipantList({ courses, refreshCourses }) {
     const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
     const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
 
+    // Dynamic Generation based on Config
     const genSeats = (cols, rows) => { let s=[]; for(let r=1; r<=rows; r++) cols.forEach(c=>s.push(c+r)); return s; };
-    const mReg = genSeats(['A','B','C','D','E','F','G','H','I','J'], 8);
-    const mSpec = genSeats(['L','K'], 8);
-    const fReg = genSeats(['A','B','C','D','E','F','G'], 8);
-    const fSpec = genSeats(['I','H'], 8);
+    
+    // Male Config
+    const mColsArr = generateColLabels(seatingConfig.mCols);
+    const mChowkyArr = generateChowkyLabels(seatingConfig.mChowky);
+    const mReg = genSeats(mColsArr, seatingConfig.mRows);
+    const mSpec = genSeats(mChowkyArr, seatingConfig.mRows);
+
+    // Female Config
+    const fColsArr = generateColLabels(seatingConfig.fCols);
+    const fChowkyArr = generateChowkyLabels(seatingConfig.fChowky);
+    const fReg = genSeats(fColsArr, seatingConfig.fRows);
+    const fSpec = genSeats(fChowkyArr, seatingConfig.fRows);
 
     const assign = (list, regSeats, specSeats) => {
         const updates = []; const locked = new Set();
@@ -742,9 +771,9 @@ function ParticipantList({ courses, refreshCourses }) {
 
   if (viewAllMode) { return ( <div style={{background:'white', padding:'20px'}}> <div className="no-print" style={{marginBottom:'20px'}}><button onClick={() => setViewAllMode(false)} style={btnStyle(false)}>← Back</button><button onClick={handleExport} style={{...toolBtn('#17a2b8'), marginLeft:'10px'}}>Export CSV</button></div> <h2>Master List</h2> <div style={{overflowX:'auto'}}><table style={{width:'100%', fontSize:'12px', borderCollapse:'collapse'}}><thead><tr style={{borderBottom:'2px solid black'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Courses</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Room</th><th style={thPrint}>Dining</th><th style={thPrint}>Pagoda</th><th style={thPrint}>DH Seat</th><th style={thPrint}>Status</th><th style={thPrint}>Mobile</th><th style={thPrint}>Val</th><th style={thPrint}>Laundry</th><th style={thPrint}>Lang</th></tr></thead><tbody>{participants.map((p,i)=>(<tr key={p.participant_id}><td style={tdStyle}>{i+1}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.courses_info}</td><td style={tdStyle}>{p.age}</td><td style={tdStyle}>{p.gender}</td><td style={tdStyle}>{p.room_no}</td><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.pagoda_cell_no}</td><td style={tdStyle}>{p.dhamma_hall_seat_no}</td><td style={tdStyle}>{p.status}</td><td style={tdStyle}>{p.mobile_locker_no}</td><td style={tdStyle}>{p.valuables_locker_no}</td><td style={tdStyle}>{p.laundry_token_no}</td><td style={tdStyle}>{p.discourse_language}</td></tr>))}</tbody></table></div> </div> ); }
 
-  if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={toolBtn('#17a2b8')}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...toolBtn(color), marginLeft:'10px'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>S.N.</th><th style={thPrint}>Seat</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={tdStyle}>{i+1}</td><td style={tdStyle}>{p.dining_seat_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{getCategory(p.conf_no)}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
+  if (viewMode === 'dining') { const currentCourse = courses.find(c=>c.course_id == courseId); const arrived = participants.filter(p => p.status==='Arrived'); const sorter = (a,b) => { const rankA = getCategoryRank(a.conf_no); const rankB = getCategoryRank(b.conf_no); if (rankA !== rankB) return rankA - rankB; return String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); }; const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={toolBtn('#17a2b8')}>CSV</button> <button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={{...toolBtn(color), marginLeft:'10px'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Dining Plan - {currentCourse?.course_name}</h2> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}><thead><tr><th style={thPrint} onClick={()=>handleSort('dining_seat_no')}>Seat ↕</th><th style={thPrint}>Name</th><th style={thPrint}>Cat</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={tdPrint}><strong>{p.dining_seat_no}</strong></td><td style={tdPrint}>{p.full_name}</td><td style={tdPrint}>{getCategory(p.conf_no)}</td><td style={tdPrint}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")} {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")} </div> ); }
 
-  if (viewMode === 'pagoda') { const assigned = participants.filter(p => p.status==='Arrived' && p.pagoda_cell_no); const sorter = (a,b) => String(a.pagoda_cell_no || '0').localeCompare(String(b.pagoda_cell_no || '0'), undefined, { numeric: true }); const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={toolBtn(color)}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Pagoda Cells</h2> <table style={{width:'100%', borderCollapse:'collapse'}}><thead><tr><th style={thPrint}>S.N.</th><th style={thPrint}>Cell</th><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={tdStyle}>{i+1}</td><td style={tdStyle}>{p.pagoda_cell_no}</td><td style={tdStyle}>{p.full_name}</td><td style={tdStyle}>{p.conf_no}</td><td style={tdStyle}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-pm")} {renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-pf")} </div> ); }
+  if (viewMode === 'pagoda') { const currentCourse = courses.find(c=>c.course_id == courseId); const assigned = participants.filter(p => p.status==='Arrived' && p.pagoda_cell_no); const sorter = (a,b) => String(a.pagoda_cell_no || '0').localeCompare(String(b.pagoda_cell_no || '0'), undefined, { numeric: true }); const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={() => {const style=document.createElement('style'); style.innerHTML=`@media print{body *{visibility:hidden}#${sectionId},#${sectionId} *{visibility:visible}#${sectionId}{position:absolute;left:0;top:0;width:100%}}`; document.head.appendChild(style); window.print(); document.head.removeChild(style);}} style={toolBtn(color)}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Pagoda Cells - {currentCourse?.course_name}</h2> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}><thead><tr><th style={thPrint} onClick={()=>handleSort('pagoda_cell_no')}>Cell ↕</th><th style={thPrint}>Name</th><th style={thPrint}>Conf</th><th style={thPrint}>Room</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={tdPrint}><strong>{p.pagoda_cell_no}</strong></td><td style={tdPrint}>{p.full_name}</td><td style={tdPrint}>{p.conf_no}</td><td style={tdPrint}>{p.room_no}</td></tr>))}</tbody></table> </div> ); return ( <div style={cardStyle}> <div className="no-print"><button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button></div> {renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-pm")} {renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-pf")} </div> ); }
 
   if (viewMode === 'seating') {
       const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.status!=='Cancelled');
@@ -785,19 +814,49 @@ function ParticipantList({ courses, refreshCourses }) {
       const SeatingSheet = ({ id, title, map, cols, rows }) => (
         <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto'}}> 
             <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> <button onClick={()=>printSection(id)} style={{...quickBtnStyle(true), background:'#007bff', color:'white'}}>🖨️ Print {title} (A3)</button> </div> 
-            <div style={{display:'flex', justifyContent:'center', marginBottom:'30px'}}> <div style={{textAlign:'center'}}> <div style={{border:'2px dashed black', width:'300px', height:'50px'}}></div> <div style={{fontWeight:'bold', marginTop:'5px', fontSize:'16px'}}>TEACHER</div> </div> </div>
             <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content'}}> {renderGrid(map, cols, rows)} </div> </div>
+            <div style={{display:'flex', justifyContent:'center', marginTop:'30px'}}> <div style={{textAlign:'center'}}> <div style={{border:'2px dashed black', width:'300px', padding:'15px', fontWeight:'900', fontSize:'24px', letterSpacing:'2px'}}>TEACHER</div></div> </div>
             <div style={{textAlign:'center', marginTop:'30px'}}> <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Dhamma Hall Seating Plan - {title}</h1> </div> 
         </div>
       );
 
+      // Generate Dynamic Columns for Display
+      const mCols = [...generateChowkyLabels(seatingConfig.mChowky), ...generateColLabels(seatingConfig.mCols)];
+      const fCols = [...generateChowkyLabels(seatingConfig.fChowky), ...generateColLabels(seatingConfig.fCols)];
+
       return (
           <div style={cardStyle}>
-              <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}> <button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button> <div style={{display:'flex', gap:'10px', alignItems:'center'}}> {assignProgress && <span style={{color:'green', fontWeight:'bold'}}>{assignProgress}</span>} <div style={{fontSize:'12px', background:'#fff3cd', padding:'5px 10px', borderRadius:'4px'}}>💡 Manual Move = Auto-Lock</div> <button onClick={handleSeatingExport} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>CSV</button> <button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#ff9800', color:'white'}}>⚡ Auto-Assign (Smart)</button> </div> </div>
+              <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}> <button onClick={() => setViewMode('list')} style={btnStyle(false)}>← Back</button> <div style={{display:'flex', gap:'10px', alignItems:'center'}}> {assignProgress && <span style={{color:'green', fontWeight:'bold'}}>{assignProgress}</span>} <div style={{fontSize:'12px', background:'#fff3cd', padding:'5px 10px', borderRadius:'4px'}}>💡 Manual Move = Auto-Lock</div> <button onClick={handleSeatingExport} style={{...quickBtnStyle(true), background:'#17a2b8', color:'white'}}>CSV</button> <button onClick={()=>setShowAutoAssignModal(true)} style={{...btnStyle(true), background:'#ff9800', color:'white'}}><Settings size={16}/> Auto-Assign</button> </div> </div>
               <div className="print-area" style={{display:'flex', flexDirection:'column', gap:'100px'}}>
-                  <SeatingSheet id="print-male" title="Male Side" map={mM} cols={['L','K','J','I','H','G','F','E','D','C','B','A']} rows={8} />
-                  <SeatingSheet id="print-female" title="Female Side" map={fM} cols={['I','H','G','F','E','D','C','B','A']} rows={8} />
+                  <SeatingSheet id="print-male" title="Male Side" map={mM} cols={mCols} rows={seatingConfig.mRows} />
+                  <SeatingSheet id="print-female" title="Female Side" map={fM} cols={fCols} rows={seatingConfig.fRows} />
               </div>
+
+              {showAutoAssignModal && (
+                  <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000}}>
+                      <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'500px'}}>
+                          <h3>🛠️ Auto-Assign Logic Configuration</h3>
+                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}>
+                              <div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}>
+                                  <h4 style={{marginTop:0, color:'#007bff'}}>Male Side (Right)</h4>
+                                  <label style={labelStyle}>Standard Cols (SeatsPerRow)</label><input type="number" style={inputStyle} value={seatingConfig.mCols} onChange={e=>setSeatingConfig({...seatingConfig, mCols: parseInt(e.target.value)||0})} />
+                                  <label style={labelStyle}>Chowky Cols (Side)</label><input type="number" style={inputStyle} value={seatingConfig.mChowky} onChange={e=>setSeatingConfig({...seatingConfig, mChowky: parseInt(e.target.value)||0})} />
+                                  <label style={labelStyle}>Total Rows</label><input type="number" style={inputStyle} value={seatingConfig.mRows} onChange={e=>setSeatingConfig({...seatingConfig, mRows: parseInt(e.target.value)||0})} />
+                              </div>
+                              <div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}>
+                                  <h4 style={{marginTop:0, color:'#e91e63'}}>Female Side (Left)</h4>
+                                  <label style={labelStyle}>Standard Cols (SeatsPerRow)</label><input type="number" style={inputStyle} value={seatingConfig.fCols} onChange={e=>setSeatingConfig({...seatingConfig, fCols: parseInt(e.target.value)||0})} />
+                                  <label style={labelStyle}>Chowky Cols (Side)</label><input type="number" style={inputStyle} value={seatingConfig.fChowky} onChange={e=>setSeatingConfig({...seatingConfig, fChowky: parseInt(e.target.value)||0})} />
+                                  <label style={labelStyle}>Total Rows</label><input type="number" style={inputStyle} value={seatingConfig.fRows} onChange={e=>setSeatingConfig({...seatingConfig, fRows: parseInt(e.target.value)||0})} />
+                              </div>
+                          </div>
+                          <div style={{display:'flex', gap:'10px', justifyContent:'flex-end'}}>
+                               <button onClick={()=>setShowAutoAssignModal(false)} style={btnStyle(false)}>Cancel</button>
+                               <button onClick={handleAutoAssign} style={{...btnStyle(true), background:'#28a745', color:'white'}}>RUN ASSIGNMENT</button>
+                          </div>
+                      </div>
+                  </div>
+              )}
           </div>
       );
   }
