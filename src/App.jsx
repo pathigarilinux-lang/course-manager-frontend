@@ -6,9 +6,19 @@ import {
   CreditCard, DollarSign, Download, Calendar, Printer, Settings,
   LayoutGrid, LogOut, Utensils, MapPin, UserCheck, History, Eye, EyeOff
 } from 'lucide-react';
+
 // --- IMPORTS ---
 import DiningLayout from './DiningLayout';
 import PagodaLayout from './PagodaLayout';
+
+// --- UPDATED LANGUAGES LIST ---
+const LANGUAGES = [
+  "English", "Hindi", "Marathi", "Telugu", "Tamil", "Kannada", 
+  "Malayalam", "Gujarati", "Bengali", "Odia", "Punjabi", 
+  "French", "German", "Spanish", "Russian", "Chinese", "Mandarin Chinese", 
+  "Japanese", "Thai", "Burmese", "Sinhala", "Nepali", 
+  "Portuguese", "Vietnamese"
+];
 // ------------------------------------------------------------------
 // 🟢 PRODUCTION CONFIGURATION
 // ------------------------------------------------------------------
