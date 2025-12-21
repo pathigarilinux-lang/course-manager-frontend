@@ -2,31 +2,44 @@ import React from 'react';
 import { X } from 'lucide-react';
 
 const DiningLayout = ({ gender = 'Male', occupied = new Set(), selected, onSelect, onClose }) => {
-  // Configuration
-  const TOTAL_SEATS = 200;
-  const SEATS_PER_ROW = 12;
-  const totalRows = Math.ceil(TOTAL_SEATS / SEATS_PER_ROW);
+  // --- CONFIGURATION ---
+  const TOTAL_SEATS = 200; // Enough to cover the rows needed
+  const SEATS_PER_ROW = 12; 
+  const totalRows = 17; // Fixed to match the visual height in your screenshot
 
-  // Define Layout Splits based on Gender
-  // Male (Screenshot): 3 | 3 | 3 | 3
-  // Female (Excel):    3 | 2 | 4 | 3
-  const config = gender === 'Female' 
-    ? {
-        col1: [12, 11, 10],      // Chair Block-2
-        col2: [9, 8],            // Floor Block-2
-        col3: [7, 6, 5, 4],      // Floor Block-1
-        col4: [3, 2, 1]          // Chair Block-1
-      }
-    : {
-        col1: [12, 11, 10],      // Chair Block-2
-        col2: [9, 8, 7],         // Floor Block-2
-        col3: [6, 5, 4],         // Floor Block-1
-        col4: [3, 2, 1]          // Chair Block-1
-      };
+  // Logic: Male = 3|3|3|3, Female = 3|2|4|3 (Based on your Excel & Screenshot)
+  const isFemale = gender === 'Female';
+  
+  const columns = [
+    {
+      title: "CHAIR (BLK-2)",
+      colorClass: "text-orange-500",
+      offsets: [11, 10, 9] // Represents 12, 11, 10 (0-indexed logic adjusted below)
+    },
+    {
+      title: "FLOOR (BLK-2)",
+      colorClass: "text-green-600",
+      offsets: isFemale ? [8, 7] : [8, 7, 6] // Female: 9,8 | Male: 9,8,7
+    },
+    {
+      title: "FLOOR (BLK-1)",
+      colorClass: "text-green-600",
+      offsets: isFemale ? [6, 5, 4, 3] : [5, 4, 3] // Female: 7,6,5,4 | Male: 6,5,4
+    },
+    {
+      title: "CHAIR (BLK-1)",
+      colorClass: "text-orange-500",
+      offsets: [2, 1, 0] // Represents 3, 2, 1
+    }
+  ];
 
-  const renderSeat = (baseNum, offset) => {
-    const seatNum = baseNum + offset;
-    if (seatNum > TOTAL_SEATS) return <div key={offset} className="w-8 h-8 m-1"></div>;
+  // Helper to get the actual seat number based on row and offset
+  // Row 0, Offset 0 (Seat 1) -> Actual displayed is 1
+  // We calculate: (row * 12) + (offset + 1)
+  const getSeatNum = (r, offset) => (r * 12) + (offset + 1);
+
+  const renderSeat = (seatNum) => {
+    if (seatNum > TOTAL_SEATS) return <div key={seatNum} className="w-8 h-8 m-1"></div>;
 
     const isOccupied = occupied.has(String(seatNum));
     const isSelected = String(selected) === String(seatNum);
@@ -34,15 +47,16 @@ const DiningLayout = ({ gender = 'Male', occupied = new Set(), selected, onSelec
     return (
       <button
         key={seatNum}
-        onClick={() => !isOccupied && onSelect(seatNum)}
+        type="button"
         disabled={isOccupied}
+        onClick={() => onSelect(seatNum)}
         className={`
           w-8 h-8 m-1 flex items-center justify-center text-xs font-bold rounded shadow-sm border transition-all
           ${isOccupied 
-            ? 'bg-red-100 text-red-600 border-red-200 cursor-not-allowed' 
+            ? 'bg-red-100 text-red-600 border-red-200 cursor-not-allowed' // Red for Occupied
             : isSelected 
-              ? 'bg-blue-600 text-white border-blue-700 scale-110 z-10' 
-              : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:shadow-md'}
+              ? 'bg-blue-600 text-white border-blue-700 scale-110 z-10' // Blue for Selected
+              : 'bg-white text-gray-800 border-gray-300 hover:border-blue-400 hover:shadow-md'} // White for Available
         `}
       >
         {seatNum}
@@ -50,117 +64,134 @@ const DiningLayout = ({ gender = 'Male', occupied = new Set(), selected, onSelec
     );
   };
 
-  // The Vertical Pathway Bar
   const Pathway = () => (
-    <div className="w-10 bg-gray-300 flex items-center justify-center mx-2 rounded shadow-inner">
-      <span className="text-white font-bold text-xs tracking-[0.3em] uppercase opacity-70" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+    <div className="w-10 bg-gray-400 flex items-center justify-center mx-1 rounded-sm shadow-inner self-stretch">
+      <span className="text-white font-bold text-xs tracking-[0.3em] uppercase opacity-90" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
         PATHWAY
       </span>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[2000] backdrop-blur-sm p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-[1100px] overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[2000] backdrop-blur-sm p-4">
+      {/* Modal Container */}
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-[1000px] overflow-hidden flex flex-col max-h-[95vh]">
         
-        {/* Header */}
-        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-          <h2 className="text-xl font-bold text-gray-800">Select Dining Seat ({gender})</h2>
+        {/* Header - Matching Image Style */}
+        <div className="p-4 border-b flex justify-between items-center bg-white">
+          <h2 className="text-xl font-bold text-black">Select Dining Seat ({gender})</h2>
           <button 
             onClick={onClose} 
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow text-sm font-bold transition-colors"
+            className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded text-sm font-bold shadow transition-colors"
           >
             Close
           </button>
         </div>
 
-        {/* Scrollable Content */}
-        <div className="overflow-auto p-6 bg-gray-100 flex-1">
-          <div className="bg-white p-6 rounded shadow-lg border border-gray-200 inline-block min-w-max">
+        {/* Scrollable Content Area */}
+        <div className="overflow-auto p-8 bg-white flex-1 flex justify-center">
+          <div className="inline-block min-w-max">
             
             {/* Blue Serving Table Bar */}
-            <div className="bg-blue-500 text-white text-center py-3 font-bold text-lg rounded mb-6 shadow-md uppercase tracking-wider">
+            <div className="bg-blue-500 text-white text-center py-4 font-bold text-lg rounded-sm mb-8 shadow-sm uppercase tracking-wide border border-blue-600">
               SERVING TABLE ({gender.toUpperCase()})
             </div>
 
-            <div className="flex">
+            {/* The Grid Container */}
+            <div className="flex items-start">
               
-              {/* --- COL 1: CHAIR BLOCK-2 --- */}
+              {/* --- COLUMN 1 --- */}
               <div className="flex flex-col items-center">
-                <div className="text-orange-500 font-bold mb-2 uppercase text-sm tracking-wide">CHAIR (BLK-2)</div>
-                {/* Header Row */}
-                <div className="flex mb-2 border-b-2 border-orange-100 pb-1">
-                  {config.col1.map(n => (
-                     <div key={n} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-400 bg-orange-50 rounded text-xs">{n}</div>
+                <div className={`font-bold mb-2 uppercase text-sm tracking-wide ${columns[0].colorClass}`}>
+                  {columns[0].title}
+                </div>
+                {/* Header Row (First seats) */}
+                <div className="flex mb-2 bg-orange-50 p-1 rounded border border-orange-100">
+                  {columns[0].offsets.map(offset => (
+                     <div key={offset} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-800 text-xs">
+                       {getSeatNum(0, offset)}
+                     </div>
                   ))}
                 </div>
-                {/* Seats */}
+                {/* Seat Rows */}
                 {Array.from({ length: totalRows }).map((_, r) => (
                   <div key={r} className="flex">
-                    {config.col1.map(offset => renderSeat(r * 12, offset))}
+                    {columns[0].offsets.map(offset => renderSeat(getSeatNum(r, offset)))}
                   </div>
                 ))}
               </div>
 
               <Pathway />
 
-              {/* --- COL 2: FLOOR BLOCK-2 --- */}
+              {/* --- COLUMN 2 --- */}
               <div className="flex flex-col items-center">
-                <div className="text-green-600 font-bold mb-2 uppercase text-sm tracking-wide">FLOOR (BLK-2)</div>
+                <div className={`font-bold mb-2 uppercase text-sm tracking-wide ${columns[1].colorClass}`}>
+                  {columns[1].title}
+                </div>
                 {/* Header Row */}
-                <div className="flex mb-2 border-b-2 border-green-100 pb-1">
-                  {config.col2.map(n => (
-                     <div key={n} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-400 bg-green-50 rounded text-xs">{n}</div>
+                <div className="flex mb-2 bg-green-50 p-1 rounded border border-green-100">
+                  {columns[1].offsets.map(offset => (
+                     <div key={offset} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-800 text-xs">
+                       {getSeatNum(0, offset)}
+                     </div>
                   ))}
                 </div>
-                {/* Seats */}
+                {/* Seat Rows */}
                 {Array.from({ length: totalRows }).map((_, r) => (
                   <div key={r} className="flex">
-                    {config.col2.map(offset => renderSeat(r * 12, offset))}
+                    {columns[1].offsets.map(offset => renderSeat(getSeatNum(r, offset)))}
                   </div>
                 ))}
               </div>
 
               <Pathway />
 
-              {/* --- COL 3: FLOOR BLOCK-1 --- */}
+              {/* --- COLUMN 3 --- */}
               <div className="flex flex-col items-center">
-                <div className="text-green-600 font-bold mb-2 uppercase text-sm tracking-wide">FLOOR (BLK-1)</div>
+                <div className={`font-bold mb-2 uppercase text-sm tracking-wide ${columns[2].colorClass}`}>
+                  {columns[2].title}
+                </div>
                 {/* Header Row */}
-                <div className="flex mb-2 border-b-2 border-green-100 pb-1">
-                  {config.col3.map(n => (
-                     <div key={n} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-400 bg-green-50 rounded text-xs">{n}</div>
+                <div className="flex mb-2 bg-green-50 p-1 rounded border border-green-100">
+                  {columns[2].offsets.map(offset => (
+                     <div key={offset} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-800 text-xs">
+                       {getSeatNum(0, offset)}
+                     </div>
                   ))}
                 </div>
-                {/* Seats */}
+                {/* Seat Rows */}
                 {Array.from({ length: totalRows }).map((_, r) => (
                   <div key={r} className="flex">
-                     {config.col3.map(offset => renderSeat(r * 12, offset))}
+                    {columns[2].offsets.map(offset => renderSeat(getSeatNum(r, offset)))}
                   </div>
                 ))}
               </div>
 
               <Pathway />
 
-              {/* --- COL 4: CHAIR BLOCK-1 --- */}
+              {/* --- COLUMN 4 --- */}
               <div className="flex flex-col items-center relative">
-                <div className="text-orange-500 font-bold mb-2 uppercase text-sm tracking-wide">CHAIR (BLK-1)</div>
+                <div className={`font-bold mb-2 uppercase text-sm tracking-wide ${columns[3].colorClass}`}>
+                  {columns[3].title}
+                </div>
                 {/* Header Row */}
-                <div className="flex mb-2 border-b-2 border-orange-100 pb-1">
-                  {config.col4.map(n => (
-                     <div key={n} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-400 bg-orange-50 rounded text-xs">{n}</div>
+                <div className="flex mb-2 bg-orange-50 p-1 rounded border border-orange-100">
+                  {columns[3].offsets.map(offset => (
+                     <div key={offset} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-800 text-xs">
+                       {getSeatNum(0, offset)}
+                     </div>
                   ))}
                 </div>
-                {/* Seats */}
+                {/* Seat Rows */}
                 {Array.from({ length: totalRows }).map((_, r) => (
                   <div key={r} className="flex">
-                    {config.col4.map(offset => renderSeat(r * 12, offset))}
+                    {columns[3].offsets.map(offset => renderSeat(getSeatNum(r, offset)))}
                   </div>
                 ))}
 
-                {/* ENTRANCE BUTTON (Absolute Bottom Right) */}
+                {/* ENTRANCE LABEL (Bottom Right Overlay) */}
                 <div className="absolute -bottom-10 right-0">
-                    <div className="bg-blue-500 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow">
+                    <div className="bg-blue-500 text-white px-5 py-1 rounded text-xs font-bold uppercase tracking-wider shadow-md">
                         ENTRANCE
                     </div>
                 </div>
