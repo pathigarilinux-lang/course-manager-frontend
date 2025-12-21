@@ -1,236 +1,126 @@
 import React from 'react';
-import { X } from 'lucide-react';
 
-// ==========================================
-// 1. SHARED UI ELEMENTS (Visuals Only)
-// ==========================================
-const TOTAL_SEATS = 200;
-const SEATS_PER_ROW = 12;
-const TOTAL_ROWS = 17;
-
-const SeatButton = ({ seatNum, status, onSelect }) => {
-  if (seatNum > TOTAL_SEATS) return <div className="w-8 h-8 m-1"></div>;
+export default function DiningLayout({ gender, occupied, selected, onSelect, onClose }) {
   
-  const isOccupied = status === 'occupied';
-  const isSelected = status === 'selected';
+  // --- MALE DINING LAYOUT CONFIGURATION ---
+  const renderMaleLayout = () => {
+    const getStatus = (num) => {
+      const sNum = String(num);
+      if (occupied.has(sNum)) return 'occupied';
+      if (String(selected) === sNum) return 'selected';
+      return 'available';
+    };
+
+    // Helper to render a single seat box
+    // NOW ACCEPTS 'TYPE' PROP
+    const Seat = ({ num, type }) => {
+      const status = getStatus(num);
+      const bg = status === 'occupied' ? '#ffcdd2' : status === 'selected' ? '#007bff' : 'white';
+      const color = status === 'selected' ? 'white' : 'black';
+      const cursor = status === 'occupied' ? 'not-allowed' : 'pointer';
+
+      return (
+        <div 
+          onClick={() => status !== 'occupied' && onSelect(num, type)} // Pass Type here
+          style={{
+            width: '35px', height: '30px', 
+            background: bg, color: color, 
+            border: '1px solid #ccc', borderRadius: '4px',
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            fontSize: '12px', fontWeight: 'bold', cursor: cursor, margin: '2px'
+          }}
+          title={`${type} Seat ${num}`}
+        >
+          {num}
+        </div>
+      );
+    };
+
+    const rows = [];
+    for (let r = 1; r <= 13; r++) {
+      const base = (r - 1) * 12;
+      const rc = [base + 3, base + 2, base + 1];
+      const rf = [base + 6, base + 5, base + 4];
+      const lf = [base + 9, base + 8, base + 7];
+      const lc = [base + 12, base + 11, base + 10];
+      rows.push({ r, rc, rf, lf, lc });
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', minWidth: '800px' }}>
+        <div style={{ width: '90%', height: '50px', background: '#4a90e2', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', borderRadius: '4px', border: '2px solid #2c3e50' }}>
+          SERVING TABLE (MALE)
+        </div>
+
+        <div style={{ display: 'flex', gap: '20px' }}>
+          
+          {/* COLUMN 1: LEFT CHAIR */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{fontWeight:'bold', marginBottom:'5px', color:'#d35400'}}>CHAIR (BLK-2)</div>
+            {rows.map((row, i) => (
+              <div key={i} style={{display:'flex'}}>
+                {row.lc.map(n => n <= 150 && <Seat key={n} num={n} type="Chair" />)}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ width: '40px', background: '#b0bec5', display: 'flex', alignItems: 'center', justifyContent: 'center', writingMode: 'vertical-rl', fontWeight: 'bold', color: 'white', borderRadius: '4px' }}>PATHWAY</div>
+
+          {/* COLUMN 2: LEFT FLOOR */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+             <div style={{fontWeight:'bold', marginBottom:'5px', color:'#27ae60'}}>FLOOR (BLK-2)</div>
+             {rows.map((row, i) => (
+              <div key={i} style={{display:'flex'}}>
+                {row.lf.map(n => n <= 150 && <Seat key={n} num={n} type="Floor" />)}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ width: '40px', background: '#b0bec5', display: 'flex', alignItems: 'center', justifyContent: 'center', writingMode: 'vertical-rl', fontWeight: 'bold', color: 'white', borderRadius: '4px' }}>PATHWAY</div>
+
+          {/* COLUMN 3: RIGHT FLOOR */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+             <div style={{fontWeight:'bold', marginBottom:'5px', color:'#27ae60'}}>FLOOR (BLK-1)</div>
+             {rows.map((row, i) => (
+              <div key={i} style={{display:'flex'}}>
+                {row.rf.map(n => n <= 150 && <Seat key={n} num={n} type="Floor" />)}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ width: '40px', background: '#b0bec5', display: 'flex', alignItems: 'center', justifyContent: 'center', writingMode: 'vertical-rl', fontWeight: 'bold', color: 'white', borderRadius: '4px' }}>PATHWAY</div>
+
+          {/* COLUMN 4: RIGHT CHAIR */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{fontWeight:'bold', marginBottom:'5px', color:'#d35400'}}>CHAIR (BLK-1)</div>
+            {rows.map((row, i) => {
+              const rcNumbers = row.rc;
+              const hasGapNumbers = rcNumbers.some(n => (n >= 88 && n <= 114));
+              
+              if (hasGapNumbers) {
+                return <div key={i} style={{height:'30px', background:'#4a90e2', margin:'2px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontSize:'10px', fontWeight:'bold'}}>ENTRANCE</div>;
+              }
+              return (
+                <div key={i} style={{display:'flex'}}>
+                  {row.rc.map(n => n <= 150 && <Seat key={n} num={n} type="Chair" />)}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <button
-      type="button"
-      disabled={isOccupied}
-      onClick={() => onSelect(seatNum)}
-      className={`
-        w-8 h-8 m-1 flex items-center justify-center text-xs font-bold rounded shadow-sm border transition-all
-        ${isOccupied 
-          ? 'bg-red-100 text-red-600 border-red-200 cursor-not-allowed' 
-          : isSelected 
-            ? 'bg-blue-600 text-white border-blue-700 scale-110 z-10' 
-            : 'bg-white text-gray-800 border-gray-300 hover:border-blue-400 hover:shadow-md'}
-      `}
-    >
-      {seatNum}
-    </button>
-  );
-};
-
-const Pathway = () => (
-  <div className="w-12 bg-gray-300/80 flex items-center justify-center mx-2 rounded shadow-inner self-stretch border border-gray-300">
-    <span className="text-white font-bold text-xs tracking-[0.3em] uppercase opacity-100 drop-shadow-sm" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-      PATHWAY
-    </span>
-  </div>
-);
-
-// Helper to calculate seat numbers row-by-row
-const getSeat = (r, offset) => (r * 12) + (offset + 1);
-
-// ==========================================
-// 2. MALE LAYOUT (3 | 3 | 3 | 3)
-// ==========================================
-const MaleDining = ({ occupied, selected, onSelect }) => {
-  // Male Specific Column Offsets
-  const col1 = [11, 10, 9]; // 12, 11, 10
-  const col2 = [8, 7, 6];   // 9, 8, 7
-  const col3 = [5, 4, 3];   // 6, 5, 4
-  const col4 = [2, 1, 0];   // 3, 2, 1
-
-  return (
-    <div className="flex items-start">
-      {/* COLUMN 1: Chair 2 */}
-      <div className="flex flex-col items-center">
-        <div className="text-orange-500 font-bold mb-2 uppercase text-sm tracking-wide">CHAIR (BLK-2)</div>
-        <div className="flex mb-2 bg-orange-50 p-1 rounded border border-orange-100">
-          {col1.map(o => <div key={o} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-800 text-xs bg-white/50 rounded">{o + 1}</div>)}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 2000, display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'auto' }}>
+      <div style={{ background: 'white', padding: '20px', borderRadius: '10px', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <h3>Select Dining Seat ({gender})</h3>
+          <button onClick={onClose} style={{ padding: '5px 15px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Close</button>
         </div>
-        {Array.from({ length: TOTAL_ROWS }).map((_, r) => (
-          <div key={r} className="flex">
-            {col1.map(o => <SeatButton key={o} seatNum={getSeat(r, o)} status={occupied.has(String(getSeat(r,o))) ? 'occupied' : String(selected)===String(getSeat(r,o)) ? 'selected' : 'free'} onSelect={onSelect} />)}
-          </div>
-        ))}
-      </div>
-
-      <Pathway />
-
-      {/* COLUMN 2: Floor 2 */}
-      <div className="flex flex-col items-center">
-        <div className="text-green-600 font-bold mb-2 uppercase text-sm tracking-wide">FLOOR (BLK-2)</div>
-        <div className="flex mb-2 bg-green-50 p-1 rounded border border-green-100">
-          {col2.map(o => <div key={o} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-800 text-xs bg-white/50 rounded">{o + 1}</div>)}
-        </div>
-        {Array.from({ length: TOTAL_ROWS }).map((_, r) => (
-          <div key={r} className="flex">
-            {col2.map(o => <SeatButton key={o} seatNum={getSeat(r, o)} status={occupied.has(String(getSeat(r,o))) ? 'occupied' : String(selected)===String(getSeat(r,o)) ? 'selected' : 'free'} onSelect={onSelect} />)}
-          </div>
-        ))}
-      </div>
-
-      <Pathway />
-
-      {/* COLUMN 3: Floor 1 */}
-      <div className="flex flex-col items-center">
-        <div className="text-green-600 font-bold mb-2 uppercase text-sm tracking-wide">FLOOR (BLK-1)</div>
-        <div className="flex mb-2 bg-green-50 p-1 rounded border border-green-100">
-          {col3.map(o => <div key={o} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-800 text-xs bg-white/50 rounded">{o + 1}</div>)}
-        </div>
-        {Array.from({ length: TOTAL_ROWS }).map((_, r) => (
-          <div key={r} className="flex">
-            {col3.map(o => <SeatButton key={o} seatNum={getSeat(r, o)} status={occupied.has(String(getSeat(r,o))) ? 'occupied' : String(selected)===String(getSeat(r,o)) ? 'selected' : 'free'} onSelect={onSelect} />)}
-          </div>
-        ))}
-      </div>
-
-      <Pathway />
-
-      {/* COLUMN 4: Chair 1 */}
-      <div className="flex flex-col items-center relative">
-        <div className="text-orange-500 font-bold mb-2 uppercase text-sm tracking-wide">CHAIR (BLK-1)</div>
-        <div className="flex mb-2 bg-orange-50 p-1 rounded border border-orange-100">
-          {col4.map(o => <div key={o} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-800 text-xs bg-white/50 rounded">{o + 1}</div>)}
-        </div>
-        {Array.from({ length: TOTAL_ROWS }).map((_, r) => (
-          <div key={r} className="flex">
-            {col4.map(o => <SeatButton key={o} seatNum={getSeat(r, o)} status={occupied.has(String(getSeat(r,o))) ? 'occupied' : String(selected)===String(getSeat(r,o)) ? 'selected' : 'free'} onSelect={onSelect} />)}
-          </div>
-        ))}
-        {/* Entrance Button */}
-        <div className="absolute -bottom-10 right-0">
-            <div className="bg-blue-500 text-white px-5 py-1 rounded text-xs font-bold uppercase tracking-wider shadow-md">ENTRANCE</div>
-        </div>
+        {gender === 'Male' ? renderMaleLayout() : <div style={{padding:'50px'}}>Female Layout Coming Soon... (Use Manual Entry)</div>}
       </div>
     </div>
   );
-};
-
-// ==========================================
-// 3. FEMALE LAYOUT (3 | 2 | 4 | 3)
-// ==========================================
-const FemaleDining = ({ occupied, selected, onSelect }) => {
-  // Female Specific Column Offsets (Per Excel Image)
-  const col1 = [11, 10, 9];    // 12, 11, 10 (Chair)
-  const col2 = [8, 7];         // 9, 8       (Floor) - NARROWER
-  const col3 = [6, 5, 4, 3];   // 7, 6, 5, 4 (Floor) - WIDER
-  const col4 = [2, 1, 0];      // 3, 2, 1    (Chair)
-
-  return (
-    <div className="flex items-start">
-      {/* COLUMN 1: Chair 2 */}
-      <div className="flex flex-col items-center">
-        <div className="text-orange-500 font-bold mb-2 uppercase text-sm tracking-wide">CHAIR (BLK-2)</div>
-        <div className="flex mb-2 bg-orange-50 p-1 rounded border border-orange-100">
-          {col1.map(o => <div key={o} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-800 text-xs bg-white/50 rounded">{o + 1}</div>)}
-        </div>
-        {Array.from({ length: TOTAL_ROWS }).map((_, r) => (
-          <div key={r} className="flex">
-            {col1.map(o => <SeatButton key={o} seatNum={getSeat(r, o)} status={occupied.has(String(getSeat(r,o))) ? 'occupied' : String(selected)===String(getSeat(r,o)) ? 'selected' : 'free'} onSelect={onSelect} />)}
-          </div>
-        ))}
-      </div>
-
-      <Pathway />
-
-      {/* COLUMN 2: Floor 2 (Only 2 seats wide) */}
-      <div className="flex flex-col items-center">
-        <div className="text-green-600 font-bold mb-2 uppercase text-sm tracking-wide">FLOOR (BLK-2)</div>
-        <div className="flex mb-2 bg-green-50 p-1 rounded border border-green-100">
-          {col2.map(o => <div key={o} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-800 text-xs bg-white/50 rounded">{o + 1}</div>)}
-        </div>
-        {Array.from({ length: TOTAL_ROWS }).map((_, r) => (
-          <div key={r} className="flex">
-            {col2.map(o => <SeatButton key={o} seatNum={getSeat(r, o)} status={occupied.has(String(getSeat(r,o))) ? 'occupied' : String(selected)===String(getSeat(r,o)) ? 'selected' : 'free'} onSelect={onSelect} />)}
-          </div>
-        ))}
-      </div>
-
-      <Pathway />
-
-      {/* COLUMN 3: Floor 1 (4 seats wide) */}
-      <div className="flex flex-col items-center">
-        <div className="text-green-600 font-bold mb-2 uppercase text-sm tracking-wide">FLOOR (BLK-1)</div>
-        <div className="flex mb-2 bg-green-50 p-1 rounded border border-green-100">
-          {col3.map(o => <div key={o} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-800 text-xs bg-white/50 rounded">{o + 1}</div>)}
-        </div>
-        {Array.from({ length: TOTAL_ROWS }).map((_, r) => (
-          <div key={r} className="flex">
-            {col3.map(o => <SeatButton key={o} seatNum={getSeat(r, o)} status={occupied.has(String(getSeat(r,o))) ? 'occupied' : String(selected)===String(getSeat(r,o)) ? 'selected' : 'free'} onSelect={onSelect} />)}
-          </div>
-        ))}
-      </div>
-
-      <Pathway />
-
-      {/* COLUMN 4: Chair 1 */}
-      <div className="flex flex-col items-center relative">
-        <div className="text-orange-500 font-bold mb-2 uppercase text-sm tracking-wide">CHAIR (BLK-1)</div>
-        <div className="flex mb-2 bg-orange-50 p-1 rounded border border-orange-100">
-          {col4.map(o => <div key={o} className="w-8 h-8 m-1 flex items-center justify-center font-bold text-gray-800 text-xs bg-white/50 rounded">{o + 1}</div>)}
-        </div>
-        {Array.from({ length: TOTAL_ROWS }).map((_, r) => (
-          <div key={r} className="flex">
-            {col4.map(o => <SeatButton key={o} seatNum={getSeat(r, o)} status={occupied.has(String(getSeat(r,o))) ? 'occupied' : String(selected)===String(getSeat(r,o)) ? 'selected' : 'free'} onSelect={onSelect} />)}
-          </div>
-        ))}
-        {/* Entrance Button */}
-        <div className="absolute -bottom-10 right-0">
-            <div className="bg-blue-500 text-white px-5 py-1 rounded text-xs font-bold uppercase tracking-wider shadow-md">ENTRANCE</div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ==========================================
-// 4. MAIN EXPORT (SWITCHER ONLY)
-// ==========================================
-const DiningLayout = ({ gender = 'Male', occupied, selected, onSelect, onClose }) => {
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[2000] backdrop-blur-sm p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-[1200px] overflow-hidden flex flex-col max-h-[95vh]">
-        
-        {/* Header */}
-        <div className="p-4 border-b flex justify-between items-center bg-white">
-          <h2 className="text-xl font-bold text-black">Select Dining Seat ({gender})</h2>
-          <button onClick={onClose} className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded text-sm font-bold shadow transition-colors">Close</button>
-        </div>
-
-        {/* Content */}
-        <div className="overflow-auto p-8 bg-white flex-1 flex justify-center">
-          <div className="inline-block min-w-max">
-            <div className="bg-blue-500 text-white text-center py-4 font-bold text-lg rounded-sm mb-8 shadow-sm uppercase tracking-wide border border-blue-600">
-              SERVING TABLE ({gender.toUpperCase()})
-            </div>
-
-            {/* STRICTLY SEPARATE RENDERING */}
-            {gender === 'Female' ? (
-              <FemaleDining occupied={occupied} selected={selected} onSelect={onSelect} />
-            ) : (
-              <MaleDining occupied={occupied} selected={selected} onSelect={onSelect} />
-            )}
-
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default DiningLayout;
+}
