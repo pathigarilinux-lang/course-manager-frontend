@@ -3,7 +3,9 @@ import React from 'react';
 export default function DiningLayout({ gender, occupied, selected, onSelect, onClose }) {
   
   // ==============================================================================
-  // 1. MALE DINING LAYOUT (Original - Untouched)
+  // 1. MALE DINING LAYOUT 
+  // Structure: 3 (Chair) | 3 (Floor) | 3 (Floor) | 3 (Chair)
+  // Entrance: Right Side
   // ==============================================================================
   const renderMaleLayout = () => {
     const getStatus = (num) => {
@@ -21,7 +23,7 @@ export default function DiningLayout({ gender, occupied, selected, onSelect, onC
 
       return (
         <div 
-          onClick={() => status !== 'occupied' && onSelect(num, type)}
+          onClick={() => status !== 'occupied' && onSelect(num, type)} // Passes Type (Chair/Floor)
           style={{
             width: '35px', height: '30px', 
             background: bg, color: color, 
@@ -37,7 +39,7 @@ export default function DiningLayout({ gender, occupied, selected, onSelect, onC
     };
 
     const rows = [];
-    for (let r = 1; r <= 13; r++) {
+    for (let r = 1; r <= 17; r++) {
       const base = (r - 1) * 12;
       const rc = [base + 3, base + 2, base + 1];
       const rf = [base + 6, base + 5, base + 4];
@@ -54,58 +56,54 @@ export default function DiningLayout({ gender, occupied, selected, onSelect, onC
 
         <div style={{ display: 'flex', gap: '20px' }}>
           
-          {/* COLUMN 1: LEFT CHAIR */}
+          {/* COLUMN 1: LEFT CHAIR (BLOCK-2) */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{fontWeight:'bold', marginBottom:'5px', color:'#d35400'}}>CHAIR (BLK-2)</div>
             {rows.map((row, i) => (
               <div key={i} style={{display:'flex'}}>
-                {row.lc.map(n => n <= 150 && <Seat key={n} num={n} type="Chair" />)}
+                {row.lc.map(n => n <= 200 && <Seat key={n} num={n} type="Chair" />)}
               </div>
             ))}
           </div>
 
           <div style={{ width: '40px', background: '#b0bec5', display: 'flex', alignItems: 'center', justifyContent: 'center', writingMode: 'vertical-rl', fontWeight: 'bold', color: 'white', borderRadius: '4px' }}>PATHWAY</div>
 
-          {/* COLUMN 2: LEFT FLOOR */}
+          {/* COLUMN 2: LEFT FLOOR (BLOCK-2) */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
              <div style={{fontWeight:'bold', marginBottom:'5px', color:'#27ae60'}}>FLOOR (BLK-2)</div>
              {rows.map((row, i) => (
               <div key={i} style={{display:'flex'}}>
-                {row.lf.map(n => n <= 150 && <Seat key={n} num={n} type="Floor" />)}
+                {row.lf.map(n => n <= 200 && <Seat key={n} num={n} type="Floor" />)}
               </div>
             ))}
           </div>
 
           <div style={{ width: '40px', background: '#b0bec5', display: 'flex', alignItems: 'center', justifyContent: 'center', writingMode: 'vertical-rl', fontWeight: 'bold', color: 'white', borderRadius: '4px' }}>PATHWAY</div>
 
-          {/* COLUMN 3: RIGHT FLOOR */}
+          {/* COLUMN 3: RIGHT FLOOR (BLOCK-1) */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
              <div style={{fontWeight:'bold', marginBottom:'5px', color:'#27ae60'}}>FLOOR (BLK-1)</div>
              {rows.map((row, i) => (
               <div key={i} style={{display:'flex'}}>
-                {row.rf.map(n => n <= 150 && <Seat key={n} num={n} type="Floor" />)}
+                {row.rf.map(n => n <= 200 && <Seat key={n} num={n} type="Floor" />)}
               </div>
             ))}
           </div>
 
           <div style={{ width: '40px', background: '#b0bec5', display: 'flex', alignItems: 'center', justifyContent: 'center', writingMode: 'vertical-rl', fontWeight: 'bold', color: 'white', borderRadius: '4px' }}>PATHWAY</div>
 
-          {/* COLUMN 4: RIGHT CHAIR */}
+          {/* COLUMN 4: RIGHT CHAIR (BLOCK-1) */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{fontWeight:'bold', marginBottom:'5px', color:'#d35400'}}>CHAIR (BLK-1)</div>
-            {rows.map((row, i) => {
-              const rcNumbers = row.rc;
-              const hasGapNumbers = rcNumbers.some(n => (n >= 88 && n <= 114));
-              
-              if (hasGapNumbers) {
-                return <div key={i} style={{height:'30px', background:'#4a90e2', margin:'2px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontSize:'10px', fontWeight:'bold'}}>ENTRANCE</div>;
-              }
-              return (
-                <div key={i} style={{display:'flex'}}>
-                  {row.rc.map(n => n <= 150 && <Seat key={n} num={n} type="Chair" />)}
-                </div>
-              );
-            })}
+            {rows.map((row, i) => (
+              <div key={i} style={{display:'flex'}}>
+                {row.rc.map(n => n <= 200 && <Seat key={n} num={n} type="Chair" />)}
+              </div>
+            ))}
+            {/* Male Entrance on Right */}
+            <div style={{marginTop: '10px', background:'#4a90e2', padding: '5px 10px', color:'white', fontWeight:'bold', borderRadius:'4px', display:'flex', alignItems:'center'}}>
+               ENTRANCE
+            </div>
           </div>
         </div>
       </div>
@@ -113,8 +111,9 @@ export default function DiningLayout({ gender, occupied, selected, onSelect, onC
   };
 
   // ==============================================================================
-  // 2. FEMALE DINING LAYOUT (Strictly Separated - Based on Diagram)
-  // Grid: 3 (Chair) | 2 (Floor) | 4 (Floor) | 3 (Chair)
+  // 2. FEMALE DINING LAYOUT 
+  // Structure: 3 (Chair) | 2 (Floor) | 4 (Floor) | 3 (Chair)
+  // Entrance: Left Side
   // ==============================================================================
   const renderFemaleLayout = () => {
     const getStatus = (num) => {
@@ -124,7 +123,6 @@ export default function DiningLayout({ gender, occupied, selected, onSelect, onC
       return 'available';
     };
 
-    // Re-defining Seat here to ensure NO shared logic dependency
     const Seat = ({ num, type }) => {
       const status = getStatus(num);
       const bg = status === 'occupied' ? '#ffcdd2' : status === 'selected' ? '#007bff' : 'white';
@@ -133,7 +131,7 @@ export default function DiningLayout({ gender, occupied, selected, onSelect, onC
 
       return (
         <div 
-          onClick={() => status !== 'occupied' && onSelect(num, type)}
+          onClick={() => status !== 'occupied' && onSelect(num, type)} // Passes Type (Chair/Floor) for Auto-Select Logic
           style={{
             width: '35px', height: '30px', 
             background: bg, color: color, 
@@ -149,14 +147,13 @@ export default function DiningLayout({ gender, occupied, selected, onSelect, onC
     };
 
     const rows = [];
-    // Generating rows. 200 seats / 12 = ~17 rows.
     for (let r = 1; r <= 17; r++) {
       const base = (r - 1) * 12;
-      // FEMALE MAPPING (3 | 2 | 4 | 3)
-      const rc = [base + 3, base + 2, base + 1];          // Chair Block-1 (3 seats)
-      const rf = [base + 7, base + 6, base + 5, base + 4]; // Floor Block-1 (4 seats)
-      const lf = [base + 9, base + 8];                     // Floor Block-2 (2 seats)
-      const lc = [base + 12, base + 11, base + 10];        // Chair Block-2 (3 seats)
+      // FEMALE MAPPING (Strictly matching screenshot logic)
+      const rc = [base + 3, base + 2, base + 1];          // Chair Block-1 (Right)
+      const rf = [base + 7, base + 6, base + 5, base + 4]; // Floor Block-1 (Mid-Right) - 4 Seats
+      const lf = [base + 9, base + 8];                     // Floor Block-2 (Mid-Left)  - 2 Seats
+      const lc = [base + 12, base + 11, base + 10];        // Chair Block-2 (Left)
       rows.push({ r, rc, rf, lf, lc });
     }
 
@@ -180,10 +177,11 @@ export default function DiningLayout({ gender, occupied, selected, onSelect, onC
             <div style={{fontWeight:'bold', marginBottom:'5px', color:'#d35400'}}>CHAIR (BLK-2)</div>
             {rows.map((row, i) => (
               <div key={i} style={{display:'flex'}}>
-                {row.lc.map(n => n <= 200 && <Seat key={n} num={n} type="Chair" />)}
+                {/* 12, 11, 10 */}
+                {row.lc.map(n => n <= 200 && <Seat key={n} num={n} type="Chair" />)} 
               </div>
             ))}
-            {/* Visual Entrance Arrow for Female Side (Left) */}
+            {/* Female Entrance on Left */}
             <div style={{marginTop: '10px', background:'#4a90e2', padding: '5px 10px', color:'white', fontWeight:'bold', borderRadius:'4px', display:'flex', alignItems:'center'}}>
                ENTRANCE ➜
             </div>
@@ -196,6 +194,7 @@ export default function DiningLayout({ gender, occupied, selected, onSelect, onC
              <div style={{fontWeight:'bold', marginBottom:'5px', color:'#27ae60'}}>FLOOR (BLK-2)</div>
              {rows.map((row, i) => (
               <div key={i} style={{display:'flex'}}>
+                {/* 9, 8 */}
                 {row.lf.map(n => n <= 200 && <Seat key={n} num={n} type="Floor" />)}
               </div>
             ))}
@@ -208,6 +207,7 @@ export default function DiningLayout({ gender, occupied, selected, onSelect, onC
              <div style={{fontWeight:'bold', marginBottom:'5px', color:'#27ae60'}}>FLOOR (BLK-1)</div>
              {rows.map((row, i) => (
               <div key={i} style={{display:'flex'}}>
+                {/* 7, 6, 5, 4 */}
                 {row.rf.map(n => n <= 200 && <Seat key={n} num={n} type="Floor" />)}
               </div>
             ))}
@@ -220,6 +220,7 @@ export default function DiningLayout({ gender, occupied, selected, onSelect, onC
             <div style={{fontWeight:'bold', marginBottom:'5px', color:'#d35400'}}>CHAIR (BLK-1)</div>
             {rows.map((row, i) => (
               <div key={i} style={{display:'flex'}}>
+                {/* 3, 2, 1 */}
                 {row.rc.map(n => n <= 200 && <Seat key={n} num={n} type="Chair" />)}
               </div>
             ))}
