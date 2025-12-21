@@ -853,6 +853,7 @@ function ATPanel({ courses }) {
   );
 }
 // --- MODIFIED STUDENT FORM COMPONENT ---
+// --- CORRECTED STUDENT FORM COMPONENT ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]);
@@ -875,9 +876,8 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [showVisualDining, setShowVisualDining] = useState(false);
   const [showVisualPagoda, setShowVisualPagoda] = useState(false);
 
-  // Constants & Helpers
+  // Constants
   const API_URL = "https://course-manager-backend-cd1m.onrender.com"; 
-  const NUMBER_OPTIONS = Array.from({length: 200}, (_, i) => i + 1);
   const btnStyle = (isActive) => ({ padding: '8px 16px', border: '1px solid #ddd', borderRadius: '20px', cursor: 'pointer', background: isActive ? '#007bff' : '#fff', color: isActive ? 'white' : '#555', fontWeight: '600', fontSize:'13px', display:'flex', alignItems:'center', gap:'5px' });
   const inputStyle = { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px' };
   const labelStyle = { fontSize: '14px', color: '#555', fontWeight: 'bold', marginBottom: '5px', display: 'block' };
@@ -887,43 +887,63 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   useEffect(() => { if (preSelectedRoom) { setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); } }, [preSelectedRoom, courses]);
   useEffect(() => { if (formData.courseId) fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants); }, [formData.courseId]);
 
-  // Derived Logic
+  // --- CRITICAL LOGIC: GENDER & OCCUPANCY SEPARATION ---
   const normalize = (str) => str ? str.toString().replace(/[\s-]+/g, '').toUpperCase() : '';
   const cleanNum = (val) => val ? String(val).trim() : '';
-  const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
-  const currentGender = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
-  const isMale = currentGender.startsWith('m'); 
-  const isFemale = currentGender.startsWith('f');
+  
+  // 1. Determine Current Gender
+  const currentGenderRaw = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
+  const isMale = currentGenderRaw.startsWith('m');
+  const isFemale = currentGenderRaw.startsWith('f');
+  const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : '');
 
-  // Filter Rooms by Gender
+  // 2. Filter Available Rooms (Standard Logic)
+  const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female');
 
-  // Calculate Occupied Sets for Visual Grids
+  // 3. SEPARATE DINING OCCUPANCY (The Fix)
+  // Only exclude seats taken by the SAME gender. 
+  // Male Seat 10 does NOT block Female Seat 10.
   const allRecords = [...occupancy, ...participants].filter(p => String(p.participant_id) !== String(formData.participantId) && p.status !== 'Cancelled');
   const usedDining = new Set();
   const usedPagoda = new Set();
+
   allRecords.forEach(p => { 
-      if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no)); 
-      if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no)); 
+      // Only check occupancy if the record belongs to the SAME gender building
+      const recordGender = (p.gender || '').toLowerCase().startsWith('m') ? 'Male' : 'Female';
+      
+      if (recordGender === currentGenderLabel) {
+          if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no)); 
+          if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no)); 
+      }
   });
 
   const handleStudentChange = (e) => { 
       const selectedId = e.target.value; 
       const student = participants.find(p => p.participant_id == selectedId); 
       setSelectedStudent(student);
-      setFormData(prev => ({ ...prev, participantId: selectedId, confNo: student ? (student.conf_no || '') : '' })); 
-  };
-
-  // 🔴 UPDATED LOGIC: Dining Seat syncs Mobile & Valuables. Laundry is INDEPENDENT.
-  const handleDiningSeatChange = (val) => { 
       setFormData(prev => ({ 
           ...prev, 
-          seatNo: val, 
-          mobileLocker: val, 
-          valuablesLocker: val
-          // laundryToken is NOT touched
+          participantId: selectedId, 
+          confNo: student ? (student.conf_no || '') : '',
+          // Reset dining when student changes to prevent cross-gender errors
+          seatNo: '',
+          mobileLocker: '',
+          valuablesLocker: ''
+      })); 
+  };
+
+  // 4. UPDATED HANDLER: Receives Seat Number AND Type (Chair/Floor)
+  const handleDiningSeatChange = (seatVal, typeVal) => { 
+      setFormData(prev => ({ 
+          ...prev, 
+          seatNo: seatVal, 
+          seatType: typeVal, // AUTO-SELECT: Updates the dropdown automatically
+          mobileLocker: seatVal, 
+          valuablesLocker: seatVal
+          // Laundry Token is intentionally NOT updated here
       })); 
       setShowVisualDining(false);
   };
@@ -935,7 +955,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const triggerPrint = () => { setShowReceipt(true); setTimeout(() => { window.print(); }, 500); };
 
-  // Visual Room Selector Component
+  // Simple Visual Room Selector (Restored)
   const VisualSelector = ({ title, options, occupied, selected, onSelect, onClose }) => (
     <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'center'}}>
         <div style={{background:'white', padding:'20px', borderRadius:'10px', width:'80%', maxHeight:'80vh', overflowY:'auto'}}>
@@ -968,7 +988,6 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           setStatus('✅ Success!'); window.scrollTo(0, 0);
           const courseObj = courses.find(c => c.course_id == formData.courseId);
           
-          // Print Name Logic
           let cleanName = courseObj?.course_name || 'Unknown Course';
           cleanName = cleanName.replace(/-[A-Za-z]{3}-\d{2,4}.*$/g, '').replace(/\/.*$/, '').trim();
 
@@ -988,7 +1007,6 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           setPrintData(pData);
           setShowReceipt(true);
           
-          // Reset
           setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' }));
           setSelectedStudent(null); clearRoom(); 
           fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants); 
@@ -1030,10 +1048,11 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
               </div> 
               
               <div>
-                  <label style={labelStyle}>Dining</label>
+                  <label style={labelStyle}>Dining ({currentGenderLabel})</label>
                   <div style={{display:'flex', gap:'5px'}}>
+                      {/* Dropdown Auto-Updates based on Layout Selection */}
                       <select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select>
-                      <button type="button" onClick={() => setShowVisualDining(true)} style={{...inputStyle, textAlign:'left', background: formData.seatNo ? '#e8f5e9' : 'white', cursor:'pointer'}}>{formData.seatNo || "--"}</button>
+                      <button type="button" onClick={() => setShowVisualDining(true)} disabled={!selectedStudent} style={{...inputStyle, textAlign:'left', background: formData.seatNo ? '#e8f5e9' : 'white', cursor: selectedStudent ? 'pointer' : 'not-allowed'}}>{formData.seatNo || "--"}</button>
                   </div>
               </div> 
           </div> 
@@ -1041,7 +1060,6 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px', marginTop:'15px'}}> 
               <div><label style={labelStyle}>Mobile</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d'}} value={formData.mobileLocker} readOnly /></div> 
               <div><label style={labelStyle}>Valuables</label><input style={{...inputStyle, background:'#e9ecef', color:'#6c757d'}} value={formData.valuablesLocker} readOnly /></div> 
-              {/* Laundry Independent */}
               <div><label style={labelStyle}>Laundry</label><input style={{...inputStyle}} value={formData.laundryToken} onChange={e=>setFormData({...formData, laundryToken:e.target.value})} placeholder="Token" /></div> 
               <div><label style={labelStyle}>Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> 
           </div> 
@@ -1062,9 +1080,11 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           </div> 
       </form> 
 
-      {/* Visual Modals */}
-      {showVisualDining && <DiningLayout gender={isMale ? 'Male' : 'Female'} occupied={usedDining} selected={formData.seatNo} onSelect={handleDiningSeatChange} onClose={()=>setShowVisualDining(false)} />}
-      {showVisualPagoda && <PagodaLayout gender={isMale ? 'Male' : 'Female'} occupied={usedPagoda} selected={formData.pagodaCell} onSelect={handlePagodaSelect} onClose={()=>setShowVisualPagoda(false)} />}
+      {/* Visual Modals - PASSED STRICT GENDER */}
+      {showVisualDining && <DiningLayout gender={currentGenderLabel} occupied={usedDining} selected={formData.seatNo} onSelect={handleDiningSeatChange} onClose={()=>setShowVisualDining(false)} />}
+      
+      {showVisualPagoda && <PagodaLayout gender={currentGenderLabel} occupied={usedPagoda} selected={formData.pagodaCell} onSelect={handlePagodaSelect} onClose={()=>setShowVisualPagoda(false)} />}
+      
       {showVisualRoom && <VisualSelector title="Room" options={availableRooms.map(r=>r.room_no)} occupied={occupiedRoomsSet} selected={formData.roomNo} onSelect={(val)=>{setFormData({...formData, roomNo:val}); setShowVisualRoom(false)}} onClose={()=>setShowVisualRoom(false)} />}
 
       {/* Receipt Print */}
