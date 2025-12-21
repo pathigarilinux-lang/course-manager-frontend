@@ -1,178 +1,126 @@
 import React from 'react';
-import { X, ArrowRight } from 'lucide-react';
 
-const DiningLayout = ({ gender, occupied, selected, onSelect, onClose }) => {
-  // We calculate rows based on 200 seats total, 12 seats per row
-  const TOTAL_SEATS = 200;
-  const SEATS_PER_ROW = 12;
-  const totalRows = Math.ceil(TOTAL_SEATS / SEATS_PER_ROW); // Approx 17 rows
+export default function DiningLayout({ gender, occupied, selected, onSelect, onClose }) {
+  
+  // --- MALE DINING LAYOUT CONFIGURATION ---
+  const renderMaleLayout = () => {
+    const getStatus = (num) => {
+      const sNum = String(num);
+      if (occupied.has(sNum)) return 'occupied';
+      if (String(selected) === sNum) return 'selected';
+      return 'available';
+    };
 
-  const renderSeat = (seatNum) => {
-    if (seatNum > TOTAL_SEATS) return <div className="w-8 h-8 m-0.5 border border-transparent"></div>;
+    // Helper to render a single seat box
+    // NOW ACCEPTS 'TYPE' PROP
+    const Seat = ({ num, type }) => {
+      const status = getStatus(num);
+      const bg = status === 'occupied' ? '#ffcdd2' : status === 'selected' ? '#007bff' : 'white';
+      const color = status === 'selected' ? 'white' : 'black';
+      const cursor = status === 'occupied' ? 'not-allowed' : 'pointer';
 
-    const isOccupied = occupied.has(String(seatNum));
-    const isSelected = String(selected) === String(seatNum);
+      return (
+        <div 
+          onClick={() => status !== 'occupied' && onSelect(num, type)} // Pass Type here
+          style={{
+            width: '35px', height: '30px', 
+            background: bg, color: color, 
+            border: '1px solid #ccc', borderRadius: '4px',
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            fontSize: '12px', fontWeight: 'bold', cursor: cursor, margin: '2px'
+          }}
+          title={`${type} Seat ${num}`}
+        >
+          {num}
+        </div>
+      );
+    };
+
+    const rows = [];
+    for (let r = 1; r <= 13; r++) {
+      const base = (r - 1) * 12;
+      const rc = [base + 3, base + 2, base + 1];
+      const rf = [base + 6, base + 5, base + 4];
+      const lf = [base + 9, base + 8, base + 7];
+      const lc = [base + 12, base + 11, base + 10];
+      rows.push({ r, rc, rf, lf, lc });
+    }
 
     return (
-      <button
-        key={seatNum}
-        type="button"
-        disabled={isOccupied}
-        onClick={() => onSelect(seatNum)}
-        className={`
-          w-8 h-8 m-0.5 text-xs font-bold border flex items-center justify-center transition-all
-          ${isOccupied 
-            ? 'bg-red-100 text-red-500 border-red-200 cursor-not-allowed' 
-            : isSelected 
-              ? 'bg-blue-600 text-white border-blue-700 shadow-md scale-110 z-10' 
-              : 'bg-white hover:bg-blue-50 border-gray-400 text-gray-800'}
-        `}
-      >
-        {seatNum}
-      </button>
-    );
-  };
-
-  // Helper to render vertical text for pathway
-  const Pathway = () => (
-    <div className="mx-2 w-8 bg-blue-600 text-white flex items-center justify-center border border-blue-800 rounded-sm">
-      <span className="whitespace-nowrap font-bold text-xs tracking-widest" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-        PATHWAY
-      </span>
-    </div>
-  );
-
-  return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[2000] p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col">
-        
-        {/* Header */}
-        <div className="bg-gray-100 p-3 border-b flex justify-between items-center shrink-0">
-          <div>
-            <h2 className="text-lg font-bold text-blue-900 uppercase">{gender} Dining Layout</h2>
-            <div className="flex gap-4 text-xs mt-1">
-              <span className="flex items-center gap-1"><div className="w-3 h-3 bg-white border border-gray-400"></div> Available</span>
-              <span className="flex items-center gap-1"><div className="w-3 h-3 bg-red-100 border border-red-200"></div> Occupied</span>
-              <span className="flex items-center gap-1"><div className="w-3 h-3 bg-blue-600 border border-blue-700"></div> Selected</span>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-600">
-            <X size={24} />
-          </button>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', minWidth: '800px' }}>
+        <div style={{ width: '90%', height: '50px', background: '#4a90e2', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', borderRadius: '4px', border: '2px solid #2c3e50' }}>
+          SERVING TABLE (MALE)
         </div>
 
-        {/* Scrollable Area */}
-        <div className="overflow-auto p-4 bg-gray-50 flex-1 flex justify-center">
-          <div className="bg-white border p-4 shadow-sm inline-block min-w-max">
-            
-            {/* 1. SERVING TABLE (Top) */}
-            <div className="w-full bg-blue-600 text-white text-center py-2 font-bold mb-6 rounded-sm uppercase tracking-widest border border-blue-800">
-              Serving Table
-            </div>
+        <div style={{ display: 'flex', gap: '20px' }}>
+          
+          {/* COLUMN 1: LEFT CHAIR */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{fontWeight:'bold', marginBottom:'5px', color:'#d35400'}}>CHAIR (BLK-2)</div>
+            {rows.map((row, i) => (
+              <div key={i} style={{display:'flex'}}>
+                {row.lc.map(n => n <= 150 && <Seat key={n} num={n} type="Chair" />)}
+              </div>
+            ))}
+          </div>
 
-            {/* MAIN LAYOUT ROW */}
-            <div className="flex">
+          <div style={{ width: '40px', background: '#b0bec5', display: 'flex', alignItems: 'center', justifyContent: 'center', writingMode: 'vertical-rl', fontWeight: 'bold', color: 'white', borderRadius: '4px' }}>PATHWAY</div>
+
+          {/* COLUMN 2: LEFT FLOOR */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+             <div style={{fontWeight:'bold', marginBottom:'5px', color:'#27ae60'}}>FLOOR (BLK-2)</div>
+             {rows.map((row, i) => (
+              <div key={i} style={{display:'flex'}}>
+                {row.lf.map(n => n <= 150 && <Seat key={n} num={n} type="Floor" />)}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ width: '40px', background: '#b0bec5', display: 'flex', alignItems: 'center', justifyContent: 'center', writingMode: 'vertical-rl', fontWeight: 'bold', color: 'white', borderRadius: '4px' }}>PATHWAY</div>
+
+          {/* COLUMN 3: RIGHT FLOOR */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+             <div style={{fontWeight:'bold', marginBottom:'5px', color:'#27ae60'}}>FLOOR (BLK-1)</div>
+             {rows.map((row, i) => (
+              <div key={i} style={{display:'flex'}}>
+                {row.rf.map(n => n <= 150 && <Seat key={n} num={n} type="Floor" />)}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ width: '40px', background: '#b0bec5', display: 'flex', alignItems: 'center', justifyContent: 'center', writingMode: 'vertical-rl', fontWeight: 'bold', color: 'white', borderRadius: '4px' }}>PATHWAY</div>
+
+          {/* COLUMN 4: RIGHT CHAIR */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{fontWeight:'bold', marginBottom:'5px', color:'#d35400'}}>CHAIR (BLK-1)</div>
+            {rows.map((row, i) => {
+              const rcNumbers = row.rc;
+              const hasGapNumbers = rcNumbers.some(n => (n >= 88 && n <= 114));
               
-              {/* --- SECTION 1: CHAIR BLOCK-2 (Seats 12, 11, 10) --- */}
-              <div className="flex flex-col">
-                <div className="text-center font-bold text-xs mb-1 uppercase text-gray-700">Chair<br/>Block-2</div>
-                <div className="border border-gray-300 p-1 bg-gray-50">
-                   {/* Header Row */}
-                   <div className="flex justify-center border-b border-gray-300 mb-1 pb-1">
-                      <div className="w-8 text-center text-[10px] font-bold text-gray-500 mx-0.5">12</div>
-                      <div className="w-8 text-center text-[10px] font-bold text-gray-500 mx-0.5">11</div>
-                      <div className="w-8 text-center text-[10px] font-bold text-gray-500 mx-0.5">10</div>
-                   </div>
-                   {/* Rows */}
-                   {Array.from({ length: totalRows }).map((_, r) => (
-                     <div key={r} className="flex">
-                       {renderSeat((r * 12) + 12)}
-                       {renderSeat((r * 12) + 11)}
-                       {renderSeat((r * 12) + 10)}
-                     </div>
-                   ))}
+              if (hasGapNumbers) {
+                return <div key={i} style={{height:'30px', background:'#4a90e2', margin:'2px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontSize:'10px', fontWeight:'bold'}}>ENTRANCE</div>;
+              }
+              return (
+                <div key={i} style={{display:'flex'}}>
+                  {row.rc.map(n => n <= 150 && <Seat key={n} num={n} type="Chair" />)}
                 </div>
-                {/* ENTRANCE ARROW */}
-                <div className="mt-4 bg-blue-600 text-white text-xs font-bold py-2 px-1 text-center clip-path-arrow relative flex items-center justify-center gap-1 shadow-md">
-                   <ArrowRight size={16} /> ENTRANCE
-                </div>
-              </div>
-
-              {/* PATHWAY */}
-              <Pathway />
-
-              {/* --- SECTION 2: FLOOR BLOCK-2 (Seats 9, 8) --- */}
-              <div className="flex flex-col">
-                <div className="text-center font-bold text-xs mb-1 uppercase text-gray-700">Floor<br/>Block-2</div>
-                <div className="border border-gray-300 p-1 bg-yellow-50/30">
-                   {/* Header Row */}
-                   <div className="flex justify-center border-b border-gray-300 mb-1 pb-1">
-                      <div className="w-8 text-center text-[10px] font-bold text-gray-500 mx-0.5">9</div>
-                      <div className="w-8 text-center text-[10px] font-bold text-gray-500 mx-0.5">8</div>
-                   </div>
-                   {Array.from({ length: totalRows }).map((_, r) => (
-                     <div key={r} className="flex">
-                       {renderSeat((r * 12) + 9)}
-                       {renderSeat((r * 12) + 8)}
-                     </div>
-                   ))}
-                </div>
-              </div>
-
-              {/* PATHWAY */}
-              <Pathway />
-
-              {/* --- SECTION 3: FLOOR BLOCK-1 (Seats 7, 6, 5, 4) --- */}
-              <div className="flex flex-col">
-                <div className="text-center font-bold text-xs mb-1 uppercase text-gray-700">Floor<br/>Block-1</div>
-                <div className="border border-gray-300 p-1 bg-yellow-50/30">
-                   {/* Header Row */}
-                   <div className="flex justify-center border-b border-gray-300 mb-1 pb-1">
-                      <div className="w-8 text-center text-[10px] font-bold text-gray-500 mx-0.5">7</div>
-                      <div className="w-8 text-center text-[10px] font-bold text-gray-500 mx-0.5">6</div>
-                      <div className="w-8 text-center text-[10px] font-bold text-gray-500 mx-0.5">5</div>
-                      <div className="w-8 text-center text-[10px] font-bold text-gray-500 mx-0.5">4</div>
-                   </div>
-                   {Array.from({ length: totalRows }).map((_, r) => (
-                     <div key={r} className="flex">
-                       {renderSeat((r * 12) + 7)}
-                       {renderSeat((r * 12) + 6)}
-                       {renderSeat((r * 12) + 5)}
-                       {renderSeat((r * 12) + 4)}
-                     </div>
-                   ))}
-                </div>
-              </div>
-
-              {/* PATHWAY */}
-              <Pathway />
-
-              {/* --- SECTION 4: CHAIR BLOCK-1 (Seats 3, 2, 1) --- */}
-              <div className="flex flex-col">
-                <div className="text-center font-bold text-xs mb-1 uppercase text-gray-700">Chair<br/>Block-1</div>
-                <div className="border border-gray-300 p-1 bg-gray-50">
-                   {/* Header Row */}
-                   <div className="flex justify-center border-b border-gray-300 mb-1 pb-1">
-                      <div className="w-8 text-center text-[10px] font-bold text-gray-500 mx-0.5">3</div>
-                      <div className="w-8 text-center text-[10px] font-bold text-gray-500 mx-0.5">2</div>
-                      <div className="w-8 text-center text-[10px] font-bold text-gray-500 mx-0.5">1</div>
-                   </div>
-                   {Array.from({ length: totalRows }).map((_, r) => (
-                     <div key={r} className="flex">
-                       {renderSeat((r * 12) + 3)}
-                       {renderSeat((r * 12) + 2)}
-                       {renderSeat((r * 12) + 1)}
-                     </div>
-                   ))}
-                </div>
-              </div>
-
-            </div>
+              );
+            })}
           </div>
         </div>
       </div>
+    );
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 2000, display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'auto' }}>
+      <div style={{ background: 'white', padding: '20px', borderRadius: '10px', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <h3>Select Dining Seat ({gender})</h3>
+          <button onClick={onClose} style={{ padding: '5px 15px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Close</button>
+        </div>
+        {gender === 'Male' ? renderMaleLayout() : <div style={{padding:'50px'}}>Female Layout Coming Soon... (Use Manual Entry)</div>}
+      </div>
     </div>
   );
-};
-
-export default DiningLayout;
+}
