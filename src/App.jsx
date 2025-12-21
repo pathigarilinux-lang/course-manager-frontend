@@ -6,7 +6,9 @@ import {
   CreditCard, DollarSign, Download, Calendar, Printer, Settings,
   LayoutGrid, LogOut, Utensils, MapPin, UserCheck, History, Eye, EyeOff
 } from 'lucide-react';
-
+// IMPORT NEW LAYOUTS
+import DiningLayout from './DiningLayout';
+import PagodaLayout from './PagodaLayout';
 // ------------------------------------------------------------------
 // 🟢 PRODUCTION CONFIGURATION
 // ------------------------------------------------------------------
