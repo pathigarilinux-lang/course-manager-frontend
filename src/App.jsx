@@ -852,7 +852,6 @@ function ATPanel({ courses }) {
     </div>
   );
 }
-// --- MODIFIED STUDENT FORM COMPONENT ---
 // --- CORRECTED STUDENT FORM COMPONENT ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
@@ -895,7 +894,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const currentGenderRaw = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
   const isMale = currentGenderRaw.startsWith('m');
   const isFemale = currentGenderRaw.startsWith('f');
-  const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : '');
+  const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : 'Male'); // Default to Male if unknown
 
   // 2. Filter Available Rooms (Standard Logic)
   const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
@@ -912,9 +911,13 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   allRecords.forEach(p => { 
       // Only check occupancy if the record belongs to the SAME gender building
-      const recordGender = (p.gender || '').toLowerCase().startsWith('m') ? 'Male' : 'Female';
+      const pGender = (p.gender || '').toLowerCase();
+      const pIsMale = pGender.startsWith('m');
+      const pIsFemale = pGender.startsWith('f');
       
-      if (recordGender === currentGenderLabel) {
+      // If I am onboarding a Male, only look at Male occupants. 
+      // If I am onboarding a Female, only look at Female occupants.
+      if ((isMale && pIsMale) || (isFemale && pIsFemale)) {
           if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no)); 
           if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no)); 
       }
