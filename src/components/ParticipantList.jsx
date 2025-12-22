@@ -9,7 +9,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [search, setSearch] = useState(''); 
   const [filterType, setFilterType] = useState('ALL'); 
   const [editingStudent, setEditingStudent] = useState(null); 
-  const [viewMode, setViewMode] = useState('dining'); // Default to Dining as requested
+  const [viewMode, setViewMode] = useState('dining'); // Default as requested
   const [sortConfig, setSortConfig] = useState({ key: 'full_name', direction: 'asc' });
   
   // Logic State
@@ -40,10 +40,8 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
   // --- HELPERS ---
   const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
-  const getCategoryShort = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return '(O)'; if (s.startsWith('N')) return '(N)'; return '(?)'; };
   const getCategoryRank = (conf) => { if (!conf) return 2; const s = conf.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   
-  // Parse stats for the card view: (O) s:19 L:5
   const getStudentStats = (p) => {
       if (!p) return { cat: '', s: 0, l: 0, age: '' };
       const conf = (p.conf_no || '').toUpperCase();
@@ -58,7 +56,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   
-  // --- SMART FILTER & SORT ---
   const processedList = useMemo(() => { 
       let items = [...participants]; 
       if (filterType !== 'ALL') {
@@ -124,7 +121,13 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const prepareBulkTokens = () => { 
       const valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
       if(valid.length === 0) return alert("No seats assigned"); 
-      setPrintBulkData(valid.sort((a,b)=>a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(student=>({ 
+      // Ensure no duplicates by using Map on ID
+      const uniqueMap = new Map();
+      valid.forEach(p => uniqueMap.set(p.participant_id, p));
+      const uniqueList = Array.from(uniqueMap.values());
+
+      setPrintBulkData(uniqueList.sort((a,b)=>a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(student=>({ 
+          id: student.participant_id,
           seat: student.dhamma_hall_seat_no, 
           name: student.full_name, 
           conf: student.conf_no, 
@@ -324,7 +327,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><User size={24}/> Students</h2>
              <select style={styles.input} onChange={e=>setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
          </div>
-         {/* CORRECTED TAB ORDER: Dining -> DH -> Pagoda -> Bulk -> Summary */}
+         {/* TAB ORDER: Dining -> DH -> Pagoda -> Bulk -> Summary */}
          <div style={{display:'flex', gap:'8px'}}>
              <button onClick={()=>setViewMode('dining')} disabled={!courseId} style={styles.toolBtn('#007bff')}>🍽️ Dining</button>
              <button onClick={()=>setViewMode('seating')} disabled={!courseId} style={styles.toolBtn('#6610f2')}>🧘 DH</button>
@@ -448,12 +451,12 @@ export default function ParticipantList({ courses, refreshCourses }) {
                   </div>
                   
                   <div className="no-print" style={{textAlign:'center', marginBottom:'15px'}}>
-                      <button onClick={()=>window.print()} style={{...styles.btn(true), background:'#28a745', color:'white', width:'100%'}}>PRINT NOW</button>
+                      <button onClick={()=>window.print()} style={{...styles.btn(true), background:'#28a745', color:'white', width:'100%'}}>PRINT {bulkFilter} TOKENS</button>
                   </div>
 
                   <div id="bulk-token-print-area"> 
                       {printBulkData.filter(t => bulkFilter==='ALL' || (bulkFilter==='Male' && t.gender.toLowerCase().startsWith('m')) || (bulkFilter==='Female' && t.gender.toLowerCase().startsWith('f'))).map((t, i) => ( 
-                          <div key={i} className="bulk-token-container" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'10px', textAlign:'center', border:'2px solid black', marginBottom:'0', boxSizing:'border-box', pageBreakAfter:'always'}}> 
+                          <div key={t.id + i} className="bulk-token-container" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'10px', textAlign:'center', border:'2px solid black', marginBottom:'0', boxSizing:'border-box', pageBreakAfter:'always', width:'100%', minHeight:'100px'}}> 
                               <div style={{fontSize:'16px', fontWeight:'bold', marginBottom:'5px', borderBottom:'1px solid black'}}>DHAMMA SEAT TOKEN</div> 
                               <div style={{fontSize:'70px', fontWeight:'900', margin:'5px 0', lineHeight:'1'}}>{t.seat}</div> 
                               <div style={{fontSize:'14px', fontWeight:'bold', marginBottom:'5px', borderTop:'1px solid black', paddingTop:'5px'}}>{t.name}</div> 
