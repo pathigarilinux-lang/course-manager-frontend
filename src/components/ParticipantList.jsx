@@ -9,7 +9,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [search, setSearch] = useState(''); 
   const [filterType, setFilterType] = useState('ALL'); 
   const [editingStudent, setEditingStudent] = useState(null); 
-  const [viewMode, setViewMode] = useState('list'); 
+  const [viewMode, setViewMode] = useState('dining'); // Default as requested
   const [sortConfig, setSortConfig] = useState({ key: 'full_name', direction: 'asc' });
   
   // Logic State
@@ -39,7 +39,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
   // --- HELPERS ---
   const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
-  const getCategoryShort = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return '(O)'; if (s.startsWith('N')) return '(N)'; return '(?)'; };
   const getCategoryRank = (conf) => { if (!conf) return 2; const s = conf.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   
   const getStudentStats = (p) => {
@@ -116,7 +115,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
       setTimeout(() => window.print(), 500); 
   };
 
-  // --- SINGLE TOKEN PRINT ---
   const prepareToken = (student) => { 
       if (!student.dhamma_hall_seat_no) return alert("No Dhamma Seat assigned."); 
       setPrintTokenData({ 
@@ -130,37 +128,39 @@ export default function ParticipantList({ courses, refreshCourses }) {
           sVal: (student.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], 
           lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] 
       }); 
-      // Delay print slightly to ensure DOM render
       setTimeout(() => window.print(), 500); 
   };
   
-  // --- BULK TOKEN PREP (Restored Simplicity) ---
+  // --- BULK TOKEN PREP (Updated for Safety) ---
   const prepareBulkTokens = () => { 
-      // 1. Get ALL valid students first (Status: Attending, Has Seat)
+      // 1. Clear any existing print job first to stop duplicates
+      setPrintBulkData(null);
+
+      // 2. Get Valid Students
       const valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
       if(valid.length === 0) return alert("No seats assigned to attending students."); 
       
-      // 2. Remove duplicates using a Map (Key: Participant ID)
+      // 3. Unique Map (Safety)
       const uniqueMap = new Map();
       valid.forEach(p => uniqueMap.set(p.participant_id, p));
       const uniqueList = Array.from(uniqueMap.values());
 
-      // 3. Transform to Print Object (No Filtering Here, done later based on UI)
-      const tokens = uniqueList.sort((a,b)=>a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(student=>({ 
-          id: student.participant_id, // Unique Key
-          seat: student.dhamma_hall_seat_no, 
-          name: student.full_name, 
-          conf: student.conf_no, 
-          cell: student.pagoda_cell_no||'-', 
-          room: student.room_no||'-', 
-          age: student.age, 
-          gender: student.gender, 
-          cat: getCategory(student.conf_no), 
-          sVal: (student.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], 
-          lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] 
-      }));
-
-      setPrintBulkData(tokens); 
+      // 4. Set Data (Delay slighty to ensure Clean Slate)
+      setTimeout(() => {
+          setPrintBulkData(uniqueList.sort((a,b)=>a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(student=>({ 
+              id: student.participant_id, // Unique Key
+              seat: student.dhamma_hall_seat_no, 
+              name: student.full_name, 
+              conf: student.conf_no, 
+              cell: student.pagoda_cell_no||'-', 
+              room: student.room_no||'-', 
+              age: student.age, 
+              gender: student.gender, 
+              cat: getCategory(student.conf_no), 
+              sVal: (student.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], 
+              lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] 
+          }))); 
+      }, 100);
   };
 
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses Info", "Age", "Gender", "Room", "Dining Seat", "Pagoda", "Dhamma Seat", "Status", "Mobile Locker", "Valuables Locker", "Laundry Token", "Language"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', `"${p.courses_info || ''}"`, p.age || '', p.gender || '', p.room_no || '', p.dining_seat_no || '', p.pagoda_cell_no || '', p.dhamma_hall_seat_no || '', p.status || '', p.mobile_locker_no || '', p.valuables_locker_no || '', p.laundry_token_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
