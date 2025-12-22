@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Edit, Trash2, Printer, Settings, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff, History } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 export default function GatekeeperPanel({ courses }) {
@@ -21,8 +21,7 @@ export default function GatekeeperPanel({ courses }) {
         try {
             await fetch(`${API_URL}/gate-checkin`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ participantId: p.participant_id }) });
             const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
-            const data = await res.json();
-            setParticipants(data);
+            setParticipants(await res.json());
         } catch (err) { alert("Error"); }
     };
 
@@ -31,12 +30,10 @@ export default function GatekeeperPanel({ courses }) {
         try {
             await fetch(`${API_URL}/gate-cancel`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ participantId: p.participant_id }) });
             const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
-            const data = await res.json();
-            setParticipants(data);
+            setParticipants(await res.json());
         } catch (err) { alert("Error"); }
     };
 
-    // --- GATE DASHBOARD METRICS ---
     const all = participants.filter(p => p.status !== 'Cancelled');
     const arrived = all.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending');
     const pending = all.filter(p => p.status === 'No Response');
@@ -59,11 +56,7 @@ export default function GatekeeperPanel({ courses }) {
     const filtered = participants.filter(p => {
         const match = p.full_name.toLowerCase().includes(search.toLowerCase()) || (p.conf_no && p.conf_no.toLowerCase().includes(search.toLowerCase()));
         if (!match) return false;
-        
-        // IMPORTANT: Show cancelled ONLY if searching specific user, otherwise hide
         if (p.status === 'Cancelled' && !search) return false;
-        
-        // "Disappearing" Logic: Show pending by default. Show Arrived only if history enabled.
         if (!showHistory && !search) return p.status === 'No Response' || !p.status;
         return true;
     });
@@ -80,8 +73,7 @@ export default function GatekeeperPanel({ courses }) {
     );
 
     return (
-        <div style={cardStyle}>
-            {/* GATE DASHBOARD */}
+        <div style={styles.card}>
             <div style={{background:'#f1f3f5', padding:'15px', borderRadius:'8px', marginBottom:'20px'}}>
                 <h3 style={{margin:'0 0 10px 0', fontSize:'16px'}}>Gate Dashboard</h3>
                 <div style={{display:'flex', gap:'10px', marginBottom:'10px'}}>
@@ -108,17 +100,16 @@ export default function GatekeeperPanel({ courses }) {
             </div>
 
             <div style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
-                <select style={{...inputStyle, flex:1}} value={courseId} onChange={e=>setCourseId(e.target.value)}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
-                <button onClick={()=>setShowHistory(!showHistory)} style={{...btnStyle(showHistory), flexShrink:0}}>{showHistory ? <EyeOff size={16}/> : <History size={16}/>} {showHistory ? 'Hide Arrived' : 'View History'}</button>
+                <select style={{...styles.input, flex:1}} value={courseId} onChange={e=>setCourseId(e.target.value)}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+                <button onClick={()=>setShowHistory(!showHistory)} style={{...styles.btn(showHistory), flexShrink:0}}>{showHistory ? <EyeOff size={16}/> : <History size={16}/>} {showHistory ? 'Hide Arrived' : 'View History'}</button>
             </div>
             
             <div style={{marginBottom:'20px'}}>
-                <input style={{...inputStyle, padding:'15px', fontSize:'18px'}} placeholder="🔍 Search Name or Conf No..." value={search} onChange={e=>setSearch(e.target.value)} autoFocus />
+                <input style={{...styles.input, padding:'15px', fontSize:'18px'}} placeholder="🔍 Search Name or Conf No..." value={search} onChange={e=>setSearch(e.target.value)} autoFocus />
             </div>
 
             <div style={{height:'400px', overflowY:'auto'}}>
-                {filtered.length === 0 ? <div style={{textAlign:'center', color:'#999', padding:'20px'}}>No pending students found matching filter.</div> : 
-                filtered.map(p => (
+                {filtered.map(p => (
                     <div key={p.participant_id} style={{background:'white', border:'1px solid #ddd', padding:'15px', borderRadius:'8px', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                         <div>
                             <div style={{fontWeight:'bold', fontSize:'16px'}}>{p.full_name}</div>
@@ -132,8 +123,8 @@ export default function GatekeeperPanel({ courses }) {
                         </div>
                         {p.status !== 'Attending' && p.status !== 'Gate Check-In' && p.status !== 'Cancelled' && (
                             <div style={{display:'flex', gap:'10px'}}>
-                                <button onClick={()=>handleGateCheckIn(p)} style={{...btnStyle(true), background:'#007bff', color:'white', padding:'10px 20px'}}>Mark Arrived</button>
-                                <button onClick={()=>handleGateCancel(p)} style={{...btnStyle(true), background:'#dc3545', color:'white', padding:'10px'}}>Cancel</button>
+                                <button onClick={()=>handleGateCheckIn(p)} style={{...styles.btn(true), background:'#007bff', color:'white', padding:'10px 20px'}}>Mark Arrived</button>
+                                <button onClick={()=>handleGateCancel(p)} style={{...styles.btn(true), background:'#dc3545', color:'white', padding:'10px'}}>Cancel</button>
                             </div>
                         )}
                     </div>
