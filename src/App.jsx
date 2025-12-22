@@ -904,45 +904,10 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const allRecords = [...occupancy, ...participants].filter(p => String(p.participant_id) !== String(formData.participantId) && p.status !== 'Cancelled');
   const usedDining = new Set();
   const usedPagoda = new Set();
-  // --- FIXED: GENDER-AWARE OCCUPANCY ---
-  // 1. Rooms are global (checked against 'occupancy' list)
-  // 2. Dining/Pagoda are course-specific AND gender-specific (checked against 'participants')
-  
-  // A. Calculate Room Occupancy (Global)
-  const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
-
-  // B. Calculate Dining & Pagoda Occupancy (Gender Strict)
-  const usedDining = new Set();
-  const usedPagoda = new Set();
-
-  const currentGenderRaw = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
-  const isMale = currentGenderRaw.startsWith('m');
-  const isFemale = currentGenderRaw.startsWith('f');
-
-  // Filter participants to find conflicts
-  // We only care about participants who MATCH the current student's gender.
-  // Male Seat 10 should NOT block Female Seat 10.
-  const relevantParticipants = participants.filter(p => {
-      // Exclude self (if editing)
-      if (String(p.participant_id) === String(formData.participantId)) return false;
-      // Exclude cancelled
-      if (p.status === 'Cancelled') return false;
-      
-      const pGender = (p.gender || '').toLowerCase();
-      const pIsMale = pGender.startsWith('m');
-      const pIsFemale = pGender.startsWith('f');
-
-      // Match logic: If I am Male, I only care about Male occupants.
-      if (isMale && pIsMale) return true;
-      if (isFemale && pIsFemale) return true;
-      return false;
+ allRecords.forEach(p => { 
+      if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no)); 
+      if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no)); 
   });
-
-  relevantParticipants.forEach(p => {
-      if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no));
-      if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no));
-  });
-
   const handleStudentChange = (e) => { 
       const selectedId = e.target.value; 
       const student = participants.find(p => p.participant_id == selectedId); 
