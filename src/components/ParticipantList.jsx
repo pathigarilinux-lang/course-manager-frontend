@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, Layout, Maximize, Minimize } from 'lucide-react';
+// ✅ FIXED: Added 'User' to imports
+import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 export default function ParticipantList({ courses, refreshCourses }) {
@@ -32,7 +33,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
   useEffect(() => { 
       if (courseId) {
           fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : []));
-          // Load saved layout if exists
           const savedLayout = localStorage.getItem(`layout_${courseId}`);
           if(savedLayout) setSeatingConfig(JSON.parse(savedLayout));
       } 
@@ -44,7 +44,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
   
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   
-  // --- SMART FILTER & SORT ENGINE ---
   const processedList = useMemo(() => { 
       let items = [...participants]; 
       if (filterType !== 'ALL') {
@@ -71,16 +70,11 @@ export default function ParticipantList({ courses, refreshCourses }) {
   }, [participants, sortConfig, search, filterType]);
 
   const getSeniorityScore = (p) => { const sMatch = (p.courses_info||'').match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = (p.courses_info||'').match(/L\s*[:=-]?\s*(\d+)/i); const s = sMatch ? parseInt(sMatch[1]) : 0; const l = lMatch ? parseInt(lMatch[1]) : 0; return (l * 10000) + (s * 10); };
-  
-  // --- GRID GENERATORS ---
   const generateColLabels = (count) => { const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return letters.slice(0, count).reverse(); };
   const generateChowkyLabels = (count) => { const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return letters.slice(0, count).reverse().map(l => `CW-${l}`); };
 
   // --- ACTIONS ---
-  const saveLayoutConfig = () => {
-      localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig));
-      alert("✅ Layout Configuration Saved!");
-  };
+  const saveLayoutConfig = () => { localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig)); alert("✅ Layout Configuration Saved!"); };
 
   const handleAutoAssign = async () => { setShowAutoAssignModal(false); setAssignProgress('Calculating...'); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); const allP = await res.json(); const active = allP.filter(p => p.status === 'Attending' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre))); const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m')); const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f')); const genSeats = (cols, rows) => { let s=[]; for(let r=1; r<=rows; r++) cols.forEach(c=>s.push(c+r)); return s; }; const mReg = genSeats(generateColLabels(seatingConfig.mCols), seatingConfig.mRows); const mSpec = genSeats(generateChowkyLabels(seatingConfig.mChowky), seatingConfig.mRows); const fReg = genSeats(generateColLabels(seatingConfig.fCols), seatingConfig.fRows); const fSpec = genSeats(generateChowkyLabels(seatingConfig.fChowky), seatingConfig.fRows); const assign = (list, regSeats, specSeats) => { const updates = []; const locked = new Set(); list.forEach(p => { if(p.is_seat_locked && p.dhamma_hall_seat_no) locked.add(p.dhamma_hall_seat_no); }); const availReg = regSeats.filter(s => !locked.has(s)); const availSpec = specSeats.filter(s => !locked.has(s)); const toAssign = list.filter(p => !p.is_seat_locked).sort((a,b) => { const rA = getCategoryRank(a.conf_no), rB = getCategoryRank(b.conf_no); if (rA !== rB) return rA - rB; return (parseInt(b.age)||0) - (parseInt(a.age)||0); }); const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating)); const regGroup = toAssign.filter(p => !specGroup.includes(p)); specGroup.forEach(p => { if(availSpec.length) updates.push({...p, dhamma_hall_seat_no: availSpec.shift()}); else regGroup.unshift(p); }); regGroup.forEach(p => { if(availReg.length) updates.push({...p, dhamma_hall_seat_no: availReg.shift()}); }); return updates; }; const updates = [...assign(males, mReg, mSpec), ...assign(females, fReg, fSpec)]; if(updates.length === 0) { setAssignProgress(''); return alert("No assignments needed."); } setAssignProgress(`Saving ${updates.length}...`); const BATCH = 5; for(let i=0; i<updates.length; i+=BATCH) await Promise.all(updates.slice(i, i+BATCH).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) }))); setAssignProgress(''); alert("Done!"); const resFinal = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await resFinal.json()); };
 
@@ -165,7 +159,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
   // --- VIEW MODES ---
   if (showSummaryReport) {
-      // (Summary Report Code - Preserved)
       const arrived = participants.filter(p => p.status === 'Attending');
       const getCount = (gender, type) => arrived.filter(p => { const g = (p.gender || '').toLowerCase().startsWith(gender); const c = (p.conf_no || '').toUpperCase(); if (type === 'OLD') return g && (c.startsWith('O') || c.startsWith('S')); if (type === 'NEW') return g && c.startsWith('N'); return false; }).length;
       return ( <div style={styles.card}> <div className="no-print"><button onClick={() => setShowSummaryReport(false)} style={styles.btn(false)}>← Back</button><button onClick={() => window.print()} style={{...styles.toolBtn('#007bff'), marginLeft:'10px'}}>Print PDF</button></div> <div className="print-area" id="print-summary" style={{padding:'20px'}}> <h2 style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px'}}>COURSE SUMMARY REPORT</h2> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><div><strong>Centre Name:</strong> Dhamma Nagajjuna 2</div><div><strong>Course Date:</strong> {courses.find(c=>c.course_id==courseId)?.start_date}</div></div> <h3 style={{background:'#eee', padding:'5px'}}>COURSE DETAILS</h3> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', marginBottom:'20px'}}><thead><tr style={{background:'#f0f0f0'}}><th rowSpan="2" style={styles.th}>Category</th><th colSpan="2" style={styles.th}>INDIAN</th><th colSpan="2" style={styles.th}>FOREIGNER</th><th rowSpan="2" style={styles.th}>TOTAL</th></tr><tr style={{background:'#f0f0f0'}}><th style={styles.th}>OLD</th><th style={styles.th}>NEW</th><th style={styles.th}>OLD</th><th style={styles.th}>NEW</th></tr></thead><tbody><tr><td style={styles.td}>MALE</td><td style={styles.td}>{getCount('m', 'OLD')}</td><td style={styles.td}>{getCount('m', 'NEW')}</td><td style={styles.td}>0</td><td style={styles.td}>0</td><td style={styles.td}><strong>{getCount('m', 'OLD') + getCount('m', 'NEW')}</strong></td></tr><tr><td style={styles.td}>FEMALE</td><td style={styles.td}>{getCount('f', 'OLD')}</td><td style={styles.td}>{getCount('f', 'NEW')}</td><td style={styles.td}>0</td><td style={styles.td}>0</td><td style={styles.td}><strong>{getCount('f', 'OLD') + getCount('f', 'NEW')}</strong></td></tr><tr style={{background:'#f0f0f0', fontWeight:'bold'}}><td style={styles.td}>TOTAL</td><td style={styles.td}>{getCount('m', 'OLD') + getCount('f', 'OLD')}</td><td style={styles.td}>{getCount('m', 'NEW') + getCount('f', 'NEW')}</td><td style={styles.td}>0</td><td style={styles.td}>0</td><td style={styles.td}>{arrived.length}</td></tr></tbody></table> </div> </div> );
@@ -257,10 +250,9 @@ export default function ParticipantList({ courses, refreshCourses }) {
       ); 
   }
 
-  // --- DEFAULT LIST VIEW (The Command Center) ---
+  // --- DEFAULT LIST VIEW ---
   return (
     <div style={styles.card}>
-      {/* 1. TOP HEADER & COURSE SELECT */}
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center'}}>
          <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><User size={24}/> Students</h2>
@@ -275,7 +267,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
          </div>
       </div>
       
-      {/* 2. ADMIN ACTIONS (Conditional) */}
+      {/* ... Filters and Admin Actions same as before ... */}
       {courseId && (
           <div style={{marginBottom:'15px', display:'flex', gap:'10px', justifyContent:'flex-end'}}>
              <button onClick={handleAutoNoShow} style={styles.quickBtn(false)}>🚫 Auto-Flag No-Shows</button>
@@ -286,7 +278,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
           </div>
       )}
 
-      {/* 3. SMART FILTERS & SEARCH */}
       <div style={{background:'#f8f9fa', padding:'15px', borderRadius:'10px', marginBottom:'20px', border:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
           <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
               <Filter size={16} color="#666"/>
@@ -299,7 +290,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
           </div>
       </div>
 
-      {/* 4. MAIN DATA TABLE */}
       <div style={{overflowX:'auto', border:'1px solid #eee', borderRadius:'8px', maxHeight:'600px', overflowY:'auto'}}>
         <table style={{width:'100%', fontSize:'12px', borderCollapse:'collapse'}}>
           <thead style={{position:'sticky', top:0, zIndex:10}}>
@@ -351,8 +341,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
         {processedList.length === 0 && <div style={{textAlign:'center', padding:'30px', color:'#999'}}>No students found matching your filters.</div>}
       </div>
 
-      {/* Print Modals... */}
-      {/* (Keep existing modals here) */}
+      {/* Print Modals and Edit Modal (Same as before) */}
       {printReceiptData && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}><button onClick={()=>setPrintReceiptData(null)} style={{float:'right'}}>X</button><div id="receipt-print-area" style={{border:'1px dashed black', padding:'10px'}}><h3>{printReceiptData.courseName}</h3><p>{printReceiptData.studentName}</p></div><button onClick={()=>window.print()} style={{marginTop:'10px', width:'100%'}}>Print</button></div><style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; } }`}</style></div>}
       {printTokenData && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'300px'}}><button onClick={()=>setPrintTokenData(null)} style={{float:'right'}}>X</button><div id="token-print-area" style={{border:'2px solid black', padding:'20px', textAlign:'center'}}><h1>{printTokenData.seat}</h1><p>{printTokenData.name}</p></div><button onClick={()=>window.print()} style={{marginTop:'10px', width:'100%'}}>Print</button></div><style>{`@media print { body * { visibility: hidden; } #token-print-area, #token-print-area * { visibility: visible; } #token-print-area { position: absolute; left: 0; top: 0; width: 100%; } }`}</style></div>}
       {printBulkData && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}> <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'350px', maxHeight:'80vh', overflowY:'auto', position:'relative'}}> <button onClick={() => setPrintBulkData(null)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button> <h3 style={{textAlign:'center', margin:'0 0 20px 0'}}>🖨️ Bulk Printing...</h3> <div id="bulk-token-print-area"> {printBulkData.map((t, i) => ( <div key={i} className="bulk-token-container" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'20px', textAlign:'center', border:'2px solid black', marginBottom:'20px'}}> <div style={{fontSize:'16px', fontWeight:'bold', marginBottom:'10px'}}>DHAMMA SEAT TOKEN</div> <div style={{fontSize:'60px', fontWeight:'900', margin:'10px 0'}}>{t.seat}</div> <div style={{fontSize:'14px', fontWeight:'bold', marginBottom:'5px'}}>{t.name}</div> <div style={{fontSize:'12px', color:'#555', marginBottom:'10px'}}>{t.conf}</div> <div style={{display:'flex', justifyContent:'space-between', borderTop:'1px solid black', paddingTop:'10px'}}> <div style={{textAlign:'left'}}><div style={{fontSize:'10px'}}>Cell</div><div style={{fontWeight:'bold', fontSize:'14px'}}>{t.cell}</div></div> <div style={{textAlign:'right'}}><div style={{fontSize:'10px'}}>Room</div><div style={{fontWeight:'bold', fontSize:'14px'}}>{t.room}</div></div> </div> <div style={{marginTop:'10px', paddingTop:'10px', borderTop:'1px dashed #ccc', fontSize:'11px', display:'flex', justifyContent:'space-between'}}> <span>{t.cat}</span> <span>S:{t.sVal} L:{t.lVal}</span> <span>Age: {t.age}</span> </div> </div> ))} </div> </div> <style>{` @media print { @page { size: auto; margin: 0; } body * { visibility: hidden; } #bulk-token-print-area, #bulk-token-print-area * { visibility: visible; } #bulk-token-print-area { position: absolute; left: 0; top: 0; width: 100%; } .bulk-token-container { page-break-after: always; display: block; height: auto; border-bottom: 2px dashed black !important; margin-bottom: 5px; padding-bottom: 20px; } .bulk-token-container:last-child { page-break-after: auto; } } `}</style> </div> )}
