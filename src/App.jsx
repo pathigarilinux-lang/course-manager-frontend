@@ -13,8 +13,8 @@ import CourseAdmin from './components/CourseAdmin';
 
 // Login Constants
 const ADMIN_PASSCODE = "0"; 
-const GATEKEEPER_PASSCODE = "1111";
-const TEACHER_PASSCODE = "2222";
+const GATEKEEPER_PASSCODE = "1";
+const TEACHER_PASSCODE = "2";
 
 export default function App() {
   const [authLevel, setAuthLevel] = useState('none'); 
