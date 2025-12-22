@@ -852,8 +852,7 @@ function ATPanel({ courses }) {
     </div>
   );
 }
-// --- MODIFIED STUDENT FORM COMPONENT ---
-// --- REPLACEMENT STUDENT FORM (Copy & Replace existing StudentForm in App.jsx) ---
+// --- FINAL STUDENT FORM (With Smart Locker Filtering) ---
 function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]);
@@ -878,7 +877,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   // Constants
   const API_URL = "https://course-manager-backend-cd1m.onrender.com"; 
-  const NUMBER_OPTIONS = Array.from({length: 200}, (_, i) => i + 1);
+  const NUMBER_OPTIONS = Array.from({length: 200}, (_, i) => i + 1); // Base list 1-200
   const inputStyle = { width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px' };
   const labelStyle = { fontSize: '14px', color: '#555', fontWeight: 'bold', marginBottom: '5px', display: 'block' };
 
@@ -887,7 +886,7 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   useEffect(() => { if (preSelectedRoom) { setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); if (courses.length > 0 && !formData.courseId) setFormData(prev => ({ ...prev, courseId: courses[0].course_id })); } }, [preSelectedRoom, courses]);
   useEffect(() => { if (formData.courseId) fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants); }, [formData.courseId]);
 
-  // --- FIXED: GENDER-AWARE OCCUPANCY LOGIC ---
+  // --- LOGIC CALCULATIONS ---
   const normalize = (str) => str ? str.toString().replace(/[\s-]+/g, '').toUpperCase() : '';
   const cleanNum = (val) => val ? String(val).trim() : '';
   
@@ -896,36 +895,42 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const isFemale = currentGenderRaw.startsWith('f');
   const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : 'Male');
 
-  // 1. Room Occupancy (Global - anyone matches)
+  // 1. Room Occupancy (Global)
   const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
-  
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female');
 
-  // 2. Dining & Pagoda Occupancy (Strict Gender Separation)
+  // 2. Occupancy Sets (Dining, Pagoda, Lockers)
   const usedDining = new Set();
   const usedPagoda = new Set();
+  const usedMobiles = new Set();
+  const usedValuables = new Set();
 
-  // Filter participants: ONLY check those who match current student's gender.
-  const relevantParticipants = participants.filter(p => {
-      if (String(p.participant_id) === String(formData.participantId)) return false; // Ignore self
-      if (p.status === 'Cancelled') return false; // Ignore cancelled
-      
+  participants.forEach(p => {
+      // Skip self (if editing) and cancelled students
+      if (String(p.participant_id) === String(formData.participantId)) return;
+      if (p.status === 'Cancelled') return;
+
+      // Lockers are purely unique per course, regardless of gender
+      if (p.mobile_locker_no) usedMobiles.add(cleanNum(p.mobile_locker_no));
+      if (p.valuables_locker_no) usedValuables.add(cleanNum(p.valuables_locker_no));
+
+      // Dining/Pagoda are Gender-Specific
       const pGender = (p.gender || '').toLowerCase();
       const pIsMale = pGender.startsWith('m');
       const pIsFemale = pGender.startsWith('f');
 
-      // Match logic: If I am Male, I only care about Male occupants.
-      if (isMale && pIsMale) return true;
-      if (isFemale && pIsFemale) return true;
-      return false;
+      if ((isMale && pIsMale) || (isFemale && pIsFemale)) {
+          if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no)); 
+          if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no)); 
+      }
   });
 
-  relevantParticipants.forEach(p => {
-      if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no)); 
-      if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no)); 
-  });
+  // 3. Filter Dropdown Options (Smart Lockers)
+  // If the current form has a value selected (e.g. user manually typed "10"), keep "10" visible even if used
+  const availableMobiles = NUMBER_OPTIONS.filter(n => !usedMobiles.has(String(n)) || String(n) === String(formData.mobileLocker));
+  const availableValuables = NUMBER_OPTIONS.filter(n => !usedValuables.has(String(n)) || String(n) === String(formData.valuablesLocker));
 
   // Handlers
   const handleStudentChange = (e) => { 
@@ -936,13 +941,15 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   };
 
   const handleDiningSeatChange = (val, typeVal) => { 
-      // Auto-assign lockers to match seat number initially
+      // Auto-fill lockers with seat number if available, otherwise leave blank
+      const lockerVal = (!usedMobiles.has(val) && !usedValuables.has(val)) ? val : '';
+      
       setFormData(prev => ({ 
           ...prev, 
           seatNo: val, 
           seatType: typeVal,
-          mobileLocker: val, 
-          valuablesLocker: val 
+          mobileLocker: lockerVal, 
+          valuablesLocker: lockerVal 
       })); 
       setShowVisualDining(false);
   };
@@ -973,8 +980,8 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...formData, diningSeatType: formData.seatType }) });
           if (!res.ok) throw new Error("Check-in failed"); 
           await fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
-          setStatus('✅ Success!'); window.scrollTo(0, 0);
           
+          setStatus('✅ Success!'); window.scrollTo(0, 0);
           const courseObj = courses.find(c => c.course_id == formData.courseId);
           let cleanName = courseObj?.course_name || 'Unknown';
           cleanName = cleanName.replace(/-[A-Za-z]{3}-\d{2,4}.*$/g, '').replace(/\/.*$/, '').trim();
@@ -1007,10 +1014,20 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       <h2>📝 Student Onboarding</h2> 
       {status && <div style={{padding:'10px', background:'#d4edda', color:'#155724', borderRadius:'6px', textAlign:'center', marginBottom:'15px'}}>{status}</div>}
       <form onSubmit={handleSubmit} style={{ maxWidth: '900px' }}> 
+          
           <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', marginBottom:'20px'}}> 
             <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'20px'}}> 
-              <div><label style={labelStyle}>1. Select Course</label><select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select></div> 
-              <div><label style={labelStyle}>2. Select Student</label><select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required><option value="">-- Select --</option>{participants.filter(p=>p.status!=='Attending').map(p => <option key={p.participant_id} value={p.participant_id}>{p.status === 'Gate Check-In' ? '⚠️ AT GATE: ' : ''}{p.full_name} ({p.conf_no||'No ID'})</option>)}</select></div> 
+              <div>
+                <label style={labelStyle}>1. Select Course</label>
+                <select style={inputStyle} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}><option value="">-- Select --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+              </div> 
+              <div>
+                <label style={labelStyle}>2. Select Student</label>
+                <select style={inputStyle} onChange={handleStudentChange} value={formData.participantId} disabled={!formData.courseId} required>
+                  <option value="">-- Select --</option>
+                  {participants.filter(p=>p.status!=='Attending').map(p => <option key={p.participant_id} value={p.participant_id}>{p.status === 'Gate Check-In' ? '⚠️ AT GATE: ' : ''}{p.full_name} ({p.conf_no||'No ID'})</option>)}
+                </select>
+              </div> 
             </div>
             {selectedStudent && (selectedStudent.evening_food || selectedStudent.medical_info) && (<div style={{marginTop:'15px', padding:'10px', background:'#fff3e0', border:'1px solid #ffb74d', borderRadius:'5px', color:'#e65100'}}><strong>⚠️ ATTENTION:</strong> {selectedStudent.evening_food} {selectedStudent.medical_info}</div>)} 
           </div> 
@@ -1018,13 +1035,40 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr 1fr', gap:'15px'}}> 
               <div><label style={labelStyle}>🆔 Conf No</label><input style={{...inputStyle}} value={formData.confNo} onChange={e => setFormData({...formData, confNo: e.target.value})} /></div> 
               <div><label style={labelStyle}>Age</label><input style={{...inputStyle, background:'#e9ecef'}} value={selectedStudent?.age || ''} disabled /></div>
-              <div><label style={labelStyle}>Room</label><button type="button" onClick={() => setShowVisualRoom(true)} style={{...inputStyle, textAlign:'left', background: formData.roomNo ? '#e8f5e9' : 'white', cursor:'pointer'}}>{formData.roomNo || "Select Room (Grid)"}</button></div> 
-              <div><label style={labelStyle}>Dining ({currentGenderLabel})</label><div style={{display:'flex', gap:'5px'}}><select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select><button type="button" onClick={() => setShowVisualDining(true)} disabled={!selectedStudent} style={{...inputStyle, textAlign:'left', background: formData.seatNo ? '#e8f5e9' : 'white', cursor: selectedStudent ? 'pointer' : 'not-allowed'}}>{formData.seatNo || "--"}</button></div></div> 
+              
+              <div>
+                  <label style={labelStyle}>Room</label>
+                  <button type="button" onClick={() => setShowVisualRoom(true)} style={{...inputStyle, textAlign:'left', background: formData.roomNo ? '#e8f5e9' : 'white', cursor:'pointer'}}>{formData.roomNo || "Select Room (Grid)"}</button>
+              </div> 
+              
+              <div>
+                  <label style={labelStyle}>Dining ({currentGenderLabel})</label>
+                  <div style={{display:'flex', gap:'5px'}}>
+                      <select style={{...inputStyle, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select>
+                      <button type="button" onClick={() => setShowVisualDining(true)} style={{...inputStyle, textAlign:'left', background: formData.seatNo ? '#e8f5e9' : 'white', cursor:'pointer'}}>{formData.seatNo || "--"}</button>
+                  </div>
+              </div> 
           </div> 
 
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'20px', marginTop:'15px'}}> 
-              <div><label style={labelStyle}>Mobile</label><select style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">None</option>{NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}</select></div> 
-              <div><label style={labelStyle}>Valuables</label><select style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">None</option>{NUMBER_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}</select></div> 
+              {/* SMART MOBILE LOCKER DROPDOWN */}
+              <div>
+                  <label style={labelStyle}>Mobile</label>
+                  <select style={inputStyle} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}>
+                      <option value="">None</option>
+                      {availableMobiles.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+              </div> 
+              
+              {/* SMART VALUABLES LOCKER DROPDOWN */}
+              <div>
+                  <label style={labelStyle}>Valuables</label>
+                  <select style={inputStyle} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}>
+                      <option value="">None</option>
+                      {availableValuables.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+              </div> 
+              
               <div><label style={labelStyle}>Laundry</label><input style={{...inputStyle}} value={formData.laundryToken} onChange={e=>setFormData({...formData, laundryToken:e.target.value})} placeholder="Token" /></div> 
               <div><label style={labelStyle}>Laptop</label><select style={inputStyle} value={formData.laptop} onChange={e => setFormData({...formData, laptop: e.target.value})}><option>No</option><option>Yes</option></select></div> 
           </div> 
@@ -1068,7 +1112,6 @@ function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       </div> 
   );
 }
-
 function ParticipantList({ courses, refreshCourses }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
