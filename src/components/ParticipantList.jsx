@@ -9,7 +9,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [search, setSearch] = useState(''); 
   const [filterType, setFilterType] = useState('ALL'); 
   const [editingStudent, setEditingStudent] = useState(null); 
-  const [viewMode, setViewMode] = useState('dining'); // Default Tab
+  const [viewMode, setViewMode] = useState('list'); // ✅ FIXED: Default back to 'list'
   const [sortConfig, setSortConfig] = useState({ key: 'full_name', direction: 'asc' });
   
   // Logic State
@@ -40,7 +40,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
   // --- HELPERS ---
   const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
-  const getCategoryShort = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return '(O)'; if (s.startsWith('N')) return '(N)'; return '(?)'; };
   const getCategoryRank = (conf) => { if (!conf) return 2; const s = conf.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   
   const getStudentStats = (p) => {
@@ -137,13 +136,13 @@ export default function ParticipantList({ courses, refreshCourses }) {
       const valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
       if(valid.length === 0) return alert("No seats assigned"); 
       
-      // UNIQUE LOGIC: Use Map to ensure unique ID
+      // ✅ FIX: Use Map to enforce UNIQUE participants (Stops Duplicates)
       const uniqueMap = new Map();
       valid.forEach(p => uniqueMap.set(p.participant_id, p));
       const uniqueList = Array.from(uniqueMap.values());
 
       setPrintBulkData(uniqueList.sort((a,b)=>a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(student=>({ 
-          id: student.participant_id, // Important for key
+          id: student.participant_id,
           seat: student.dhamma_hall_seat_no, 
           name: student.full_name, 
           conf: student.conf_no, 
@@ -227,7 +226,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
               align-items: center; 
               justify-content: center; 
               transform: scale(${printConfig.scale}); 
-              transform-origin: center center; 
+              transform-origin: center top; 
           } 
           .no-print { display: none !important; } 
           .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } 
@@ -490,7 +489,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
               </div> 
               <style>{` 
                   @media print { 
-                      @page { size: 72mm auto; margin: 0; } 
+                      @page { size: 70mm auto; margin: 0; } 
                       body * { visibility: hidden; } 
                       #bulk-token-print-area, #bulk-token-print-area * { visibility: visible; } 
                       #bulk-token-print-area { position: absolute; left: 0; top: 0; width: 100%; } 
