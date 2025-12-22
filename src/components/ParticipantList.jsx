@@ -9,10 +9,11 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [search, setSearch] = useState(''); 
   const [filterType, setFilterType] = useState('ALL'); 
   const [editingStudent, setEditingStudent] = useState(null); 
-  const [viewMode, setViewMode] = useState('dining'); // Default as requested
+  const [viewMode, setViewMode] = useState('list'); // ✅ FIXED: Defaults to List View
   const [sortConfig, setSortConfig] = useState({ key: 'full_name', direction: 'asc' });
   
   // Logic State
+  const [assignProgress, setAssignProgress] = useState(''); 
   const [selectedSeat, setSelectedSeat] = useState(null);
   
   // Print & Config State
@@ -39,6 +40,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
   // --- HELPERS ---
   const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
+  const getCategoryShort = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return '(O)'; if (s.startsWith('N')) return '(N)'; return '(?)'; };
   const getCategoryRank = (conf) => { if (!conf) return 2; const s = conf.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   
   const getStudentStats = (p) => {
@@ -86,7 +88,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   // --- ACTIONS ---
   const saveLayoutConfig = () => { localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig)); alert("✅ Layout Configuration Saved!"); };
 
-  const handleAutoAssign = async () => { setShowAutoAssignModal(false); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); const allP = await res.json(); const active = allP.filter(p => p.status === 'Attending' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre))); const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m')); const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f')); const genSeats = (cols, rows) => { let s=[]; for(let r=1; r<=rows; r++) cols.forEach(c=>s.push(c+r)); return s; }; const mReg = genSeats(generateColLabels(seatingConfig.mCols), seatingConfig.mRows); const mSpec = genSeats(generateChowkyLabels(seatingConfig.mChowky), seatingConfig.mRows); const fReg = genSeats(generateColLabels(seatingConfig.fCols), seatingConfig.fRows); const fSpec = genSeats(generateChowkyLabels(seatingConfig.fChowky), seatingConfig.fRows); const assign = (list, regSeats, specSeats) => { const updates = []; const locked = new Set(); list.forEach(p => { if(p.is_seat_locked && p.dhamma_hall_seat_no) locked.add(p.dhamma_hall_seat_no); }); const availReg = regSeats.filter(s => !locked.has(s)); const availSpec = specSeats.filter(s => !locked.has(s)); const toAssign = list.filter(p => !p.is_seat_locked).sort((a,b) => { const rA = getCategoryRank(a.conf_no), rB = getCategoryRank(b.conf_no); if (rA !== rB) return rA - rB; return (parseInt(b.age)||0) - (parseInt(a.age)||0); }); const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating)); const regGroup = toAssign.filter(p => !specGroup.includes(p)); specGroup.forEach(p => { if(availSpec.length) updates.push({...p, dhamma_hall_seat_no: availSpec.shift()}); else regGroup.unshift(p); }); regGroup.forEach(p => { if(availReg.length) updates.push({...p, dhamma_hall_seat_no: availReg.shift()}); }); return updates; }; const updates = [...assign(males, mReg, mSpec), ...assign(females, fReg, fSpec)]; if(updates.length === 0) { return alert("No assignments needed."); } const BATCH = 5; for(let i=0; i<updates.length; i+=BATCH) await Promise.all(updates.slice(i, i+BATCH).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) }))); alert("Done!"); const resFinal = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await resFinal.json()); };
+  const handleAutoAssign = async () => { setShowAutoAssignModal(false); setAssignProgress('Calculating...'); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); const allP = await res.json(); const active = allP.filter(p => p.status === 'Attending' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre))); const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m')); const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f')); const genSeats = (cols, rows) => { let s=[]; for(let r=1; r<=rows; r++) cols.forEach(c=>s.push(c+r)); return s; }; const mReg = genSeats(generateColLabels(seatingConfig.mCols), seatingConfig.mRows); const mSpec = genSeats(generateChowkyLabels(seatingConfig.mChowky), seatingConfig.mRows); const fReg = genSeats(generateColLabels(seatingConfig.fCols), seatingConfig.fRows); const fSpec = genSeats(generateChowkyLabels(seatingConfig.fChowky), seatingConfig.fRows); const assign = (list, regSeats, specSeats) => { const updates = []; const locked = new Set(); list.forEach(p => { if(p.is_seat_locked && p.dhamma_hall_seat_no) locked.add(p.dhamma_hall_seat_no); }); const availReg = regSeats.filter(s => !locked.has(s)); const availSpec = specSeats.filter(s => !locked.has(s)); const toAssign = list.filter(p => !p.is_seat_locked).sort((a,b) => { const rA = getCategoryRank(a.conf_no), rB = getCategoryRank(b.conf_no); if (rA !== rB) return rA - rB; return (parseInt(b.age)||0) - (parseInt(a.age)||0); }); const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating)); const regGroup = toAssign.filter(p => !specGroup.includes(p)); specGroup.forEach(p => { if(availSpec.length) updates.push({...p, dhamma_hall_seat_no: availSpec.shift()}); else regGroup.unshift(p); }); regGroup.forEach(p => { if(availReg.length) updates.push({...p, dhamma_hall_seat_no: availReg.shift()}); }); return updates; }; const updates = [...assign(males, mReg, mSpec), ...assign(females, fReg, fSpec)]; if(updates.length === 0) { setAssignProgress(''); return alert("No assignments needed."); } setAssignProgress(`Saving ${updates.length}...`); const BATCH = 5; for(let i=0; i<updates.length; i+=BATCH) await Promise.all(updates.slice(i, i+BATCH).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) }))); setAssignProgress(''); alert("Done!"); const resFinal = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await resFinal.json()); };
 
   const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(editingStudent) }); setEditingStudent(null); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); };
   const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
@@ -131,36 +133,35 @@ export default function ParticipantList({ courses, refreshCourses }) {
       setTimeout(() => window.print(), 500); 
   };
   
-  // --- BULK TOKEN PREP (Updated for Safety) ---
+  // --- BULK TOKEN PREP (CLEANEST VERSION) ---
   const prepareBulkTokens = () => { 
-      // 1. Clear any existing print job first to stop duplicates
-      setPrintBulkData(null);
-
-      // 2. Get Valid Students
+      // 1. Get VALID Students (Arrived + Have Seat)
       const valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
       if(valid.length === 0) return alert("No seats assigned to attending students."); 
       
-      // 3. Unique Map (Safety)
+      // 2. DEDUPLICATE (Map by ID)
       const uniqueMap = new Map();
       valid.forEach(p => uniqueMap.set(p.participant_id, p));
-      const uniqueList = Array.from(uniqueMap.values());
-
-      // 4. Set Data (Delay slighty to ensure Clean Slate)
-      setTimeout(() => {
-          setPrintBulkData(uniqueList.sort((a,b)=>a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(student=>({ 
-              id: student.participant_id, // Unique Key
+      
+      // 3. TRANSFORM & SORT
+      const tokens = Array.from(uniqueMap.values())
+          .sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true}))
+          .map(student => ({ 
+              id: student.participant_id,
               seat: student.dhamma_hall_seat_no, 
               name: student.full_name, 
               conf: student.conf_no, 
-              cell: student.pagoda_cell_no||'-', 
-              room: student.room_no||'-', 
+              cell: student.pagoda_cell_no || '-', 
+              room: student.room_no || '-', 
               age: student.age, 
               gender: student.gender, 
               cat: getCategory(student.conf_no), 
               sVal: (student.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], 
               lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] 
-          }))); 
-      }, 100);
+          }));
+
+      // 4. LOAD INTO PRINT STATE
+      setPrintBulkData(tokens); 
   };
 
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses Info", "Age", "Gender", "Room", "Dining Seat", "Pagoda", "Dhamma Seat", "Status", "Mobile Locker", "Valuables Locker", "Laundry Token", "Language"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', `"${p.courses_info || ''}"`, p.age || '', p.gender || '', p.room_no || '', p.dining_seat_no || '', p.pagoda_cell_no || '', p.dhamma_hall_seat_no || '', p.status || '', p.mobile_locker_no || '', p.valuables_locker_no || '', p.laundry_token_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
@@ -233,7 +234,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
               align-items: center; 
               justify-content: center; 
               transform: scale(${printConfig.scale}); 
-              transform-origin: center center; 
+              transform-origin: center top; 
           } 
           .no-print { display: none !important; } 
           .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } 
@@ -349,7 +350,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><User size={24}/> Students</h2>
              <select style={styles.input} onChange={e=>setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
          </div>
-         {/* TAB ORDER: Dining -> DH -> Pagoda -> Bulk -> Summary */}
+         {/* CORRECTED TAB ORDER: Dining -> DH -> Pagoda -> Bulk -> Summary */}
          <div style={{display:'flex', gap:'8px'}}>
              <button onClick={()=>setViewMode('dining')} disabled={!courseId} style={styles.toolBtn('#007bff')}>🍽️ Dining</button>
              <button onClick={()=>setViewMode('seating')} disabled={!courseId} style={styles.toolBtn('#6610f2')}>🧘 DH</button>
@@ -455,11 +456,11 @@ export default function ParticipantList({ courses, refreshCourses }) {
                   </div>
                   <button onClick={()=>window.print()} style={{marginTop:'10px', width:'100%'}}>Print</button>
               </div>
-              <style>{`@media print { body * { visibility: hidden; } #token-print-area, #token-print-area * { visibility: visible; } #token-print-area { position: absolute; left: 0; top: 0; width: 100%; } @page { size: 72mm auto; margin: 0; } }`}</style>
+              <style>{`@media print { body * { visibility: hidden; } #token-print-area, #token-print-area * { visibility: visible; } #token-print-area { position: absolute; left: 0; top: 0; width: 100%; } @page { size: 70mm auto; margin: 0; } }`}</style>
           </div>
       )}
 
-      {/* BULK TOKEN PRINT */}
+      {/* BULK TOKEN PRINT (Corrected for Safe Width) */}
       {printBulkData && ( 
           <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}> 
               <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'400px', maxHeight:'90vh', overflowY:'auto', position:'relative'}}> 
@@ -478,31 +479,31 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
                   <div id="bulk-token-print-area"> 
                       {printBulkData.filter(t => bulkFilter==='ALL' || (bulkFilter==='Male' && t.gender.toLowerCase().startsWith('m')) || (bulkFilter==='Female' && t.gender.toLowerCase().startsWith('f'))).map((t, i) => ( 
-                          <div key={t.id} className="bulk-token-container" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'10px', textAlign:'center', border:'2px solid black', marginBottom:'0', boxSizing:'border-box', pageBreakAfter:'always', width:'100%', minHeight:'100px'}}> 
-                              <div style={{fontSize:'16px', fontWeight:'bold', marginBottom:'5px', borderBottom:'1px solid black'}}>DHAMMA SEAT TOKEN</div> 
-                              <div style={{fontSize:'70px', fontWeight:'900', margin:'5px 0', lineHeight:'1'}}>{t.seat}</div> 
-                              <div style={{fontSize:'14px', fontWeight:'bold', marginBottom:'5px', borderTop:'1px solid black', paddingTop:'5px'}}>{t.name}</div> 
-                              <div style={{fontSize:'12px', color:'#555', marginBottom:'5px'}}>{t.conf}</div> 
-                              <div style={{display:'flex', justifyContent:'space-between', borderTop:'1px solid black', paddingTop:'5px', fontSize:'12px'}}> 
-                                  <div>Cell: <b>{t.cell}</b></div> 
-                                  <div>Room: <b>{t.room}</b></div> 
-                              </div> 
-                              <div style={{marginTop:'5px', paddingTop:'5px', borderTop:'1px dashed #ccc', fontSize:'10px', display:'flex', justifyContent:'space-between'}}> 
-                                  <span>{t.cat}</span> <span>S:{t.sVal} L:{t.lVal}</span> <span>Age: {t.age}</span> 
-                              </div> 
+                          <div key={t.id} className="bulk-token-container" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'5px', textAlign:'center', marginBottom:'0', boxSizing:'border-box', pageBreakAfter:'always', width:'100%'}}> 
+                              {/* --- TICKET CONTENT START --- */}
+                              <div style={{borderBottom:'2px dashed #000', paddingBottom:'10px', marginBottom:'10px'}}>
+                                  <div style={{fontSize:'14px', fontWeight:'bold', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'5px'}}>DHAMMA SEAT</div>
+                                  <div style={{fontSize:'65px', fontWeight:'900', lineHeight:'1', margin:'5px 0'}}>{t.seat}</div>
+                                  <div style={{fontSize:'16px', fontWeight:'bold', margin:'5px 0'}}>{t.name}</div>
+                                  <div style={{fontSize:'12px', color:'#555'}}>{t.conf}</div>
+                                  <div style={{borderTop:'1px solid #000', marginTop:'10px', paddingTop:'5px', display:'flex', justifyContent:'space-between', fontSize:'12px', fontWeight:'bold'}}>
+                                      <div>Room: {t.room}</div>
+                                      <div>Cell: {t.cell}</div>
+                                  </div>
+                              </div>
+                              {/* --- TICKET CONTENT END --- */}
                           </div> 
                       ))} 
                   </div> 
               </div> 
               <style>{` 
                   @media print { 
-                      @page { size: 72mm auto; margin: 0; } 
+                      @page { size: 70mm auto; margin: 0; } 
                       body { margin: 0; padding: 0; }
                       body * { visibility: hidden; height: 0; } 
                       #bulk-token-print-area, #bulk-token-print-area * { visibility: visible; height: auto; } 
                       #bulk-token-print-area { position: absolute; left: 0; top: 0; width: 100%; } 
-                      .bulk-token-container { page-break-after: always; display: block; width: 100%; border-bottom: 1px dashed black; margin-bottom: 5mm; padding-bottom: 5mm; } 
-                      .bulk-token-container:last-child { page-break-after: auto; }
+                      .bulk-token-container { page-break-after: always; display: block; width: 100%; padding-top: 5mm; } 
                   } 
               `}</style> 
           </div> 
