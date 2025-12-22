@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Edit, Trash2, Printer, Settings, AlertTriangle } from 'lucide-react';
-import { API_URL, styles } from '../config';
+import React, { useState, useEffect } from 'react';
+import { Edit, Trash2 } from 'lucide-react'; // Removed unused icons
+// 👇 UPDATE THIS LINE TO INCLUDE MISSING FUNCTIONS
+import { API_URL, styles, PROTECTED_ROOMS, getSmartShortName } from '../config';
 
 export default function GlobalAccommodationManager({ courses, onRoomClick }) {
   // ... (Paste full implementation from previous response)
