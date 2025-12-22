@@ -12,7 +12,7 @@ import ExpenseTracker from './components/ExpenseTracker';
 import CourseAdmin from './components/CourseAdmin';
 
 // Login Constants
-const ADMIN_PASSCODE = "0000"; 
+const ADMIN_PASSCODE = "0"; 
 const GATEKEEPER_PASSCODE = "1111";
 const TEACHER_PASSCODE = "2222";
 
