@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, Maximize, Minimize } from 'lucide-react';
+import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 export default function ParticipantList({ courses, refreshCourses }) {
@@ -12,7 +12,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [viewMode, setViewMode] = useState('list'); 
   const [sortConfig, setSortConfig] = useState({ key: 'full_name', direction: 'asc' });
   
-  // Logic & UI State
+  // Logic State
   const [assignProgress, setAssignProgress] = useState(''); 
   const [selectedSeat, setSelectedSeat] = useState(null);
   
@@ -20,13 +20,14 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [printReceiptData, setPrintReceiptData] = useState(null);
   const [printTokenData, setPrintTokenData] = useState(null);
   const [printBulkData, setPrintBulkData] = useState(null);
+  const [bulkFilter, setBulkFilter] = useState('ALL'); // 'ALL', 'Male', 'Female'
   const [showAutoAssignModal, setShowAutoAssignModal] = useState(false);
   const [showSummaryReport, setShowSummaryReport] = useState(false);
   const [showPrintSettings, setShowPrintSettings] = useState(false);
   
-  // Advanced Settings (Default A3 Landscape)
+  // Advanced Settings
   const [seatingConfig, setSeatingConfig] = useState({ mCols: 10, mRows: 10, mChowky: 2, fCols: 8, fRows: 10, fChowky: 2 });
-  const [printConfig, setPrintConfig] = useState({ scale: 0.85, orientation: 'landscape', paper: 'A3' });
+  const [printConfig, setPrintConfig] = useState({ scale: 0.9, orientation: 'landscape', paper: 'A3' });
 
   // --- LOADING ---
   useEffect(() => { 
@@ -37,11 +38,12 @@ export default function ParticipantList({ courses, refreshCourses }) {
       } 
   }, [courseId]);
 
-  // --- DATA HELPERS ---
+  // --- HELPERS ---
   const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
+  const getCategoryShort = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return '(O)'; if (s.startsWith('N')) return '(N)'; return '(?)'; };
   const getCategoryRank = (conf) => { if (!conf) return 2; const s = conf.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   
-  // PARSER: Converts "S:19 L:5" to objects for the card view
+  // Parse stats for the card view: (O) s:19 L:5
   const getStudentStats = (p) => {
       if (!p) return { cat: '', s: 0, l: 0, age: '' };
       const conf = (p.conf_no || '').toUpperCase();
@@ -58,7 +60,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   
-  // --- SMART FILTER & SORT ---
   const processedList = useMemo(() => { 
       let items = [...participants]; 
       if (filterType !== 'ALL') {
@@ -100,9 +101,47 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
 
   // --- PRINT PREP ---
-  const prepareReceipt = (student) => { const courseObj = courses.find(c => c.course_id == student.course_id) || courses.find(c => c.course_id == courseId); setPrintReceiptData({ courseName: courseObj?.course_name, teacherName: courseObj?.teacher_name || 'Goenka Ji', from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', studentName: student.full_name, confNo: student.conf_no, roomNo: student.room_no, seatNo: student.dining_seat_no, lockers: student.mobile_locker_no || student.dining_seat_no, language: student.discourse_language, pagoda: student.pagoda_cell_no && student.pagoda_cell_no !== 'None' ? student.pagoda_cell_no : null, special: student.special_seating && student.special_seating !== 'None' ? student.special_seating : null }); setTimeout(() => window.print(), 500); };
+  const prepareReceipt = (student) => { 
+      const courseObj = courses.find(c => c.course_id == student.course_id) || courses.find(c => c.course_id == courseId); 
+      setPrintReceiptData({ 
+          courseName: courseObj?.course_name, 
+          teacherName: courseObj?.teacher_name || 'Goenka Ji', 
+          from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', 
+          to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', 
+          studentName: student.full_name, 
+          confNo: student.conf_no, 
+          roomNo: student.room_no, 
+          seatNo: student.dining_seat_no, 
+          lockers: student.mobile_locker_no || student.dining_seat_no, 
+          language: student.discourse_language, 
+          pagoda: student.pagoda_cell_no && student.pagoda_cell_no !== 'None' ? student.pagoda_cell_no : null, 
+          special: student.special_seating && student.special_seating !== 'None' ? student.special_seating : null 
+      }); 
+      // Delay print to allow modal to render
+      setTimeout(() => window.print(), 500); 
+  };
+
   const prepareToken = (student) => { if (!student.dhamma_hall_seat_no) return alert("No Dhamma Seat assigned."); setPrintTokenData({ seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no||'-', room: student.room_no||'-', age: student.age, cat: getCategory(student.conf_no), sVal: (student.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] }); setTimeout(() => window.print(), 500); };
-  const prepareBulkTokens = () => { const valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); if(valid.length === 0) return alert("No seats assigned"); setPrintBulkData(valid.sort((a,b)=>a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(student=>({ seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no||'-', room: student.room_no||'-', age: student.age, cat: getCategory(student.conf_no), sVal: (student.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] }))); setTimeout(()=>window.print(), 500); };
+  
+  const prepareBulkTokens = () => { 
+      const valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
+      if(valid.length === 0) return alert("No seats assigned"); 
+      // Sort logic
+      setPrintBulkData(valid.sort((a,b)=>a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(student=>({ 
+          seat: student.dhamma_hall_seat_no, 
+          name: student.full_name, 
+          conf: student.conf_no, 
+          cell: student.pagoda_cell_no||'-', 
+          room: student.room_no||'-', 
+          age: student.age, 
+          gender: student.gender, // Needed for filtering
+          cat: getCategory(student.conf_no), 
+          sVal: (student.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], 
+          lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] 
+      }))); 
+      // Don't auto-print immediately; user chooses Gender in modal
+  };
+
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses Info", "Age", "Gender", "Room", "Dining Seat", "Pagoda", "Dhamma Seat", "Status", "Mobile Locker", "Valuables Locker", "Laundry Token", "Language"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', `"${p.courses_info || ''}"`, p.age || '', p.gender || '', p.room_no || '', p.dining_seat_no || '', p.pagoda_cell_no || '', p.dhamma_hall_seat_no || '', p.status || '', p.mobile_locker_no || '', p.valuables_locker_no || '', p.laundry_token_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `dining_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   const handleSeatingExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Name", "Conf", "Gender", "Pagoda", "Room"]; const rows = arrived.map(p => [p.dhamma_hall_seat_no || '', `"${p.full_name || ''}"`, p.conf_no || '', p.gender || '', p.pagoda_cell_no || '', p.room_no || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `seating_${courseId}.csv`); document.body.appendChild(link); link.click(); };
@@ -110,23 +149,23 @@ export default function ParticipantList({ courses, refreshCourses }) {
   // --- SEATING LOGIC ---
   const handleSeatClick = async (seatLabel, student) => { if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); return; } const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null); if (source.label === target.label) return; if (window.confirm(`Swap/Move?`)) { if (!target.p) { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } else { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP', is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
   
-  // --- UPGRADED GRID RENDERER (VISUAL MATCH TO SCREENSHOT) ---
+  // --- RENDER GRID (Refined for Screenshot Match) ---
   const renderGrid = (map, cols, rows) => { 
       let g=[]; 
       for(let r=rows; r>=1; r--) { 
           let cells=[]; 
           cols.forEach(c => {
               const p = map[c+r];
-              const isLocked = p && p.is_seat_locked;
-              const stats = getStudentStats(p); // Parse (O) S:19 L:5 etc
+              const stats = getStudentStats(p); 
               
               cells.push(
                   <div key={c+r} onClick={()=>handleSeatClick(c+r, p)} 
                        style={{
-                           border: '2px solid black', 
+                           border: '2px solid black', // Strong border
                            background: p ? (selectedSeat?.label === c+r ? '#ffeb3b' : 'white') : 'white', 
-                           width: '130px', // Wider for details
-                           height: '90px', // Taller
+                           width: '130px', 
+                           height: '95px', 
+                           fontSize: '10px', 
                            overflow: 'hidden', 
                            cursor: 'pointer', 
                            display: 'flex', 
@@ -137,25 +176,30 @@ export default function ParticipantList({ courses, refreshCourses }) {
                            boxSizing: 'border-box'
                        }}>
                       
-                      {/* TOP ROW: SEAT (Left) | ROOM (Right) */}
-                      <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px', borderBottom:'1px solid #ccc'}}>
+                      {/* TOP: Seat No (Bold) | Room No */}
+                      <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px'}}>
                           <span>{c+r}</span>
-                          <span>{p?.room_no || ''}</span>
+                          <span style={{fontSize:'12px'}}>{p?.room_no || ''}</span>
                       </div>
 
-                      {/* MIDDLE ROW: FULL NAME */}
-                      <div style={{textAlign:'center', fontWeight:'bold', fontSize:'12px', lineHeight:'1.1', flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 2px'}}>
+                      {/* MIDDLE: Name (Centered) */}
+                      <div style={{textAlign:'center', fontWeight:'bold', fontSize:'13px', lineHeight:'1.2', flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px'}}>
                           {p ? p.full_name : ''}
                       </div>
 
-                      {/* BOTTOM ROW: (O) s:19 L:5 Age:(50) */}
+                      {/* BOTTOM: Stats (O) s:19 L:5 Age:(50) */}
                       {p && (
-                          <div style={{fontSize:'10px', padding:'3px 5px', borderTop:'1px solid #ccc', fontWeight:'bold', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
-                              {stats.cat} s:{stats.s} L:{stats.l} Age:({stats.age})
+                          <div style={{fontSize:'11px', padding:'3px 5px', fontWeight:'bold', whiteSpace:'nowrap', display:'flex', justifyContent:'space-between'}}>
+                              <span>{stats.cat}</span>
+                              <span>s:{stats.s} L:{stats.l}</span>
+                              <span>Age:({stats.age})</span>
                           </div>
                       )}
                       
-                      {/* ICONS */}
+                      {/* PAGODA BADGE */}
+                      {p && p.pagoda_cell_no && (
+                          <div style={{position:'absolute', top:'25px', right:'2px', fontSize:'9px', background:'#e3f2fd', border:'1px solid blue', borderRadius:'3px', padding:'0 2px'}}>P:{p.pagoda_cell_no}</div>
+                      )}
                       {p && p.is_seat_locked && <div style={{position:'absolute', bottom:'20px', left:'2px', fontSize:'8px'}}>🔒</div>}
                   </div>
               );
@@ -165,7 +209,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
       return g; 
   };
 
-  // --- UPGRADED PRINT ENGINE (Flexbox Centering) ---
   const printSection = (sectionId) => { 
       const style = document.createElement('style'); 
       style.innerHTML = `@media print { 
@@ -182,9 +225,9 @@ export default function ParticipantList({ courses, refreshCourses }) {
               display: flex; 
               flex-direction: column; 
               align-items: center; 
-              justify-content: center; /* Center Vertically */
+              justify-content: center; 
               transform: scale(${printConfig.scale}); 
-              transform-origin: center center; 
+              transform-origin: center top; 
           } 
           .no-print { display: none !important; } 
           .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } 
@@ -195,7 +238,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
       document.head.removeChild(style); 
   };
 
-  // --- SEATING SHEET COMPONENT ---
   const SeatingSheet = ({ id, title, map, cols, rows, setRows, setCols }) => ( 
       <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto'}}> 
           <div className="no-print" style={{textAlign:'right', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8f9fa', padding:'10px', borderRadius:'8px'}}> 
@@ -329,22 +371,21 @@ export default function ParticipantList({ courses, refreshCourses }) {
   // --- DEFAULT LIST VIEW ---
   return (
     <div style={styles.card}>
-      {/* 1. TOP HEADER & COURSE SELECT */}
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center'}}>
          <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><User size={24}/> Students</h2>
              <select style={styles.input} onChange={e=>setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
          </div>
+         {/* TAB ORDER: Dining -> DH -> Pagoda -> Bulk -> Summary */}
          <div style={{display:'flex', gap:'8px'}}>
+             <button onClick={()=>setViewMode('dining')} disabled={!courseId} style={styles.toolBtn('#007bff')}>🍽️ Dining</button>
+             <button onClick={()=>setViewMode('seating')} disabled={!courseId} style={styles.toolBtn('#6610f2')}>🧘 DH</button>
+             <button onClick={()=>setViewMode('pagoda')} disabled={!courseId} style={styles.toolBtn('#e91e63')}>🛖 Pagoda</button>
              <button onClick={prepareBulkTokens} disabled={!courseId} style={styles.toolBtn('#17a2b8')}>🎫 Bulk Tokens</button>
              <button onClick={() => setShowSummaryReport(true)} disabled={!courseId} style={styles.toolBtn('#28a745')}>📈 Summary</button>
-             <button onClick={()=>setViewMode('seating')} disabled={!courseId} style={styles.toolBtn('#6610f2')}>🧘 DH</button>
-             <button onClick={()=>setViewMode('dining')} disabled={!courseId} style={styles.toolBtn('#007bff')}>🍽️ Dining</button>
-             <button onClick={()=>setViewMode('pagoda')} disabled={!courseId} style={styles.toolBtn('#e91e63')}>🛖 Pagoda</button>
          </div>
       </div>
       
-      {/* 2. ADMIN ACTIONS (Conditional) */}
       {courseId && (
           <div style={{marginBottom:'15px', display:'flex', gap:'10px', justifyContent:'flex-end'}}>
              <button onClick={handleAutoNoShow} style={styles.quickBtn(false)}>🚫 Auto-Flag No-Shows</button>
@@ -355,7 +396,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
           </div>
       )}
 
-      {/* 3. SMART FILTERS & SEARCH */}
+      {/* FILTER & TABLE */}
       <div style={{background:'#f8f9fa', padding:'15px', borderRadius:'10px', marginBottom:'20px', border:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
           <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
               <Filter size={16} color="#666"/>
@@ -368,7 +409,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
           </div>
       </div>
 
-      {/* 4. MAIN DATA TABLE */}
       <div style={{overflowX:'auto', border:'1px solid #eee', borderRadius:'8px', maxHeight:'600px', overflowY:'auto'}}>
         <table style={{width:'100%', fontSize:'12px', borderCollapse:'collapse'}}>
           <thead style={{position:'sticky', top:0, zIndex:10}}>
@@ -417,13 +457,62 @@ export default function ParticipantList({ courses, refreshCourses }) {
             })}
           </tbody>
         </table>
-        {processedList.length === 0 && <div style={{textAlign:'center', padding:'30px', color:'#999'}}>No students found matching your filters.</div>}
       </div>
 
-      {/* Print Modals and Edit Modal (Same as before) */}
-      {printReceiptData && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}><button onClick={()=>setPrintReceiptData(null)} style={{float:'right'}}>X</button><div id="receipt-print-area" style={{border:'1px dashed black', padding:'10px'}}><h3>{printReceiptData.courseName}</h3><p>{printReceiptData.studentName}</p></div><button onClick={()=>window.print()} style={{marginTop:'10px', width:'100%'}}>Print</button></div><style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; } }`}</style></div>}
+      {/* RECEIPT MODAL (Matches StudentForm Exact Design) */}
+      {printReceiptData && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}><button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button><div id="receipt-print-area" style={{padding:'10px', border:'1px dashed #ccc', fontFamily:'Helvetica, Arial, sans-serif', color:'black'}}><div style={{textAlign:'center', fontWeight:'bold', marginBottom:'8px'}}><div style={{fontSize:'18px'}}>VIPASSANA</div><div style={{fontSize:'12px'}}>International Meditation Center</div><div style={{fontSize:'14px'}}>Dhamma Nagajjuna 2</div></div><div style={{borderBottom:'2px solid black', margin:'10px 0'}}></div><div style={{fontSize:'12px', marginBottom:'10px'}}><div><strong>Course:</strong> {printReceiptData.courseName}</div><div><strong>Teacher:</strong> {printReceiptData.teacherName}</div><div><strong>Dates:</strong> {printReceiptData.from} to {printReceiptData.to}</div></div><div style={{borderBottom:'1px solid black', margin:'10px 0'}}></div><div style={{fontSize:'16px', fontWeight:'bold', margin:'10px 0'}}><div>{printReceiptData.studentName}</div><div style={{fontSize:'14px'}}>Conf: {printReceiptData.confNo}</div></div><table style={{width:'100%', fontSize:'14px', border:'1px solid black', borderCollapse:'collapse'}}><tbody><tr><td style={{border:'1px solid black', padding:'5px'}}>Room</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.roomNo}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Dining</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.seatNo}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Lockers</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.lockers}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Lang</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.language}</td></tr>{printReceiptData.pagoda && <tr><td style={{border:'1px solid black', padding:'5px'}}>Pagoda</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.pagoda}</td></tr>}{printReceiptData.special && <tr><td style={{border:'1px solid black', padding:'5px'}}>Special</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.special}</td></tr>}</tbody></table><div style={{textAlign:'center', fontSize:'10px', fontStyle:'italic', marginTop:'10px'}}>*** Student Copy ***</div></div><div className="no-print" style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={() => window.print()} style={{flex:1, padding:'12px', background:'#007bff', color:'white', border:'none', borderRadius:'6px'}}>PRINT</button></div></div><style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none; } @page { size: auto; margin: 0; } }`}</style></div>}
+
+      {/* SINGLE TOKEN PRINT */}
       {printTokenData && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'300px'}}><button onClick={()=>setPrintTokenData(null)} style={{float:'right'}}>X</button><div id="token-print-area" style={{border:'2px solid black', padding:'20px', textAlign:'center'}}><h1>{printTokenData.seat}</h1><p>{printTokenData.name}</p></div><button onClick={()=>window.print()} style={{marginTop:'10px', width:'100%'}}>Print</button></div><style>{`@media print { body * { visibility: hidden; } #token-print-area, #token-print-area * { visibility: visible; } #token-print-area { position: absolute; left: 0; top: 0; width: 100%; } }`}</style></div>}
-      {printBulkData && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}> <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'350px', maxHeight:'80vh', overflowY:'auto', position:'relative'}}> <button onClick={() => setPrintBulkData(null)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button> <h3 style={{textAlign:'center', margin:'0 0 20px 0'}}>🖨️ Bulk Printing...</h3> <div id="bulk-token-print-area"> {printBulkData.map((t, i) => ( <div key={i} className="bulk-token-container" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'20px', textAlign:'center', border:'2px solid black', marginBottom:'20px'}}> <div style={{fontSize:'16px', fontWeight:'bold', marginBottom:'10px'}}>DHAMMA SEAT TOKEN</div> <div style={{fontSize:'60px', fontWeight:'900', margin:'10px 0'}}>{t.seat}</div> <div style={{fontSize:'14px', fontWeight:'bold', marginBottom:'5px'}}>{t.name}</div> <div style={{fontSize:'12px', color:'#555', marginBottom:'10px'}}>{t.conf}</div> <div style={{display:'flex', justifyContent:'space-between', borderTop:'1px solid black', paddingTop:'10px'}}> <div style={{textAlign:'left'}}><div style={{fontSize:'10px'}}>Cell</div><div style={{fontWeight:'bold', fontSize:'14px'}}>{t.cell}</div></div> <div style={{textAlign:'right'}}><div style={{fontSize:'10px'}}>Room</div><div style={{fontWeight:'bold', fontSize:'14px'}}>{t.room}</div></div> </div> <div style={{marginTop:'10px', paddingTop:'10px', borderTop:'1px dashed #ccc', fontSize:'11px', display:'flex', justifyContent:'space-between'}}> <span>{t.cat}</span> <span>S:{t.sVal} L:{t.lVal}</span> <span>Age: {t.age}</span> </div> </div> ))} </div> </div> <style>{` @media print { @page { size: auto; margin: 0; } body * { visibility: hidden; } #bulk-token-print-area, #bulk-token-print-area * { visibility: visible; } #bulk-token-print-area { position: absolute; left: 0; top: 0; width: 100%; } .bulk-token-container { page-break-after: always; display: block; height: auto; border-bottom: 2px dashed black !important; margin-bottom: 5px; padding-bottom: 20px; } .bulk-token-container:last-child { page-break-after: auto; } } `}</style> </div> )}
+
+      {/* BULK TOKEN PRINT (New Logic: Filter Buttons) */}
+      {printBulkData && ( 
+          <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}> 
+              <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'400px', maxHeight:'90vh', overflowY:'auto', position:'relative'}}> 
+                  <button onClick={() => setPrintBulkData(null)} style={{position:'absolute', right:'10px', top:'10px', background:'red', color:'white', border:'none', borderRadius:'50%', width:'25px', height:'25px', cursor:'pointer'}}>X</button> 
+                  <h3 style={{textAlign:'center', margin:'0 0 10px 0'}}>🖨️ Bulk Printing</h3> 
+                  
+                  {/* BULK FILTERS */}
+                  <div style={{display:'flex', justifyContent:'center', gap:'10px', marginBottom:'20px'}}>
+                      <button onClick={()=>setBulkFilter('ALL')} style={{...styles.quickBtn(bulkFilter==='ALL'), fontSize:'12px'}}>All ({printBulkData.length})</button>
+                      <button onClick={()=>setBulkFilter('Male')} style={{...styles.quickBtn(bulkFilter==='Male'), background:bulkFilter==='Male'?'#007bff':'#eee', color:bulkFilter==='Male'?'white':'black', fontSize:'12px'}}>Male Only</button>
+                      <button onClick={()=>setBulkFilter('Female')} style={{...styles.quickBtn(bulkFilter==='Female'), background:bulkFilter==='Female'?'#e91e63':'#eee', color:bulkFilter==='Female'?'white':'black', fontSize:'12px'}}>Female Only</button>
+                  </div>
+                  
+                  <div className="no-print" style={{textAlign:'center', marginBottom:'15px'}}>
+                      <button onClick={()=>window.print()} style={{...styles.btn(true), background:'#28a745', color:'white', width:'100%'}}>PRINT NOW</button>
+                  </div>
+
+                  <div id="bulk-token-print-area"> 
+                      {printBulkData.filter(t => bulkFilter==='ALL' || (bulkFilter==='Male' && t.gender.toLowerCase().startsWith('m')) || (bulkFilter==='Female' && t.gender.toLowerCase().startsWith('f'))).map((t, i) => ( 
+                          <div key={i} className="bulk-token-container" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'20px', textAlign:'center', border:'2px solid black', marginBottom:'20px'}}> 
+                              <div style={{fontSize:'16px', fontWeight:'bold', marginBottom:'10px'}}>DHAMMA SEAT TOKEN</div> 
+                              <div style={{fontSize:'60px', fontWeight:'900', margin:'10px 0'}}>{t.seat}</div> 
+                              <div style={{fontSize:'14px', fontWeight:'bold', marginBottom:'5px'}}>{t.name}</div> 
+                              <div style={{fontSize:'12px', color:'#555', marginBottom:'10px'}}>{t.conf}</div> 
+                              <div style={{display:'flex', justifyContent:'space-between', borderTop:'1px solid black', paddingTop:'10px'}}> 
+                                  <div style={{textAlign:'left'}}><div style={{fontSize:'10px'}}>Cell</div><div style={{fontWeight:'bold', fontSize:'14px'}}>{t.cell}</div></div> 
+                                  <div style={{textAlign:'right'}}><div style={{fontSize:'10px'}}>Room</div><div style={{fontWeight:'bold', fontSize:'14px'}}>{t.room}</div></div> 
+                              </div> 
+                              <div style={{marginTop:'10px', paddingTop:'10px', borderTop:'1px dashed #ccc', fontSize:'11px', display:'flex', justifyContent:'space-between'}}> 
+                                  <span>{t.cat}</span> <span>S:{t.sVal} L:{t.lVal}</span> <span>Age: {t.age}</span> 
+                              </div> 
+                          </div> 
+                      ))} 
+                  </div> 
+              </div> 
+              <style>{` 
+                  @media print { 
+                      @page { size: auto; margin: 0; } 
+                      body * { visibility: hidden; } 
+                      #bulk-token-print-area, #bulk-token-print-area * { visibility: visible; } 
+                      #bulk-token-print-area { position: absolute; left: 0; top: 0; width: 100%; } 
+                      .bulk-token-container { page-break-after: always; display: block; height: auto; border-bottom: 2px dashed black !important; margin-bottom: 5px; padding-bottom: 20px; } 
+                      .bulk-token-container:last-child { page-break-after: auto; } 
+                  } 
+              `}</style> 
+          </div> 
+      )}
 
       {editingStudent && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'30px', width:'600px', borderRadius:'10px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave}><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'15px'}}><div><label>Full Name</label><input style={styles.input} value={editingStudent.full_name} onChange={e=>setEditingStudent({...editingStudent, full_name:e.target.value})} /></div><div><label>Conf No</label><input style={styles.input} value={editingStudent.conf_no||''} onChange={e=>setEditingStudent({...editingStudent, conf_no:e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'15px'}}><div><label>Room No</label><input style={styles.input} value={editingStudent.room_no||''} onChange={e=>setEditingStudent({...editingStudent, room_no:e.target.value})} /></div><div><label>Dining Seat</label><input style={styles.input} value={editingStudent.dining_seat_no||''} onChange={e=>setEditingStudent({...editingStudent, dining_seat_no:e.target.value})} /></div><div><label>Pagoda Cell</label><input style={styles.input} value={editingStudent.pagoda_cell_no||''} onChange={e=>setEditingStudent({...editingStudent, pagoda_cell_no:e.target.value})} /></div></div>
       <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}><h4 style={{marginTop:0}}>Manual Locker Override</h4><div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}><div><label>Mobile</label><input style={styles.input} value={editingStudent.mobile_locker_no||''} onChange={e=>setEditingStudent({...editingStudent, mobile_locker_no:e.target.value})} /></div><div><label>Valuables</label><input style={styles.input} value={editingStudent.valuables_locker_no||''} onChange={e=>setEditingStudent({...editingStudent, valuables_locker_no:e.target.value})} /></div><div><label>Laundry</label><input style={styles.input} value={editingStudent.laundry_token_no||''} onChange={e=>setEditingStudent({...editingStudent, laundry_token_no:e.target.value})} /></div><div><label>Dhamma Hall Seat</label><input style={styles.input} value={editingStudent.dhamma_hall_seat_no||''} onChange={e=>setEditingStudent({...editingStudent, dhamma_hall_seat_no:e.target.value})} /></div></div></div>
