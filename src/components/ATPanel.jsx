@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Utensils } from 'lucide-react';
+import { Utensils, BarChart2 } from 'lucide-react';
 import { API_URL, styles } from '../config';
+import Dashboard from './Dashboard'; // Import Dashboard
 
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
 const tdPrint = { padding: '8px', border: '1px solid #000', fontSize:'12px', verticalAlign:'middle' };
@@ -12,6 +13,7 @@ export default function ATPanel({ courses }) {
   const [editingStudent, setEditingStudent] = useState(null);
   const [sortOrder, setSortOrder] = useState('desc');
   const [showKitchenReport, setShowKitchenReport] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false); // Default hidden for teachers
 
   useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(setParticipants); }, [courseId]);
 
@@ -53,8 +55,19 @@ export default function ATPanel({ courses }) {
     <div style={styles.card}>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
           <h2>AT Panel</h2>
-          <button onClick={() => {setShowKitchenReport(true); setTimeout(() => window.print(), 500);}} disabled={!courseId} style={styles.toolBtn('#ff9800')}><Utensils size={16}/> Kitchen Report</button>
+          <div style={{display:'flex', gap:'10px'}}>
+             <button onClick={()=>setShowDashboard(!showDashboard)} style={styles.btn(showDashboard)}><BarChart2 size={16}/> {showDashboard ? 'Hide Stats' : 'View Dashboard'}</button>
+             <button onClick={() => {setShowKitchenReport(true); setTimeout(() => window.print(), 500);}} disabled={!courseId} style={styles.toolBtn('#ff9800')}><Utensils size={16}/> Kitchen Report</button>
+          </div>
       </div>
+
+      {/* EMBEDDED DASHBOARD */}
+      {showDashboard && (
+          <div style={{marginBottom:'30px', borderBottom:'2px solid #eee', paddingBottom:'20px'}}>
+              <Dashboard courses={courses} externalData={{ participants }} role="teacher" />
+          </div>
+      )}
+
       <div style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
         <select style={styles.input} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
         <input style={styles.input} placeholder="Search Student..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} disabled={!courseId} />
