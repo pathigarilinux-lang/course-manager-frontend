@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// ✅ FIXED: Added 'User' to imports
-import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, Maximize, Minimize } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 export default function ParticipantList({ courses, refreshCourses }) {
@@ -25,9 +25,9 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [showSummaryReport, setShowSummaryReport] = useState(false);
   const [showPrintSettings, setShowPrintSettings] = useState(false);
   
-  // Advanced Settings
+  // Advanced Settings - Default to A3 Landscape for best fit
   const [seatingConfig, setSeatingConfig] = useState({ mCols: 10, mRows: 10, mChowky: 2, fCols: 8, fRows: 10, fChowky: 2 });
-  const [printConfig, setPrintConfig] = useState({ scale: 1, orientation: 'landscape', paper: 'A3' });
+  const [printConfig, setPrintConfig] = useState({ scale: 0.9, orientation: 'landscape', paper: 'A3' });
 
   // --- LOADING ---
   useEffect(() => { 
@@ -40,10 +40,22 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
   // --- HELPERS ---
   const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
+  const getCategoryShort = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return '(O)'; if (s.startsWith('N')) return '(N)'; return '(?)'; };
   const getCategoryRank = (conf) => { if (!conf) return 2; const s = conf.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   
+  // Extract S:X L:Y from courses_info string
+  const getHistoryShort = (info) => {
+      if (!info) return '';
+      const s = info.match(/S\s*[:=-]?\s*(\d+)/i);
+      const l = info.match(/L\s*[:=-]?\s*(\d+)/i);
+      const sVal = s ? s[1] : '0';
+      const lVal = l ? l[1] : '0';
+      return `s:${sVal} L:${lVal}`;
+  };
+
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   
+  // --- SMART FILTER & SORT ENGINE ---
   const processedList = useMemo(() => { 
       let items = [...participants]; 
       if (filterType !== 'ALL') {
@@ -69,7 +81,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
       return items;
   }, [participants, sortConfig, search, filterType]);
 
-  const getSeniorityScore = (p) => { const sMatch = (p.courses_info||'').match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = (p.courses_info||'').match(/L\s*[:=-]?\s*(\d+)/i); const s = sMatch ? parseInt(sMatch[1]) : 0; const l = lMatch ? parseInt(lMatch[1]) : 0; return (l * 10000) + (s * 10); };
   const generateColLabels = (count) => { const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return letters.slice(0, count).reverse(); };
   const generateChowkyLabels = (count) => { const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return letters.slice(0, count).reverse().map(l => `CW-${l}`); };
 
@@ -96,6 +107,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   // --- SEATING LOGIC ---
   const handleSeatClick = async (seatLabel, student) => { if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); return; } const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null); if (source.label === target.label) return; if (window.confirm(`Swap/Move?`)) { if (!target.p) { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } else { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP', is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
   
+  // --- UPGRADED RENDER GRID (VISUAL CUSHION / DETAILED BOX) ---
   const renderGrid = (map, cols, rows) => { 
       let g=[]; 
       for(let r=rows; r>=1; r--) { 
@@ -103,11 +115,54 @@ export default function ParticipantList({ courses, refreshCourses }) {
           cols.forEach(c => {
               const p = map[c+r];
               const isLocked = p && p.is_seat_locked;
+              
               cells.push(
-                  <div key={c+r} onClick={()=>handleSeatClick(c+r, p)} style={{border: isLocked ? '2px solid #333' : '1px solid #ccc', background: p ? (selectedSeat?.label === c+r ? '#ffeb3b' : '#e3f2fd') : 'white', width:'55px', height:'45px', fontSize:'10px', overflow:'hidden', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', borderRadius:'4px', margin:'2px', position:'relative'}}>
-                      <div style={{fontWeight:'bold', fontSize:'9px'}}>{c+r}</div>
-                      {p && <div style={{fontSize:'9px', textAlign:'center', lineHeight:'1', whiteSpace:'nowrap', overflow:'hidden', width:'100%'}}>{p.full_name.split(' ')[0]}</div>}
-                      {p && p.is_seat_locked && <div style={{position:'absolute', bottom:0, right:0, fontSize:'8px'}}>🔒</div>}
+                  <div key={c+r} onClick={()=>handleSeatClick(c+r, p)} 
+                       style={{
+                           border: '2px solid black', // Strong border as per screenshot
+                           background: p ? (selectedSeat?.label === c+r ? '#ffeb3b' : 'white') : 'white', 
+                           width: '110px', // Wider to fit data
+                           height: '85px', // Taller to fit 3 lines
+                           fontSize: '10px', 
+                           overflow: 'hidden', 
+                           cursor: 'pointer', 
+                           display: 'flex', 
+                           flexDirection: 'column', 
+                           justifyContent: 'space-between',
+                           margin: '1px', 
+                           position: 'relative',
+                           boxSizing: 'border-box',
+                           borderRadius: '4px' // Slight rounded corner for "Cushion" feel
+                       }}>
+                      
+                      {/* TOP ROW: Seat | Room */}
+                      <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', borderBottom:'1px solid #ccc', padding:'2px 4px', background:'#f8f9fa'}}>
+                          <span>{c+r}</span>
+                          <span>{p?.room_no || ''}</span>
+                      </div>
+
+                      {/* MIDDLE: Name */}
+                      <div style={{textAlign:'center', fontWeight:'bold', fontSize:'11px', padding:'0 2px', lineHeight:'1.1', flex:1, display:'flex', alignItems:'center', justifyContent:'center'}}>
+                          {p ? p.full_name : ''}
+                      </div>
+
+                      {/* BOTTOM: O/N | History | Age */}
+                      {p && (
+                          <div style={{fontSize:'9px', padding:'2px', borderTop:'1px solid #ccc', display:'flex', justifyContent:'space-between', whiteSpace:'nowrap'}}>
+                              <span>{getCategoryShort(p.conf_no)}</span>
+                              <span>{getHistoryShort(p.courses_info)}</span>
+                              <span>Age:{p.age}</span>
+                          </div>
+                      )}
+                      
+                      {/* PAGODA BADGE (If assigned) */}
+                      {p && p.pagoda_cell_no && (
+                          <div style={{position:'absolute', top:'18px', right:'2px', fontSize:'8px', background:'#e3f2fd', border:'1px solid blue', borderRadius:'3px', padding:'0 2px'}}>
+                              P:{p.pagoda_cell_no}
+                          </div>
+                      )}
+
+                      {p && p.is_seat_locked && <div style={{position:'absolute', bottom:'2px', left:'2px', fontSize:'8px'}}>🔒</div>}
                   </div>
               );
           }); 
@@ -116,13 +171,25 @@ export default function ParticipantList({ courses, refreshCourses }) {
       return g; 
   };
 
+  // --- UPGRADED PRINT ENGINE (CENTERED) ---
   const printSection = (sectionId) => { 
       const style = document.createElement('style'); 
       style.innerHTML = `@media print { 
           @page { size: ${printConfig.paper} ${printConfig.orientation}; margin: 5mm; } 
+          body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
           body * { visibility: hidden; } 
           #${sectionId}, #${sectionId} * { visibility: visible; } 
-          #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; flexDirection: column; alignItems: center; transform: scale(${printConfig.scale}); transform-origin: top center; } 
+          #${sectionId} { 
+              position: static; 
+              width: 100%; 
+              height: 100%; 
+              display: flex; 
+              flex-direction: column; 
+              align-items: center; 
+              justify-content: center; /* Center Vertically */
+              transform: scale(${printConfig.scale}); 
+              transform-origin: center top; 
+          } 
           .no-print { display: none !important; } 
           .seat-grid { page-break-inside: avoid; border-top: 2px solid black; border-left: 2px solid black; } 
           h1 { font-size: 24px !important; margin: 0 0 10px 0; } 
@@ -147,9 +214,24 @@ export default function ParticipantList({ courses, refreshCourses }) {
                   <button onClick={()=>printSection(id)} style={styles.quickBtn(true)}>🖨️ Print</button> 
               </div>
           </div> 
-          <div style={{textAlign:'center', marginBottom:'20px'}}> <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Seating Plan - {title}</h1> <h3 style={{margin:'5px 0', fontSize:'16px'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3> </div> 
-          <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content'}}> {renderGrid(map, cols, rows)} </div> </div> 
-          <div style={{display:'flex', justifyContent:'center', marginTop:'40px'}}> <div style={{textAlign:'center'}}> <div style={{border:'2px dashed black', width:'400px', padding:'15px', fontWeight:'900', fontSize:'28px', letterSpacing:'2px', textTransform:'uppercase'}}>TEACHER</div></div> </div> 
+          
+          {/* TITLE HEADER */}
+          <div style={{textAlign:'center', marginBottom:'20px'}}> 
+              <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Seating Plan - {title}</h1> 
+              <h3 style={{margin:'5px 0', fontSize:'16px'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3> 
+          </div> 
+          
+          {/* GRID */}
+          <div style={{display:'flex', justifyContent:'center'}}> 
+              <div className="seat-grid" style={{width:'fit-content'}}> {renderGrid(map, cols, rows)} </div> 
+          </div> 
+          
+          {/* TEACHER BOX (Aligned with grid width) */}
+          <div style={{display:'flex', justifyContent:'center', marginTop:'40px'}}> 
+              <div style={{textAlign:'center'}}> 
+                  <div style={{border:'2px dashed black', minWidth:'400px', width:'100%', padding:'15px', fontWeight:'900', fontSize:'28px', letterSpacing:'2px', textTransform:'uppercase'}}>TEACHER</div>
+              </div> 
+          </div> 
       </div> 
   );
 
@@ -210,7 +292,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
                       <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'600px', maxHeight:'90vh', overflowY:'auto'}}>
                           <h3>🛠️ Auto-Assign Configuration</h3>
                           
-                          {/* NEW: MINI DASHBOARD */}
+                          {/* MINI DASHBOARD */}
                           <div style={{background:'#f0f8ff', padding:'15px', borderRadius:'8px', marginBottom:'20px', border:'1px solid #cce5ff'}}>
                               <h4 style={{margin:'0 0 10px 0', fontSize:'14px', color:'#0056b3'}}>Student Breakdown (Arrived)</h4>
                               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
@@ -253,6 +335,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   // --- DEFAULT LIST VIEW ---
   return (
     <div style={styles.card}>
+      {/* 1. TOP HEADER & COURSE SELECT */}
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center'}}>
          <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><User size={24}/> Students</h2>
@@ -267,7 +350,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
          </div>
       </div>
       
-      {/* ... Filters and Admin Actions same as before ... */}
+      {/* 2. ADMIN ACTIONS (Conditional) */}
       {courseId && (
           <div style={{marginBottom:'15px', display:'flex', gap:'10px', justifyContent:'flex-end'}}>
              <button onClick={handleAutoNoShow} style={styles.quickBtn(false)}>🚫 Auto-Flag No-Shows</button>
@@ -278,6 +361,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
           </div>
       )}
 
+      {/* 3. SMART FILTERS & SEARCH */}
       <div style={{background:'#f8f9fa', padding:'15px', borderRadius:'10px', marginBottom:'20px', border:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
           <div style={{display:'flex', gap:'5px', alignItems:'center'}}>
               <Filter size={16} color="#666"/>
@@ -290,6 +374,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
           </div>
       </div>
 
+      {/* 4. MAIN DATA TABLE */}
       <div style={{overflowX:'auto', border:'1px solid #eee', borderRadius:'8px', maxHeight:'600px', overflowY:'auto'}}>
         <table style={{width:'100%', fontSize:'12px', borderCollapse:'collapse'}}>
           <thead style={{position:'sticky', top:0, zIndex:10}}>
