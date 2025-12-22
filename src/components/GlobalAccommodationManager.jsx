@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Edit, Trash2 } from 'lucide-react'; 
+import React, { useState, useEffect, useMemo } from 'react';
+import { Home, User, ArrowRight, Trash2, Map, LayoutGrid, CheckCircle } from 'lucide-react';
 import { API_URL, styles, PROTECTED_ROOMS, getSmartShortName } from '../config';
 
 export default function GlobalAccommodationManager({ courses, onRoomClick }) {
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
   const [newRoom, setNewRoom] = useState({ roomNo: '', type: 'Male' }); 
-  const [editingRoom, setEditingRoom] = useState(null);
+  const [moveMode, setMoveMode] = useState(null); // { student, sourceRoom }
 
+  // --- LOADING ---
   const loadData = () => { 
     fetch(`${API_URL}/rooms`).then(res => res.json()).then(data => setRooms(Array.isArray(data) ? data : [])); 
     fetch(`${API_URL}/rooms/occupancy`).then(res => res.json()).then(data => setOccupancy(Array.isArray(data) ? data : [])); 
@@ -15,18 +16,14 @@ export default function GlobalAccommodationManager({ courses, onRoomClick }) {
   
   useEffect(loadData, []);
 
+  // --- ACTIONS ---
   const handleAddRoom = async () => { 
       if (!newRoom.roomNo) return alert("Enter Room Number"); 
       try {
           const res = await fetch(`${API_URL}/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newRoom) });
-          if(res.ok) {
-              setNewRoom({ ...newRoom, roomNo: '' }); 
-              loadData(); 
-          } else {
-              const err = await res.json();
-              alert(`Error: ${err.error || "Failed to add room"}`);
-          }
-      } catch(err) { console.error(err); alert("Network Error"); }
+          if(res.ok) { setNewRoom({ ...newRoom, roomNo: '' }); loadData(); } 
+          else { const err = await res.json(); alert(`Error: ${err.error}`); }
+      } catch(err) { alert("Network Error"); }
   };
 
   const handleDeleteRoom = async (id, name) => { 
@@ -34,122 +31,191 @@ export default function GlobalAccommodationManager({ courses, onRoomClick }) {
       if(window.confirm(`Delete room ${name}?`)) { await fetch(`${API_URL}/rooms/${id}`, { method: 'DELETE' }); loadData(); } 
   };
 
-  const handleSwapSave = async () => { 
-      if (!editingRoom || !editingRoom.p) return;
-      const targetRoomNo = editingRoom.newRoomNo.trim();
-      if(!targetRoomNo) return alert("Enter Target Room.");
-      
-      const normalize = (s) => s ? s.toString().trim().toUpperCase() : '';
-      const targetNorm = normalize(targetRoomNo);
-      const currentNorm = normalize(editingRoom.p.room_no);
-      
-      if (targetNorm === currentNorm) { alert("Same room!"); return; }
-      
-      const targetOccupant = occupancy.find(p => p.room_no && normalize(p.room_no) === targetNorm);
-      const currentStudent = editingRoom.p;
-      
-      if(targetOccupant) {
-          if(!window.confirm(`⚠️ Swap ${currentStudent.full_name} <-> ${targetOccupant.full_name}?`)) return;
-          await fetch(`${API_URL}/participants/${currentStudent.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...currentStudent, room_no: 'TEMP_SWAP' }) });
-          await fetch(`${API_URL}/participants/${targetOccupant.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...targetOccupant, room_no: currentStudent.room_no }) });
-          await fetch(`${API_URL}/participants/${currentStudent.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...currentStudent, room_no: targetRoomNo }) });
-      } else {
-          await fetch(`${API_URL}/participants/${currentStudent.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...currentStudent, room_no: targetRoomNo }) });
+  // --- SMART MOVE LOGIC ---
+  const handleRoomClick = async (targetRoom) => {
+      // 1. If no move in progress, just select room (or start move if occupied)
+      const targetOccupant = occupancy.find(p => p.room_no === targetRoom.room_no);
+
+      if (!moveMode) {
+          if (targetOccupant) {
+              setMoveMode({ student: targetOccupant, sourceRoom: targetRoom.room_no });
+          } else {
+              // Admin wants to edit/delete empty room?
+              if(window.confirm(`Delete empty room ${targetRoom.room_no}?`)) handleDeleteRoom(targetRoom.room_id, targetRoom.room_no);
+          }
+          return;
       }
-      setEditingRoom(null); 
+
+      // 2. MOVE IN PROGRESS
+      const { student, sourceRoom } = moveMode;
+      
+      // Prevent Gender Mismatch
+      const studentGender = (student.gender || '').toLowerCase();
+      const roomGender = (targetRoom.gender_type || '').toLowerCase();
+      if (!studentGender.startsWith(roomGender.charAt(0))) {
+          if(!window.confirm(`⚠️ GENDER WARNING: Moving ${student.gender} student to ${targetRoom.gender_type} room. Proceed?`)) return;
+      }
+
+      if (targetOccupant) {
+          // SWAP
+          if (!window.confirm(`Swap ${student.full_name} <-> ${targetOccupant.full_name}?`)) return;
+          await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: 'TEMP_SWAP' }) });
+          await fetch(`${API_URL}/participants/${targetOccupant.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...targetOccupant, room_no: sourceRoom }) });
+          await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: targetRoom.room_no }) });
+      } else {
+          // MOVE TO EMPTY
+          await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: targetRoom.room_no }) });
+      }
+      
+      setMoveMode(null);
       loadData();
   };
 
-  const normalize = (str) => str ? str.toString().trim().toUpperCase() : '';
-  const courseGroups = {};
-  courses.forEach(c => { courseGroups[c.course_id] = { name: c.course_name, males: [], females: [], stats: { old: 0, new: 0, total: 0 } }; });
-  
-  const occupiedSet = new Set();
-  occupancy.forEach(p => {
-      if (p.room_no) {
-          occupiedSet.add(normalize(p.room_no));
-          const cId = p.course_id; 
-          const group = courseGroups[cId]; 
-          if (group) {
-              const isOld = p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S'));
-              group.stats.total++;
-              if (isOld) group.stats.old++; else group.stats.new++;
-              if ((p.gender||'').toLowerCase().startsWith('f')) group.females.push(p); else group.males.push(p);
+  // --- DATA PROCESSING (Building Groups) ---
+  const processedData = useMemo(() => {
+      const buildings = {};
+      const stats = { m: { total:0, occ:0 }, f: { total:0, occ:0 } };
+
+      rooms.forEach(r => {
+          // Identify Building Prefix (e.g. "DN2-101" -> "DN2")
+          const prefix = r.room_no.includes('-') ? r.room_no.split('-')[0] : (r.room_no.match(/^[A-Za-z]+/) ? r.room_no.match(/^[A-Za-z]+/)[0] : 'General');
+          
+          if (!buildings[prefix]) buildings[prefix] = { name: prefix, m: [], f: [] };
+          
+          const occupant = occupancy.find(p => p.room_no === r.room_no);
+          const roomObj = { ...r, occupant };
+
+          if (r.gender_type === 'Male') {
+              buildings[prefix].m.push(roomObj);
+              stats.m.total++;
+              if(occupant) stats.m.occ++;
+          } else {
+              buildings[prefix].f.push(roomObj);
+              stats.f.total++;
+              if(occupant) stats.f.occ++;
           }
-      }
-  });
+      });
 
-  const availableRooms = rooms.filter(r => !occupiedSet.has(normalize(r.room_no)));
-  const maleAvailable = availableRooms.filter(r => r.gender_type === 'Male');
-  const femaleAvailable = availableRooms.filter(r => r.gender_type === 'Female');
+      return { buildings, stats };
+  }, [rooms, occupancy]);
 
-  const RoomCard = ({ r, p, type }) => {
-      const isOld = p && p.conf_no && (p.conf_no.startsWith('O') || p.conf_no.startsWith('S'));
-      const bgColor = type === 'available' ? 'white' : (isOld ? '#e1bee7' : '#c8e6c9'); 
-      const borderColor = type === 'available' ? '#ccc' : (isOld ? '#8e24aa' : '#2e7d32');
-      const genderBorder = r.gender_type === 'Female' ? '4px solid #e91e63' : '4px solid #007bff';
-      
+  // --- COMPONENT: ROOM BOX ---
+  const RoomBox = ({ r }) => {
+      const isOccupied = !!r.occupant;
+      const isOld = isOccupied && (r.occupant.conf_no || '').match(/^(O|S)/i);
+      const isMoveTarget = moveMode && !isOccupied;
+      const isMoveSource = moveMode && moveMode.sourceRoom === r.room_no;
+
+      let bg = 'white';
+      if (isMoveSource) bg = '#fff3cd'; // Yellow (Moving from)
+      else if (isMoveTarget) bg = '#e8f5e9'; // Green (Click to move here)
+      else if (isOld) bg = '#e1bee7'; // Purple (Old Student)
+      else if (isOccupied) bg = '#c8e6c9'; // Green (New Student)
+
       return (
-          <div onClick={() => type === 'occupied' ? setEditingRoom({ p, newRoomNo: '' }) : onRoomClick(r.room_no)}
-            style={{ border: `1px solid ${borderColor}`, borderLeft: genderBorder, background: bgColor, borderRadius: '4px', padding: '5px', minHeight: '60px', fontSize: '11px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-              <div style={{fontWeight:'bold', display:'flex', justifyContent:'space-between'}}>
-                  {r.room_no}
-                  {type === 'available' && <button onClick={(e)=>{e.stopPropagation(); handleDeleteRoom(r.room_id, r.room_no)}} style={{border:'none', background:'none', color:'#ccc', cursor:'pointer'}}>×</button>}
+          <div onClick={() => handleRoomClick(r)}
+               style={{
+                   border: `1px solid ${isOccupied ? '#999' : '#eee'}`,
+                   borderRadius: '6px',
+                   padding: '8px',
+                   background: bg,
+                   cursor: 'pointer',
+                   transition: 'all 0.1s',
+                   boxShadow: isOccupied ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                   opacity: (moveMode && !isMoveTarget && !isMoveSource && !isOccupied) ? 0.3 : 1,
+                   minHeight: '70px',
+                   display: 'flex',
+                   flexDirection: 'column',
+                   justifyContent: 'space-between',
+                   position: 'relative'
+               }}>
+              <div style={{display:'flex', justifyContent:'space-between', fontSize:'11px', fontWeight:'bold', color: '#555', marginBottom:'2px'}}>
+                  <span>{r.room_no}</span>
+                  {isOccupied && <span style={{fontSize:'10px', color: isOld ? '#6a1b9a' : '#2e7d32'}}>{r.occupant.conf_no}</span>}
               </div>
-              {type === 'occupied' && (<div style={{marginTop:'2px'}}><div style={{fontWeight:'bold', fontSize:'12px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{p.full_name}</div><div style={{display:'flex', justifyContent:'space-between', marginTop:'2px'}}><span style={{fontWeight:'bold', color:'#333'}}>{p.conf_no || '-'}</span><span style={{color:'#666'}}>{p.age}</span></div></div>)}
+              
+              {isOccupied ? (
+                  <div style={{fontSize:'12px', fontWeight:'bold', lineHeight:'1.2', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                      {r.occupant.full_name}
+                  </div>
+              ) : (
+                  <div style={{color:'#ccc', fontSize:'10px', fontStyle:'italic'}}>Empty</div>
+              )}
+
+              {/* Status Dot */}
+              <div style={{
+                  position: 'absolute', bottom:'5px', right:'5px', 
+                  width:'8px', height:'8px', borderRadius:'50%', 
+                  background: isOccupied ? (isOld ? '#8e24aa' : '#2e7d32') : '#e0e0e0'
+              }}/>
           </div>
       );
   };
 
-  return ( 
-    <div style={styles.card}> 
-      <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center'}}> 
-        <h2 style={{margin:0}}>🛏️ Global Accommodation</h2> 
-        <div style={{display:'flex', gap:'5px', background:'#f9f9f9', padding:'5px', borderRadius:'5px'}}> 
-            <input style={{...styles.input, width:'60px', padding:'5px'}} placeholder="Room" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} /> 
-            <select style={{...styles.input, width:'80px', padding:'5px'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select> 
-            <button onClick={handleAddRoom} style={{...styles.toolBtn('#007bff')}}>+ Add Room</button> 
-        </div>
-        <button onClick={loadData} style={{...styles.btn(false), fontSize:'12px'}}>↻ Refresh</button> 
-      </div> 
-      <div style={{display:'flex', gap:'15px', marginBottom:'20px', overflowX:'auto', paddingBottom:'10px'}}>
-          {Object.values(courseGroups).map((g, i) => (
-              <div key={i} style={{background:'#fff', border:'1px solid #ddd', borderRadius:'8px', padding:'10px', minWidth:'180px', borderTop:'4px solid #28a745'}}>
-                  <div style={{fontWeight:'bold', fontSize:'13px', marginBottom:'5px'}}>{getSmartShortName(g.name)}</div>
-                  <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px'}}><span>Old: <b>{g.stats.old}</b></span><span>New: <b>{g.stats.new}</b></span><span>Total: <b>{g.stats.total}</b></span></div>
+  return (
+    <div style={styles.card}>
+      {/* HEADER & CONTROLS */}
+      <div className="no-print" style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'15px'}}>
+          <div>
+              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><Home size={24}/> Global Accommodation</h2>
+              <div style={{fontSize:'12px', color:'#666', marginTop:'5px'}}>
+                  <span style={{color:'#007bff', marginRight:'15px'}}>Male: {processedData.stats.m.occ} / {processedData.stats.m.total}</span>
+                  <span style={{color:'#e91e63'}}>Female: {processedData.stats.f.occ} / {processedData.stats.f.total}</span>
               </div>
+          </div>
+
+          <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+              {moveMode && (
+                  <div style={{background:'#fff3cd', padding:'5px 15px', borderRadius:'20px', border:'1px solid #ffeeba', fontSize:'13px', display:'flex', alignItems:'center', gap:'10px'}}>
+                      <span>Moving: <b>{moveMode.student.full_name}</b></span>
+                      <button onClick={()=>setMoveMode(null)} style={{border:'none', background:'none', cursor:'pointer', fontWeight:'bold'}}>Cancel ✕</button>
+                  </div>
+              )}
+              
+              <div style={{display:'flex', gap:'0', background:'#f8f9fa', padding:'2px', borderRadius:'6px', border:'1px solid #ddd'}}>
+                  <input style={{border:'none', padding:'8px', background:'transparent', width:'70px', fontSize:'13px'}} placeholder="New Room" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} />
+                  <div style={{width:'1px', background:'#ddd', margin:'5px 0'}}></div>
+                  <select style={{border:'none', padding:'8px', background:'transparent', fontSize:'13px', cursor:'pointer'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select>
+                  <button onClick={handleAddRoom} style={{border:'none', background:'#28a745', color:'white', padding:'0 15px', borderRadius:'0 4px 4px 0', cursor:'pointer', fontWeight:'bold'}}>+</button>
+              </div>
+              <button onClick={loadData} style={styles.quickBtn(false)}>↻</button>
+          </div>
+      </div>
+
+      {/* BUILDING GRIDS */}
+      <div style={{display:'flex', flexDirection:'column', gap:'30px'}}>
+          {Object.values(processedData.buildings).map(b => (
+              (b.m.length > 0 || b.f.length > 0) && (
+                  <div key={b.name} style={{border:'1px solid #eee', borderRadius:'10px', overflow:'hidden'}}>
+                      <div style={{background:'#f8f9fa', padding:'10px 15px', fontWeight:'bold', fontSize:'14px', borderBottom:'1px solid #eee', display:'flex', alignItems:'center', gap:'10px'}}>
+                          <LayoutGrid size={16} color="#555"/> {b.name === 'General' ? 'General Pool' : `Block ${b.name}`}
+                      </div>
+                      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
+                          {/* MALE SIDE */}
+                          <div style={{padding:'15px', borderRight:'1px solid #eee'}}>
+                              {b.m.length > 0 && <div style={{fontSize:'10px', fontWeight:'bold', color:'#007bff', textTransform:'uppercase', marginBottom:'10px'}}>Male Wing</div>}
+                              <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:'10px'}}>
+                                  {b.m.sort((x,y)=>x.room_no.localeCompare(y.room_no, undefined, {numeric:true})).map(r => (
+                                      <RoomBox key={r.room_id} r={r} />
+                                  ))}
+                              </div>
+                          </div>
+                          {/* FEMALE SIDE */}
+                          <div style={{padding:'15px'}}>
+                              {b.f.length > 0 && <div style={{fontSize:'10px', fontWeight:'bold', color:'#e91e63', textTransform:'uppercase', marginBottom:'10px'}}>Female Wing</div>}
+                              <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:'10px'}}>
+                                  {b.f.sort((x,y)=>x.room_no.localeCompare(y.room_no, undefined, {numeric:true})).map(r => (
+                                      <RoomBox key={r.room_id} r={r} />
+                                  ))}
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              )
           ))}
-          <div style={{background:'#fff', border:'1px solid #ddd', borderRadius:'8px', padding:'10px', minWidth:'180px', borderTop:'4px solid #6c757d'}}>
-              <div style={{fontWeight:'bold', fontSize:'13px', marginBottom:'5px'}}>Available Pool</div>
-              <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px'}}>
-                  <span style={{color:'#007bff'}}>Male: <b>{maleAvailable.length}</b></span>
-                  <span style={{color:'#e91e63'}}>Female: <b>{femaleAvailable.length}</b></span>
-              </div>
-          </div>
       </div>
-      {Object.values(courseGroups).map((g, i) => ( g.stats.total > 0 &&
-          <div key={i} style={{marginBottom:'20px', border:'1px solid #ccc', borderRadius:'8px', overflow:'hidden'}}>
-              <div style={{background:'#333', color:'white', padding:'10px', fontWeight:'bold'}}>{getSmartShortName(g.name)} (Allocated)</div>
-              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr'}}>
-                  <div style={{padding:'10px', borderRight:'1px solid #eee'}}>
-                      <div style={{fontSize:'13px', fontWeight:'bold', color:'white', background:'#007bff', padding:'5px 10px', borderRadius:'4px', marginBottom:'10px'}}>MALE ({g.males.length})</div>
-                      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'5px'}}>{g.males.sort((a,b)=>a.room_no.localeCompare(b.room_no)).map(p => (<RoomCard key={p.room_no} r={{room_no: p.room_no, gender_type: 'Male'}} p={p} type="occupied" />))}</div>
-                  </div>
-                  <div style={{padding:'10px'}}>
-                      <div style={{fontSize:'13px', fontWeight:'bold', color:'white', background:'#e91e63', padding:'5px 10px', borderRadius:'4px', marginBottom:'10px'}}>FEMALE ({g.females.length})</div>
-                      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'5px'}}>{g.females.sort((a,b)=>a.room_no.localeCompare(b.room_no)).map(p => (<RoomCard key={p.room_no} r={{room_no: p.room_no, gender_type: 'Female'}} p={p} type="occupied" />))}</div>
-                  </div>
-              </div>
-          </div>
-      ))}
-      <div style={{border:'2px dashed #ccc', borderRadius:'8px', padding:'10px'}}>
-          <div style={{textAlign:'center', fontWeight:'bold', color:'#777', marginBottom:'10px'}}>🟢 AVAILABLE POOL</div>
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
-              <div><h4 style={{margin:'0 0 10px 0', color:'#007bff', borderBottom:'2px solid #007bff'}}>MALE WING</h4><div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(60px, 1fr))', gap:'5px'}}>{maleAvailable.map(r => <RoomCard key={r.room_id} r={r} type="available" />)}</div></div>
-              <div><h4 style={{margin:'0 0 10px 0', color:'#e91e63', borderBottom:'2px solid #e91e63'}}>FEMALE WING</h4><div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(60px, 1fr))', gap:'5px'}}>{femaleAvailable.map(r => <RoomCard key={r.room_id} r={r} type="available" />)}</div></div>
-          </div>
-      </div>
-      {editingRoom && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}> <h3>🔄 Change/Swap Room</h3> <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}> <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name}</strong></p> <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p> </div> <label style={styles.label}>New Room Number:</label> <input style={styles.input} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter target room no" /> <div style={{marginTop:'20px', display:'flex', gap:'10px'}}> <button onClick={handleSwapSave} style={{...styles.btn(true), background:'#28a745', color:'white', flex:1}}>Update / Swap</button> <button onClick={() => setEditingRoom(null)} style={{...styles.btn(false), flex:1}}>Cancel</button> </div> </div> </div> )} 
-    </div> 
+      
+      {rooms.length === 0 && <div style={{textAlign:'center', padding:'50px', color:'#999'}}>No rooms found. Add some above.</div>}
+    </div>
   );
 }
