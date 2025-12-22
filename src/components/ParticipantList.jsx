@@ -9,11 +9,10 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [search, setSearch] = useState(''); 
   const [filterType, setFilterType] = useState('ALL'); 
   const [editingStudent, setEditingStudent] = useState(null); 
-  const [viewMode, setViewMode] = useState('list'); // ✅ FIXED: Defaults to List View
+  const [viewMode, setViewMode] = useState('list'); // ✅ FIXED: Default is now LIST
   const [sortConfig, setSortConfig] = useState({ key: 'full_name', direction: 'asc' });
   
   // Logic State
-  const [assignProgress, setAssignProgress] = useState(''); 
   const [selectedSeat, setSelectedSeat] = useState(null);
   
   // Print & Config State
@@ -40,7 +39,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
   // --- HELPERS ---
   const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
-  const getCategoryShort = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return '(O)'; if (s.startsWith('N')) return '(N)'; return '(?)'; };
   const getCategoryRank = (conf) => { if (!conf) return 2; const s = conf.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   
   const getStudentStats = (p) => {
@@ -88,7 +86,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   // --- ACTIONS ---
   const saveLayoutConfig = () => { localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig)); alert("✅ Layout Configuration Saved!"); };
 
-  const handleAutoAssign = async () => { setShowAutoAssignModal(false); setAssignProgress('Calculating...'); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); const allP = await res.json(); const active = allP.filter(p => p.status === 'Attending' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre))); const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m')); const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f')); const genSeats = (cols, rows) => { let s=[]; for(let r=1; r<=rows; r++) cols.forEach(c=>s.push(c+r)); return s; }; const mReg = genSeats(generateColLabels(seatingConfig.mCols), seatingConfig.mRows); const mSpec = genSeats(generateChowkyLabels(seatingConfig.mChowky), seatingConfig.mRows); const fReg = genSeats(generateColLabels(seatingConfig.fCols), seatingConfig.fRows); const fSpec = genSeats(generateChowkyLabels(seatingConfig.fChowky), seatingConfig.fRows); const assign = (list, regSeats, specSeats) => { const updates = []; const locked = new Set(); list.forEach(p => { if(p.is_seat_locked && p.dhamma_hall_seat_no) locked.add(p.dhamma_hall_seat_no); }); const availReg = regSeats.filter(s => !locked.has(s)); const availSpec = specSeats.filter(s => !locked.has(s)); const toAssign = list.filter(p => !p.is_seat_locked).sort((a,b) => { const rA = getCategoryRank(a.conf_no), rB = getCategoryRank(b.conf_no); if (rA !== rB) return rA - rB; return (parseInt(b.age)||0) - (parseInt(a.age)||0); }); const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating)); const regGroup = toAssign.filter(p => !specGroup.includes(p)); specGroup.forEach(p => { if(availSpec.length) updates.push({...p, dhamma_hall_seat_no: availSpec.shift()}); else regGroup.unshift(p); }); regGroup.forEach(p => { if(availReg.length) updates.push({...p, dhamma_hall_seat_no: availReg.shift()}); }); return updates; }; const updates = [...assign(males, mReg, mSpec), ...assign(females, fReg, fSpec)]; if(updates.length === 0) { setAssignProgress(''); return alert("No assignments needed."); } setAssignProgress(`Saving ${updates.length}...`); const BATCH = 5; for(let i=0; i<updates.length; i+=BATCH) await Promise.all(updates.slice(i, i+BATCH).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) }))); setAssignProgress(''); alert("Done!"); const resFinal = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await resFinal.json()); };
+  const handleAutoAssign = async () => { setShowAutoAssignModal(false); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); const allP = await res.json(); const active = allP.filter(p => p.status === 'Attending' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre))); const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m')); const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f')); const genSeats = (cols, rows) => { let s=[]; for(let r=1; r<=rows; r++) cols.forEach(c=>s.push(c+r)); return s; }; const mReg = genSeats(generateColLabels(seatingConfig.mCols), seatingConfig.mRows); const mSpec = genSeats(generateChowkyLabels(seatingConfig.mChowky), seatingConfig.mRows); const fReg = genSeats(generateColLabels(seatingConfig.fCols), seatingConfig.fRows); const fSpec = genSeats(generateChowkyLabels(seatingConfig.fChowky), seatingConfig.fRows); const assign = (list, regSeats, specSeats) => { const updates = []; const locked = new Set(); list.forEach(p => { if(p.is_seat_locked && p.dhamma_hall_seat_no) locked.add(p.dhamma_hall_seat_no); }); const availReg = regSeats.filter(s => !locked.has(s)); const availSpec = specSeats.filter(s => !locked.has(s)); const toAssign = list.filter(p => !p.is_seat_locked).sort((a,b) => { const rA = getCategoryRank(a.conf_no), rB = getCategoryRank(b.conf_no); if (rA !== rB) return rA - rB; return (parseInt(b.age)||0) - (parseInt(a.age)||0); }); const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating)); const regGroup = toAssign.filter(p => !specGroup.includes(p)); specGroup.forEach(p => { if(availSpec.length) updates.push({...p, dhamma_hall_seat_no: availSpec.shift()}); else regGroup.unshift(p); }); regGroup.forEach(p => { if(availReg.length) updates.push({...p, dhamma_hall_seat_no: availReg.shift()}); }); return updates; }; const updates = [...assign(males, mReg, mSpec), ...assign(females, fReg, fSpec)]; if(updates.length === 0) { return alert("No assignments needed."); } const BATCH = 5; for(let i=0; i<updates.length; i+=BATCH) await Promise.all(updates.slice(i, i+BATCH).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) }))); alert("Done!"); const resFinal = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await resFinal.json()); };
 
   const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(editingStudent) }); setEditingStudent(null); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); };
   const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
@@ -133,17 +131,15 @@ export default function ParticipantList({ courses, refreshCourses }) {
       setTimeout(() => window.print(), 500); 
   };
   
-  // --- BULK TOKEN PREP (CLEANEST VERSION) ---
+  // --- BULK TOKEN PREP (THERMAL OPTIMIZED) ---
   const prepareBulkTokens = () => { 
-      // 1. Get VALID Students (Arrived + Have Seat)
       const valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
       if(valid.length === 0) return alert("No seats assigned to attending students."); 
       
-      // 2. DEDUPLICATE (Map by ID)
+      // Strict Deduplication
       const uniqueMap = new Map();
       valid.forEach(p => uniqueMap.set(p.participant_id, p));
       
-      // 3. TRANSFORM & SORT
       const tokens = Array.from(uniqueMap.values())
           .sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true}))
           .map(student => ({ 
@@ -160,17 +156,15 @@ export default function ParticipantList({ courses, refreshCourses }) {
               lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] 
           }));
 
-      // 4. LOAD INTO PRINT STATE
       setPrintBulkData(tokens); 
   };
 
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses Info", "Age", "Gender", "Room", "Dining Seat", "Pagoda", "Dhamma Seat", "Status", "Mobile Locker", "Valuables Locker", "Laundry Token", "Language"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', `"${p.courses_info || ''}"`, p.age || '', p.gender || '', p.room_no || '', p.dining_seat_no || '', p.pagoda_cell_no || '', p.dhamma_hall_seat_no || '', p.status || '', p.mobile_locker_no || '', p.valuables_locker_no || '', p.laundry_token_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
-  const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `dining_${courseId}.csv`); document.body.appendChild(link); link.click(); };
-  const handleSeatingExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Name", "Conf", "Gender", "Pagoda", "Room"]; const rows = arrived.map(p => [p.dhamma_hall_seat_no || '', `"${p.full_name || ''}"`, p.conf_no || '', p.gender || '', p.pagoda_cell_no || '', p.room_no || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `seating_${courseId}.csv`); document.body.appendChild(link); link.click(); };
-
+  
   // --- SEATING LOGIC ---
   const handleSeatClick = async (seatLabel, student) => { if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); return; } const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null); if (source.label === target.label) return; if (window.confirm(`Swap/Move?`)) { if (!target.p) { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } else { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP', is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
   
+  // --- GRID RENDER ---
   const renderGrid = (map, cols, rows) => { 
       let g=[]; 
       for(let r=rows; r>=1; r--) { 
@@ -180,32 +174,10 @@ export default function ParticipantList({ courses, refreshCourses }) {
               const stats = getStudentStats(p); 
               cells.push(
                   <div key={c+r} onClick={()=>handleSeatClick(c+r, p)} 
-                       style={{
-                           border: '2px solid black', 
-                           background: p ? (selectedSeat?.label === c+r ? '#ffeb3b' : 'white') : 'white', 
-                           width: '130px', 
-                           height: '95px', 
-                           fontSize: '10px', 
-                           overflow: 'hidden', 
-                           cursor: 'pointer', 
-                           display: 'flex', 
-                           flexDirection: 'column', 
-                           justifyContent: 'space-between',
-                           margin: '1px', 
-                           position: 'relative',
-                           boxSizing: 'border-box'
-                       }}>
-                      <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px'}}>
-                          <span>{c+r}</span><span style={{fontSize:'12px'}}>{p?.room_no || ''}</span>
-                      </div>
-                      <div style={{textAlign:'center', fontWeight:'bold', fontSize:'13px', lineHeight:'1.2', flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px'}}>
-                          {p ? p.full_name : ''}
-                      </div>
-                      {p && (
-                          <div style={{fontSize:'11px', padding:'3px 5px', fontWeight:'bold', whiteSpace:'nowrap', display:'flex', justifyContent:'space-between'}}>
-                              <span>{stats.cat}</span><span>s:{stats.s} L:{stats.l}</span><span>Age:({stats.age})</span>
-                          </div>
-                      )}
+                       style={{ border: '2px solid black', background: p ? (selectedSeat?.label === c+r ? '#ffeb3b' : 'white') : 'white', width: '130px', height: '95px', fontSize: '10px', overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', margin: '1px', position: 'relative', boxSizing: 'border-box' }}>
+                      <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px'}}><span>{c+r}</span><span style={{fontSize:'12px'}}>{p?.room_no || ''}</span></div>
+                      <div style={{textAlign:'center', fontWeight:'bold', fontSize:'13px', lineHeight:'1.2', flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px'}}>{p ? p.full_name : ''}</div>
+                      {p && (<div style={{fontSize:'11px', padding:'3px 5px', fontWeight:'bold', whiteSpace:'nowrap', display:'flex', justifyContent:'space-between'}}><span>{stats.cat}</span><span>s:{stats.s} L:{stats.l}</span><span>Age:({stats.age})</span></div>)}
                       {p && p.pagoda_cell_no && <div style={{position:'absolute', top:'25px', right:'2px', fontSize:'9px', background:'#e3f2fd', border:'1px solid blue', borderRadius:'3px', padding:'0 2px'}}>P:{p.pagoda_cell_no}</div>}
                       {p && p.is_seat_locked && <div style={{position:'absolute', bottom:'20px', left:'2px', fontSize:'8px'}}>🔒</div>}
                   </div>
@@ -216,61 +188,42 @@ export default function ParticipantList({ courses, refreshCourses }) {
       return g; 
   };
 
-  const printSection = (sectionId) => { 
+  // --- PRINT FUNCTIONS (SEPARATED) ---
+  const printChart = (sectionId) => {
+      // Logic for A3/Landscape Seating Charts
       const style = document.createElement('style'); 
-      style.innerHTML = `@media print { 
-          @page { size: ${printConfig.paper} ${printConfig.orientation}; margin: 5mm; } 
-          html, body { height: 100%; margin: 0; padding: 0; }
-          body * { visibility: hidden; } 
-          #${sectionId}, #${sectionId} * { visibility: visible; } 
-          #${sectionId} { 
-              position: fixed; 
-              left: 0; 
-              top: 0; 
-              width: 100%; 
-              height: 100%; 
-              display: flex; 
-              flex-direction: column; 
-              align-items: center; 
-              justify-content: center; 
-              transform: scale(${printConfig.scale}); 
-              transform-origin: center top; 
-          } 
-          .no-print { display: none !important; } 
-          .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } 
-          h1 { font-size: 24px !important; margin: 0 0 10px 0; } 
-      }`; 
+      style.innerHTML = `@media print { @page { size: ${printConfig.paper} ${printConfig.orientation}; margin: 5mm; } html, body { height: 100%; margin: 0; padding: 0; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: fixed; left: 0; top: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: scale(${printConfig.scale}); transform-origin: center top; } .no-print { display: none !important; } .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } h1 { font-size: 24px !important; margin: 0 0 10px 0; } }`; 
       document.head.appendChild(style); 
       window.print(); 
       document.head.removeChild(style); 
   };
 
-  const SeatingSheet = ({ id, title, map, cols, rows, setRows, setCols }) => ( 
-      <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto'}}> 
-          <div className="no-print" style={{textAlign:'right', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8f9fa', padding:'10px', borderRadius:'8px'}}> 
-              <div style={{display:'flex', gap:'5px'}}>
-                  <button onClick={()=>setRows(rows+1)} style={styles.quickBtn(false)} title="Add Row"><Plus size={12}/> Row</button>
-                  <button onClick={()=>setRows(Math.max(1, rows-1))} style={styles.quickBtn(false)} title="Remove Row"><Minus size={12}/> Row</button>
-                  <div style={{width:'1px', background:'#ccc', margin:'0 5px'}}></div>
-                  <button onClick={()=>setCols(cols+1)} style={styles.quickBtn(false)} title="Add Col"><Plus size={12}/> Col</button>
-                  <button onClick={()=>setCols(Math.max(1, cols-1))} style={styles.quickBtn(false)} title="Remove Col"><Minus size={12}/> Col</button>
-              </div>
-              <div style={{display:'flex', gap:'10px'}}>
-                  <button onClick={()=>setShowPrintSettings(true)} style={styles.toolBtn('#6c757d')}><Settings size={14}/> Print Settings</button>
-                  <button onClick={()=>printSection(id)} style={styles.quickBtn(true)}>🖨️ Print</button> 
-              </div>
+  const printThermal = () => {
+      // Logic for 72mm Roll Printing (No Scale, No Centering)
+      const style = document.createElement('style');
+      style.innerHTML = `@media print { @page { size: 72mm auto; margin: 0mm; } body { margin: 0; padding: 0; } body * { visibility: hidden; height: 0; } #bulk-token-print-area, #bulk-token-print-area * { visibility: visible; height: auto; } #bulk-token-print-area { position: absolute; left: 0; top: 0; width: 100%; } .bulk-token-container { page-break-after: always; display: block; width: 100%; border-bottom: 2px dashed black; margin-bottom: 5mm; padding-bottom: 5mm; } }`;
+      document.head.appendChild(style);
+      window.print();
+      document.head.removeChild(style);
+  };
+
+  // --- RENDER TABLE (With Course Name) ---
+  const renderTable = (list, title, color, sectionId) => ( 
+      <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> 
+          <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}>
+              <button onClick={() => printChart(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title}</button>
           </div> 
-          <div style={{textAlign:'center', marginBottom:'20px'}}> <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Seating Plan - {title}</h1> <h3 style={{margin:'5px 0', fontSize:'16px'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3> </div> 
-          <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content'}}> {renderGrid(map, cols, rows)} </div> </div> 
-          <div style={{display:'flex', justifyContent:'center', marginTop:'40px'}}> <div style={{textAlign:'center', width:'100%'}}> <div style={{border:'2px dashed black', padding:'15px', fontWeight:'900', fontSize:'28px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 auto', maxWidth:'600px'}}>TEACHER</div></div> </div> 
+          {/* ✅ FIXED: Added Course Name Header */}
+          <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Plan</h2> 
+          <h3 style={{textAlign:'center', marginTop:0, marginBottom:'20px', color:'#555'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3>
+          <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}><thead><tr><th style={styles.th}>S.N.</th><th style={styles.th}>Seat</th><th style={styles.th}>Name</th><th style={styles.th}>Cat</th><th style={styles.th}>Room</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={styles.td}>{i+1}</td><td style={{...styles.td, fontWeight:'bold'}}>{p.dining_seat_no || p.pagoda_cell_no}</td><td style={styles.td}>{p.full_name}</td><td style={styles.td}>{getCategory(p.conf_no)}</td><td style={styles.td}>{p.room_no}</td></tr>))}</tbody></table> 
       </div> 
   );
 
-  // --- RENDER HELPERS ---
-  const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={handleDiningExport} style={styles.toolBtn('#17a2b8')}>CSV</button> <button onClick={() => printSection(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center'}}>{title} Plan</h2> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}><thead><tr><th style={styles.th}>S.N.</th><th style={styles.th}>Seat</th><th style={styles.th}>Name</th><th style={styles.th}>Cat</th><th style={styles.th}>Room</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={styles.td}>{i+1}</td><td style={{...styles.td, fontWeight:'bold'}}>{p.dining_seat_no || p.pagoda_cell_no}</td><td style={styles.td}>{p.full_name}</td><td style={styles.td}>{getCategory(p.conf_no)}</td><td style={styles.td}>{p.room_no}</td></tr>))}</tbody></table> </div> );
   const getStatusColor = (s) => { if (s === 'Attending') return '#28a745'; if (s === 'Gate Check-In') return '#ffc107'; if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; return '#6c757d'; };
 
-  // --- VIEW MODES ---
+  // --- COMPONENT VIEWS ---
+  // ... (Summary View kept same) ...
   if (showSummaryReport) {
       const arrived = participants.filter(p => p.status === 'Attending');
       const getCount = (gender, type) => arrived.filter(p => { const g = (p.gender || '').toLowerCase().startsWith(gender); const c = (p.conf_no || '').toUpperCase(); if (type === 'OLD') return g && (c.startsWith('O') || c.startsWith('S')); if (type === 'NEW') return g && c.startsWith('N'); return false; }).length;
@@ -288,22 +241,41 @@ export default function ParticipantList({ courses, refreshCourses }) {
       const mCols = [...generateChowkyLabels(seatingConfig.mChowky), ...generateColLabels(seatingConfig.mCols)]; 
       const fCols = [...generateChowkyLabels(seatingConfig.fChowky), ...generateColLabels(seatingConfig.fCols)]; 
       
+      const SeatingSheet = ({ id, title, map, cols, rows, setRows, setCols }) => ( 
+          <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto'}}> 
+              <div className="no-print" style={{textAlign:'right', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8f9fa', padding:'10px', borderRadius:'8px'}}> 
+                  <div style={{display:'flex', gap:'5px'}}>
+                      <button onClick={()=>setRows(rows+1)} style={styles.quickBtn(false)} title="Add Row"><Plus size={12}/> Row</button>
+                      <button onClick={()=>setRows(Math.max(1, rows-1))} style={styles.quickBtn(false)} title="Remove Row"><Minus size={12}/> Row</button>
+                      <div style={{width:'1px', background:'#ccc', margin:'0 5px'}}></div>
+                      <button onClick={()=>setCols(cols+1)} style={styles.quickBtn(false)} title="Add Col"><Plus size={12}/> Col</button>
+                      <button onClick={()=>setCols(Math.max(1, cols-1))} style={styles.quickBtn(false)} title="Remove Col"><Minus size={12}/> Col</button>
+                  </div>
+                  <div style={{display:'flex', gap:'10px'}}>
+                      <button onClick={()=>setShowPrintSettings(true)} style={styles.toolBtn('#6c757d')}><Settings size={14}/> Print Settings</button>
+                      <button onClick={()=>printChart(id)} style={styles.quickBtn(true)}>🖨️ Print</button> 
+                  </div>
+              </div> 
+              <div style={{textAlign:'center', marginBottom:'20px'}}> <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Seating Plan - {title}</h1> <h3 style={{margin:'5px 0', fontSize:'16px'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3> </div> 
+              <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content'}}> {renderGrid(map, cols, rows)} </div> </div> 
+              <div style={{display:'flex', justifyContent:'center', marginTop:'40px'}}> <div style={{textAlign:'center', width:'100%'}}> <div style={{border:'2px dashed black', padding:'15px', fontWeight:'900', fontSize:'28px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 auto', maxWidth:'600px'}}>TEACHER</div></div> </div> 
+          </div> 
+      );
+
       return (
           <div style={styles.card}>
               <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'10px', alignItems:'center'}}> 
                   <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> 
                   <div style={{display:'flex', gap:'10px', alignItems:'center'}}> 
                       <button onClick={saveLayoutConfig} style={styles.toolBtn('#17a2b8')}><Save size={16}/> Store Seat Changes</button>
-                      <button onClick={handleSeatingExport} style={{...styles.quickBtn(true), background:'#6c757d', color:'white'}}>CSV</button> 
                       <button onClick={()=>setShowAutoAssignModal(true)} style={{...styles.btn(true), background:'#ff9800', color:'white'}}><Settings size={16}/> Auto-Assign</button> 
                   </div> 
               </div> 
-              
               <div className="print-area" style={{display:'flex', flexDirection:'column', gap:'100px'}}> 
                   <SeatingSheet id="print-male" title="MALE" map={mM} cols={mCols} rows={seatingConfig.mRows} setRows={(v)=>setSeatingConfig({...seatingConfig, mRows:v})} setCols={(v)=>setSeatingConfig({...seatingConfig, mCols:v})} /> 
                   <SeatingSheet id="print-female" title="FEMALE" map={fM} cols={fCols} rows={seatingConfig.fRows} setRows={(v)=>setSeatingConfig({...seatingConfig, fRows:v})} setCols={(v)=>setSeatingConfig({...seatingConfig, fCols:v})} /> 
               </div> 
-
+              
               {/* PRINT SETTINGS MODAL */}
               {showPrintSettings && (
                   <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:3000}}>
@@ -350,7 +322,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><User size={24}/> Students</h2>
              <select style={styles.input} onChange={e=>setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
          </div>
-         {/* CORRECTED TAB ORDER: Dining -> DH -> Pagoda -> Bulk -> Summary */}
+         {/* TAB ORDER: Dining -> DH -> Pagoda -> Bulk -> Summary */}
          <div style={{display:'flex', gap:'8px'}}>
              <button onClick={()=>setViewMode('dining')} disabled={!courseId} style={styles.toolBtn('#007bff')}>🍽️ Dining</button>
              <button onClick={()=>setViewMode('seating')} disabled={!courseId} style={styles.toolBtn('#6610f2')}>🧘 DH</button>
@@ -456,11 +428,11 @@ export default function ParticipantList({ courses, refreshCourses }) {
                   </div>
                   <button onClick={()=>window.print()} style={{marginTop:'10px', width:'100%'}}>Print</button>
               </div>
-              <style>{`@media print { body * { visibility: hidden; } #token-print-area, #token-print-area * { visibility: visible; } #token-print-area { position: absolute; left: 0; top: 0; width: 100%; } @page { size: 70mm auto; margin: 0; } }`}</style>
+              <style>{`@media print { body * { visibility: hidden; } #token-print-area, #token-print-area * { visibility: visible; } #token-print-area { position: absolute; left: 0; top: 0; width: 100%; } @page { size: 72mm auto; margin: 0; } }`}</style>
           </div>
       )}
 
-      {/* BULK TOKEN PRINT (Corrected for Safe Width) */}
+      {/* BULK TOKEN PRINT */}
       {printBulkData && ( 
           <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}> 
               <div style={{background:'white', padding:'20px', borderRadius:'5px', width:'400px', maxHeight:'90vh', overflowY:'auto', position:'relative'}}> 
@@ -474,38 +446,27 @@ export default function ParticipantList({ courses, refreshCourses }) {
                   </div>
                   
                   <div className="no-print" style={{textAlign:'center', marginBottom:'15px'}}>
-                      <button onClick={()=>window.print()} style={{...styles.btn(true), background:'#28a745', color:'white', width:'100%'}}>PRINT {bulkFilter} TOKENS</button>
+                      <button onClick={()=>printThermal()} style={{...styles.btn(true), background:'#28a745', color:'white', width:'100%'}}>PRINT {bulkFilter} TOKENS</button>
                   </div>
 
                   <div id="bulk-token-print-area"> 
                       {printBulkData.filter(t => bulkFilter==='ALL' || (bulkFilter==='Male' && t.gender.toLowerCase().startsWith('m')) || (bulkFilter==='Female' && t.gender.toLowerCase().startsWith('f'))).map((t, i) => ( 
-                          <div key={t.id} className="bulk-token-container" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'5px', textAlign:'center', marginBottom:'0', boxSizing:'border-box', pageBreakAfter:'always', width:'100%'}}> 
-                              {/* --- TICKET CONTENT START --- */}
-                              <div style={{borderBottom:'2px dashed #000', paddingBottom:'10px', marginBottom:'10px'}}>
-                                  <div style={{fontSize:'14px', fontWeight:'bold', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'5px'}}>DHAMMA SEAT</div>
-                                  <div style={{fontSize:'65px', fontWeight:'900', lineHeight:'1', margin:'5px 0'}}>{t.seat}</div>
-                                  <div style={{fontSize:'16px', fontWeight:'bold', margin:'5px 0'}}>{t.name}</div>
-                                  <div style={{fontSize:'12px', color:'#555'}}>{t.conf}</div>
-                                  <div style={{borderTop:'1px solid #000', marginTop:'10px', paddingTop:'5px', display:'flex', justifyContent:'space-between', fontSize:'12px', fontWeight:'bold'}}>
-                                      <div>Room: {t.room}</div>
-                                      <div>Cell: {t.cell}</div>
-                                  </div>
-                              </div>
-                              {/* --- TICKET CONTENT END --- */}
+                          <div key={t.id} className="bulk-token-container" style={{fontFamily:'Helvetica, Arial, sans-serif', color:'black', padding:'10px', textAlign:'center', border:'2px solid black', marginBottom:'0', boxSizing:'border-box', pageBreakAfter:'always', width:'100%', minHeight:'100px'}}> 
+                              <div style={{fontSize:'16px', fontWeight:'bold', marginBottom:'5px', borderBottom:'1px solid black'}}>DHAMMA SEAT TOKEN</div> 
+                              <div style={{fontSize:'70px', fontWeight:'900', margin:'5px 0', lineHeight:'1'}}>{t.seat}</div> 
+                              <div style={{fontSize:'14px', fontWeight:'bold', marginBottom:'5px', borderTop:'1px solid black', paddingTop:'5px'}}>{t.name}</div> 
+                              <div style={{fontSize:'12px', color:'#555', marginBottom:'5px'}}>{t.conf}</div> 
+                              <div style={{display:'flex', justifyContent:'space-between', borderTop:'1px solid black', paddingTop:'5px', fontSize:'12px'}}> 
+                                  <div>Cell: <b>{t.cell}</b></div> 
+                                  <div>Room: <b>{t.room}</b></div> 
+                              </div> 
+                              <div style={{marginTop:'5px', paddingTop:'5px', borderTop:'1px dashed #ccc', fontSize:'10px', display:'flex', justifyContent:'space-between'}}> 
+                                  <span>{t.cat}</span> <span>S:{t.sVal} L:{t.lVal}</span> <span>Age: {t.age}</span> 
+                              </div> 
                           </div> 
                       ))} 
                   </div> 
               </div> 
-              <style>{` 
-                  @media print { 
-                      @page { size: 70mm auto; margin: 0; } 
-                      body { margin: 0; padding: 0; }
-                      body * { visibility: hidden; height: 0; } 
-                      #bulk-token-print-area, #bulk-token-print-area * { visibility: visible; height: auto; } 
-                      #bulk-token-print-area { position: absolute; left: 0; top: 0; width: 100%; } 
-                      .bulk-token-container { page-break-after: always; display: block; width: 100%; padding-top: 5mm; } 
-                  } 
-              `}</style> 
           </div> 
       )}
 
