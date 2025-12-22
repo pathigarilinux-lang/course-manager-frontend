@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 export default function PagodaLayout({ gender, occupied, selected, onSelect, onClose }) {
-  const [activeTab, setActiveTab] = useState(gender === 'Female' ? 'Female' : 'Male');
+  // STRICT GENDER: No switching tabs. Use the prop passed from App.jsx
+  // Default to Male if undefined, but logic usually ensures strict 'Male'/'Female'
+  const isFemale = (gender || '').toLowerCase().startsWith('f');
+  const currentGender = isFemale ? 'Female' : 'Male';
+  const themeColor = isFemale ? '#e91e63' : '#007bff';
 
-  // CONFIGURATION FROM PROMPT
+  // CONFIGURATION
   const MALE_CIRCLES = [
     { name: 'Circle G (Outer)', range: [113, 123] },
     { name: 'Circle F (Outer)', range: [101, 112] },
@@ -23,15 +27,15 @@ export default function PagodaLayout({ gender, occupied, selected, onSelect, onC
     { name: 'Circle A', manual: [3, 5] }
   ];
 
-  // Helper to generate numbers array from range or manual list
+  // Select Configuration based on Strict Gender
+  const currentConfig = isFemale ? FEMALE_CIRCLES : MALE_CIRCLES;
+
+  // Helper to generate numbers array
   const getNumbers = (config) => {
     if (config.manual) return config.manual;
     const [start, end] = config.range;
     return Array.from({ length: end - start + 1 }, (_, i) => start + i);
   };
-
-  const currentConfig = activeTab === 'Male' ? MALE_CIRCLES : FEMALE_CIRCLES;
-  const themeColor = activeTab === 'Male' ? '#007bff' : '#e91e63';
 
   return (
     <div style={{
@@ -40,23 +44,19 @@ export default function PagodaLayout({ gender, occupied, selected, onSelect, onC
     }}>
       <div style={{ background: 'white', padding: '20px', borderRadius: '12px', width: '90%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
         
-        {/* Header & Tabs */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button 
-              onClick={() => setActiveTab('Male')} 
-              style={{ padding: '10px 20px', borderRadius: '20px', border: 'none', background: activeTab === 'Male' ? '#007bff' : '#eee', color: activeTab === 'Male' ? 'white' : '#555', fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              Male
-            </button>
-            <button 
-              onClick={() => setActiveTab('Female')} 
-              style={{ padding: '10px 20px', borderRadius: '20px', border: 'none', background: activeTab === 'Female' ? '#e91e63' : '#eee', color: activeTab === 'Female' ? 'white' : '#555', fontWeight: 'bold', cursor: 'pointer' }}
-            >
-              Female
-            </button>
-          </div>
-          <button onClick={onClose} style={{ background: '#333', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer' }}>Close</button>
+        {/* Header - No Tabs, Just Title */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: `2px solid ${themeColor}`, paddingBottom: '10px' }}>
+          <h3 style={{ margin: 0, color: themeColor, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            🛖 Pagoda Selection ({currentGender})
+          </h3>
+          <button onClick={onClose} style={{ background: '#333', color: 'white', border: 'none', padding: '8px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Close</button>
+        </div>
+
+        {/* Legend */}
+        <div style={{ display: 'flex', gap: '15px', fontSize: '12px', marginBottom: '15px', color: '#555' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '15px', height: '15px', borderRadius: '50%', border: `2px solid ${themeColor}` }}></div> Selected</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '15px', height: '15px', borderRadius: '50%', background: '#ffebee', border: '1px solid #ccc' }}></div> Occupied</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '15px', height: '15px', borderRadius: '50%', border: '1px solid #ccc' }}></div> Available</div>
         </div>
 
         {/* Circles List */}
@@ -75,15 +75,17 @@ export default function PagodaLayout({ gender, occupied, selected, onSelect, onC
                   return (
                     <button
                       key={num}
+                      type="button"
                       onClick={() => !isOcc && onSelect(num)}
                       disabled={isOcc}
                       style={{
                         width: '40px', height: '40px', borderRadius: '50%',
-                        border: isSel ? `2px solid ${themeColor}` : '1px solid #ccc',
-                        background: isOcc ? '#ffebee' : isSel ? themeColor : 'white',
-                        color: isOcc ? '#ccc' : isSel ? 'white' : '#333',
+                        border: isSel ? `3px solid ${themeColor}` : '1px solid #ccc',
+                        background: isOcc ? '#ffebee' : isSel ? 'white' : 'white',
+                        color: isOcc ? '#ccc' : isSel ? themeColor : '#333',
                         fontWeight: 'bold', cursor: isOcc ? 'not-allowed' : 'pointer',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                        boxShadow: isSel ? `0 0 10px ${themeColor}60` : '0 2px 4px rgba(0,0,0,0.05)',
+                        fontSize: '13px'
                       }}
                     >
                       {num}
