@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, History } from 'lucide-react';
 import { API_URL, styles } from '../config';
+import Dashboard from './Dashboard'; // Import the Universal Dashboard
 
 export default function GatekeeperPanel({ courses }) {
     const [courseId, setCourseId] = useState('');
     const [participants, setParticipants] = useState([]);
     const [search, setSearch] = useState('');
     const [showHistory, setShowHistory] = useState(false);
+    const [showDashboard, setShowDashboard] = useState(true); // Toggle for Dashboard
 
     useEffect(() => { 
         if (courses.length > 0) setCourseId(courses[0].course_id); 
@@ -34,25 +36,6 @@ export default function GatekeeperPanel({ courses }) {
         } catch (err) { alert("Error"); }
     };
 
-    const all = participants.filter(p => p.status !== 'Cancelled');
-    const arrived = all.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending');
-    const pending = all.filter(p => p.status === 'No Response');
-    
-    const getBreakdown = (list, filterFn) => list.filter(filterFn).length;
-    const isMale = (p) => (p.gender||'').toLowerCase().startsWith('m');
-    const isFemale = (p) => (p.gender||'').toLowerCase().startsWith('f');
-    const isOld = (p) => (p.conf_no||'').startsWith('O') || (p.conf_no||'').startsWith('S');
-    const isNew = (p) => (p.conf_no||'').startsWith('N');
-
-    const stats = {
-        total: all.length,
-        arrived: arrived.length,
-        pending: pending.length,
-        m: { tot: getBreakdown(all, isMale), arr: getBreakdown(arrived, isMale), pend: getBreakdown(pending, isMale) },
-        f: { tot: getBreakdown(all, isFemale), arr: getBreakdown(arrived, isFemale), pend: getBreakdown(pending, isFemale) },
-        cat: { old: getBreakdown(arrived, isOld), new: getBreakdown(arrived, isNew) }
-    };
-
     const filtered = participants.filter(p => {
         const match = p.full_name.toLowerCase().includes(search.toLowerCase()) || (p.conf_no && p.conf_no.toLowerCase().includes(search.toLowerCase()));
         if (!match) return false;
@@ -61,43 +44,19 @@ export default function GatekeeperPanel({ courses }) {
         return true;
     });
 
-    const StatBox = ({ label, v1, v2, v3, color }) => (
-        <div style={{background:'white', padding:'10px', borderRadius:'6px', borderTop:`3px solid ${color}`, textAlign:'center', flex:1}}>
-            <div style={{fontSize:'11px', color:'#777', fontWeight:'bold', textTransform:'uppercase'}}>{label}</div>
-            <div style={{display:'flex', justifyContent:'space-between', marginTop:'5px', fontSize:'13px'}}>
-                <span title="Total">T:<b>{v1}</b></span>
-                <span title="Arrived" style={{color:'green'}}>A:<b>{v2}</b></span>
-                <span title="Pending" style={{color:'red'}}>P:<b>{v3}</b></span>
-            </div>
-        </div>
-    );
-
     return (
         <div style={styles.card}>
-            <div style={{background:'#f1f3f5', padding:'15px', borderRadius:'8px', marginBottom:'20px'}}>
-                <h3 style={{margin:'0 0 10px 0', fontSize:'16px'}}>Gate Dashboard</h3>
-                <div style={{display:'flex', gap:'10px', marginBottom:'10px'}}>
-                    <div style={{background:'white', padding:'10px', borderRadius:'6px', flex:1, textAlign:'center'}}>
-                        <div style={{fontSize:'12px', color:'#777'}}>Total Expected</div>
-                        <div style={{fontSize:'20px', fontWeight:'bold'}}>{stats.total}</div>
-                    </div>
-                    <div style={{background:'white', padding:'10px', borderRadius:'6px', flex:1, textAlign:'center', border:'1px solid #28a745'}}>
-                        <div style={{fontSize:'12px', color:'green'}}>Checked In</div>
-                        <div style={{fontSize:'20px', fontWeight:'bold', color:'green'}}>{stats.arrived}</div>
-                    </div>
-                    <div style={{background:'white', padding:'10px', borderRadius:'6px', flex:1, textAlign:'center', border:'1px solid #dc3545'}}>
-                        <div style={{fontSize:'12px', color:'red'}}>Pending</div>
-                        <div style={{fontSize:'20px', fontWeight:'bold', color:'red'}}>{stats.pending}</div>
-                    </div>
-                </div>
-                <div style={{display:'flex', gap:'10px'}}>
-                    <StatBox label="Male" v1={stats.m.tot} v2={stats.m.arr} v3={stats.m.pend} color="#007bff" />
-                    <StatBox label="Female" v1={stats.f.tot} v2={stats.f.arr} v3={stats.f.pend} color="#e91e63" />
-                </div>
-                <div style={{marginTop:'10px', fontSize:'12px', textAlign:'center', color:'#555'}}>
-                    <b>Arrived Breakdown:</b> Old Students: {stats.cat.old} | New Students: {stats.cat.new}
-                </div>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
+                <h2 style={{margin:0}}>🚧 Gate Check-In</h2>
+                <button onClick={()=>setShowDashboard(!showDashboard)} style={styles.btn(showDashboard)}>{showDashboard ? 'Hide Stats' : 'Show Stats'}</button>
             </div>
+
+            {/* EMBEDDED DASHBOARD */}
+            {showDashboard && (
+                <div style={{marginBottom:'30px', borderBottom:'2px solid #eee', paddingBottom:'20px'}}>
+                    <Dashboard courses={courses} externalData={{ participants }} role="gatekeeper" />
+                </div>
+            )}
 
             <div style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
                 <select style={{...styles.input, flex:1}} value={courseId} onChange={e=>setCourseId(e.target.value)}>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
@@ -114,12 +73,7 @@ export default function GatekeeperPanel({ courses }) {
                         <div>
                             <div style={{fontWeight:'bold', fontSize:'16px'}}>{p.full_name}</div>
                             <div style={{color:'#666', fontSize:'14px'}}>{p.conf_no} | Age: {p.age}</div>
-                            <div style={{marginTop:'5px'}}>
-                                {p.status === 'Gate Check-In' && <span style={{background:'#ffc107', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>AT GATE</span>}
-                                {p.status === 'Attending' && <span style={{background:'#28a745', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>INSIDE (DONE)</span>}
-                                {p.status === 'Cancelled' && <span style={{background:'#dc3545', color:'white', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:'bold'}}>CANCELLED</span>}
-                                {(p.status === 'No Response' || !p.status) && <span style={{background:'#eee', padding:'2px 6px', borderRadius:'4px', fontSize:'12px'}}>PENDING</span>}
-                            </div>
+                            <div style={{fontSize:'12px', fontWeight:'bold', color: p.status==='Gate Check-In'?'orange':(p.status==='Attending'?'green':'#777')}}>{p.status}</div>
                         </div>
                         {p.status !== 'Attending' && p.status !== 'Gate Check-In' && p.status !== 'Cancelled' && (
                             <div style={{display:'flex', gap:'10px'}}>
