@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Edit, Trash2 } from 'lucide-react'; // Removed unused icons
-// 👇 UPDATE THIS LINE TO INCLUDE MISSING FUNCTIONS
+import { Edit, Trash2 } from 'lucide-react'; 
 import { API_URL, styles, PROTECTED_ROOMS, getSmartShortName } from '../config';
 
 export default function GlobalAccommodationManager({ courses, onRoomClick }) {
-  // ... (Paste full implementation from previous response)
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
   const [newRoom, setNewRoom] = useState({ roomNo: '', type: 'Male' }); 
@@ -40,10 +38,13 @@ export default function GlobalAccommodationManager({ courses, onRoomClick }) {
       if (!editingRoom || !editingRoom.p) return;
       const targetRoomNo = editingRoom.newRoomNo.trim();
       if(!targetRoomNo) return alert("Enter Target Room.");
+      
       const normalize = (s) => s ? s.toString().trim().toUpperCase() : '';
       const targetNorm = normalize(targetRoomNo);
       const currentNorm = normalize(editingRoom.p.room_no);
+      
       if (targetNorm === currentNorm) { alert("Same room!"); return; }
+      
       const targetOccupant = occupancy.find(p => p.room_no && normalize(p.room_no) === targetNorm);
       const currentStudent = editingRoom.p;
       
@@ -62,6 +63,7 @@ export default function GlobalAccommodationManager({ courses, onRoomClick }) {
   const normalize = (str) => str ? str.toString().trim().toUpperCase() : '';
   const courseGroups = {};
   courses.forEach(c => { courseGroups[c.course_id] = { name: c.course_name, males: [], females: [], stats: { old: 0, new: 0, total: 0 } }; });
+  
   const occupiedSet = new Set();
   occupancy.forEach(p => {
       if (p.room_no) {
@@ -86,6 +88,7 @@ export default function GlobalAccommodationManager({ courses, onRoomClick }) {
       const bgColor = type === 'available' ? 'white' : (isOld ? '#e1bee7' : '#c8e6c9'); 
       const borderColor = type === 'available' ? '#ccc' : (isOld ? '#8e24aa' : '#2e7d32');
       const genderBorder = r.gender_type === 'Female' ? '4px solid #e91e63' : '4px solid #007bff';
+      
       return (
           <div onClick={() => type === 'occupied' ? setEditingRoom({ p, newRoomNo: '' }) : onRoomClick(r.room_no)}
             style={{ border: `1px solid ${borderColor}`, borderLeft: genderBorder, background: bgColor, borderRadius: '4px', padding: '5px', minHeight: '60px', fontSize: '11px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
@@ -99,15 +102,15 @@ export default function GlobalAccommodationManager({ courses, onRoomClick }) {
   };
 
   return ( 
-    <div style={cardStyle}> 
+    <div style={styles.card}> 
       <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center'}}> 
         <h2 style={{margin:0}}>🛏️ Global Accommodation</h2> 
         <div style={{display:'flex', gap:'5px', background:'#f9f9f9', padding:'5px', borderRadius:'5px'}}> 
-            <input style={{...inputStyle, width:'60px', padding:'5px'}} placeholder="Room" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} /> 
-            <select style={{...inputStyle, width:'80px', padding:'5px'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select> 
-            <button onClick={handleAddRoom} style={{...toolBtn('#007bff')}}>+ Add Room</button> 
+            <input style={{...styles.input, width:'60px', padding:'5px'}} placeholder="Room" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} /> 
+            <select style={{...styles.input, width:'80px', padding:'5px'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select> 
+            <button onClick={handleAddRoom} style={{...styles.toolBtn('#007bff')}}>+ Add Room</button> 
         </div>
-        <button onClick={loadData} style={{...btnStyle(false), fontSize:'12px'}}>↻ Refresh</button> 
+        <button onClick={loadData} style={{...styles.btn(false), fontSize:'12px'}}>↻ Refresh</button> 
       </div> 
       <div style={{display:'flex', gap:'15px', marginBottom:'20px', overflowX:'auto', paddingBottom:'10px'}}>
           {Object.values(courseGroups).map((g, i) => (
@@ -146,7 +149,7 @@ export default function GlobalAccommodationManager({ courses, onRoomClick }) {
               <div><h4 style={{margin:'0 0 10px 0', color:'#e91e63', borderBottom:'2px solid #e91e63'}}>FEMALE WING</h4><div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(60px, 1fr))', gap:'5px'}}>{femaleAvailable.map(r => <RoomCard key={r.room_id} r={r} type="available" />)}</div></div>
           </div>
       </div>
-      {editingRoom && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}> <h3>🔄 Change/Swap Room</h3> <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}> <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name}</strong></p> <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p> </div> <label style={labelStyle}>New Room Number:</label> <input style={inputStyle} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter target room no" /> <div style={{marginTop:'20px', display:'flex', gap:'10px'}}> <button onClick={handleSwapSave} style={{...btnStyle(true), background:'#28a745', color:'white', flex:1}}>Update / Swap</button> <button onClick={() => setEditingRoom(null)} style={{...btnStyle(false), flex:1}}>Cancel</button> </div> </div> </div> )} 
+      {editingRoom && ( <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}> <div style={{background:'white', padding:'25px', borderRadius:'10px', width:'350px'}}> <h3>🔄 Change/Swap Room</h3> <div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}> <p style={{margin:'5px 0'}}>Student: <strong>{editingRoom.p.full_name}</strong></p> <p style={{margin:'5px 0', fontSize:'12px'}}>Current Room: <strong>{editingRoom.p.room_no}</strong></p> </div> <label style={styles.label}>New Room Number:</label> <input style={styles.input} value={editingRoom.newRoomNo} onChange={e => setEditingRoom({...editingRoom, newRoomNo: e.target.value})} placeholder="Enter target room no" /> <div style={{marginTop:'20px', display:'flex', gap:'10px'}}> <button onClick={handleSwapSave} style={{...styles.btn(true), background:'#28a745', color:'white', flex:1}}>Update / Swap</button> <button onClick={() => setEditingRoom(null)} style={{...styles.btn(false), flex:1}}>Cancel</button> </div> </div> </div> )} 
     </div> 
   );
 }
