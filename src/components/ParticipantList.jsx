@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import React, { useState, useEffect, useMemo } from 'react';
 import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, Maximize, Minimize } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
@@ -13,7 +12,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [viewMode, setViewMode] = useState('list'); 
   const [sortConfig, setSortConfig] = useState({ key: 'full_name', direction: 'asc' });
   
-  // Logic State
+  // Logic & UI State
   const [assignProgress, setAssignProgress] = useState(''); 
   const [selectedSeat, setSelectedSeat] = useState(null);
   
@@ -25,9 +24,9 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [showSummaryReport, setShowSummaryReport] = useState(false);
   const [showPrintSettings, setShowPrintSettings] = useState(false);
   
-  // Advanced Settings - Default to A3 Landscape for best fit
+  // Advanced Settings (Default A3 Landscape)
   const [seatingConfig, setSeatingConfig] = useState({ mCols: 10, mRows: 10, mChowky: 2, fCols: 8, fRows: 10, fChowky: 2 });
-  const [printConfig, setPrintConfig] = useState({ scale: 0.9, orientation: 'landscape', paper: 'A3' });
+  const [printConfig, setPrintConfig] = useState({ scale: 0.85, orientation: 'landscape', paper: 'A3' });
 
   // --- LOADING ---
   useEffect(() => { 
@@ -38,24 +37,28 @@ export default function ParticipantList({ courses, refreshCourses }) {
       } 
   }, [courseId]);
 
-  // --- HELPERS ---
+  // --- DATA HELPERS ---
   const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
-  const getCategoryShort = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return '(O)'; if (s.startsWith('N')) return '(N)'; return '(?)'; };
   const getCategoryRank = (conf) => { if (!conf) return 2; const s = conf.toUpperCase(); if (s.startsWith('OM') || s.startsWith('OF') || s.startsWith('SM') || s.startsWith('SF')) return 0; if (s.startsWith('N')) return 1; return 2; };
   
-  // Extract S:X L:Y from courses_info string
-  const getHistoryShort = (info) => {
-      if (!info) return '';
-      const s = info.match(/S\s*[:=-]?\s*(\d+)/i);
-      const l = info.match(/L\s*[:=-]?\s*(\d+)/i);
-      const sVal = s ? s[1] : '0';
-      const lVal = l ? l[1] : '0';
-      return `s:${sVal} L:${lVal}`;
+  // PARSER: Converts "S:19 L:5" to objects for the card view
+  const getStudentStats = (p) => {
+      if (!p) return { cat: '', s: 0, l: 0, age: '' };
+      const conf = (p.conf_no || '').toUpperCase();
+      const isOld = conf.startsWith('O') || conf.startsWith('S');
+      const cat = isOld ? '(O)' : '(N)';
+      
+      const sMatch = (p.courses_info || '').match(/S\s*[:=-]?\s*(\d+)/i);
+      const lMatch = (p.courses_info || '').match(/L\s*[:=-]?\s*(\d+)/i);
+      const s = sMatch ? sMatch[1] : '0';
+      const l = lMatch ? lMatch[1] : '0';
+      
+      return { cat, s, l, age: p.age || '?' };
   };
 
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   
-  // --- SMART FILTER & SORT ENGINE ---
+  // --- SMART FILTER & SORT ---
   const processedList = useMemo(() => { 
       let items = [...participants]; 
       if (filterType !== 'ALL') {
@@ -107,7 +110,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   // --- SEATING LOGIC ---
   const handleSeatClick = async (seatLabel, student) => { if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); return; } const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null); if (source.label === target.label) return; if (window.confirm(`Swap/Move?`)) { if (!target.p) { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } else { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP', is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
   
-  // --- UPGRADED RENDER GRID (VISUAL CUSHION / DETAILED BOX) ---
+  // --- UPGRADED GRID RENDERER (VISUAL MATCH TO SCREENSHOT) ---
   const renderGrid = (map, cols, rows) => { 
       let g=[]; 
       for(let r=rows; r>=1; r--) { 
@@ -115,15 +118,15 @@ export default function ParticipantList({ courses, refreshCourses }) {
           cols.forEach(c => {
               const p = map[c+r];
               const isLocked = p && p.is_seat_locked;
+              const stats = getStudentStats(p); // Parse (O) S:19 L:5 etc
               
               cells.push(
                   <div key={c+r} onClick={()=>handleSeatClick(c+r, p)} 
                        style={{
-                           border: '2px solid black', // Strong border as per screenshot
+                           border: '2px solid black', 
                            background: p ? (selectedSeat?.label === c+r ? '#ffeb3b' : 'white') : 'white', 
-                           width: '110px', // Wider to fit data
-                           height: '85px', // Taller to fit 3 lines
-                           fontSize: '10px', 
+                           width: '130px', // Wider for details
+                           height: '90px', // Taller
                            overflow: 'hidden', 
                            cursor: 'pointer', 
                            display: 'flex', 
@@ -131,38 +134,29 @@ export default function ParticipantList({ courses, refreshCourses }) {
                            justifyContent: 'space-between',
                            margin: '1px', 
                            position: 'relative',
-                           boxSizing: 'border-box',
-                           borderRadius: '4px' // Slight rounded corner for "Cushion" feel
+                           boxSizing: 'border-box'
                        }}>
                       
-                      {/* TOP ROW: Seat | Room */}
-                      <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', borderBottom:'1px solid #ccc', padding:'2px 4px', background:'#f8f9fa'}}>
+                      {/* TOP ROW: SEAT (Left) | ROOM (Right) */}
+                      <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px', borderBottom:'1px solid #ccc'}}>
                           <span>{c+r}</span>
                           <span>{p?.room_no || ''}</span>
                       </div>
 
-                      {/* MIDDLE: Name */}
-                      <div style={{textAlign:'center', fontWeight:'bold', fontSize:'11px', padding:'0 2px', lineHeight:'1.1', flex:1, display:'flex', alignItems:'center', justifyContent:'center'}}>
+                      {/* MIDDLE ROW: FULL NAME */}
+                      <div style={{textAlign:'center', fontWeight:'bold', fontSize:'12px', lineHeight:'1.1', flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 2px'}}>
                           {p ? p.full_name : ''}
                       </div>
 
-                      {/* BOTTOM: O/N | History | Age */}
+                      {/* BOTTOM ROW: (O) s:19 L:5 Age:(50) */}
                       {p && (
-                          <div style={{fontSize:'9px', padding:'2px', borderTop:'1px solid #ccc', display:'flex', justifyContent:'space-between', whiteSpace:'nowrap'}}>
-                              <span>{getCategoryShort(p.conf_no)}</span>
-                              <span>{getHistoryShort(p.courses_info)}</span>
-                              <span>Age:{p.age}</span>
+                          <div style={{fontSize:'10px', padding:'3px 5px', borderTop:'1px solid #ccc', fontWeight:'bold', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>
+                              {stats.cat} s:{stats.s} L:{stats.l} Age:({stats.age})
                           </div>
                       )}
                       
-                      {/* PAGODA BADGE (If assigned) */}
-                      {p && p.pagoda_cell_no && (
-                          <div style={{position:'absolute', top:'18px', right:'2px', fontSize:'8px', background:'#e3f2fd', border:'1px solid blue', borderRadius:'3px', padding:'0 2px'}}>
-                              P:{p.pagoda_cell_no}
-                          </div>
-                      )}
-
-                      {p && p.is_seat_locked && <div style={{position:'absolute', bottom:'2px', left:'2px', fontSize:'8px'}}>🔒</div>}
+                      {/* ICONS */}
+                      {p && p.is_seat_locked && <div style={{position:'absolute', bottom:'20px', left:'2px', fontSize:'8px'}}>🔒</div>}
                   </div>
               );
           }); 
@@ -171,16 +165,18 @@ export default function ParticipantList({ courses, refreshCourses }) {
       return g; 
   };
 
-  // --- UPGRADED PRINT ENGINE (CENTERED) ---
+  // --- UPGRADED PRINT ENGINE (Flexbox Centering) ---
   const printSection = (sectionId) => { 
       const style = document.createElement('style'); 
       style.innerHTML = `@media print { 
           @page { size: ${printConfig.paper} ${printConfig.orientation}; margin: 5mm; } 
-          body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+          html, body { height: 100%; margin: 0; padding: 0; }
           body * { visibility: hidden; } 
           #${sectionId}, #${sectionId} * { visibility: visible; } 
           #${sectionId} { 
-              position: static; 
+              position: fixed; 
+              left: 0; 
+              top: 0; 
               width: 100%; 
               height: 100%; 
               display: flex; 
@@ -188,10 +184,10 @@ export default function ParticipantList({ courses, refreshCourses }) {
               align-items: center; 
               justify-content: center; /* Center Vertically */
               transform: scale(${printConfig.scale}); 
-              transform-origin: center top; 
+              transform-origin: center center; 
           } 
           .no-print { display: none !important; } 
-          .seat-grid { page-break-inside: avoid; border-top: 2px solid black; border-left: 2px solid black; } 
+          .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } 
           h1 { font-size: 24px !important; margin: 0 0 10px 0; } 
       }`; 
       document.head.appendChild(style); 
@@ -199,6 +195,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
       document.head.removeChild(style); 
   };
 
+  // --- SEATING SHEET COMPONENT ---
   const SeatingSheet = ({ id, title, map, cols, rows, setRows, setCols }) => ( 
       <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto'}}> 
           <div className="no-print" style={{textAlign:'right', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8f9fa', padding:'10px', borderRadius:'8px'}}> 
@@ -215,21 +212,18 @@ export default function ParticipantList({ courses, refreshCourses }) {
               </div>
           </div> 
           
-          {/* TITLE HEADER */}
           <div style={{textAlign:'center', marginBottom:'20px'}}> 
               <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Seating Plan - {title}</h1> 
               <h3 style={{margin:'5px 0', fontSize:'16px'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3> 
           </div> 
           
-          {/* GRID */}
           <div style={{display:'flex', justifyContent:'center'}}> 
               <div className="seat-grid" style={{width:'fit-content'}}> {renderGrid(map, cols, rows)} </div> 
           </div> 
           
-          {/* TEACHER BOX (Aligned with grid width) */}
           <div style={{display:'flex', justifyContent:'center', marginTop:'40px'}}> 
-              <div style={{textAlign:'center'}}> 
-                  <div style={{border:'2px dashed black', minWidth:'400px', width:'100%', padding:'15px', fontWeight:'900', fontSize:'28px', letterSpacing:'2px', textTransform:'uppercase'}}>TEACHER</div>
+              <div style={{textAlign:'center', width:'100%'}}> 
+                  <div style={{border:'2px dashed black', padding:'15px', fontWeight:'900', fontSize:'28px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 auto', maxWidth:'600px'}}>TEACHER</div>
               </div> 
           </div> 
       </div> 
