@@ -15,10 +15,9 @@ export default function ParticipantList({ courses, refreshCourses }) {
   // Logic State
   const [selectedSeat, setSelectedSeat] = useState(null);
   
-  // Print State
+  // Print & Config State
   const [printReceiptData, setPrintReceiptData] = useState(null);
-  const [showBulkModal, setShowBulkModal] = useState(false); // Controls the Bulk UI only
-  
+  const [showBulkModal, setShowBulkModal] = useState(false); 
   const [showAutoAssignModal, setShowAutoAssignModal] = useState(false);
   const [showSummaryReport, setShowSummaryReport] = useState(false);
   const [showPrintSettings, setShowPrintSettings] = useState(false);
@@ -93,9 +92,8 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); };
   const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
 
-  // --- NEW: DIRECT IFRAME PRINT ENGINE (NO REACT RENDER) ---
+  // --- NEW: DIRECT IFRAME PRINT ENGINE (PRO TICKET DESIGN) ---
   const printDirectly = (tokens) => {
-      // 1. Create a hidden iframe
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
       iframe.style.right = '0';
@@ -105,7 +103,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
       iframe.style.border = 'none';
       document.body.appendChild(iframe);
 
-      // 2. Build the HTML String (Thermal Optimized)
       let htmlContent = `
         <html>
           <head>
@@ -113,21 +110,31 @@ export default function ParticipantList({ courses, refreshCourses }) {
             <style>
               @page { size: 72mm auto; margin: 0; }
               body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
-              .ticket { 
-                width: 70mm; 
-                margin: 0 auto; 
-                padding-top: 5mm; 
-                padding-bottom: 5mm; 
-                border-bottom: 2px dashed #000; 
-                text-align: center; 
-                page-break-after: always; 
+              .ticket-container {
+                  width: 70mm;
+                  margin: 0 auto;
+                  padding-top: 5mm; 
+                  padding-bottom: 5mm;
+                  page-break-after: always;
               }
-              .ticket:last-child { page-break-after: auto; }
-              .header { font-size: 14px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; }
-              .seat { font-size: 60px; font-weight: 900; line-height: 1; margin: 5px 0; }
-              .name { font-size: 16px; font-weight: bold; margin: 5px 0; word-wrap: break-word; }
+              .ticket-container:last-child { page-break-after: auto; }
+              
+              /* PROFESSIONAL BORDER BOX */
+              .ticket-box {
+                  border: 3px solid #000; /* THICK PROFESSIONAL BORDER */
+                  border-radius: 8px;
+                  padding: 10px;
+                  width: 64mm; /* Safe width inside 70mm container */
+                  margin: 0 auto;
+                  text-align: center;
+                  box-sizing: border-box;
+              }
+
+              .header { font-size: 14px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; }
+              .seat { font-size: 55px; font-weight: 900; line-height: 1; margin: 5px 0; }
+              .name { font-size: 15px; font-weight: bold; margin: 5px 0; word-wrap: break-word; line-height: 1.2; }
               .conf { font-size: 12px; color: #333; margin-bottom: 10px; }
-              .footer { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-top: 1px solid #000; padding-top: 5px; margin-top: 5px; }
+              .footer { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; }
               .stats { font-size: 10px; margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px; display: flex; justify-content: space-between; }
             </style>
           </head>
@@ -136,19 +143,21 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
       tokens.forEach(t => {
           htmlContent += `
-            <div class="ticket">
-                <div class="header">DHAMMA SEAT TOKEN</div>
-                <div class="seat">${t.seat}</div>
-                <div class="name">${t.name}</div>
-                <div class="conf">${t.conf}</div>
-                <div class="footer">
-                    <span>Cell: ${t.cell}</span>
-                    <span>Room: ${t.room}</span>
-                </div>
-                <div class="stats">
-                    <span>${t.cat}</span>
-                    <span>S:${t.sVal} L:${t.lVal}</span>
-                    <span>Age: ${t.age}</span>
+            <div class="ticket-container">
+                <div class="ticket-box">
+                    <div class="header">DHAMMA SEAT</div>
+                    <div class="seat">${t.seat}</div>
+                    <div class="name">${t.name}</div>
+                    <div class="conf">${t.conf}</div>
+                    <div class="footer">
+                        <span>Cell: ${t.cell}</span>
+                        <span>Room: ${t.room}</span>
+                    </div>
+                    <div class="stats">
+                        <span>${t.cat}</span>
+                        <span>S:${t.sVal} L:${t.lVal}</span>
+                        <span>Age: ${t.age}</span>
+                    </div>
                 </div>
             </div>
           `;
@@ -156,7 +165,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
       htmlContent += `</body></html>`;
 
-      // 3. Write to iframe and print
       const doc = iframe.contentWindow.document;
       doc.open();
       doc.write(htmlContent);
@@ -165,23 +173,18 @@ export default function ParticipantList({ courses, refreshCourses }) {
       iframe.onload = () => {
           iframe.contentWindow.focus();
           iframe.contentWindow.print();
-          // Clean up after print (optional, but good for memory)
           setTimeout(() => document.body.removeChild(iframe), 2000);
       };
   };
 
   // --- TRIGGER FUNCTIONS ---
   const handleBulkPrint = (filter) => {
-      // 1. Filter Valid Students
       let valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no);
-      
-      // 2. Apply Gender Filter
       if (filter === 'Male') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
       if (filter === 'Female') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
 
       if (valid.length === 0) return alert("No students found for this selection.");
 
-      // 3. Transform Data
       const tokens = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(s => ({
           seat: s.dhamma_hall_seat_no,
           name: s.full_name,
@@ -194,7 +197,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
           lVal: (s.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1]
       }));
 
-      // 4. Send to Engine
       printDirectly(tokens);
   };
 
@@ -214,6 +216,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
       printDirectly([t]);
   };
 
+  // --- STANDARD RECEIPT (Use standard window.print for Receipts) ---
   const prepareReceipt = (student) => { 
       const courseObj = courses.find(c => c.course_id == student.course_id) || courses.find(c => c.course_id == courseId); 
       setPrintReceiptData({ 
@@ -233,55 +236,24 @@ export default function ParticipantList({ courses, refreshCourses }) {
       setTimeout(() => window.print(), 500); 
   };
 
+  // --- EXPORTS & RENDERERS (Kept same) ---
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses Info", "Age", "Gender", "Room", "Dining Seat", "Pagoda", "Dhamma Seat", "Status", "Mobile Locker", "Valuables Locker", "Laundry Token", "Language"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', `"${p.courses_info || ''}"`, p.age || '', p.gender || '', p.room_no || '', p.dining_seat_no || '', p.pagoda_cell_no || '', p.dhamma_hall_seat_no || '', p.status || '', p.mobile_locker_no || '', p.valuables_locker_no || '', p.laundry_token_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `dining_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   const handleSeatingExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Name", "Conf", "Gender", "Pagoda", "Room"]; const rows = arrived.map(p => [p.dhamma_hall_seat_no || '', `"${p.full_name || ''}"`, p.conf_no || '', p.gender || '', p.pagoda_cell_no || '', p.room_no || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `seating_${courseId}.csv`); document.body.appendChild(link); link.click(); };
 
-  // --- SEATING LOGIC ---
   const handleSeatClick = async (seatLabel, student) => { if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); return; } const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null); if (source.label === target.label) return; if (window.confirm(`Swap/Move?`)) { if (!target.p) { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } else { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP', is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
   
   const renderGrid = (map, cols, rows) => { 
-      let g=[]; 
-      for(let r=rows; r>=1; r--) { 
-          let cells=[]; 
-          cols.forEach(c => {
-              const p = map[c+r];
-              const stats = getStudentStats(p); 
-              cells.push(
-                  <div key={c+r} onClick={()=>handleSeatClick(c+r, p)} 
-                       style={{ border: '2px solid black', background: p ? (selectedSeat?.label === c+r ? '#ffeb3b' : 'white') : 'white', width: '130px', height: '95px', fontSize: '10px', overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', margin: '1px', position: 'relative', boxSizing: 'border-box' }}>
-                      <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px'}}><span>{c+r}</span><span style={{fontSize:'12px'}}>{p?.room_no || ''}</span></div>
-                      <div style={{textAlign:'center', fontWeight:'bold', fontSize:'13px', lineHeight:'1.2', flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px'}}>{p ? p.full_name : ''}</div>
-                      {p && (<div style={{fontSize:'11px', padding:'3px 5px', fontWeight:'bold', whiteSpace:'nowrap', display:'flex', justifyContent:'space-between'}}><span>{stats.cat}</span><span>s:{stats.s} L:{stats.l}</span><span>Age:({stats.age})</span></div>)}
-                      {p && p.pagoda_cell_no && <div style={{position:'absolute', top:'25px', right:'2px', fontSize:'9px', background:'#e3f2fd', border:'1px solid blue', borderRadius:'3px', padding:'0 2px'}}>P:{p.pagoda_cell_no}</div>}
-                      {p && p.is_seat_locked && <div style={{position:'absolute', bottom:'20px', left:'2px', fontSize:'8px'}}>🔒</div>}
-                  </div>
-              );
-          }); 
-          g.push(<div key={r} style={{display:'flex'}}>{cells}</div>); 
-      } 
-      return g; 
+      let g=[]; for(let r=rows; r>=1; r--) { let cells=[]; cols.forEach(c => { const p = map[c+r]; const stats = getStudentStats(p); cells.push(<div key={c+r} onClick={()=>handleSeatClick(c+r, p)} style={{ border: '2px solid black', background: p ? (selectedSeat?.label === c+r ? '#ffeb3b' : 'white') : 'white', width: '130px', height: '95px', fontSize: '10px', overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', margin: '1px', position: 'relative', boxSizing: 'border-box' }}><div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px'}}><span>{c+r}</span><span style={{fontSize:'12px'}}>{p?.room_no || ''}</span></div><div style={{textAlign:'center', fontWeight:'bold', fontSize:'13px', lineHeight:'1.2', flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px'}}>{p ? p.full_name : ''}</div>{p && (<div style={{fontSize:'11px', padding:'3px 5px', fontWeight:'bold', whiteSpace:'nowrap', display:'flex', justifyContent:'space-between'}}><span>{stats.cat}</span><span>s:{stats.s} L:{stats.l}</span><span>Age:({stats.age})</span></div>)}{p && p.pagoda_cell_no && <div style={{position:'absolute', top:'25px', right:'2px', fontSize:'9px', background:'#e3f2fd', border:'1px solid blue', borderRadius:'3px', padding:'0 2px'}}>P:{p.pagoda_cell_no}</div>}{p && p.is_seat_locked && <div style={{position:'absolute', bottom:'20px', left:'2px', fontSize:'8px'}}>🔒</div>}</div>); }); g.push(<div key={r} style={{display:'flex'}}>{cells}</div>); } return g; 
   };
 
   const printChart = (sectionId) => {
       const style = document.createElement('style'); 
       style.innerHTML = `@media print { @page { size: ${printConfig.paper} ${printConfig.orientation}; margin: 5mm; } html, body { height: 100%; margin: 0; padding: 0; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: fixed; left: 0; top: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: scale(${printConfig.scale}); transform-origin: center top; } .no-print { display: none !important; } .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } h1 { font-size: 24px !important; margin: 0 0 10px 0; } }`; 
-      document.head.appendChild(style); 
-      window.print(); 
-      document.head.removeChild(style); 
+      document.head.appendChild(style); window.print(); document.head.removeChild(style); 
   };
 
-  const renderTable = (list, title, color, sectionId) => ( 
-      <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> 
-          <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}>
-              <button onClick={() => printChart(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title}</button>
-          </div> 
-          <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Plan</h2> 
-          <h3 style={{textAlign:'center', marginTop:0, marginBottom:'20px', color:'#555'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3>
-          <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}><thead><tr><th style={styles.th}>S.N.</th><th style={styles.th}>Seat</th><th style={styles.th}>Name</th><th style={styles.th}>Cat</th><th style={styles.th}>Room</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={styles.td}>{i+1}</td><td style={{...styles.td, fontWeight:'bold'}}>{p.dining_seat_no || p.pagoda_cell_no}</td><td style={styles.td}>{p.full_name}</td><td style={styles.td}>{getCategory(p.conf_no)}</td><td style={styles.td}>{p.room_no}</td></tr>))}</tbody></table> 
-      </div> 
-  );
-
+  const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={() => printChart(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Plan</h2> <h3 style={{textAlign:'center', marginTop:0, marginBottom:'20px', color:'#555'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3><table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}><thead><tr><th style={styles.th}>S.N.</th><th style={styles.th}>Seat</th><th style={styles.th}>Name</th><th style={styles.th}>Cat</th><th style={styles.th}>Room</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={styles.td}>{i+1}</td><td style={{...styles.td, fontWeight:'bold'}}>{p.dining_seat_no || p.pagoda_cell_no}</td><td style={styles.td}>{p.full_name}</td><td style={styles.td}>{getCategory(p.conf_no)}</td><td style={styles.td}>{p.room_no}</td></tr>))}</tbody></table> </div> );
   const getStatusColor = (s) => { if (s === 'Attending') return '#28a745'; if (s === 'Gate Check-In') return '#ffc107'; if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; return '#6c757d'; };
 
   // --- VIEW MODES ---
@@ -338,39 +310,8 @@ export default function ParticipantList({ courses, refreshCourses }) {
                   <SeatingSheet id="print-female" title="FEMALE" map={fM} cols={fCols} rows={seatingConfig.fRows} setRows={(v)=>setSeatingConfig({...seatingConfig, fRows:v})} setCols={(v)=>setSeatingConfig({...seatingConfig, fCols:v})} /> 
               </div> 
               
-              {/* PRINT SETTINGS MODAL */}
-              {showPrintSettings && (
-                  <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:3000}}>
-                      <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'300px'}}>
-                          <h3>🖨️ Print Settings</h3>
-                          <div style={{marginBottom:'15px'}}><label style={styles.label}>Paper Size</label><select style={styles.input} value={printConfig.paper} onChange={e=>setPrintConfig({...printConfig, paper:e.target.value})}><option>A4</option><option>A3</option><option>Letter</option></select></div>
-                          <div style={{marginBottom:'15px'}}><label style={styles.label}>Orientation</label><select style={styles.input} value={printConfig.orientation} onChange={e=>setPrintConfig({...printConfig, orientation:e.target.value})}><option>landscape</option><option>portrait</option></select></div>
-                          <div style={{marginBottom:'15px'}}><label style={styles.label}>Scale (Zoom)</label><input type="range" min="0.5" max="1.5" step="0.1" value={printConfig.scale} onChange={e=>setPrintConfig({...printConfig, scale:e.target.value})} style={{width:'100%'}}/><div style={{textAlign:'center', fontSize:'12px'}}>{Math.round(printConfig.scale*100)}%</div></div>
-                          <div style={{textAlign:'right'}}><button onClick={()=>setShowPrintSettings(false)} style={styles.btn(true)}>Done</button></div>
-                      </div>
-                  </div>
-              )}
-
-              {/* AUTO ASSIGN MODAL */}
-              {showAutoAssignModal && (
-                  <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000}}>
-                      <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'600px', maxHeight:'90vh', overflowY:'auto'}}>
-                          <h3>🛠️ Auto-Assign Configuration</h3>
-                          <div style={{background:'#f0f8ff', padding:'15px', borderRadius:'8px', marginBottom:'20px', border:'1px solid #cce5ff'}}>
-                              <h4 style={{margin:'0 0 10px 0', fontSize:'14px', color:'#0056b3'}}>Student Breakdown (Arrived)</h4>
-                              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
-                                  <div><div style={{fontWeight:'bold', color:'#007bff'}}>MALE: {participants.filter(p=>p.status==='Attending' && (p.gender||'').toLowerCase().startsWith('m')).length}</div></div>
-                                  <div><div style={{fontWeight:'bold', color:'#e91e63'}}>FEMALE: {participants.filter(p=>p.status==='Attending' && (p.gender||'').toLowerCase().startsWith('f')).length}</div></div>
-                              </div>
-                          </div>
-                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}>
-                              <div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#007bff'}}>Male Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.mCols} onChange={e=>setSeatingConfig({...seatingConfig, mCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.mChowky} onChange={e=>setSeatingConfig({...seatingConfig, mChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.mRows} onChange={e=>setSeatingConfig({...seatingConfig, mRows: parseInt(e.target.value)||0})} /></div>
-                              <div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#e91e63'}}>Female Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.fCols} onChange={e=>setSeatingConfig({...seatingConfig, fCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.fChowky} onChange={e=>setSeatingConfig({...seatingConfig, fChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.fRows} onChange={e=>setSeatingConfig({...seatingConfig, fRows: parseInt(e.target.value)||0})} /></div>
-                          </div>
-                          <div style={{display:'flex', gap:'10px', justifyContent:'flex-end'}}><button onClick={()=>setShowAutoAssignModal(false)} style={styles.btn(false)}>Cancel</button><button onClick={handleAutoAssign} style={{...styles.btn(true), background:'#28a745', color:'white'}}>RUN ASSIGNMENT</button></div>
-                      </div>
-                  </div>
-              )}
+              {showPrintSettings && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:3000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'300px'}}><h3>🖨️ Print Settings</h3><div style={{marginBottom:'15px'}}><label style={styles.label}>Paper Size</label><select style={styles.input} value={printConfig.paper} onChange={e=>setPrintConfig({...printConfig, paper:e.target.value})}><option>A4</option><option>A3</option><option>Letter</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Orientation</label><select style={styles.input} value={printConfig.orientation} onChange={e=>setPrintConfig({...printConfig, orientation:e.target.value})}><option>landscape</option><option>portrait</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Scale (Zoom)</label><input type="range" min="0.5" max="1.5" step="0.1" value={printConfig.scale} onChange={e=>setPrintConfig({...printConfig, scale:e.target.value})} style={{width:'100%'}}/><div style={{textAlign:'center', fontSize:'12px'}}>{Math.round(printConfig.scale*100)}%</div></div><div style={{textAlign:'right'}}><button onClick={()=>setShowPrintSettings(false)} style={styles.btn(true)}>Done</button></div></div></div>)}
+              {showAutoAssignModal && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'600px', maxHeight:'90vh', overflowY:'auto'}}><h3>🛠️ Auto-Assign Configuration</h3><div style={{background:'#f0f8ff', padding:'15px', borderRadius:'8px', marginBottom:'20px', border:'1px solid #cce5ff'}}><h4 style={{margin:'0 0 10px 0', fontSize:'14px', color:'#0056b3'}}>Student Breakdown (Arrived)</h4><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}><div><div style={{fontWeight:'bold', color:'#007bff'}}>MALE: {males.length}</div></div><div><div style={{fontWeight:'bold', color:'#e91e63'}}>FEMALE: {females.length}</div></div></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}><div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#007bff'}}>Male Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.mCols} onChange={e=>setSeatingConfig({...seatingConfig, mCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.mChowky} onChange={e=>setSeatingConfig({...seatingConfig, mChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.mRows} onChange={e=>setSeatingConfig({...seatingConfig, mRows: parseInt(e.target.value)||0})} /></div><div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#e91e63'}}>Female Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.fCols} onChange={e=>setSeatingConfig({...seatingConfig, fCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.fChowky} onChange={e=>setSeatingConfig({...seatingConfig, fChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.fRows} onChange={e=>setSeatingConfig({...seatingConfig, fRows: parseInt(e.target.value)||0})} /></div></div><div style={{display:'flex', gap:'10px', justifyContent:'flex-end'}}><button onClick={()=>setShowAutoAssignModal(false)} style={styles.btn(false)}>Cancel</button><button onClick={handleAutoAssign} style={{...styles.btn(true), background:'#28a745', color:'white'}}>RUN ASSIGNMENT</button></div></div></div>)}
           </div>
       ); 
   }
@@ -378,7 +319,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
   // --- DEFAULT LIST VIEW ---
   return (
     <div style={styles.card}>
-      {/* 1. TOP HEADER & COURSE SELECT */}
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center'}}>
          <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><User size={24}/> Students</h2>
