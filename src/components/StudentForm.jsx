@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, X, User, MapPin, Smartphone, Key, LayoutGrid, Info, CheckCircle } from 'lucide-react';
+import { Save, X, User, MapPin, Smartphone, Key, LayoutGrid, Info, Clock, CheckCircle } from 'lucide-react';
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout'; 
 
@@ -8,10 +8,13 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
   const [formData, setFormData] = useState({
     full_name: '',
     age: '',
-    gender: 'Male',
+    gender: 'Male', // Default
     conf_no: '',
+    status: 'Attending',
+    courses_info: '', // RESTORED
+    remarks: '',      // RESTORED
     room_no: '',
-    pagoda_cell_no: '',
+    pagoda_cell_no: '', // RESTORED
     dining_seat_no: '',
     mobile_locker_no: '',
     valuables_locker_no: '',
@@ -19,15 +22,13 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
     discourse_language: 'Hindi'
   });
 
-  // Resources & Data
+  // Resources
   const [mobileOptions, setMobileOptions] = useState([]);
   const [valuablesOptions, setValuablesOptions] = useState([]);
   const [laundryOptions, setLaundryOptions] = useState([]);
-  const [courseInfo, setCourseInfo] = useState(null);
-  
-  // Student Search Data
-  const [existingStudents, setExistingStudents] = useState([]);
-  
+  const [courseInfo, setCourseInfo] = useState(null); 
+  const [existingStudents, setExistingStudents] = useState([]); // For Auto-Search
+
   // Visual Map State
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [roomsData, setRoomsData] = useState([]);
@@ -58,21 +59,18 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
 
   const fetchResourcesAndStudents = async () => {
       try {
-          // 1. Get Participants (for Search & Laundry Logic)
           const pRes = await fetch(`${API_URL}/courses/${courseId}/participants`);
           const participants = await pRes.json();
-          setExistingStudents(participants); // For Auto-fill Search
+          setExistingStudents(participants); // Store for Search
           
-          // 2. Get Lockers
           const lRes = await fetch(`${API_URL}/courses/${courseId}/available-lockers`);
           const lockers = await lRes.json();
           setMobileOptions(lockers.mobile || []);
           setValuablesOptions(lockers.valuables || []);
 
-          // 3. Smart Laundry Logic
+          // Smart Laundry Logic: 1-200, exclude used
           const allLaundry = Array.from({length: 200}, (_, i) => String(i + 1));
           const usedLaundry = new Set(participants.map(p => String(p.laundry_token_no)));
-          // Filter: Available OR (Current Student's Token if editing)
           const availableLaundry = allLaundry.filter(t => !usedLaundry.has(t) || (student && String(student.laundry_token_no) === t));
           setLaundryOptions(availableLaundry);
 
@@ -93,7 +91,7 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
 
-    // AUTO-POPULATE LOGIC
+    // SMART AUTO-FILL: If name matches existing student, fill details
     if (name === 'full_name') {
         const found = existingStudents.find(s => s.full_name.toLowerCase() === value.toLowerCase());
         if (found) {
@@ -102,7 +100,8 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
                 full_name: found.full_name,
                 age: found.age,
                 conf_no: found.conf_no,
-                gender: found.gender
+                gender: found.gender,
+                courses_info: found.courses_info // Auto-fill history too
             }));
         }
     }
@@ -134,20 +133,20 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
 
       <form onSubmit={handleSubmit} className="no-print">
         
-        {/* ROW 1: SEARCHABLE NAME & BASIC INFO */}
-        <div style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:'15px', marginBottom:'20px'}}>
+        {/* ROW 1: PERSONAL (Searchable Name) */}
+        <div style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr', gap:'15px', marginBottom:'15px'}}>
             <div>
                 <label style={styles.label}>Full Name (Search)</label>
                 <div style={{display:'flex', alignItems:'center', border:'1px solid #ddd', borderRadius:'4px', padding:'0 5px'}}>
                     <User size={16} color="#666"/>
                     <input 
-                        list="student-list" 
+                        list="student-list"
                         name="full_name" 
                         value={formData.full_name} 
                         onChange={handleChange} 
                         style={{...styles.input, border:'none'}} 
                         required 
-                        placeholder="Type to search..." 
+                        placeholder="Type to search..."
                         autoComplete="off"
                     />
                     <datalist id="student-list">
@@ -170,13 +169,34 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
                     <option>Female</option>
                 </select>
             </div>
+            <div>
+                <label style={styles.label}>Status</label>
+                <select name="status" value={formData.status} onChange={handleChange} style={styles.input}>
+                    <option>Attending</option>
+                    <option>Checked In</option>
+                    <option>Cancelled</option>
+                    <option>No-Show</option>
+                </select>
+            </div>
         </div>
 
-        {/* ROW 2: ACCOMMODATION (Visual Map) */}
-        <div style={{background:'#f8f9fa', padding:'15px', borderRadius:'8px', border:'1px solid #eee', marginBottom:'20px'}}>
-            <h4 style={{marginTop:0, color:'#555', fontSize:'12px', textTransform:'uppercase'}}>Accommodation & Dining</h4>
+        {/* ROW 2: HISTORY & REMARKS */}
+        <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'15px', marginBottom:'15px'}}>
+            <div>
+                <label style={styles.label}>History (Courses Info)</label>
+                <input name="courses_info" value={formData.courses_info} onChange={handleChange} style={{...styles.input, background:'#f0f0f0'}} placeholder="S:1 L:0" />
+            </div>
+            <div>
+                <label style={styles.label}>Remarks / Medical</label>
+                <input name="remarks" value={formData.remarks} onChange={handleChange} style={styles.input} placeholder="Medical issues, notes..." />
+            </div>
+        </div>
+
+        {/* ROW 3: ALLOCATION (Visual Map) */}
+        <div style={{background:'#f8f9fa', padding:'15px', borderRadius:'8px', border:'1px solid #eee', marginBottom:'15px'}}>
+            <h4 style={{marginTop:0, color:'#555', fontSize:'12px', textTransform:'uppercase'}}>Allocation</h4>
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px'}}>
-                {/* ROOM */}
+                {/* ROOM - Button Triggers Map */}
                 <div>
                     <label style={styles.label}>Room / Bed</label>
                     <div style={{display:'flex', gap:'5px'}}>
@@ -199,7 +219,7 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
             </div>
         </div>
 
-        {/* ROW 3: LOCKERS & LAUNDRY */}
+        {/* ROW 4: LOCKERS & LAUNDRY */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'20px'}}>
             <div>
                 <label style={styles.label}>Mobile Locker</label>
@@ -248,70 +268,97 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
           </div>
       )}
 
-      {/* --- RECEIPT (Same as before) --- */}
+      {/* --- PROFESSIONAL RECEIPT (TABLE LAYOUT) --- */}
       <div id="print-section">
           <div className="receipt-box">
+              {/* Header */}
               <div style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px', marginBottom:'10px'}}>
                   <div style={{fontSize:'18px', fontWeight:'900', textTransform:'uppercase'}}>Dhamma Nagajjuna</div>
                   <div style={{fontSize:'12px'}}>Vipassana International Academy</div>
                   <div style={{fontSize:'12px', marginTop:'5px'}}>Nagarjuna Sagar, Telangana</div>
               </div>
 
+              {/* Date/Time */}
               <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px', marginBottom:'10px', borderBottom:'1px dashed #ccc', paddingBottom:'5px'}}>
                   <span><strong>Date:</strong> {new Date().toLocaleDateString()}</span>
                   <span><strong>Time:</strong> {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
               </div>
 
+              {/* Student Name */}
               <div style={{textAlign:'center', marginBottom:'15px'}}>
                   <div style={{fontSize:'16px', fontWeight:'bold'}}>{formData.full_name}</div>
                   <div style={{fontSize:'14px', background:'#eee', display:'inline-block', padding:'2px 8px', borderRadius:'4px', marginTop:'5px'}}>{formData.conf_no || 'No Conf #'}</div>
               </div>
 
-              <div style={{border:'2px solid black', borderRadius:'6px', overflow:'hidden'}}>
-                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', borderBottom:'1px solid black'}}>
-                      <div style={{padding:'8px', borderRight:'1px solid black', textAlign:'center'}}>
-                          <div style={{fontSize:'10px', textTransform:'uppercase', color:'#555'}}>Room / Bed</div>
-                          <div style={{fontSize:'18px', fontWeight:'900'}}>{formData.room_no || '-'}</div>
-                      </div>
-                      <div style={{padding:'8px', textAlign:'center'}}>
-                          <div style={{fontSize:'10px', textTransform:'uppercase', color:'#555'}}>Dining Seat</div>
-                          <div style={{fontSize:'18px', fontWeight:'900'}}>{formData.dining_seat_no || '-'}</div>
-                      </div>
-                  </div>
-                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr'}}>
-                      <div style={{padding:'5px', borderRight:'1px solid black', textAlign:'center', borderBottom:'1px solid black'}}>
-                          <div style={{fontSize:'9px', color:'#555'}}>Mobile</div>
-                          <div style={{fontSize:'14px', fontWeight:'bold'}}>{formData.mobile_locker_no || '-'}</div>
-                      </div>
-                      <div style={{padding:'5px', borderRight:'1px solid black', textAlign:'center', borderBottom:'1px solid black'}}>
-                          <div style={{fontSize:'9px', color:'#555'}}>Valuables</div>
-                          <div style={{fontSize:'14px', fontWeight:'bold'}}>{formData.valuables_locker_no || '-'}</div>
-                      </div>
-                      <div style={{padding:'5px', textAlign:'center', borderBottom:'1px solid black'}}>
-                          <div style={{fontSize:'9px', color:'#555'}}>Laundry</div>
-                          <div style={{fontSize:'14px', fontWeight:'bold'}}>{formData.laundry_token_no || '-'}</div>
-                      </div>
-                  </div>
-                  <div style={{padding:'5px', textAlign:'center', fontSize:'10px', background:'#f0f0f0'}}>
-                      Pagoda: <strong>{formData.pagoda_cell_no || '-'}</strong> | Please keep this slip safe.
-                  </div>
+              {/* Allocation Table (Perfect Alignment) */}
+              <table style={{width:'100%', borderCollapse:'collapse', border:'2px solid black', marginBottom:'5px'}}>
+                  <tbody>
+                      <tr>
+                          <td style={{border:'1px solid black', padding:'8px', textAlign:'center', width:'50%'}}>
+                              <div style={{fontSize:'10px', textTransform:'uppercase', color:'#555'}}>Room / Bed</div>
+                              <div style={{fontSize:'20px', fontWeight:'900'}}>{formData.room_no || '-'}</div>
+                          </td>
+                          <td style={{border:'1px solid black', padding:'8px', textAlign:'center', width:'50%'}}>
+                              <div style={{fontSize:'10px', textTransform:'uppercase', color:'#555'}}>Dining Seat</div>
+                              <div style={{fontSize:'20px', fontWeight:'900'}}>{formData.dining_seat_no || '-'}</div>
+                          </td>
+                      </tr>
+                  </tbody>
+              </table>
+
+              <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black'}}>
+                  <tbody>
+                      <tr>
+                          <td style={{border:'1px solid black', padding:'5px', textAlign:'center', width:'33%'}}>
+                              <div style={{fontSize:'9px', color:'#555'}}>Mobile</div>
+                              <div style={{fontSize:'14px', fontWeight:'bold'}}>{formData.mobile_locker_no || '-'}</div>
+                          </td>
+                          <td style={{border:'1px solid black', padding:'5px', textAlign:'center', width:'33%'}}>
+                              <div style={{fontSize:'9px', color:'#555'}}>Valuables</div>
+                              <div style={{fontSize:'14px', fontWeight:'bold'}}>{formData.valuables_locker_no || '-'}</div>
+                          </td>
+                          <td style={{border:'1px solid black', padding:'5px', textAlign:'center', width:'33%'}}>
+                              <div style={{fontSize:'9px', color:'#555'}}>Laundry</div>
+                              <div style={{fontSize:'14px', fontWeight:'bold'}}>{formData.laundry_token_no || '-'}</div>
+                          </td>
+                      </tr>
+                  </tbody>
+              </table>
+
+              <div style={{padding:'5px', textAlign:'center', fontSize:'10px', background:'#f0f0f0', border:'1px solid #ccc', borderTop:'none', marginBottom:'10px'}}>
+                  Pagoda Cell: <strong>{formData.pagoda_cell_no || '-'}</strong> | Please keep this slip safe.
               </div>
 
-              <div style={{textAlign:'center', fontSize:'10px', marginTop:'15px', fontStyle:'italic'}}>
+              {/* Footer */}
+              <div style={{textAlign:'center', fontSize:'10px', marginTop:'10px', fontStyle:'italic'}}>
                   Be Happy!
               </div>
           </div>
       </div>
 
+      {/* --- THERMAL PRINT CSS --- */}
       <style>{`
         @media print {
             @page { size: 72mm auto; margin: 0; }
             body * { visibility: hidden; }
             #print-section, #print-section * { visibility: visible; }
-            #print-section { position: fixed; left: 0; top: 0; width: 100%; display: flex; justify-content: center; padding-top: 5mm; }
-            .receipt-box { width: 68mm; font-family: 'Helvetica', sans-serif; padding: 0 2mm; }
+            #print-section {
+                position: fixed;
+                left: 0;
+                top: 0;
+                width: 100%;
+                display: flex;
+                justify-content: center;
+                padding-top: 5mm;
+            }
+            .receipt-box {
+                width: 68mm; /* Safe thermal width */
+                font-family: 'Helvetica', sans-serif;
+                padding: 0 2mm;
+            }
             .no-print { display: none !important; }
         }
+        /* Hide receipt on screen */
         #print-section { display: none; } 
       `}</style>
     </div>
