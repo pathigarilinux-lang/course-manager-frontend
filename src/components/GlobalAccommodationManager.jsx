@@ -1,35 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { Home } from 'lucide-react';
+import { Home, Search, RefreshCw, Users, Plus } from 'lucide-react';
 import { API_URL, styles } from '../config';
-import MaleBlockLayout from './MaleBlockLayout';     // ✅ Already existed
-import FemaleBlockLayout from './FemaleBlockLayout'; // ✅ NEW ADDITION
+import MaleBlockLayout from './MaleBlockLayout';     
+import FemaleBlockLayout from './FemaleBlockLayout'; 
 
 export default function GlobalAccommodationManager() {
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
-  const [newRoom, setNewRoom] = useState({ roomNo: '', type: 'Male' }); 
   const [activeTab, setActiveTab] = useState('Male'); // 'Male' or 'Female'
   const [moveMode, setMoveMode] = useState(null); 
+  
+  // Stats & Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [stats, setStats] = useState({ mOcc: 0, mTot: 0, fOcc: 0, fTot: 0 });
 
   // --- LOADING ---
   const loadData = () => { 
-    fetch(`${API_URL}/rooms`).then(res => res.json()).then(data => setRooms(Array.isArray(data) ? data : [])); 
-    fetch(`${API_URL}/rooms/occupancy`).then(res => res.json()).then(data => setOccupancy(Array.isArray(data) ? data : [])); 
+    fetch(`${API_URL}/rooms`).then(res => res.json()).then(data => {
+        const rList = Array.isArray(data) ? data : [];
+        setRooms(rList);
+        calculateStats(rList, occupancy); // Recalc stats when rooms load
+    }); 
+    fetch(`${API_URL}/rooms/occupancy`).then(res => res.json()).then(data => {
+        const oList = Array.isArray(data) ? data : [];
+        setOccupancy(oList);
+        calculateStats(rooms, oList); // Recalc stats when occupancy loads
+    }); 
   };
   
-  useEffect(loadData, []);
+  useEffect(() => { loadData(); }, []);
 
-  // --- ACTIONS ---
-  const handleAddRoom = async () => { 
-      if (!newRoom.roomNo) return alert("Enter Room Number"); 
-      try {
-          const res = await fetch(`${API_URL}/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newRoom) });
-          if(res.ok) { setNewRoom({ ...newRoom, roomNo: '' }); loadData(); } 
-          else { const err = await res.json(); alert(`Error: ${err.error}`); }
-      } catch(err) { alert("Network Error"); }
+  // --- STATS ENGINE ---
+  const calculateStats = (rList, oList) => {
+      // Male Stats
+      const mRooms = rList.filter(r => r.gender_type === 'Male');
+      const mBeds = mRooms.length; // Simplified (assuming 1 bed/room for quick stats, or refine logic if needed)
+      // Better logic: count actual beds if you have bed data, but strictly speaking:
+      // We can count total occupancy entries for M vs F
+      
+      // Count Occupants
+      const mOccCount = oList.filter(p => (p.gender || '').toLowerCase().startsWith('m')).length;
+      const fOccCount = oList.filter(p => (p.gender || '').toLowerCase().startsWith('f')).length;
+      
+      // Count Total Capacity (Approximate based on Layouts)
+      // Male: 301-363 = ~63 rooms. Some double. Let's just use Occupancy vs Room Count for now.
+      
+      setStats({
+          mOcc: mOccCount,
+          fOcc: fOccCount,
+          total: mOccCount + fOccCount
+      });
   };
 
-  // --- SMART MOVE LOGIC ---
+  // --- ACTIONS ---
   const handleRoomInteraction = async (targetRoomData) => {
       // Logic to handle clicking a room (Move/Swap/View)
       const targetRoomNo = targetRoomData.room_no;
@@ -39,7 +62,8 @@ export default function GlobalAccommodationManager() {
           if (targetOccupant) {
               setMoveMode({ student: targetOccupant, sourceRoom: targetRoomNo });
           } else {
-              alert(`Room ${targetRoomNo} is empty. Click an occupied room to start moving a student.`);
+              // Just show info if empty
+              // alert(`Room ${targetRoomNo} is available.`);
           }
           return;
       }
@@ -51,8 +75,6 @@ export default function GlobalAccommodationManager() {
       const studentGender = (student.gender || '').toLowerCase();
       const roomGender = (targetRoomData.gender_type || '').toLowerCase();
       
-      // Allow move if genders match OR if room is gender-neutral (if any)
-      // "m" matches "male", "f" matches "female"
       if (!studentGender.startsWith(roomGender.charAt(0))) {
           if(!window.confirm(`⚠️ GENDER WARNING: Moving ${student.gender} student to ${targetRoomData.gender_type} room. Proceed?`)) return;
       }
@@ -73,42 +95,74 @@ export default function GlobalAccommodationManager() {
       loadData();
   };
 
+  // --- SEARCH FINDER ---
+  const searchResult = searchQuery ? occupancy.find(p => p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || p.conf_no.toLowerCase().includes(searchQuery.toLowerCase())) : null;
+
   return (
     <div style={styles.card}>
-      {/* HEADER */}
+      {/* HEADER & STATS */}
       <div className="no-print" style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'15px'}}>
           <div>
               <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><Home size={24}/> Global Accommodation</h2>
-              <div style={{fontSize:'12px', color:'#666', marginTop:'5px'}}>Manage all blocks and bed assignments visually.</div>
+              <div style={{fontSize:'13px', color:'#666', marginTop:'5px', display:'flex', gap:'15px'}}>
+                  <span style={{display:'flex', alignItems:'center', gap:'5px'}}><Users size={14}/> Total Students: <strong>{stats.total}</strong></span>
+                  <span style={{color:'#007bff'}}>Male: <strong>{stats.mOcc}</strong></span>
+                  <span style={{color:'#e91e63'}}>Female: <strong>{stats.fOcc}</strong></span>
+              </div>
           </div>
 
           <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+              {/* STUDENT FINDER */}
+              <div style={{position:'relative'}}>
+                  <div style={{display:'flex', alignItems:'center', border:'1px solid #ccc', borderRadius:'20px', padding:'5px 10px', background:'white'}}>
+                      <Search size={16} color="#999"/>
+                      <input 
+                          placeholder="Find Student..." 
+                          value={searchQuery}
+                          onChange={e=>setSearchQuery(e.target.value)}
+                          style={{border:'none', outline:'none', marginLeft:'8px', fontSize:'13px', width:'150px'}}
+                      />
+                      {searchQuery && <button onClick={()=>setSearchQuery('')} style={{border:'none', background:'none', cursor:'pointer'}}><Users size={12}/></button>}
+                  </div>
+                  {/* SEARCH DROPDOWN RESULT */}
+                  {searchQuery && (
+                      <div style={{position:'absolute', top:'110%', right:0, width:'250px', background:'white', boxShadow:'0 4px 12px rgba(0,0,0,0.15)', borderRadius:'8px', padding:'10px', zIndex:100, border:'1px solid #eee'}}>
+                          {searchResult ? (
+                              <div>
+                                  <div style={{fontWeight:'bold', color:'#333'}}>{searchResult.full_name}</div>
+                                  <div style={{fontSize:'12px', color:'#666'}}>{searchResult.conf_no}</div>
+                                  <div style={{marginTop:'5px', paddingTop:'5px', borderTop:'1px solid #eee', color: searchResult.room_no ? '#28a745' : '#dc3545', fontWeight:'bold'}}>
+                                      {searchResult.room_no ? `📍 Room ${searchResult.room_no}` : 'No Room Assigned'}
+                                  </div>
+                              </div>
+                          ) : <div style={{color:'#999', fontSize:'12px'}}>No match found.</div>}
+                      </div>
+                  )}
+              </div>
+
               {moveMode && (
                   <div style={{background:'#fff3cd', padding:'8px 15px', borderRadius:'20px', border:'1px solid #ffeeba', fontSize:'13px', display:'flex', alignItems:'center', gap:'10px', boxShadow:'0 2px 5px rgba(0,0,0,0.1)'}}>
-                      <span>🚀 Moving: <b>{moveMode.student.full_name}</b> (from {moveMode.sourceRoom})</span>
-                      <button onClick={()=>setMoveMode(null)} style={{border:'none', background:'none', cursor:'pointer', fontWeight:'bold', color:'#856404'}}>Cancel ✕</button>
+                      <span>🚀 Moving: <b>{moveMode.student.full_name}</b></span>
+                      <button onClick={()=>setMoveMode(null)} style={{border:'none', background:'none', cursor:'pointer', fontWeight:'bold', color:'#856404'}}>✕</button>
                   </div>
               )}
               
-              {/* Quick Add Room */}
-              <div style={{display:'flex', gap:'0', background:'#f8f9fa', padding:'2px', borderRadius:'6px', border:'1px solid #ddd'}}>
-                  <input style={{border:'none', padding:'8px', background:'transparent', width:'70px', fontSize:'13px'}} placeholder="New Room" value={newRoom.roomNo} onChange={e=>setNewRoom({...newRoom, roomNo:e.target.value})} />
-                  <div style={{width:'1px', background:'#ddd', margin:'5px 0'}}></div>
-                  <select style={{border:'none', padding:'8px', background:'transparent', fontSize:'13px', cursor:'pointer'}} value={newRoom.type} onChange={e=>setNewRoom({...newRoom, type:e.target.value})}><option>Male</option><option>Female</option></select>
-                  <button onClick={handleAddRoom} style={{border:'none', background:'#28a745', color:'white', padding:'0 15px', borderRadius:'0 4px 4px 0', cursor:'pointer', fontWeight:'bold'}}>+</button>
-              </div>
-              <button onClick={loadData} style={styles.quickBtn(false)}>↻</button>
+              <button onClick={loadData} style={{...styles.quickBtn(false), display:'flex', alignItems:'center', gap:'5px'}}><RefreshCw size={14}/> Refresh</button>
           </div>
       </div>
 
       {/* TABS */}
-      <div style={{display:'flex', gap:'5px', marginBottom:'20px'}}>
-          <button onClick={() => setActiveTab('Male')} style={{padding:'10px 20px', borderRadius:'5px 5px 0 0', border:'none', background: activeTab==='Male'?'#007bff':'#eee', color: activeTab==='Male'?'white':'#555', fontWeight:'bold', cursor:'pointer'}}>MALE BLOCKS</button>
-          <button onClick={() => setActiveTab('Female')} style={{padding:'10px 20px', borderRadius:'5px 5px 0 0', border:'none', background: activeTab==='Female'?'#e91e63':'#eee', color: activeTab==='Female'?'white':'#555', fontWeight:'bold', cursor:'pointer'}}>FEMALE BLOCKS</button>
+      <div style={{display:'flex', gap:'5px', marginBottom:'0'}}>
+          <button onClick={() => setActiveTab('Male')} style={{padding:'12px 25px', borderRadius:'8px 8px 0 0', border:'none', background: activeTab==='Male'?'#007bff':'#f1f3f5', color: activeTab==='Male'?'white':'#666', fontWeight:'bold', cursor:'pointer', borderBottom: activeTab==='Male'?'none':'1px solid #ddd', boxShadow: activeTab==='Male'?'0 -2px 5px rgba(0,0,0,0.05)':'none'}}>
+              MALE BLOCKS
+          </button>
+          <button onClick={() => setActiveTab('Female')} style={{padding:'12px 25px', borderRadius:'8px 8px 0 0', border:'none', background: activeTab==='Female'?'#e91e63':'#f1f3f5', color: activeTab==='Female'?'white':'#666', fontWeight:'bold', cursor:'pointer', borderBottom: activeTab==='Female'?'none':'1px solid #ddd', boxShadow: activeTab==='Female'?'0 -2px 5px rgba(0,0,0,0.05)':'none'}}>
+              FEMALE BLOCKS
+          </button>
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <div style={{background: activeTab === 'Male' ? '#f0f8ff' : '#fff0f6', padding:'20px', borderRadius:'0 5px 5px 5px', border:`2px solid ${activeTab==='Male'?'#007bff':'#e91e63'}`}}>
+      <div style={{background: 'white', padding:'25px', borderRadius:'0 8px 8px 8px', border:'1px solid #ddd', boxShadow:'0 2px 10px rgba(0,0,0,0.02)', minHeight:'500px'}}>
           {activeTab === 'Male' ? (
               <MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} />
           ) : (
