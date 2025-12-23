@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Clock, AlertTriangle, CheckCircle, Activity, Headphones } from 'lucide-react';
+import { Users, AlertTriangle, CheckCircle, Activity, Headphones } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
 
-// Color Palette
+// Standard Palette
 const COLORS = {
   male: '#007bff',
   female: '#e91e63',
@@ -11,9 +11,22 @@ const COLORS = {
   pending: '#ffc107',
   cancelled: '#dc3545',
   old: '#6f42c1',
-  new: '#20c997',
-  lang: '#fd7e14' // Orange for Language
+  new: '#20c997'
 };
+
+// ✅ NEW: Vibrant Palette for Languages (Cycle through these)
+const LANG_COLORS = [
+  '#8884d8', // Purple
+  '#82ca9d', // Light Green
+  '#ffc658', // Yellow/Orange
+  '#ff8042', // Deep Orange
+  '#0088FE', // Blue
+  '#00C49F', // Teal
+  '#FFBB28', // Yellow
+  '#FF8042', // Orange
+  '#a4de6c', // Lime
+  '#d0ed57'  // Yellow-Green
+];
 
 export default function CourseDashboard({ courses }) {
   const [courseId, setCourseId] = useState('');
@@ -45,7 +58,6 @@ export default function CourseDashboard({ courses }) {
   const stats = useMemo(() => {
       if (!participants.length) return null;
 
-      const total = participants.length;
       const valid = participants.filter(p => p.status !== 'Cancelled');
       const arrived = valid.filter(p => p.status === 'Attending');
       const pending = valid.filter(p => p.status !== 'Attending');
@@ -53,7 +65,7 @@ export default function CourseDashboard({ courses }) {
       // 1. Arrival Speed
       const arrivalRate = Math.round((arrived.length / valid.length) * 100) || 0;
 
-      // 2. Age Distribution Logic (Expected)
+      // 2. Age Distribution (Expected)
       const ageGroups = { '18-29': {m:0, f:0}, '30-49': {m:0, f:0}, '50-64': {m:0, f:0}, '65+': {m:0, f:0} };
       valid.forEach(p => {
           const age = parseInt(p.age) || 0;
@@ -89,16 +101,18 @@ export default function CourseDashboard({ courses }) {
           (parseInt(p.age) >= 65) || (p.medical_info && p.medical_info.length > 2)
       );
 
-      // 5. Discourse Language Distribution (New)
+      // 5. Discourse Language Distribution (Live Check-In Only)
       const langCounts = {};
-      valid.forEach(p => {
-          const lang = p.discourse_language || 'Unknown'; // Ensure this matches your DB field name
-          langCounts[lang] = (langCounts[lang] || 0) + 1;
+      arrived.forEach(p => {
+          const lang = p.discourse_language;
+          if (lang && lang.trim() !== '' && lang !== 'Unknown') {
+              langCounts[lang] = (langCounts[lang] || 0) + 1;
+          }
       });
       const langData = Object.keys(langCounts).map(key => ({
           name: key,
           count: langCounts[key]
-      }));
+      })).sort((a,b) => b.count - a.count);
 
       return { total: valid.length, arrived: arrived.length, pending: pending.length, arrivalRate, ageData, catData, langData, criticalPending, arrivedList: arrived.reverse().slice(0, 5) }; 
   }, [participants]);
@@ -206,26 +220,35 @@ export default function CourseDashboard({ courses }) {
               {/* CHARTS ROW 2: LANGUAGE & CRITICAL */}
               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'30px'}}>
                   
-                  {/* ✅ NEW: DISCOURSE LANGUAGE DISTRIBUTION */}
+                  {/* ✅ UPDATED: COLOR CODED LANGUAGE CHART */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}>
                       <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}>
-                          <Headphones size={18}/> Discourse Language
+                          <Headphones size={18}/> Live Discourse Req. (Checked-In)
                       </h4>
                       <div style={{height:'200px', width:'100%'}}>
-                          <ResponsiveContainer>
-                              <BarChart data={stats.langData} layout="vertical" margin={{top: 5, right: 30, left: 20, bottom: 5}}>
-                                  <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
-                                  <XAxis type="number" />
-                                  <YAxis dataKey="name" type="category" width={80} style={{fontSize:'12px', fontWeight:'bold'}} />
-                                  <Tooltip cursor={{fill: 'transparent'}} />
-                                  <Bar dataKey="count" fill={COLORS.lang} radius={[0, 4, 4, 0]} barSize={20} name="Students">
-                                    {/* Label on right of bar */}
-                                  </Bar>
-                              </BarChart>
-                          </ResponsiveContainer>
+                          {stats.langData.length > 0 ? (
+                              <ResponsiveContainer>
+                                  <BarChart data={stats.langData} layout="vertical" margin={{top: 5, right: 30, left: 20, bottom: 5}}>
+                                      <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
+                                      <XAxis type="number" />
+                                      <YAxis dataKey="name" type="category" width={80} style={{fontSize:'12px', fontWeight:'bold'}} />
+                                      <Tooltip cursor={{fill: 'transparent'}} />
+                                      <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={20} name="Students">
+                                          {/* Apply Unique Color to Each Bar */}
+                                          {stats.langData.map((entry, index) => (
+                                              <Cell key={`cell-${index}`} fill={LANG_COLORS[index % LANG_COLORS.length]} />
+                                          ))}
+                                      </Bar>
+                                  </BarChart>
+                              </ResponsiveContainer>
+                          ) : (
+                              <div style={{height:'100%', display:'flex', alignItems:'center', justifyContent:'center', color:'#ccc'}}>
+                                  No check-in language data yet.
+                              </div>
+                          )}
                       </div>
                       <div style={{textAlign:'center', fontSize:'11px', color:'#999', marginTop:'5px'}}>
-                          Total Headsets / Seating Groups Needed
+                          * Distinct colors per language for easier reading.
                       </div>
                   </div>
 
