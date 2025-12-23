@@ -92,7 +92,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); };
   const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
 
-  // --- NEW: DIRECT IFRAME PRINT ENGINE (PRO TICKET DESIGN) ---
+  // --- PRINT ENGINE ---
   const printDirectly = (tokens) => {
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
@@ -103,142 +103,55 @@ export default function ParticipantList({ courses, refreshCourses }) {
       iframe.style.border = 'none';
       document.body.appendChild(iframe);
 
-      let htmlContent = `
-        <html>
-          <head>
-            <title>Tokens</title>
-            <style>
-              @page { size: 72mm auto; margin: 0; }
-              body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
-              .ticket-container {
-                  width: 70mm;
-                  margin: 0 auto;
-                  padding-top: 5mm; 
-                  padding-bottom: 5mm;
-                  page-break-after: always;
-              }
-              .ticket-container:last-child { page-break-after: auto; }
-              
-              /* PROFESSIONAL BORDER BOX */
-              .ticket-box {
-                  border: 3px solid #000; /* THICK PROFESSIONAL BORDER */
-                  border-radius: 8px;
-                  padding: 10px;
-                  width: 64mm; /* Safe width inside 70mm container */
-                  margin: 0 auto;
-                  text-align: center;
-                  box-sizing: border-box;
-              }
-
-              .header { font-size: 14px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; }
-              .seat { font-size: 55px; font-weight: 900; line-height: 1; margin: 5px 0; }
-              .name { font-size: 15px; font-weight: bold; margin: 5px 0; word-wrap: break-word; line-height: 1.2; }
-              .conf { font-size: 12px; color: #333; margin-bottom: 10px; }
-              .footer { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; }
-              .stats { font-size: 10px; margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px; display: flex; justify-content: space-between; }
-            </style>
-          </head>
-          <body>
-      `;
-
-      tokens.forEach(t => {
-          htmlContent += `
-            <div class="ticket-container">
-                <div class="ticket-box">
-                    <div class="header">DHAMMA SEAT</div>
-                    <div class="seat">${t.seat}</div>
-                    <div class="name">${t.name}</div>
-                    <div class="conf">${t.conf}</div>
-                    <div class="footer">
-                        <span>Cell: ${t.cell}</span>
-                        <span>Room: ${t.room}</span>
-                    </div>
-                    <div class="stats">
-                        <span>${t.cat}</span>
-                        <span>S:${t.sVal} L:${t.lVal}</span>
-                        <span>Age: ${t.age}</span>
-                    </div>
-                </div>
-            </div>
-          `;
-      });
-
+      let htmlContent = `<html><head><title>Tokens</title><style>@page { size: 72mm auto; margin: 0; } body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; } .ticket-container { width: 70mm; margin: 0 auto; padding-top: 5mm; padding-bottom: 5mm; page-break-after: always; } .ticket-container:last-child { page-break-after: auto; } .ticket-box { border: 3px solid #000; border-radius: 8px; padding: 10px; width: 64mm; margin: 0 auto; text-align: center; box-sizing: border-box; } .header { font-size: 14px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; } .seat { font-size: 55px; font-weight: 900; line-height: 1; margin: 5px 0; } .name { font-size: 15px; font-weight: bold; margin: 5px 0; word-wrap: break-word; line-height: 1.2; } .conf { font-size: 12px; color: #333; margin-bottom: 10px; } .footer { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; } .stats { font-size: 10px; margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px; display: flex; justify-content: space-between; } </style></head><body>`;
+      tokens.forEach(t => { htmlContent += `<div class="ticket-container"><div class="ticket-box"><div class="header">DHAMMA SEAT</div><div class="seat">${t.seat}</div><div class="name">${t.name}</div><div class="conf">${t.conf}</div><div class="footer"><span>Cell: ${t.cell}</span><span>Room: ${t.room}</span></div><div class="stats"><span>${t.cat}</span><span>S:${t.sVal} L:${t.lVal}</span><span>Age: ${t.age}</span></div></div></div>`; });
       htmlContent += `</body></html>`;
 
       const doc = iframe.contentWindow.document;
-      doc.open();
-      doc.write(htmlContent);
-      doc.close();
-
-      iframe.onload = () => {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
-          setTimeout(() => document.body.removeChild(iframe), 2000);
-      };
+      doc.open(); doc.write(htmlContent); doc.close();
+      iframe.onload = () => { iframe.contentWindow.focus(); iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); };
   };
 
-  // --- TRIGGER FUNCTIONS ---
   const handleBulkPrint = (filter) => {
       let valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no);
       if (filter === 'Male') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
       if (filter === 'Female') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
-
-      if (valid.length === 0) return alert("No students found for this selection.");
-
-      const tokens = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(s => ({
-          seat: s.dhamma_hall_seat_no,
-          name: s.full_name,
-          conf: s.conf_no,
-          cell: s.pagoda_cell_no || '-',
-          room: s.room_no || '-',
-          age: s.age,
-          cat: getCategory(s.conf_no),
-          sVal: (s.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1],
-          lVal: (s.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1]
-      }));
-
+      if (valid.length === 0) return alert("No students found.");
+      const tokens = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(s => ({ seat: s.dhamma_hall_seat_no, name: s.full_name, conf: s.conf_no, cell: s.pagoda_cell_no || '-', room: s.room_no || '-', age: s.age, cat: getCategory(s.conf_no), sVal: (s.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], lVal: (s.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] }));
       printDirectly(tokens);
   };
 
   const handleSingleToken = (student) => {
       if (!student.dhamma_hall_seat_no) return alert("No seat assigned.");
-      const t = {
-          seat: student.dhamma_hall_seat_no,
-          name: student.full_name,
-          conf: student.conf_no,
-          cell: student.pagoda_cell_no || '-',
-          room: student.room_no || '-',
-          age: student.age,
-          cat: getCategory(student.conf_no),
-          sVal: (student.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1],
-          lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1]
-      };
-      printDirectly([t]);
+      printDirectly([{ seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no || '-', room: student.room_no || '-', age: student.age, cat: getCategory(student.conf_no), sVal: (student.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] }]);
   };
 
-  // --- STANDARD RECEIPT (Use standard window.print for Receipts) ---
   const prepareReceipt = (student) => { 
       const courseObj = courses.find(c => c.course_id == student.course_id) || courses.find(c => c.course_id == courseId); 
-      setPrintReceiptData({ 
-          courseName: courseObj?.course_name, 
-          teacherName: courseObj?.teacher_name || 'Goenka Ji', 
-          from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', 
-          to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', 
-          studentName: student.full_name, 
-          confNo: student.conf_no, 
-          roomNo: student.room_no, 
-          seatNo: student.dining_seat_no, 
-          lockers: student.mobile_locker_no || student.dining_seat_no, 
-          language: student.discourse_language, 
-          pagoda: student.pagoda_cell_no && student.pagoda_cell_no !== 'None' ? student.pagoda_cell_no : null, 
-          special: student.special_seating && student.special_seating !== 'None' ? student.special_seating : null 
-      }); 
+      setPrintReceiptData({ courseName: courseObj?.course_name, teacherName: courseObj?.teacher_name || 'Teacher', from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', studentName: student.full_name, confNo: student.conf_no, roomNo: student.room_no, seatNo: student.dining_seat_no, lockers: student.mobile_locker_no || student.dining_seat_no, language: student.discourse_language, pagoda: student.pagoda_cell_no && student.pagoda_cell_no !== 'None' ? student.pagoda_cell_no : null, special: student.special_seating && student.special_seating !== 'None' ? student.special_seating : null }); 
       setTimeout(() => window.print(), 500); 
   };
 
-  // --- EXPORTS & RENDERERS (Kept same) ---
+  // --- EXPORTS ---
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses Info", "Age", "Gender", "Room", "Dining Seat", "Pagoda", "Dhamma Seat", "Status", "Mobile Locker", "Valuables Locker", "Laundry Token", "Language"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', `"${p.courses_info || ''}"`, p.age || '', p.gender || '', p.room_no || '', p.dining_seat_no || '', p.pagoda_cell_no || '', p.dhamma_hall_seat_no || '', p.status || '', p.mobile_locker_no || '', p.valuables_locker_no || '', p.laundry_token_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `dining_${courseId}.csv`); document.body.appendChild(link); link.click(); };
+  
+  // ✅ NEW: Pagoda CSV Export
+  const handlePagodaExport = () => {
+      const assigned = participants.filter(p => p.status === 'Attending' && p.pagoda_cell_no);
+      if (assigned.length === 0) return alert("No pagoda assignments found.");
+      const headers = ["Cell", "Name", "Conf", "Gender", "Room"];
+      const rows = assigned.sort((a,b) => String(a.pagoda_cell_no).localeCompare(String(b.pagoda_cell_no), undefined, {numeric:true}))
+          .map(p => [p.pagoda_cell_no, `"${p.full_name || ''}"`, p.conf_no, p.gender, p.room_no]);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `pagoda_${courseId}.csv`);
+      document.body.appendChild(link);
+      link.click();
+  };
+
   const handleSeatingExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Name", "Conf", "Gender", "Pagoda", "Room"]; const rows = arrived.map(p => [p.dhamma_hall_seat_no || '', `"${p.full_name || ''}"`, p.conf_no || '', p.gender || '', p.pagoda_cell_no || '', p.room_no || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `seating_${courseId}.csv`); document.body.appendChild(link); link.click(); };
 
   const handleSeatClick = async (seatLabel, student) => { if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); return; } const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null); if (source.label === target.label) return; if (window.confirm(`Swap/Move?`)) { if (!target.p) { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } else { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP', is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
@@ -253,7 +166,18 @@ export default function ParticipantList({ courses, refreshCourses }) {
       document.head.appendChild(style); window.print(); document.head.removeChild(style); 
   };
 
-  const renderTable = (list, title, color, sectionId) => ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}><button onClick={() => printChart(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title}</button></div> <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Plan</h2> <h3 style={{textAlign:'center', marginTop:0, marginBottom:'20px', color:'#555'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3><table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}><thead><tr><th style={styles.th}>S.N.</th><th style={styles.th}>Seat</th><th style={styles.th}>Name</th><th style={styles.th}>Cat</th><th style={styles.th}>Room</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={styles.td}>{i+1}</td><td style={{...styles.td, fontWeight:'bold'}}>{p.dining_seat_no || p.pagoda_cell_no}</td><td style={styles.td}>{p.full_name}</td><td style={styles.td}>{getCategory(p.conf_no)}</td><td style={styles.td}>{p.room_no}</td></tr>))}</tbody></table> </div> );
+  // ✅ UPDATED: renderTable supports Dynamic Title
+  const renderTable = (list, title, color, sectionId, subTitle) => ( 
+      <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> 
+          <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}>
+              <button onClick={() => printChart(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title}</button>
+          </div> 
+          <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} {subTitle}</h2> 
+          <h3 style={{textAlign:'center', marginTop:0, marginBottom:'20px', color:'#555'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3>
+          <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}><thead><tr><th style={styles.th}>S.N.</th><th style={styles.th}>Seat</th><th style={styles.th}>Name</th><th style={styles.th}>Cat</th><th style={styles.th}>Room</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={styles.td}>{i+1}</td><td style={{...styles.td, fontWeight:'bold'}}>{p.dining_seat_no || p.pagoda_cell_no}</td><td style={styles.td}>{p.full_name}</td><td style={styles.td}>{getCategory(p.conf_no)}</td><td style={styles.td}>{p.room_no}</td></tr>))}</tbody></table> 
+      </div> 
+  );
+  
   const getStatusColor = (s) => { if (s === 'Attending') return '#28a745'; if (s === 'Gate Check-In') return '#ffc107'; if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; return '#6c757d'; };
 
   // --- VIEW MODES ---
@@ -263,9 +187,37 @@ export default function ParticipantList({ courses, refreshCourses }) {
       return ( <div style={styles.card}> <div className="no-print"><button onClick={() => setShowSummaryReport(false)} style={styles.btn(false)}>← Back</button><button onClick={() => window.print()} style={{...styles.toolBtn('#007bff'), marginLeft:'10px'}}>Print PDF</button></div> <div className="print-area" id="print-summary" style={{padding:'20px'}}> <h2 style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px'}}>COURSE SUMMARY REPORT</h2> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><div><strong>Centre Name:</strong> Dhamma Nagajjuna 2</div><div><strong>Course Date:</strong> {courses.find(c=>c.course_id==courseId)?.start_date}</div></div> <h3 style={{background:'#eee', padding:'5px'}}>COURSE DETAILS</h3> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', marginBottom:'20px'}}><thead><tr style={{background:'#f0f0f0'}}><th rowSpan="2" style={styles.th}>Category</th><th colSpan="2" style={styles.th}>INDIAN</th><th colSpan="2" style={styles.th}>FOREIGNER</th><th rowSpan="2" style={styles.th}>TOTAL</th></tr><tr style={{background:'#f0f0f0'}}><th style={styles.th}>OLD</th><th style={styles.th}>NEW</th><th style={styles.th}>OLD</th><th style={styles.th}>NEW</th></tr></thead><tbody><tr><td style={styles.td}>MALE</td><td style={styles.td}>{getCount('m', 'OLD')}</td><td style={styles.td}>{getCount('m', 'NEW')}</td><td style={styles.td}>0</td><td style={styles.td}>0</td><td style={styles.td}><strong>{getCount('m', 'OLD') + getCount('m', 'NEW')}</strong></td></tr><tr><td style={styles.td}>FEMALE</td><td style={styles.td}>{getCount('f', 'OLD')}</td><td style={styles.td}>{getCount('f', 'NEW')}</td><td style={styles.td}>0</td><td style={styles.td}>0</td><td style={styles.td}><strong>{getCount('f', 'OLD') + getCount('f', 'NEW')}</strong></td></tr><tr style={{background:'#f0f0f0', fontWeight:'bold'}}><td style={styles.td}>TOTAL</td><td style={styles.td}>{getCount('m', 'OLD') + getCount('f', 'OLD')}</td><td style={styles.td}>{getCount('m', 'NEW') + getCount('f', 'NEW')}</td><td style={styles.td}>0</td><td style={styles.td}>0</td><td style={styles.td}>{arrived.length}</td></tr></tbody></table> </div> </div> );
   }
 
-  if (viewMode === 'dining') { const arrived = participants.filter(p => p.status==='Attending'); const sorter = (a,b) => String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); return <div style={styles.card}><button onClick={() => setViewMode('list')} style={styles.btn(false)}>Back</button>{renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m")}{renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f")}</div>; }
+  // ✅ UPDATED DINING VIEW
+  if (viewMode === 'dining') { 
+      const arrived = participants.filter(p => p.status==='Attending'); 
+      const sorter = (a,b) => String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); 
+      return (
+          <div style={styles.card}>
+              <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}>
+                  <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button>
+                  <button onClick={handleDiningExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Dining CSV</button>
+              </div>
+              {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m", "Dining Seating List")}
+              {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f", "Dining Seating List")}
+          </div>
+      ); 
+  }
   
-  if (viewMode === 'pagoda') { const assigned = participants.filter(p => p.status==='Attending' && p.pagoda_cell_no); const sorter = (a,b) => String(a.pagoda_cell_no || '0').localeCompare(String(b.pagoda_cell_no || '0'), undefined, { numeric: true }); return <div style={styles.card}><button onClick={() => setViewMode('list')} style={styles.btn(false)}>Back</button>{renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-pm")}{renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-pf")}</div>; }
+  // ✅ UPDATED PAGODA VIEW
+  if (viewMode === 'pagoda') { 
+      const assigned = participants.filter(p => p.status==='Attending' && p.pagoda_cell_no); 
+      const sorter = (a,b) => String(a.pagoda_cell_no || '0').localeCompare(String(b.pagoda_cell_no || '0'), undefined, { numeric: true }); 
+      return (
+          <div style={styles.card}>
+              <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}>
+                  <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button>
+                  <button onClick={handlePagodaExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Pagoda CSV</button>
+              </div>
+              {renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-pm", "Pagoda Cell List")}
+              {renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-pf", "Pagoda Cell List")}
+          </div>
+      ); 
+  }
   
   if (viewMode === 'seating') { 
       const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.status!=='Cancelled'); 
@@ -324,7 +276,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><User size={24}/> Students</h2>
              <select style={styles.input} onChange={e=>setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
          </div>
-         {/* TAB ORDER: Dining -> DH -> Pagoda -> Bulk -> Summary */}
          <div style={{display:'flex', gap:'8px'}}>
              <button onClick={()=>setViewMode('dining')} disabled={!courseId} style={styles.toolBtn('#007bff')}>🍽️ Dining</button>
              <button onClick={()=>setViewMode('seating')} disabled={!courseId} style={styles.toolBtn('#6610f2')}>🧘 DH</button>
