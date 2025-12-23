@@ -107,7 +107,7 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                         // Explicit Bed Label Logic
                         const bedLabel = bed.room_no.endsWith('A') ? 'Bed A' : (bed.room_no.endsWith('B') ? 'Bed B' : `Bed ${index + 1}`);
                         
-                        let bg = index === 0 ? '#f0f8ff' : '#fffde7'; // Blue tint / Yellow tint
+                        let bg = index === 0 ? '#f0f8ff' : '#fffde7'; // Bed A (Blue), Bed B (Yellow)
                         if (isOcc) bg = isOld ? '#e1bee7' : '#c8e6c9';
 
                         return (
@@ -157,50 +157,79 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     return (
         <div style={{display:'flex', flexDirection:'column', gap:'30px'}}>
             
-            {/* --- BLOCK A (PHYSICAL LAYOUT) --- */}
-            <BlockSection title="BLOCK A (Double Rooms)" color="#0056b3">
-                {/* Row 1: 301-306 */}
+            {/* --- BLOCK A (Double Rooms) --- */}
+            <BlockSection title="BLOCK A (Double Beds)" color="#0056b3">
                 <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
                     {getRange(301, 306).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
                 </div>
-
-                <div style={{height:'10px'}}></div> {/* Small Gap */}
-
-                {/* Row 2: 307-311 */}
+                <div style={{height:'10px'}}></div>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
                     {getRange(307, 311).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
-                    {/* Empty slot to align grid if needed, or leave blank */}
                     <div></div> 
                 </div>
-
-                {/* VISUAL CORRIDOR */}
                 <Pathway label="⬇️ CORRIDOR / WALKWAY ⬆️" />
-
-                {/* Row 3: 312-316 (Opposite 307-311) */}
                 <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
                     {getRange(312, 316).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
                     <div></div>
                 </div>
-
                 <div style={{height:'10px'}}></div>
-
-                {/* Row 4: 317-320 */}
                 <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
                     {getRange(317, 320).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
                 </div>
             </BlockSection>
 
-            {/* --- BLOCK B (Standard Grid) --- */}
-            <BlockSection title="BLOCK B (Single Rooms)" color="#f57f17">
-                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:'10px'}}>
-                    {getRange(321, 343).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
+            {/* --- BLOCK B (Single Rooms) --- */}
+            <BlockSection title="BLOCK B (Single Beds)" color="#f57f17">
+                {/* Row 1: 321-326 */}
+                <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
+                    {getRange(321, 326).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
+                </div>
+                
+                {/* Row 2: 327-332 */}
+                <div style={{height:'10px'}}></div>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
+                    {getRange(327, 332).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
+                </div>
+
+                <Pathway label="⬇️ CORRIDOR / WALKWAY ⬆️" />
+
+                {/* Row 3: 333-338 */}
+                <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
+                    {getRange(333, 338).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
+                </div>
+
+                {/* Row 4: 339-343 */}
+                <div style={{height:'10px'}}></div>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
+                    {getRange(339, 343).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
+                    <div></div>
                 </div>
             </BlockSection>
 
-            {/* --- BLOCK C (Standard Grid) --- */}
-            <BlockSection title="BLOCK C (Double Rooms)" color="#2e7d32">
-                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(130px, 1fr))', gap:'10px'}}>
-                    {getRange(344, 363).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
+            {/* --- BLOCK C (Double Rooms) --- */}
+            <BlockSection title="BLOCK C (Double Beds)" color="#2e7d32">
+                {/* Row 1: 344-348 */}
+                <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px'}}>
+                    {getRange(344, 348).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
+                </div>
+
+                {/* Row 2: 349-353 */}
+                <div style={{height:'10px'}}></div>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px'}}>
+                    {getRange(349, 353).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
+                </div>
+
+                <Pathway label="⬇️ CORRIDOR / WALKWAY ⬆️" />
+
+                {/* Row 3: 354-358 */}
+                <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px'}}>
+                    {getRange(354, 358).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
+                </div>
+
+                {/* Row 4: 359-363 */}
+                <div style={{height:'10px'}}></div>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px'}}>
+                    {getRange(359, 363).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
                 </div>
             </BlockSection>
 
