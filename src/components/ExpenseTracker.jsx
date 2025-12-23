@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShoppingCart, Trash2, Printer, LogOut, FileText, TrendingUp, DollarSign, Package } from 'lucide-react';
+import { ShoppingCart, Trash2, Printer, LogOut, FileText, TrendingUp, DollarSign, Package, Clock } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 // --- CONFIGURATION: PRE-DEFINED PRODUCTS ---
@@ -28,7 +28,7 @@ export default function ExpenseTracker({ courses }) {
   const [customPrice, setCustomPrice] = useState('');
   const [customItemName, setCustomItemName] = useState('');
   const [activeTab, setActiveTab] = useState('pos'); 
-  const [reportMode, setReportMode] = useState(''); // 'invoice', 'summary', 'laundry'
+  const [reportMode, setReportMode] = useState(''); 
   const [checkoutMode, setCheckoutMode] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -104,24 +104,56 @@ export default function ExpenseTracker({ courses }) {
   // --- REPORT LOADERS ---
   const loadFinancialReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => setFinancialData(Array.isArray(data) ? data : [])); setReportMode('summary'); };
   
-  // NEW: FILTERED LAUNDRY REPORT LOGIC
   const loadLaundryReport = () => { 
       if (!courseId) return; 
       fetch(`${API_URL}/courses/${courseId}/participants`).then(res=>res.json()).then(data=>{ 
-          // Filter ONLY attending students who have a Laundry Token assigned
           const laundryUsers = data.filter(p => p.status === 'Attending' && p.laundry_token_no && p.laundry_token_no.trim() !== '');
           setFinancialData(laundryUsers); 
           setReportMode('laundry'); 
       }); 
   };
 
+  // ✅ NEW: Load Pending Dues Report
+  const loadPendingReport = () => {
+      if (!courseId) return;
+      fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => {
+          // Filter students with Due Amount > 0
+          const pendingUsers = (Array.isArray(data) ? data : []).filter(p => parseFloat(p.total_due) > 0);
+          setFinancialData(pendingUsers);
+          setReportMode('pending');
+      });
+  };
+
   const currentStudent = participants.find(p => p.participant_id == selectedStudentId);
   const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || '';
+
+  // Invoice Render Logic
+  const renderInvoice = () => (
+      <div className="invoice-box" style={{maxWidth: '800px', margin: '0 auto', border: '1px solid #eee', padding: '40px', fontFamily: 'Helvetica, Arial, sans-serif', background:'white'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}>
+              <div><h1 style={{margin: 0}}>INVOICE</h1><p style={{color: '#666'}}>Date: {new Date().toLocaleDateString()}</p></div>
+              <div style={{textAlign: 'right'}}><h3>{currentStudent?.full_name}</h3><p>Room: {currentStudent?.room_no}</p><p>{selectedCourseName}</p></div>
+          </div>
+          <table style={{width: '100%', borderCollapse: 'collapse', marginBottom: '30px'}}>
+              <thead><tr style={{background: '#f9f9f9', borderBottom: '2px solid #333'}}><th style={{textAlign: 'left', padding: '10px'}}>Description</th><th style={{textAlign: 'left', padding: '10px'}}>Date</th><th style={{textAlign: 'right', padding: '10px'}}>Amount</th></tr></thead>
+              <tbody>
+                  {history.map(ex => (
+                      <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}>
+                          <td style={{padding: '10px'}}>{ex.expense_type}</td>
+                          <td style={{padding: '10px'}}>{new Date(ex.recorded_at).toLocaleDateString()}</td>
+                          <td style={{padding: '10px', textAlign: 'right'}}>₹{ex.amount}</td>
+                      </tr>
+                  ))}
+              </tbody>
+          </table>
+          <div style={{textAlign: 'right', marginTop: '20px'}}><h3>Total Due: ₹{stats.studentTotal}</h3></div>
+          <div style={{marginTop: '60px', borderTop: '1px solid #000', width: '200px', textAlign: 'center', paddingTop: '5px'}}>Signature</div>
+      </div>
+  );
 
   // --- VIEWS ---
 
   if (reportMode === 'laundry') { 
-      // Sort by Token Number (Numerical)
       const sortedList = financialData.sort((a,b) => (parseInt(a.laundry_token_no)||0) - (parseInt(b.laundry_token_no)||0));
       const maleCount = sortedList.filter(p => (p.gender||'').toLowerCase().startsWith('m')).length;
       const femaleCount = sortedList.filter(p => (p.gender||'').toLowerCase().startsWith('f')).length;
@@ -132,80 +164,105 @@ export default function ExpenseTracker({ courses }) {
                   <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> 
                   <button onClick={() => window.print()} style={{...styles.toolBtn('#007bff')}}>🖨️ Print List</button> 
               </div> 
-              
-              {/* LAUNDRY DASHBOARD METRICS */}
               <div className="no-print" style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'20px'}}>
-                  <div style={{background:'#e3f2fd', padding:'15px', borderRadius:'8px', borderLeft:'4px solid #007bff'}}>
-                      <div style={{color:'#0d47a1', fontSize:'12px', fontWeight:'bold', textTransform:'uppercase'}}>Total Bags</div>
-                      <div style={{fontSize:'24px', fontWeight:'bold'}}>{sortedList.length}</div>
-                  </div>
-                  <div style={{background:'#f3e5f5', padding:'15px', borderRadius:'8px', borderLeft:'4px solid #9c27b0'}}>
-                      <div style={{color:'#4a148c', fontSize:'12px', fontWeight:'bold', textTransform:'uppercase'}}>Male Side</div>
-                      <div style={{fontSize:'24px', fontWeight:'bold'}}>{maleCount}</div>
-                  </div>
-                  <div style={{background:'#fce4ec', padding:'15px', borderRadius:'8px', borderLeft:'4px solid #e91e63'}}>
-                      <div style={{color:'#880e4f', fontSize:'12px', fontWeight:'bold', textTransform:'uppercase'}}>Female Side</div>
-                      <div style={{fontSize:'24px', fontWeight:'bold'}}>{femaleCount}</div>
-                  </div>
+                  <div style={{background:'#e3f2fd', padding:'15px', borderRadius:'8px', borderLeft:'4px solid #007bff'}}><div style={{color:'#0d47a1', fontSize:'12px', fontWeight:'bold', textTransform:'uppercase'}}>Total Bags</div><div style={{fontSize:'24px', fontWeight:'bold'}}>{sortedList.length}</div></div>
+                  <div style={{background:'#f3e5f5', padding:'15px', borderRadius:'8px', borderLeft:'4px solid #9c27b0'}}><div style={{color:'#4a148c', fontSize:'12px', fontWeight:'bold', textTransform:'uppercase'}}>Male Side</div><div style={{fontSize:'24px', fontWeight:'bold'}}>{maleCount}</div></div>
+                  <div style={{background:'#fce4ec', padding:'15px', borderRadius:'8px', borderLeft:'4px solid #e91e63'}}><div style={{color:'#880e4f', fontSize:'12px', fontWeight:'bold', textTransform:'uppercase'}}>Female Side</div><div style={{fontSize:'24px', fontWeight:'bold'}}>{femaleCount}</div></div>
               </div>
-
               <div className="print-area"> 
-                  <div style={{textAlign: 'center', marginBottom: '20px'}}>
-                      <h1 style={{margin: 0}}>Laundry Service List</h1>
-                      <h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3>
-                  </div> 
-                  <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}>
-                      <thead>
-                          <tr style={{borderBottom: '2px solid black', background:'#f9f9f9'}}>
-                              <th style={{...thPrint, textAlign:'center'}}>Token #</th>
-                              <th style={thPrint}>Name</th>
-                              <th style={thPrint}>Room</th>
-                              <th style={thPrint}>Gender</th>
-                              <th style={thPrint}>Dining Seat</th>
-                          </tr>
-                      </thead>
-                      <tbody>
-                          {sortedList.map((p, i) => (
-                              <tr key={i} style={{borderBottom: '1px solid #ddd'}}>
-                                  <td style={{padding: '10px', fontWeight:'bold', fontSize:'18px', textAlign:'center', borderRight:'1px solid #eee'}}>{p.laundry_token_no}</td>
-                                  <td style={{padding: '10px'}}>{p.full_name}</td>
-                                  <td style={{padding: '10px'}}>{p.room_no}</td>
-                                  <td style={{padding: '10px'}}>{p.gender}</td>
-                                  <td style={{padding: '10px'}}>{p.dining_seat_no}</td>
-                              </tr>
-                          ))}
-                      </tbody>
-                  </table> 
+                  <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Laundry Service List</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> 
+                  <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black', background:'#f9f9f9'}}><th style={{...thPrint, textAlign:'center'}}>Token #</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Gender</th><th style={thPrint}>Dining Seat</th></tr></thead><tbody>{sortedList.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '10px', fontWeight:'bold', fontSize:'18px', textAlign:'center', borderRight:'1px solid #eee'}}>{p.laundry_token_no}</td><td style={{padding: '10px'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.gender}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td></tr>))}</tbody></table> 
                   {sortedList.length === 0 && <p style={{textAlign:'center', color:'#999', padding:'20px'}}>No students have been assigned laundry tokens yet.</p>}
               </div> 
           </div> 
       ); 
   }
 
-  if (reportMode === 'invoice' && currentStudent) { return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> <button onClick={() => window.print()} style={{...styles.btn(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button> </div> <div className="print-area" style={{maxWidth: '800px', margin: '0 auto', border: '1px solid #eee', padding: '40px'}}> <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}> <div><h1 style={{margin: 0}}>INVOICE</h1><p style={{color: '#666'}}>Date: {new Date().toLocaleDateString()}</p></div> <div style={{textAlign: 'right'}}><h3>{currentStudent.full_name}</h3><p>Room: {currentStudent.room_no}</p><p>{selectedCourseName}</p></div> </div> <table style={{width: '100%', borderCollapse: 'collapse', marginBottom: '30px'}}> <thead><tr style={{background: '#f9f9f9', borderBottom: '2px solid #333'}}><th style={{textAlign: 'left', padding: '10px'}}>Description</th><th style={{textAlign: 'left', padding: '10px'}}>Date</th><th style={{textAlign: 'right', padding: '10px'}}>Amount</th></tr></thead> <tbody> {history.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}> <td style={{padding: '10px'}}>{ex.expense_type}</td> <td style={{padding: '10px'}}>{new Date(ex.recorded_at).toLocaleDateString()}</td> <td style={{padding: '10px', textAlign: 'right'}}>₹{ex.amount}</td> </tr> ))} </tbody> </table> <div style={{textAlign: 'right', marginTop: '20px'}}><h3>Total Due: ₹{stats.studentTotal}</h3></div> <div style={{marginTop: '60px', borderTop: '1px solid #000', width: '200px', textAlign: 'center', paddingTop: '5px'}}>Signature</div> </div> </div> ); }
+  // ✅ NEW: PENDING DUES REPORT VIEW
+  if (reportMode === 'pending') {
+      const totalPending = financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0);
+      return (
+          <div style={styles.card}>
+              <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
+                  <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button>
+                  <button onClick={() => window.print()} style={{...styles.toolBtn('#d32f2f'), color:'white'}}>🖨️ Print Pending List</button>
+              </div>
+              <div className="print-area">
+                  <div style={{textAlign: 'center', marginBottom: '20px'}}>
+                      <h1 style={{margin: 0, color:'#d32f2f'}}>Pending Dues List</h1>
+                      <h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3>
+                  </div>
+                  <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}>
+                      <thead>
+                          <tr style={{borderBottom: '2px solid black', background:'#fff5f5'}}>
+                              <th style={thPrint}>S.N.</th>
+                              <th style={thPrint}>Name</th>
+                              <th style={thPrint}>Room</th>
+                              <th style={thPrint}>Seat</th>
+                              <th style={{...thPrint, textAlign:'right'}}>Amount Due</th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          {financialData.map((p, i) => (
+                              <tr key={i} style={{borderBottom: '1px solid #ddd'}}>
+                                  <td style={{padding:'10px'}}>{i+1}</td>
+                                  <td style={{padding: '10px', fontWeight:'bold'}}>{p.full_name}</td>
+                                  <td style={{padding: '10px'}}>{p.room_no}</td>
+                                  <td style={{padding: '10px'}}>{p.dining_seat_no}</td>
+                                  <td style={{padding: '10px', textAlign:'right', fontWeight:'bold', color:'#d32f2f'}}>₹{p.total_due}</td>
+                              </tr>
+                          ))}
+                          <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px', background:'#fbe9e7'}}>
+                              <td colSpan={4} style={{padding:'15px', textAlign:'right'}}>TOTAL PENDING:</td>
+                              <td style={{padding:'15px', textAlign:'right', color:'#d32f2f'}}>₹{totalPending}</td>
+                          </tr>
+                      </tbody>
+                  </table>
+                  {financialData.length === 0 && <p style={{textAlign:'center', color:'#28a745', padding:'20px', fontWeight:'bold'}}>🎉 Amazing! No pending dues. Everyone has paid.</p>}
+              </div>
+          </div>
+      );
+  }
+
+  if (reportMode === 'invoice' && currentStudent) { 
+      return ( 
+          <div style={styles.card}> 
+              <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> 
+                  <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> 
+                  <button onClick={() => window.print()} style={{...styles.btn(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button> 
+              </div> 
+              <div className="print-area">{renderInvoice()}</div> 
+          </div> 
+      ); 
+  }
   
   if (reportMode === 'summary') { return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> <button onClick={() => window.print()} style={{...styles.btn(true), background:'#28a745', color:'white'}}>🖨️ Print Report</button> </div> <div className="print-area"> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Expenses Summary Report</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Total Due (₹)</th></tr></thead><tbody>{financialData.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding:'10px'}}>{i+1}</td><td style={{padding: '10px'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td><td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_due}</td></tr>))} <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px'}}><td colSpan={4} style={{padding:'15px', textAlign:'right'}}>GRAND TOTAL:</td><td style={{padding:'15px', textAlign:'right'}}>₹{financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0)}</td></tr> </tbody></table> </div> </div> ); }
 
-  if (checkoutMode) {
+  if (activeTab === 'checkout') {
       return (
           <div style={styles.card}>
-              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-                  <h2 style={{color:'#d32f2f'}}>🔐 Valuables Check-Out Mode</h2>
-                  <button onClick={()=>setCheckoutMode(false)} style={styles.btn(false)}>Exit Mode</button>
-              </div>
-              <div style={{background:'#fff5f5', padding:'20px', borderRadius:'10px', border:'2px solid #ffcdd2'}}>
-                  <select style={styles.input} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} required> <option value="">-- Select Student to Return Valuables --</option> {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no || '-'})</option>)} </select>
-                  {currentStudent && (
-                      <div style={{marginTop:'20px', padding:'20px', background:'white', borderRadius:'10px', boxShadow:'0 2px 5px rgba(0,0,0,0.1)'}}>
-                          <h3 style={{marginTop:0}}>{currentStudent.full_name}</h3>
-                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px', marginBottom:'20px'}}>
-                              <div style={{padding:'15px', background:'#e3f2fd', borderRadius:'5px'}}><h4>Mobile Locker</h4><div style={{fontSize:'24px', fontWeight:'bold'}}>{currentStudent.mobile_locker_no || 'None'}</div></div>
-                              <div style={{padding:'15px', background:'#fff3cd', borderRadius:'5px'}}><h4>Valuables Locker</h4><div style={{fontSize:'24px', fontWeight:'bold'}}>{currentStudent.valuables_locker_no || 'None'}</div></div>
-                              <div style={{padding:'15px', background:'#e8f5e9', borderRadius:'5px'}}><h4>Room Key</h4><div style={{fontSize:'24px', fontWeight:'bold'}}>{currentStudent.room_no || 'None'}</div></div>
+              <div style={{background:'#fff5f5', padding:'30px', borderRadius:'10px', border:'2px solid #ffcdd2', textAlign:'center'}}>
+                  <h3 style={{color:'#d32f2f', marginTop:0}}>🔐 Return Valuables & Checkout</h3>
+                  <div style={{maxWidth:'500px', margin:'0 auto 20px auto'}}>
+                      <select style={styles.input} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} value={selectedStudentId}><option value="">-- Select Student --</option>{participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no})</option>)}</select>
+                  </div>
+                  
+                  {currentStudent ? (
+                      <>
+                          <div style={{fontSize:'20px', fontWeight:'bold', marginBottom:'20px'}}>{currentStudent.full_name}</div>
+                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px', marginBottom:'30px'}}>
+                              <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>MOBILE LOCKER</div><div style={{fontSize:'32px', fontWeight:'bold', color:'#007bff'}}>{currentStudent.mobile_locker_no || '-'}</div></div>
+                              <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>VALUABLES LOCKER</div><div style={{fontSize:'32px', fontWeight:'bold', color:'#e91e63'}}>{currentStudent.valuables_locker_no || '-'}</div></div>
+                              <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>TOTAL DUE</div><div style={{fontSize:'32px', fontWeight:'bold', color:'green'}}>₹{stats.studentTotal}</div></div>
                           </div>
-                          <button onClick={()=>{alert(`✅ Items Returned to ${currentStudent.full_name}`); setSelectedStudentId('');}} style={{...styles.btn(true), width:'100%', padding:'15px', fontSize:'18px', background:'#28a745'}}>CONFIRM ITEMS RETURNED</button>
-                      </div>
-                  )}
+                          <div style={{display:'flex', justifyContent:'center', gap:'20px'}}>
+                              <button onClick={()=>window.print()} style={{...styles.toolBtn('#6c757d'), padding:'15px 30px', fontSize:'16px'}}>🖨️ Print Final Invoice</button>
+                              <button onClick={()=>{alert("Items Returned. Ensure payment is collected."); setActiveTab('pos');}} style={{...styles.toolBtn('#28a745'), padding:'15px 30px', fontSize:'16px'}}>✅ Confirm Returned</button>
+                          </div>
+                          <div className="print-only">{renderInvoice()}</div>
+                          <style>{`@media screen { .print-only { display: none; } } @media print { body * { visibility: hidden; } .print-only, .print-only * { visibility: visible; } .print-only { position: absolute; left: 0; top: 0; width: 100%; } }`}</style>
+                      </>
+                  ) : <div style={{color:'#666'}}>Please select a student above to begin checkout.</div>}
               </div>
           </div>
       );
@@ -232,7 +289,7 @@ export default function ExpenseTracker({ courses }) {
           </div>
       )}
 
-      {/* --- TAB 1: POINT OF SALE (POS) --- */}
+      {/* --- TAB 1: POS --- */}
       {activeTab === 'pos' && (
           <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'20px'}}>
               <div>
@@ -285,34 +342,6 @@ export default function ExpenseTracker({ courses }) {
           </div>
       )}
 
-      {/* --- TAB 2: RETURN VALUABLES --- */}
-      {activeTab === 'checkout' && (
-          <div style={{background:'#fff5f5', padding:'30px', borderRadius:'10px', border:'2px solid #ffcdd2', textAlign:'center'}}>
-              <h3 style={{color:'#d32f2f', marginTop:0}}>🔐 Return Valuables & Checkout</h3>
-              {/* Selector moved here for this specific mode */}
-              <div style={{maxWidth:'500px', margin:'0 auto 20px auto'}}>
-                  <select style={styles.input} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} value={selectedStudentId}><option value="">-- Select Student --</option>{participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no})</option>)}</select>
-              </div>
-              
-              {currentStudent ? (
-                  <>
-                      <div style={{fontSize:'20px', fontWeight:'bold', marginBottom:'20px'}}>{currentStudent.full_name}</div>
-                      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px', marginBottom:'30px'}}>
-                          <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>MOBILE LOCKER</div><div style={{fontSize:'32px', fontWeight:'bold', color:'#007bff'}}>{currentStudent.mobile_locker_no || '-'}</div></div>
-                          <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>VALUABLES LOCKER</div><div style={{fontSize:'32px', fontWeight:'bold', color:'#e91e63'}}>{currentStudent.valuables_locker_no || '-'}</div></div>
-                          <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>TOTAL DUE</div><div style={{fontSize:'32px', fontWeight:'bold', color:'green'}}>₹{stats.studentTotal}</div></div>
-                      </div>
-                      <div style={{display:'flex', justifyContent:'center', gap:'20px'}}>
-                          <button onClick={()=>window.print()} style={{...styles.toolBtn('#6c757d'), padding:'15px 30px', fontSize:'16px'}}>🖨️ Print Final Invoice</button>
-                          <button onClick={()=>{alert("Items Returned. Ensure payment is collected."); setActiveTab('pos');}} style={{...styles.toolBtn('#28a745'), padding:'15px 30px', fontSize:'16px'}}>✅ Confirm Returned</button>
-                      </div>
-                      <div className="print-only"><InvoiceView /></div>
-                      <style>{`@media screen { .print-only { display: none; } } @media print { body * { visibility: hidden; } .print-only, .print-only * { visibility: visible; } .print-only { position: absolute; left: 0; top: 0; width: 100%; } }`}</style>
-                  </>
-              ) : <div style={{color:'#666'}}>Please select a student above to begin checkout.</div>}
-          </div>
-      )}
-
       {/* --- TAB 3: REPORTS --- */}
       {activeTab === 'reports' && (
           <div>
@@ -321,6 +350,7 @@ export default function ExpenseTracker({ courses }) {
                   <button onClick={() => setReportMode('invoice')} disabled={!selectedStudentId} style={{...styles.quickBtn(!!selectedStudentId), background: selectedStudentId ? '#17a2b8' : '#e2e6ea', color: selectedStudentId ? 'white' : '#999', cursor: selectedStudentId ? 'pointer' : 'not-allowed'}}>🖨️ Individual Invoice</button>
                   <button onClick={loadFinancialReport} disabled={!courseId} style={{...styles.quickBtn(!!courseId), background: courseId ? '#28a745' : '#e2e6ea', color: courseId ? 'white' : '#999', cursor: courseId ? 'pointer' : 'not-allowed'}}>💰 Course Summary</button>
                   <button onClick={loadLaundryReport} disabled={!courseId} style={{...styles.quickBtn(!!courseId), background: courseId ? '#007bff' : '#e2e6ea', color: courseId ? 'white' : '#999', cursor: courseId ? 'pointer' : 'not-allowed'}}>📋 Laundry List</button>
+                  <button onClick={loadPendingReport} disabled={!courseId} style={{...styles.quickBtn(!!courseId), background: courseId ? '#d32f2f' : '#e2e6ea', color: courseId ? 'white' : '#999', cursor: courseId ? 'pointer' : 'not-allowed', display:'flex', alignItems:'center', gap:'5px'}}><Clock size={14}/> Pending Dues</button>
               </div>
               <div style={{padding:'20px', background:'#f8f9fa', borderRadius:'8px', textAlign:'center', color:'#666'}}>Select a report type above to view details.</div>
           </div>
