@@ -14,9 +14,9 @@ export default function Login({ onLogin }) {
     // Simulate processing delay for smoothness
     setTimeout(() => {
         // PRESERVED YOUR LOGIC:
-        if (passcode === '11') onLogin('admin');
-        else if (passcode === '0') onLogin('gatekeeper');
-        else if (passcode === '2') onLogin('teacher');
+        if (passcode === '11111') onLogin('admin');
+        else if (passcode === '00000') onLogin('gatekeeper');
+        else if (passcode === '22222') onLogin('teacher');
         else {
             setError('❌ Invalid Passcode');
             setLoading(false);
