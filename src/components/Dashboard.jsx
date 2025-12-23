@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Clock, AlertTriangle, CheckCircle, Activity, UserPlus } from 'lucide-react';
+import { Users, Clock, AlertTriangle, CheckCircle, Activity, Headphones } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
 
@@ -11,7 +11,8 @@ const COLORS = {
   pending: '#ffc107',
   cancelled: '#dc3545',
   old: '#6f42c1',
-  new: '#20c997'
+  new: '#20c997',
+  lang: '#fd7e14' // Orange for Language
 };
 
 export default function CourseDashboard({ courses }) {
@@ -22,7 +23,6 @@ export default function CourseDashboard({ courses }) {
   // --- AUTO SELECT ACTIVE COURSE ---
   useEffect(() => {
       if (courses.length > 0 && !courseId) {
-          // Find the most relevant course (Active or Upcoming)
           const active = courses.find(c => new Date(c.end_date) >= new Date());
           if (active) setCourseId(active.course_id);
       }
@@ -53,7 +53,7 @@ export default function CourseDashboard({ courses }) {
       // 1. Arrival Speed
       const arrivalRate = Math.round((arrived.length / valid.length) * 100) || 0;
 
-      // 2. Age Distribution Logic (Expected Students)
+      // 2. Age Distribution Logic (Expected)
       const ageGroups = { '18-29': {m:0, f:0}, '30-49': {m:0, f:0}, '50-64': {m:0, f:0}, '65+': {m:0, f:0} };
       valid.forEach(p => {
           const age = parseInt(p.age) || 0;
@@ -72,7 +72,7 @@ export default function CourseDashboard({ courses }) {
           Female: ageGroups[key].f
       }));
 
-      // 3. Category Split (Old vs New)
+      // 3. Category Split
       let oldS = 0, newS = 0;
       valid.forEach(p => {
           const conf = (p.conf_no || '').toUpperCase();
@@ -84,12 +84,23 @@ export default function CourseDashboard({ courses }) {
           { name: 'New Student', value: newS }
       ];
 
-      // 4. Critical Pending (Medical/Elderly who haven't arrived)
+      // 4. Critical Pending (Medical/Elderly)
       const criticalPending = pending.filter(p => 
           (parseInt(p.age) >= 65) || (p.medical_info && p.medical_info.length > 2)
       );
 
-      return { total: valid.length, arrived: arrived.length, pending: pending.length, arrivalRate, ageData, catData, criticalPending, arrivedList: arrived.reverse().slice(0, 5) }; // Last 5 arrivals
+      // 5. Discourse Language Distribution (New)
+      const langCounts = {};
+      valid.forEach(p => {
+          const lang = p.discourse_language || 'Unknown'; // Ensure this matches your DB field name
+          langCounts[lang] = (langCounts[lang] || 0) + 1;
+      });
+      const langData = Object.keys(langCounts).map(key => ({
+          name: key,
+          count: langCounts[key]
+      }));
+
+      return { total: valid.length, arrived: arrived.length, pending: pending.length, arrivalRate, ageData, catData, langData, criticalPending, arrivedList: arrived.reverse().slice(0, 5) }; 
   }, [participants]);
 
   const selectedCourse = courses.find(c => c.course_id == courseId);
@@ -140,10 +151,10 @@ export default function CourseDashboard({ courses }) {
                   </div>
               </div>
 
-              {/* CHARTS ROW */}
+              {/* CHARTS ROW 1 */}
               <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'20px', marginBottom:'30px'}}>
                   
-                  {/* AGE DISTRIBUTION CHART (REQUESTED) */}
+                  {/* AGE DISTRIBUTION CHART */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}>
                       <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}>
                           <Users size={18}/> Expected Age Distribution
@@ -160,9 +171,6 @@ export default function CourseDashboard({ courses }) {
                                   <Bar dataKey="Female" fill={COLORS.female} radius={[4, 4, 0, 0]} />
                               </BarChart>
                           </ResponsiveContainer>
-                      </div>
-                      <div style={{textAlign:'center', fontSize:'11px', color:'#999', marginTop:'10px'}}>
-                          * Helps plan ground-floor room allocation for 65+
                       </div>
                   </div>
 
@@ -195,23 +203,53 @@ export default function CourseDashboard({ courses }) {
                   </div>
               </div>
 
-              {/* BOTTOM ROW: CRITICAL PENDING LIST */}
-              {stats.criticalPending.length > 0 && (
-                  <div style={{marginBottom:'30px', border:'1px solid #ffcdd2', borderRadius:'10px', overflow:'hidden'}}>
-                      <div style={{background:'#ffebee', padding:'10px 15px', color:'#c62828', fontWeight:'bold', display:'flex', alignItems:'center', gap:'10px'}}>
-                          <AlertTriangle size={18}/> Critical Pending Arrivals (Priority Check-In)
+              {/* CHARTS ROW 2: LANGUAGE & CRITICAL */}
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'30px'}}>
+                  
+                  {/* ✅ NEW: DISCOURSE LANGUAGE DISTRIBUTION */}
+                  <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}>
+                      <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}>
+                          <Headphones size={18}/> Discourse Language
+                      </h4>
+                      <div style={{height:'200px', width:'100%'}}>
+                          <ResponsiveContainer>
+                              <BarChart data={stats.langData} layout="vertical" margin={{top: 5, right: 30, left: 20, bottom: 5}}>
+                                  <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
+                                  <XAxis type="number" />
+                                  <YAxis dataKey="name" type="category" width={80} style={{fontSize:'12px', fontWeight:'bold'}} />
+                                  <Tooltip cursor={{fill: 'transparent'}} />
+                                  <Bar dataKey="count" fill={COLORS.lang} radius={[0, 4, 4, 0]} barSize={20} name="Students">
+                                    {/* Label on right of bar */}
+                                  </Bar>
+                              </BarChart>
+                          </ResponsiveContainer>
                       </div>
-                      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(250px, 1fr))', gap:'1px', background:'#ffebee'}}>
-                          {stats.criticalPending.map(p => (
-                              <div key={p.participant_id} style={{background:'white', padding:'10px', fontSize:'13px'}}>
-                                  <div style={{fontWeight:'bold'}}>{p.full_name}</div>
-                                  <div style={{color:'#666', fontSize:'11px'}}>Age: {p.age} • {p.gender}</div>
-                                  {p.medical_info && <div style={{color:'red', fontSize:'10px', marginTop:'2px'}}>⚠️ {p.medical_info}</div>}
-                              </div>
-                          ))}
+                      <div style={{textAlign:'center', fontSize:'11px', color:'#999', marginTop:'5px'}}>
+                          Total Headsets / Seating Groups Needed
                       </div>
                   </div>
-              )}
+
+                  {/* CRITICAL PENDING LIST */}
+                  <div style={{border:'1px solid #ffcdd2', borderRadius:'12px', overflow:'hidden', display:'flex', flexDirection:'column'}}>
+                      <div style={{background:'#ffebee', padding:'10px 15px', color:'#c62828', fontWeight:'bold', display:'flex', alignItems:'center', gap:'10px'}}>
+                          <AlertTriangle size={18}/> Critical Pending (Medical/65+)
+                      </div>
+                      <div style={{flex:1, overflowY:'auto', maxHeight:'240px', background:'#fff'}}>
+                          {stats.criticalPending.length > 0 ? (
+                              stats.criticalPending.map(p => (
+                                  <div key={p.participant_id} style={{padding:'10px', borderBottom:'1px solid #eee', fontSize:'13px'}}>
+                                      <div style={{display:'flex', justifyContent:'space-between'}}>
+                                          <span style={{fontWeight:'bold'}}>{p.full_name}</span>
+                                          <span style={{fontSize:'11px', background:'#eee', padding:'1px 5px', borderRadius:'4px'}}>{p.conf_no}</span>
+                                      </div>
+                                      <div style={{color:'#666', fontSize:'11px'}}>Age: {p.age} • {p.gender}</div>
+                                      {p.medical_info && <div style={{color:'red', fontSize:'11px', marginTop:'2px'}}>⚠️ {p.medical_info}</div>}
+                                  </div>
+                              ))
+                          ) : <div style={{padding:'20px', textAlign:'center', color:'#999'}}>No critical pending cases.</div>}
+                      </div>
+                  </div>
+              </div>
 
               {/* LIVE FEED */}
               <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'12px'}}>
