@@ -25,9 +25,9 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       language: 'English', pagodaCell: '', laptop: 'No', 
       confNo: '', specialSeating: 'None', seatType: 'Chair', dhammaSeat: '' 
   });
-
-  // Print State
-  const [printData, setPrintData] = useState(null);
+  
+  // Print State (The Fix)
+  const [printReceiptData, setPrintReceiptData] = useState(null);
   
   // Visual Modals
   const [showVisualRoom, setShowVisualRoom] = useState(false);
@@ -61,11 +61,11 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const currentGenderRaw = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
   const isMale = currentGenderRaw.startsWith('m');
   const isFemale = currentGenderRaw.startsWith('f');
-  const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : 'Male');
   const themeColor = isMale ? '#007bff' : (isFemale ? '#e91e63' : '#6c757d');
 
   // Room Logic
   const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
+  // Note: We use availableRooms for visual modal logic, but manual entry is also allowed
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female');
@@ -79,15 +79,10 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   participants.forEach(p => {
       if (String(p.participant_id) === String(formData.participantId)) return;
       if (p.status === 'Cancelled') return;
-
       if (p.mobile_locker_no) usedMobiles.add(cleanNum(p.mobile_locker_no));
       if (p.valuables_locker_no) usedValuables.add(cleanNum(p.valuables_locker_no));
-
       const pGender = (p.gender || '').toLowerCase();
-      const pIsMale = pGender.startsWith('m');
-      const pIsFemale = pGender.startsWith('f');
-
-      if ((isMale && pIsMale) || (isFemale && pIsFemale)) {
+      if ((isMale && pGender.startsWith('m')) || (isFemale && pGender.startsWith('f'))) {
           if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no)); 
           if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no)); 
       }
@@ -123,31 +118,26 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const handlePagodaSelect = (val) => { setFormData(prev => ({ ...prev, pagodaCell: val })); setShowVisualPagoda(false); };
 
-  // --- PRINT LOGIC (UPDATED) ---
-  const preparePrintData = () => {
+  // --- REPRINT FUNCTION ---
+  const triggerReprint = () => {
+      if (!selectedStudent) return;
       const courseObj = courses.find(c => c.course_id == formData.courseId);
-      let cleanName = courseObj?.course_name || 'Unknown';
-      cleanName = cleanName.replace(/-[A-Za-z]{3}-\d{2,4}.*$/g, '').replace(/\/.*$/, '').trim();
-
-      setPrintData({ 
-          courseName: cleanName, 
-          studentName: selectedStudent?.full_name, 
+      setPrintReceiptData({ 
+          courseName: courseObj?.course_name, 
+          teacherName: courseObj?.teacher_name || 'Teacher', 
+          from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', 
+          to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', 
+          studentName: selectedStudent.full_name, 
           confNo: formData.confNo, 
           roomNo: formData.roomNo, 
           seatNo: formData.seatNo, 
-          mobile: formData.mobileLocker,
-          valuables: formData.valuablesLocker,
-          laundry: formData.laundryToken,
+          lockers: formData.mobileLocker || formData.valuablesLocker || '-', 
           language: formData.language,
-          pagoda: (formData.pagodaCell && formData.pagodaCell !== 'None') ? formData.pagodaCell : '-',
-          special: (formData.specialSeating && formData.specialSeating !== 'None') ? formData.specialSeating : '-'
+          pagoda: (formData.pagodaCell && formData.pagodaCell !== 'None') ? formData.pagodaCell : null,
+          special: (formData.specialSeating && formData.specialSeating !== 'None') ? formData.specialSeating : null
       });
-  };
-
-  const triggerPrint = () => {
-      preparePrintData();
-      // Wait for state update then print
-      setTimeout(() => window.print(), 100);
+      // Small delay to ensure render before print
+      setTimeout(() => window.print(), 500);
   };
 
   const handleSubmit = async (e) => { 
@@ -160,25 +150,42 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           
           await fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
           
-          // Print Receipt
-          preparePrintData();
+          // --- PREPARE RECEIPT DATA FOR PRINTING ---
+          const courseObj = courses.find(c => c.course_id == formData.courseId);
+          setPrintReceiptData({ 
+              courseName: courseObj?.course_name, 
+              teacherName: courseObj?.teacher_name || 'Teacher', 
+              from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', 
+              to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', 
+              studentName: selectedStudent?.full_name, 
+              confNo: formData.confNo, 
+              roomNo: formData.roomNo, 
+              seatNo: formData.seatNo, 
+              lockers: formData.mobileLocker || formData.valuablesLocker || '-', 
+              language: formData.language,
+              pagoda: (formData.pagodaCell && formData.pagodaCell !== 'None') ? formData.pagodaCell : null,
+              special: (formData.specialSeating && formData.specialSeating !== 'None') ? formData.specialSeating : null
+          });
+
+          // Trigger Print after short delay
           setTimeout(() => window.print(), 500);
 
           setStatus('✅ Success!'); 
           
-          // Reset
+          // Reset Form
           setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' }));
           setSelectedStudent(null); 
           setSearchTerm('');
           clearRoom(); 
           
+          // Background Refresh
           fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants); 
           fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(setOccupancy); 
           setTimeout(() => setStatus(''), 4000);
       } catch (err) { setStatus(`❌ ${err.message}`); } 
   };
 
-  // Search Filter
+  // Filter for Search Box
   const searchResults = participants.filter(p => {
       if (!searchTerm) return false;
       if (p.status === 'Attending' || p.status === 'Cancelled') return false; 
@@ -294,7 +301,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                   </div>
 
                   <div style={{marginTop:'30px', textAlign:'right', display:'flex', justifyContent:'flex-end', gap:'10px'}}>
-                      <button type="button" onClick={triggerPrint} disabled={!selectedStudent} style={{...styles.btn(false), background:'#6c757d', color:'white'}}>🖨️ Reprint</button>
+                      <button type="button" onClick={triggerReprint} disabled={!selectedStudent} style={{...styles.btn(false), background:'#6c757d', color:'white'}}>🖨️ Reprint</button>
                       <button type="submit" disabled={!selectedStudent} style={{...styles.btn(true), background: selectedStudent ? '#28a745' : '#ccc', color:'white', padding:'12px 30px', fontSize:'16px'}}>Confirm Check-In</button>
                   </div>
               </form>
@@ -340,74 +347,47 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
               </div>
           )}
 
-          {/* --- INVISIBLE PRINT SECTION (THERMAL OPTIMIZED) --- */}
-          {printData && (
-              <div id="print-section">
-                  <div className="receipt-box">
-                      <div style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px', marginBottom:'10px'}}>
-                          <div style={{fontSize:'18px', fontWeight:'900', textTransform:'uppercase'}}>Dhamma Nagajjuna</div>
-                          <div style={{fontSize:'12px'}}>Vipassana International Academy</div>
+          {/* --- INVISIBLE PRINT SECTION (Exactly copied from ParticipantList) --- */}
+          {printReceiptData && (
+              <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}>
+                  <div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}>
+                      <button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button>
+                      <div id="receipt-print-area" style={{padding:'10px', border:'1px dashed #ccc', fontFamily:'Helvetica, Arial, sans-serif', color:'black'}}>
+                          <div style={{textAlign:'center', fontWeight:'bold', marginBottom:'8px'}}>
+                              <div style={{fontSize:'18px'}}>VIPASSANA</div>
+                              <div style={{fontSize:'12px'}}>International Meditation Center</div>
+                              <div style={{fontSize:'14px'}}>Dhamma Nagajjuna 2</div>
+                          </div>
+                          <div style={{borderBottom:'2px solid black', margin:'10px 0'}}></div>
+                          <div style={{fontSize:'12px', marginBottom:'10px'}}>
+                              <div><strong>Course:</strong> {printReceiptData.courseName}</div>
+                              <div><strong>Teacher:</strong> {printReceiptData.teacherName}</div>
+                              <div><strong>Dates:</strong> {printReceiptData.from} to {printReceiptData.to}</div>
+                          </div>
+                          <div style={{borderBottom:'1px solid black', margin:'10px 0'}}></div>
+                          <div style={{fontSize:'16px', fontWeight:'bold', margin:'10px 0'}}>
+                              <div>{printReceiptData.studentName}</div>
+                              <div style={{fontSize:'14px'}}>Conf: {printReceiptData.confNo}</div>
+                          </div>
+                          <table style={{width:'100%', fontSize:'14px', border:'1px solid black', borderCollapse:'collapse'}}>
+                              <tbody>
+                                  <tr><td style={{border:'1px solid black', padding:'5px'}}>Room</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.roomNo}</td></tr>
+                                  <tr><td style={{border:'1px solid black', padding:'5px'}}>Dining</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.seatNo}</td></tr>
+                                  <tr><td style={{border:'1px solid black', padding:'5px'}}>Lockers</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.lockers}</td></tr>
+                                  <tr><td style={{border:'1px solid black', padding:'5px'}}>Lang</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.language}</td></tr>
+                                  {printReceiptData.pagoda && <tr><td style={{border:'1px solid black', padding:'5px'}}>Pagoda</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.pagoda}</td></tr>}
+                                  {printReceiptData.special && <tr><td style={{border:'1px solid black', padding:'5px'}}>Special</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.special}</td></tr>}
+                              </tbody>
+                          </table>
+                          <div style={{textAlign:'center', fontSize:'10px', fontStyle:'italic', marginTop:'10px'}}>*** Student Copy ***</div>
                       </div>
-                      <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px', marginBottom:'10px', borderBottom:'1px dashed #000', paddingBottom:'5px'}}>
-                          <span>{new Date().toLocaleDateString()}</span>
-                          <span>{new Date().toLocaleTimeString()}</span>
+                      <div className="no-print" style={{marginTop:'20px', display:'flex', gap:'10px'}}>
+                          <button onClick={() => window.print()} style={{flex:1, padding:'12px', background:'#007bff', color:'white', border:'none', borderRadius:'6px'}}>PRINT</button>
                       </div>
-                      <div style={{textAlign:'center', marginBottom:'15px'}}>
-                          <div style={{fontSize:'16px', fontWeight:'bold'}}>{printData.studentName}</div>
-                          <div style={{fontSize:'14px', background:'#eee', display:'inline-block', padding:'2px 8px', borderRadius:'4px'}}>{printData.confNo}</div>
-                      </div>
-                      <table style={{width:'100%', borderCollapse:'collapse', border:'2px solid black', marginBottom:'5px'}}>
-                          <tbody>
-                              <tr>
-                                  <td style={{border:'1px solid black', padding:'8px', textAlign:'center', width:'50%'}}>
-                                      <div style={{fontSize:'10px', color:'#555'}}>ROOM / BED</div>
-                                      <div style={{fontSize:'22px', fontWeight:'900'}}>{printData.roomNo || '-'}</div>
-                                  </td>
-                                  <td style={{border:'1px solid black', padding:'8px', textAlign:'center', width:'50%'}}>
-                                      <div style={{fontSize:'10px', color:'#555'}}>DINING</div>
-                                      <div style={{fontSize:'22px', fontWeight:'900'}}>{printData.seatNo || '-'}</div>
-                                  </td>
-                              </tr>
-                          </tbody>
-                      </table>
-                      <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black'}}>
-                          <tbody>
-                              <tr>
-                                  <td style={{border:'1px solid black', padding:'5px', textAlign:'center'}}>
-                                      <div style={{fontSize:'14px', fontWeight:'bold'}}>{printData.mobile || '-'}</div>
-                                      <div style={{fontSize:'8px'}}>MOBILE</div>
-                                  </td>
-                                  <td style={{border:'1px solid black', padding:'5px', textAlign:'center'}}>
-                                      <div style={{fontSize:'14px', fontWeight:'bold'}}>{printData.valuables || '-'}</div>
-                                      <div style={{fontSize:'8px'}}>VALUABLES</div>
-                                  </td>
-                                  <td style={{border:'1px solid black', padding:'5px', textAlign:'center'}}>
-                                      <div style={{fontSize:'14px', fontWeight:'bold'}}>{printData.laundry || '-'}</div>
-                                      <div style={{fontSize:'8px'}}>LAUNDRY</div>
-                                  </td>
-                              </tr>
-                          </tbody>
-                      </table>
-                      <div style={{padding:'5px', textAlign:'center', fontSize:'10px', background:'#f0f0f0', border:'1px solid #ccc', borderTop:'none', marginBottom:'10px'}}>
-                          Pagoda: <strong>{printData.pagoda}</strong> | Seat: <strong>{printData.special}</strong>
-                      </div>
-                      <div style={{textAlign:'center', fontSize:'10px', marginTop:'15px', fontStyle:'italic'}}>Be Happy!</div>
                   </div>
+                  <style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none; } @page { size: 72mm auto; margin: 0; } }`}</style>
               </div>
           )}
-
-          {/* PRINT CSS */}
-          <style>{`
-            @media print {
-                @page { size: 72mm auto; margin: 0; }
-                body * { visibility: hidden; }
-                #print-section, #print-section * { visibility: visible; }
-                #print-section { position: fixed; left: 0; top: 0; width: 100%; display: flex; justify-content: center; padding-top: 5mm; }
-                .receipt-box { width: 68mm; font-family: 'Helvetica', sans-serif; padding: 0 2mm; }
-                .no-print { display: none !important; }
-            }
-            #print-section { display: none; } 
-          `}</style>
       </div> 
   );
 }
