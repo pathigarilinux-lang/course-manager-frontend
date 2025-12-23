@@ -4,7 +4,10 @@ import DiningLayout from '../DiningLayout';
 import PagodaLayout from '../PagodaLayout';
 import MaleBlockLayout from './MaleBlockLayout'; 
 import FemaleBlockLayout from './FemaleBlockLayout'; 
-import { API_URL, LANGUAGES, NUMBER_OPTIONS, styles } from '../config';
+import { API_URL, LANGUAGES, styles } from '../config';
+
+// ✅ FIX: Define this locally to prevent "undefined" crashes
+const NUMBER_OPTIONS = Array.from({ length: 200 }, (_, i) => String(i + 1));
 
 export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   // --- STATE ---
@@ -63,6 +66,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const currentGenderRaw = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
   const isMale = currentGenderRaw.startsWith('m');
   const isFemale = currentGenderRaw.startsWith('f'); 
+  const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : 'Male');
   const themeColor = isMale ? '#007bff' : (isFemale ? '#e91e63' : '#6c757d');
 
   // Room Logic
@@ -89,8 +93,9 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       }
   });
 
-  const availableMobiles = NUMBER_OPTIONS.filter(n => !usedMobiles.has(String(n)) || String(n) === String(formData.mobileLocker));
-  const availableValuables = NUMBER_OPTIONS.filter(n => !usedValuables.has(String(n)) || String(n) === String(formData.valuablesLocker));
+  // ✅ SAFE FILTERING (Prevents Crash)
+  const availableMobiles = (NUMBER_OPTIONS || []).filter(n => !usedMobiles.has(String(n)) || String(n) === String(formData.mobileLocker));
+  const availableValuables = (NUMBER_OPTIONS || []).filter(n => !usedValuables.has(String(n)) || String(n) === String(formData.valuablesLocker));
 
   // --- HANDLERS ---
   const selectStudent = (student) => {
@@ -130,7 +135,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const prepareReceipt = () => {
       const courseObj = courses.find(c => c.course_id == formData.courseId);
       
-      // Short Course Name Logic
       let rawName = courseObj?.course_name || 'Unknown';
       let shortName = rawName;
       const dayMatch = rawName.match(/(\d+)\s*-?\s*Day/i);
@@ -334,7 +338,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           {showVisualDining && <DiningLayout gender={currentGenderLabel} occupied={usedDining} selected={formData.seatNo} onSelect={handleDiningSeatChange} onClose={()=>setShowVisualDining(false)} />}
           {showVisualPagoda && <PagodaLayout gender={currentGenderLabel} occupied={usedPagoda} selected={formData.pagodaCell} onSelect={handlePagodaSelect} onClose={()=>setShowVisualPagoda(false)} />}
           
-          {/* VISUAL ROOM MAP (AUTO-SWITCH MALE/FEMALE) */}
+          {/* VISUAL ROOM MAP */}
           {showVisualRoom && (
               <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:2000, display:'flex', flexDirection:'column', padding:'20px'}}>
                   <div style={{background:'white', borderRadius:'8px', flex:1, display:'flex', flexDirection:'column', overflow:'hidden', maxWidth:'1200px', margin:'0 auto', width:'100%'}}>
@@ -353,14 +357,13 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
               </div>
           )}
 
-          {/* --- INVISIBLE PRINT SECTION (SINGLE PAGE & ALIGNED HEADER) --- */}
+          {/* --- INVISIBLE PRINT SECTION --- */}
           {printReceiptData && (
               <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}>
                   <div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}>
                       <button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button>
                       
                       <div id="receipt-print-area" style={{padding:'5px', border:'3px solid black', borderRadius:'8px', fontFamily:'Helvetica, Arial, sans-serif', color:'black', width:'70mm', margin:'0 auto', boxSizing:'border-box'}}>
-                          
                           {/* HEADER */}
                           <div style={{textAlign:'center', fontWeight:'bold', marginBottom:'5px'}}>
                               <div style={{fontSize:'16px'}}>VIPASSANA</div>
