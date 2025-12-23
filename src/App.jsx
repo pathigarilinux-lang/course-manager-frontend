@@ -1,100 +1,204 @@
 import React, { useState, useEffect } from 'react';
-import { API_URL, styles } from './config';
+import { LayoutDashboard, BedDouble, UserPlus, Users, ShoppingBag, Settings, LogOut, Shield, GraduationCap } from 'lucide-react';
+import { API_URL } from './config';
 
-// Import Separated Components
-import Dashboard from './components/Dashboard';
-import GatekeeperPanel from './components/GatekeeperPanel';
+// --- COMPONENT IMPORTS ---
+import Login from './components/Login';
+
+// Admin Modules
+import CourseDashboard from './components/CourseDashboard'; // ✅ Using the NEW Zero-Day Dashboard
 import GlobalAccommodationManager from './components/GlobalAccommodationManager';
-import ATPanel from './components/ATPanel';
 import StudentForm from './components/StudentForm';
 import ParticipantList from './components/ParticipantList';
 import ExpenseTracker from './components/ExpenseTracker';
 import CourseAdmin from './components/CourseAdmin';
 
-// Login Constants
-const ADMIN_PASSCODE = "11"; 
-const GATEKEEPER_PASSCODE = "0";
-const TEACHER_PASSCODE = "2";
+// Restricted Modules (Preserved from your original file)
+import GatekeeperPanel from './components/GatekeeperPanel';
+import ATPanel from './components/ATPanel';
 
 export default function App() {
-  const [authLevel, setAuthLevel] = useState('none'); 
-  const [pinInput, setPinInput] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [view, setView] = useState('dashboard');
+  const [authLevel, setAuthLevel] = useState('none'); // 'none', 'admin', 'gatekeeper', 'teacher'
+  const [activeModule, setActiveModule] = useState('dashboard');
   const [courses, setCourses] = useState([]);
-  const [error, setError] = useState('');
-  const [preSelectedRoom, setPreSelectedRoom] = useState('');
+  const [preSelectedRoom, setPreSelectedRoom] = useState(''); // Logic Preserved
 
-  // Initial Load
+  // --- INITIAL LOAD ---
   useEffect(() => {
     const savedLevel = localStorage.getItem('auth_level');
     if (savedLevel) setAuthLevel(savedLevel);
-    fetchCourses();
+    refreshCourses();
   }, []);
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    if (pinInput === ADMIN_PASSCODE) { setAuthLevel('admin'); localStorage.setItem('auth_level', 'admin'); } 
-    else if (pinInput === GATEKEEPER_PASSCODE) { setAuthLevel('gatekeeper'); localStorage.setItem('auth_level', 'gatekeeper'); setView('gate-panel'); } 
-    else if (pinInput === TEACHER_PASSCODE) { setAuthLevel('teacher'); localStorage.setItem('auth_level', 'teacher'); setView('ta-panel'); } 
-    else { setLoginError('❌ Incorrect Passcode'); setPinInput(''); }
+  const refreshCourses = () => {
+    fetch(`${API_URL}/courses`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setCourses(Array.isArray(data) ? data : []))
+      .catch(err => console.error(err));
   };
 
-  const handleLogout = () => { setAuthLevel('none'); localStorage.removeItem('auth_level'); setView('dashboard'); setPinInput(''); };
-  const fetchCourses = () => { fetch(`${API_URL}/courses`).then(res => res.ok ? res.json() : []).then(data => Array.isArray(data) ? setCourses(data) : setCourses([])).catch(err => { console.error(err); setError("Connection Error"); }); };
-  const handleRoomClick = (roomNo) => { setPreSelectedRoom(roomNo); setView('onboarding'); };
+  const handleLogin = (level) => {
+    setAuthLevel(level);
+    localStorage.setItem('auth_level', level);
+    setActiveModule('dashboard'); // Reset view on login
+  };
 
-  // --- VIEW ROUTING ---
+  const handleLogout = () => {
+    setAuthLevel('none');
+    localStorage.removeItem('auth_level');
+    setPreSelectedRoom('');
+  };
 
-  // 1. Login Screen
+  // Logic: Clicking a room in Map -> Goes to Onboarding with that room
+  const handleRoomClick = (roomNo) => {
+    setPreSelectedRoom(roomNo);
+    setActiveModule('onboarding');
+  };
+
+  // --- 1. LOGIN SCREEN ---
   if (authLevel === 'none') {
+    return <Login onLogin={handleLogin} />;
+  }
+
+  // --- 2. RESTRICTED ROLES (Simplified UI) ---
+  if (authLevel === 'gatekeeper') {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', fontFamily: 'Segoe UI' }}>
-        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
-          <h1 style={{ margin: '0 0 20px 0', color: '#333' }}>Dhamma Nagajjuna Course Manager</h1>
-          <form onSubmit={handleLogin}>
-            <input type="password" placeholder="Passcode" value={pinInput} onChange={e => setPinInput(e.target.value)} autoFocus style={{ width: '100%', padding: '15px', fontSize: '18px', borderRadius: '8px', border: '1px solid #ddd', marginBottom: '20px', textAlign: 'center' }} />
-            <button type="submit" style={{ width: '100%', padding: '15px', background: '#007bff', color: 'white', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock</button>
-          </form>
-          {loginError && <p style={{ color: 'red', marginTop: '15px' }}>{loginError}</p>}
+      <div style={{minHeight:'100vh', background:'#e3f2fd', fontFamily:"'Segoe UI', sans-serif"}}>
+        <div style={{background:'white', padding:'15px 30px', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:'0 2px 10px rgba(0,0,0,0.05)'}}>
+            <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px', color:'#0d47a1'}}><Shield size={24}/> Gatekeeper Access</h2>
+            <button onClick={handleLogout} style={{padding:'8px 16px', background:'#fff5f5', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Logout</button>
+        </div>
+        <div style={{padding:'30px'}}>
+            <GatekeeperPanel courses={courses} />
         </div>
       </div>
     );
   }
 
-  // 2. Role-Based Views
-  if (authLevel === 'gatekeeper') return <div className="app-container" style={{padding:'20px', minHeight:'100vh', background:'#e3f2fd'}}><div style={{display:'flex',justifyContent:'space-between'}}><h2>Gate</h2><button onClick={handleLogout} style={styles.btn(false)}>Logout</button></div><GatekeeperPanel courses={courses} /></div>;
-  if (authLevel === 'teacher') return <div className="app-container" style={{padding:'20px', minHeight:'100vh', background:'#fff3e0'}}><div style={{display:'flex',justifyContent:'space-between'}}><h2>AT Panel</h2><button onClick={handleLogout} style={styles.btn(false)}>Logout</button></div><ATPanel courses={courses} /></div>;
-
-  // 3. Admin View (Main Dashboard)
-  return (
-    <div className="app-container" style={{ fontFamily: 'Segoe UI, sans-serif', padding: '20px', backgroundColor: '#f4f7f6', minHeight: '100vh' }}>
-      <style>{`@media print { .no-print { display: none !important; } .app-container { background: white !important; padding: 0 !important; } body { font-size: 10pt; } .print-hide { display: none; } }`}</style>
-      
-      {/* Navigation Bar */}
-      <nav className="no-print" style={{ marginBottom: '20px', background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button onClick={() => setView('dashboard')} style={styles.btn(view === 'dashboard')}>📊 Dashboard</button>
-          <button onClick={() => setView('ta-panel')} style={styles.btn(view === 'ta-panel')}>AT Panel</button>
-          <button onClick={() => setView('room-view')} style={styles.btn(view === 'room-view')}>🛏️ Rooms</button>
-          <button onClick={() => setView('onboarding')} style={styles.btn(view === 'onboarding')}>📝 Onboarding</button>
-          <button onClick={() => setView('participants')} style={styles.btn(view === 'participants')}>👥 Students</button>
-          <button onClick={() => setView('expenses')} style={styles.btn(view === 'expenses')}>🛒 Store</button>
-          <button onClick={() => setView('course-admin')} style={styles.btn(view === 'course-admin')}>⚙️ Admin</button>
+  if (authLevel === 'teacher') {
+    return (
+      <div style={{minHeight:'100vh', background:'#fff3e0', fontFamily:"'Segoe UI', sans-serif"}}>
+        <div style={{background:'white', padding:'15px 30px', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:'0 2px 10px rgba(0,0,0,0.05)'}}>
+            <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px', color:'#e65100'}}><GraduationCap size={24}/> Assistant Teacher Panel</h2>
+            <button onClick={handleLogout} style={{padding:'8px 16px', background:'#fff5f5', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Logout</button>
         </div>
-        <button onClick={handleLogout} style={{ ...styles.btn(false), border: '1px solid #dc3545', color: '#dc3545' }}>🔒 Logout</button>
-      </nav>
+        <div style={{padding:'30px'}}>
+            <ATPanel courses={courses} />
+        </div>
+      </div>
+    );
+  }
 
-      {error && <div className="no-print" style={{ padding: '12px', background: '#ffebee', color: '#c62828', borderRadius: '5px', marginBottom: '20px' }}>⚠️ {error}</div>}
+  // --- 3. ADMIN DASHBOARD (RICH UI) ---
+  const MENU_ITEMS = [
+      { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+      { id: 'room', label: 'Room Map', icon: <BedDouble size={18} /> },
+      { id: 'onboarding', label: 'Onboarding', icon: <UserPlus size={18} /> },
+      { id: 'students', label: 'Students', icon: <Users size={18} /> },
+      { id: 'store', label: 'Store', icon: <ShoppingBag size={18} /> },
+      { id: 'admin', label: 'Admin', icon: <Settings size={18} /> },
+  ];
+
+  return (
+    <div style={{
+        minHeight: '100vh', 
+        background: '#f4f6f8', 
+        fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+    }}>
       
-      {/* Main Content Area */}
-      {view === 'dashboard' && <Dashboard courses={courses} />}
-      {view === 'ta-panel' && <ATPanel courses={courses} />}
-      {view === 'room-view' && <GlobalAccommodationManager courses={courses} onRoomClick={handleRoomClick} />}
-      {view === 'onboarding' && <StudentForm courses={courses} preSelectedRoom={preSelectedRoom} clearRoom={() => setPreSelectedRoom('')} />}
-      {view === 'expenses' && <ExpenseTracker courses={courses} />}
-      {view === 'participants' && <ParticipantList courses={courses} refreshCourses={fetchCourses} />}
-      {view === 'course-admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} />}
+      {/* TOP NAVIGATION */}
+      <div className="no-print" style={{
+          background: 'white',
+          padding: '0 30px',
+          height: '70px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+          position: 'sticky', top: 0, zIndex: 1000
+      }}>
+          {/* BRAND */}
+          <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
+              <div style={{width:'40px', height:'40px', background:'linear-gradient(45deg, #007bff, #00d2ff)', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontSize:'20px'}}>☸️</div>
+              <div>
+                  <div style={{fontWeight: '900', fontSize: '18px', color: '#2c3e50', letterSpacing: '-0.5px'}}>DHAMMA NAGAJJUNA 2</div>
+                  <div style={{fontSize: '11px', color: '#999', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '1px'}}>Admin Console</div>
+              </div>
+          </div>
+
+          {/* MENU */}
+          <div style={{display: 'flex', gap: '8px', overflowX:'auto'}}>
+              {MENU_ITEMS.map(item => {
+                  const isActive = activeModule === item.id;
+                  return (
+                      <button 
+                          key={item.id}
+                          onClick={() => setActiveModule(item.id)}
+                          style={{
+                              display: 'flex', alignItems: 'center', gap: '8px',
+                              padding: '10px 16px',
+                              border: 'none', borderRadius: '30px',
+                              background: isActive ? '#e3f2fd' : 'transparent',
+                              color: isActive ? '#007bff' : '#666',
+                              fontWeight: isActive ? '700' : '500',
+                              fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s ease', outline: 'none'
+                          }}
+                      >
+                          {item.icon}
+                          <span style={{whiteSpace:'nowrap'}}>{item.label}</span>
+                      </button>
+                  );
+              })}
+          </div>
+
+          {/* LOGOUT */}
+          <button 
+              onClick={handleLogout} 
+              style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '8px 16px', borderRadius: '6px',
+                  border: '1px solid #ffcdd2', background: '#fff5f5',
+                  color: '#d32f2f', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer'
+              }}
+          >
+              <LogOut size={16}/> Logout
+          </button>
+      </div>
+
+      {/* MAIN CONTENT */}
+      <div style={{maxWidth: '1600px', margin: '30px auto', padding: '0 20px'}}>
+          <div style={{animation: 'fadeIn 0.4s ease-in-out'}}>
+              
+              {activeModule === 'dashboard' && <CourseDashboard courses={courses} />}
+              
+              {activeModule === 'room' && <GlobalAccommodationManager courses={courses} onRoomClick={handleRoomClick} />}
+              
+              {activeModule === 'onboarding' && (
+                  <StudentForm 
+                      courses={courses} 
+                      preSelectedRoom={preSelectedRoom} 
+                      clearRoom={() => setPreSelectedRoom('')} 
+                  />
+              )}
+              
+              {activeModule === 'students' && <ParticipantList courses={courses} refreshCourses={refreshCourses}/>}
+              
+              {activeModule === 'store' && <ExpenseTracker courses={courses} />}
+              
+              {activeModule === 'admin' && <CourseAdmin courses={courses} refreshCourses={refreshCourses} />}
+              
+          </div>
+      </div>
+
+      {/* ANIMATION STYLES */}
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        body { margin: 0; background: #f4f6f8; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #ccc; borderRadius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #aaa; }
+      `}</style>
     </div>
   );
 }
