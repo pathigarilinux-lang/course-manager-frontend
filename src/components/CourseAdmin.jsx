@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import * as XLSX from 'xlsx'; // ✅ REQUIRES: npm install xlsx
 import { Database, Save, FileText, Download, Trash2, Calendar, Search, PlusCircle, Upload, CheckCircle, AlertCircle, ArrowRight, X, Filter, UserPlus } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
@@ -67,74 +66,49 @@ export default function CourseAdmin({ courses, refreshCourses }) {
   };
 
   // --- SMART IMPORT LOGIC ---
-
-  // Helper: Auto-Map Logic
-  const autoMapHeaders = (headers) => {
-      const newMap = { full_name: '', conf_no: '', age: '', gender: '', courses_info: '', email: '', mobile: '' };
-      headers.forEach((h, index) => {
-          const head = String(h).toLowerCase();
-          if (head.includes('name')) newMap.full_name = index;
-          if (head.includes('conf') || head.includes('id')) newMap.conf_no = index;
-          if (head.includes('age')) newMap.age = index;
-          if (head.includes('gender') || head.includes('sex')) newMap.gender = index;
-          if (head.includes('course') || head.includes('history')) newMap.courses_info = index;
-          if (head.includes('email')) newMap.email = index;
-          if (head.includes('mobile') || head.includes('phone')) newMap.mobile = index;
-      });
-      setFieldMapping(newMap);
-      setImportStep(2);
-  };
   
-  // 1. FILE PARSER (CSV + EXCEL SUPPORT)
+  // 1. FILE PARSER (Robust CSV + Excel Check)
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-    const reader = new FileReader();
-
-    if (isExcel) {
-        // --- EXCEL PARSING LOGIC ---
-        reader.onload = (e) => {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // [[Head1, Head2], [Row1Val1...]]
-
-            if (jsonData.length < 2) return alert("Excel file appears empty.");
-
-            const headers = jsonData[0];
-            const rows = jsonData.slice(1).map(row => {
-                // Ensure row has enough cells, fill gaps with empty string
-                return headers.map((_, i) => (row[i] !== undefined ? String(row[i]) : ''));
-            });
-
-            setRawFileData({ headers, rows });
-            autoMapHeaders(headers);
-        };
-        reader.readAsArrayBuffer(file);
-
-    } else {
-        // --- CSV PARSING LOGIC ---
-        reader.onload = (e) => {
-            const text = e.target.result;
-            const lines = text.split('\n').filter(l => l.trim());
-            if (lines.length < 2) return alert("CSV file is empty.");
-            
-            const parseRow = (row) => {
-                const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
-                return row.split(regex).map(cell => cell.trim().replace(/^"|"$/g, ''));
-            };
-
-            const headers = parseRow(lines[0]);
-            const rows = lines.slice(1).map(line => parseRow(line));
-            
-            setRawFileData({ headers, rows });
-            autoMapHeaders(headers);
-        };
-        reader.readAsText(file);
+    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        return alert("⚠️ Excel Detected: Please allow us to read this by 'Saving As CSV' in Excel first, then upload the .csv file.");
     }
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const text = e.target.result;
+        const lines = text.split('\n').filter(l => l.trim());
+        if (lines.length < 2) return alert("File is empty or invalid.");
+        
+        // CSV Splitter
+        const parseRow = (row) => {
+            const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
+            return row.split(regex).map(cell => cell.trim().replace(/^"|"$/g, ''));
+        };
+
+        const headers = parseRow(lines[0]);
+        const rows = lines.slice(1).map(line => parseRow(line));
+        
+        setRawFileData({ headers, rows });
+        
+        // Auto-Guess Mapping
+        const newMap = { ...fieldMapping };
+        headers.forEach((h, index) => {
+            const head = h.toLowerCase();
+            if (head.includes('name')) newMap.full_name = index;
+            if (head.includes('conf') || head.includes('id')) newMap.conf_no = index;
+            if (head.includes('age')) newMap.age = index;
+            if (head.includes('gender') || head.includes('sex')) newMap.gender = index;
+            if (head.includes('course') || head.includes('history')) newMap.courses_info = index;
+            if (head.includes('email')) newMap.email = index;
+            if (head.includes('mobile') || head.includes('phone')) newMap.mobile = index;
+        });
+        setFieldMapping(newMap);
+        setImportStep(2); // Move to Map Step
+    };
+    reader.readAsText(file);
   };
 
   // 2. PROCESS & VALIDATE
@@ -159,13 +133,11 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               issues: []
           };
 
-          // Smart Logic: Standardize Gender
           const g = p.gender.toLowerCase();
           if (g.startsWith('m')) p.gender = 'Male';
           else if (g.startsWith('f')) p.gender = 'Female';
           else p.gender = 'Male'; 
 
-          // Validation
           if (!p.full_name) p.issues.push('Missing Name');
           if (!p.conf_no) p.issues.push('Missing ID');
           if (!p.age) p.issues.push('Missing Age');
@@ -237,7 +209,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       } catch (err) { alert("Upload Failed."); }
   };
 
-  // --- DOWNLOAD TEMPLATE ---
+  // --- DOWNLOAD TEMPLATE (UPDATED WITH EXAMPLES) ---
   const downloadTemplate = () => {
       const headers = "Name,Age,Gender,Conf No,Courses Info,Email,Phone";
       const rows = [
@@ -334,11 +306,11 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         </div>
       )}
 
-      {/* --- TAB 2: IMPORT & CLEAN --- */}
+      {/* --- TAB 2: IMPORT & CLEAN (HYBRID) --- */}
       {activeTab === 'import' && (
         <div style={{maxWidth:'1000px', margin:'0 auto'}}>
           
-          {/* PROGRESS */}
+          {/* WIZARD PROGRESS */}
           <div style={{display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'30px'}}>
               <div style={{display:'flex', alignItems:'center', gap:'10px', opacity: importStep >= 1 ? 1 : 0.5}}>
                   <div style={{width:'30px', height:'30px', borderRadius:'50%', background: importStep>=1 ? '#007bff' : '#ccc', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold'}}>1</div>
@@ -356,13 +328,13 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               </div>
           </div>
 
-          {/* STEP 1 */}
+          {/* STEP 1: UPLOAD OR MANUAL */}
           {importStep === 1 && (
               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px'}}>
                   {/* Option A: File Upload */}
                   <div style={{border:'2px dashed #ccc', borderRadius:'10px', padding:'30px', textAlign:'center', background:'#f9f9f9', position:'relative'}}>
-                      <h3 style={{marginTop:0}}>Option A: File Upload</h3>
-                      <p style={{color:'#666', marginBottom:'20px', fontSize:'13px'}}>Supports: <strong>.CSV, .XLSX, .XLS</strong><br/>(Note: Excel parsing requires internet/library)</p>
+                      <h3 style={{marginTop:0}}>Option A: Bulk File Upload</h3>
+                      <p style={{color:'#666', marginBottom:'20px', fontSize:'13px'}}>Select your Excel or CSV file.<br/>(For Excel: Please Save As CSV first)</p>
                       <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
                       <div style={{pointerEvents:'none'}}>
                           <Upload size={48} color="#007bff" />
@@ -378,7 +350,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                   {/* Option B: Manual Entry */}
                   <div style={{border:'1px solid #ddd', borderRadius:'10px', padding:'20px', background:'white'}}>
                       <h3 style={{marginTop:0, display:'flex', alignItems:'center', gap:'10px'}}><UserPlus size={18}/> Option B: Manual Entry</h3>
-                      <p style={{fontSize:'12px', color:'#666'}}>Add single student manually.</p>
+                      <p style={{fontSize:'12px', color:'#666'}}>Add single student manually if file upload is not needed.</p>
                       <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
                           <input style={styles.input} placeholder="Full Name *" value={manualStudent.full_name} onChange={e=>setManualStudent({...manualStudent, full_name:e.target.value})} />
                           <div style={{display:'flex', gap:'5px'}}>
@@ -395,7 +367,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               </div>
           )}
 
-          {/* STEP 2 */}
+          {/* STEP 2: MAP COLUMNS */}
           {importStep === 2 && (
               <div style={{background:'white', padding:'25px', borderRadius:'10px', border:'1px solid #ddd'}}>
                   <h3 style={{marginTop:0}}>Step 2: Map Your Columns</h3>
@@ -426,7 +398,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               </div>
           )}
 
-          {/* STEP 3 */}
+          {/* STEP 3: REVIEW & UPLOAD */}
           {importStep === 3 && (
               <div style={{background:'white', padding:'20px', borderRadius:'10px', border:'1px solid #ddd'}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
