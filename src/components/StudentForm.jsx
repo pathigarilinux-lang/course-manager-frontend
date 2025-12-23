@@ -3,6 +3,7 @@ import { User, MapPin, Coffee, Lock, Key, AlertTriangle, CheckCircle, Search, X 
 import DiningLayout from '../DiningLayout';
 import PagodaLayout from '../PagodaLayout';
 import MaleBlockLayout from './MaleBlockLayout'; 
+import FemaleBlockLayout from './FemaleBlockLayout'; // ✅ 1. NEW IMPORT
 import { API_URL, LANGUAGES, NUMBER_OPTIONS, styles } from '../config';
 
 export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
@@ -58,14 +59,16 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const normalize = (str) => str ? str.toString().replace(/[\s-]+/g, '').toUpperCase() : '';
   const cleanNum = (val) => val ? String(val).trim() : '';
   
+  // Gender Detection
   const currentGenderRaw = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
   const isMale = currentGenderRaw.startsWith('m');
-  const isFemale = currentGenderRaw.startsWith('f');
+  const isFemale = currentGenderRaw.startsWith('f'); // ✅ Used for Map Switching
   const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : 'Male');
   const themeColor = isMale ? '#007bff' : (isFemale ? '#e91e63' : '#6c757d');
 
   // Room Logic
   const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
+  // Note: We use availableRooms for visual modal logic, but manual entry is also allowed
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female');
@@ -106,6 +109,14 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const handleRoomSelect = (roomObj) => {
       if (roomObj.occupant) return alert("⛔ This bed is already occupied!");
+      
+      // Optional: Safety Check for Gender Mismatch
+      const roomGender = (roomObj.gender_type || '').toLowerCase();
+      const studentGenderChar = (selectedStudent?.gender || '').toLowerCase().charAt(0);
+      if (roomGender && !roomGender.startsWith(studentGenderChar)) {
+          if(!window.confirm(`⚠️ WARNING: Assigning ${roomObj.gender_type} room to ${selectedStudent.gender} student. Continue?`)) return;
+      }
+
       setFormData(prev => ({ ...prev, roomNo: roomObj.room_no }));
       setShowVisualRoom(false);
   };
@@ -122,7 +133,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const prepareReceipt = () => {
       const courseObj = courses.find(c => c.course_id == formData.courseId);
       
-      // Short Course Name Logic (e.g. "10-Day")
+      // Short Course Name Logic
       let rawName = courseObj?.course_name || 'Unknown';
       let shortName = rawName;
       const dayMatch = rawName.match(/(\d+)\s*-?\s*Day/i);
@@ -328,28 +339,33 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           {/* VISUAL MODALS */}
           {showVisualDining && <DiningLayout gender={currentGenderLabel} occupied={usedDining} selected={formData.seatNo} onSelect={handleDiningSeatChange} onClose={()=>setShowVisualDining(false)} />}
           {showVisualPagoda && <PagodaLayout gender={currentGenderLabel} occupied={usedPagoda} selected={formData.pagodaCell} onSelect={handlePagodaSelect} onClose={()=>setShowVisualPagoda(false)} />}
+          
+          {/* ✅ 2. INTEGRATED: CONDITIONAL MAP RENDERING */}
           {showVisualRoom && (
               <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:2000, display:'flex', flexDirection:'column', padding:'20px'}}>
                   <div style={{background:'white', borderRadius:'8px', flex:1, display:'flex', flexDirection:'column', overflow:'hidden', maxWidth:'1200px', margin:'0 auto', width:'100%'}}>
                       <div style={{padding:'15px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                          <h3 style={{margin:0}}>📍 Select Bed</h3>
+                          <h3 style={{margin:0}}>📍 Select Bed for {selectedStudent ? selectedStudent.full_name : 'Student'} ({isFemale ? 'Female' : 'Male'})</h3>
                           <button onClick={()=>setShowVisualRoom(false)} style={{background:'red', color:'white', border:'none', borderRadius:'4px', padding:'5px 15px', cursor:'pointer'}}>Close</button>
                       </div>
                       <div style={{flex:1, overflowY:'auto', padding:'20px', background:'#f0f2f5'}}>
-                          <MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomSelect} />
+                          {isFemale ? (
+                              <FemaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomSelect} />
+                          ) : (
+                              <MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomSelect} />
+                          )}
                       </div>
                   </div>
               </div>
           )}
 
-          {/* --- INVISIBLE PRINT SECTION (BOLD GRID) --- */}
+          {/* --- INVISIBLE PRINT SECTION --- */}
           {printReceiptData && (
               <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}>
                   <div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}>
                       <button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button>
                       
                       <div id="receipt-print-area" style={{padding:'5px', border:'3px solid black', borderRadius:'8px', fontFamily:'Helvetica, Arial, sans-serif', color:'black', width:'70mm', margin:'0 auto', boxSizing:'border-box'}}>
-                          
                           {/* HEADER */}
                           <div style={{textAlign:'center', fontWeight:'bold', marginBottom:'5px'}}>
                               <div style={{fontSize:'16px'}}>VIPASSANA</div>
