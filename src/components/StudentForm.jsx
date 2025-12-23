@@ -29,7 +29,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   // Print State
   const [printReceiptData, setPrintReceiptData] = useState(null);
   
-  // Visual Modals
+  // Visual Modals State
   const [showVisualRoom, setShowVisualRoom] = useState(false);
   const [showVisualDining, setShowVisualDining] = useState(false);
   const [showVisualPagoda, setShowVisualPagoda] = useState(false);
@@ -66,7 +66,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   // Room Logic
   const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
-  // Note: We use availableRooms for visual modal logic, but manual entry is also allowed
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female');
@@ -119,16 +118,11 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const handlePagodaSelect = (val) => { setFormData(prev => ({ ...prev, pagodaCell: val })); setShowVisualPagoda(false); };
 
-  // --- REPRINT FUNCTION ---
-  const triggerReprint = () => {
-      if (!selectedStudent) return;
-      prepareReceipt();
-      setTimeout(() => window.print(), 500);
-  };
-
+  // --- REPRINT / RECEIPT PREP ---
   const prepareReceipt = () => {
       const courseObj = courses.find(c => c.course_id == formData.courseId);
-      // Logic for Short Course Name
+      
+      // Short Course Name Logic (e.g. "10-Day")
       let rawName = courseObj?.course_name || 'Unknown';
       let shortName = rawName;
       const dayMatch = rawName.match(/(\d+)\s*-?\s*Day/i);
@@ -152,6 +146,12 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       });
   };
 
+  const triggerReprint = () => {
+      if (!selectedStudent) return;
+      prepareReceipt();
+      setTimeout(() => window.print(), 500);
+  };
+
   const handleSubmit = async (e) => { 
       e.preventDefault();
       if (!formData.confNo) return alert("Missing Conf No");
@@ -173,14 +173,14 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           setSearchTerm('');
           clearRoom(); 
           
-          // Background Refresh
+          // Refresh
           fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants); 
           fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(setOccupancy); 
           setTimeout(() => setStatus(''), 4000);
       } catch (err) { setStatus(`❌ ${err.message}`); } 
   };
 
-  // Filter for Search Box
+  // Filter
   const searchResults = participants.filter(p => {
       if (!searchTerm) return false;
       if (p.status === 'Attending' || p.status === 'Cancelled') return false; 
@@ -342,55 +342,62 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
               </div>
           )}
 
-          {/* --- INVISIBLE PRINT SECTION (BOLD GRID LAYOUT) --- */}
+          {/* --- INVISIBLE PRINT SECTION (BOLD GRID) --- */}
           {printReceiptData && (
               <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}>
                   <div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}>
                       <button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button>
                       
-                      <div id="receipt-print-area" style={{padding:'5px', border:'3px solid black', borderRadius:'8px', fontFamily:'Helvetica, Arial, sans-serif', color:'black', width:'70mm', margin:'0 auto'}}>
+                      <div id="receipt-print-area" style={{padding:'5px', border:'3px solid black', borderRadius:'8px', fontFamily:'Helvetica, Arial, sans-serif', color:'black', width:'70mm', margin:'0 auto', boxSizing:'border-box'}}>
+                          
                           {/* HEADER */}
-                          <div style={{textAlign:'center', marginBottom:'5px'}}>
-                              <div style={{fontSize:'12px', textTransform:'uppercase', fontWeight:'bold', borderBottom:'2px solid black', paddingBottom:'2px'}}>DHAMMA SEAT</div>
+                          <div style={{textAlign:'center', fontWeight:'bold', marginBottom:'5px'}}>
+                              <div style={{fontSize:'16px'}}>VIPASSANA</div>
+                              <div style={{fontSize:'10px'}}>International Meditation Center</div>
+                              <div style={{fontSize:'12px'}}>Dhamma Nagajjuna 2</div>
                           </div>
                           
-                          {/* BIG SEAT/ROOM NUMBER (Visual Focus like Token) */}
-                          <div style={{textAlign:'center', fontSize:'40px', fontWeight:'900', lineHeight:'1', margin:'5px 0'}}>
-                              {printReceiptData.roomNo || '-'}
-                          </div>
+                          <div style={{borderBottom:'2px solid black', margin:'5px 0'}}></div>
                           
-                          {/* STUDENT NAME */}
-                          <div style={{textAlign:'center', fontWeight:'bold', fontSize:'14px', margin:'5px 0', wordWrap:'break-word', lineHeight:'1.1'}}>
-                              {printReceiptData.studentName}
-                          </div>
-                          <div style={{textAlign:'center', fontSize:'12px', fontWeight:'bold', marginBottom:'10px'}}>
-                              {printReceiptData.confNo}
+                          <div style={{fontSize:'11px', marginBottom:'5px', lineHeight:'1.3'}}>
+                              <div><strong>Course:</strong> {printReceiptData.courseName}</div>
+                              <div><strong>Teacher:</strong> {printReceiptData.teacherName}</div>
+                              <div><strong>Date:</strong> {printReceiptData.from} to {printReceiptData.to}</div>
                           </div>
 
-                          {/* INFO GRID */}
-                          <div style={{borderTop:'2px solid black', borderBottom:'2px solid black', display:'grid', gridTemplateColumns:'1fr 1fr', fontSize:'12px'}}>
-                              <div style={{borderRight:'2px solid black', padding:'4px'}}>
-                                  <div>Dining: <strong>{printReceiptData.seatNo || '-'}</strong></div>
-                                  <div>Valuables: <strong>{printReceiptData.valuables}</strong></div>
-                              </div>
-                              <div style={{padding:'4px'}}>
-                                  <div>Mobile: <strong>{printReceiptData.mobile}</strong></div>
-                                  <div>Lang: <strong>{printReceiptData.language}</strong></div>
-                              </div>
+                          <div style={{borderBottom:'2px solid black', margin:'5px 0'}}></div>
+
+                          {/* MAIN CONTENT */}
+                          <div style={{textAlign:'center'}}>
+                              <div style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', margin:'5px 0'}}>CHECK-IN PASS</div>
+                              <div style={{fontSize:'45px', fontWeight:'900', lineHeight:'1', margin:'5px 0'}}>{printReceiptData.roomNo || '-'}</div>
+                              <div style={{fontSize:'14px', fontWeight:'bold', margin:'5px 0', wordWrap:'break-word', lineHeight:'1.2'}}>{printReceiptData.studentName}</div>
+                              <div style={{fontSize:'12px', fontWeight:'bold'}}>{printReceiptData.confNo}</div>
                           </div>
 
-                          {/* OPTIONAL EXTRAS */}
-                          {(printReceiptData.laundry || printReceiptData.pagoda) && (
-                              <div style={{display:'flex', justifyContent:'space-between', fontSize:'11px', fontWeight:'bold', padding:'4px 2px'}}>
-                                  {printReceiptData.laundry && <span>Laundry: {printReceiptData.laundry}</span>}
-                                  {printReceiptData.pagoda && <span>Pagoda: {printReceiptData.pagoda}</span>}
-                              </div>
-                          )}
+                          {/* GRID BOX */}
+                          <table style={{width:'100%', borderCollapse:'collapse', marginTop:'10px', border:'2px solid black'}}>
+                              <tbody>
+                                  <tr>
+                                      <td style={{border:'1px solid black', padding:'4px', width:'50%', fontSize:'11px'}}>Dining: <strong>{printReceiptData.seatNo || '-'}</strong></td>
+                                      <td style={{border:'1px solid black', padding:'4px', width:'50%', fontSize:'11px'}}>Mobile: <strong>{printReceiptData.mobile}</strong></td>
+                                  </tr>
+                                  <tr>
+                                      <td style={{border:'1px solid black', padding:'4px', fontSize:'11px'}}>Valuables: <strong>{printReceiptData.valuables}</strong></td>
+                                      <td style={{border:'1px solid black', padding:'4px', fontSize:'11px'}}>Lang: <strong>{printReceiptData.language}</strong></td>
+                                  </tr>
+                                  {(printReceiptData.laundry || printReceiptData.pagoda) && (
+                                      <tr>
+                                          <td colSpan="2" style={{border:'1px solid black', padding:'4px', fontSize:'11px', fontWeight:'bold', textAlign:'center', background:'#f0f0f0'}}>
+                                              {printReceiptData.laundry && <span style={{marginRight:'10px'}}>Laundry: {printReceiptData.laundry}</span>}
+                                              {printReceiptData.pagoda && <span>Pagoda: {printReceiptData.pagoda}</span>}
+                                          </td>
+                                      </tr>
+                                  )}
+                              </tbody>
+                          </table>
 
-                          {/* FOOTER */}
-                          <div style={{textAlign:'center', fontSize:'10px', marginTop:'5px', borderTop:'1px solid #ccc', paddingTop:'2px'}}>
-                              {printReceiptData.courseName}
-                          </div>
+                          <div style={{textAlign:'center', fontSize:'9px', fontStyle:'italic', marginTop:'5px'}}>*** Student Copy ***</div>
                       </div>
 
                       <div className="no-print" style={{marginTop:'20px', display:'flex', gap:'10px'}}>
