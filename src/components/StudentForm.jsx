@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, X, User, MapPin, Smartphone, Key, LayoutGrid, Info, Clock, CheckCircle } from 'lucide-react';
+import { Save, X, User, MapPin, Smartphone, Key, LayoutGrid, Info, CheckCircle } from 'lucide-react';
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout'; 
 
@@ -8,26 +8,26 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
   const [formData, setFormData] = useState({
     full_name: '',
     age: '',
-    gender: 'Male', // Default
+    gender: 'Male',
     conf_no: '',
-    courses_info: '', // RESTORED
     room_no: '',
-    pagoda_cell_no: '', // RESTORED
+    pagoda_cell_no: '',
     dining_seat_no: '',
     mobile_locker_no: '',
     valuables_locker_no: '',
     laundry_token_no: '',
-    remarks: '',
-    status: 'Attending', // RESTORED
-    discourse_language: 'Hindi' // Common default
+    discourse_language: 'Hindi'
   });
 
-  // Resources
+  // Resources & Data
   const [mobileOptions, setMobileOptions] = useState([]);
   const [valuablesOptions, setValuablesOptions] = useState([]);
   const [laundryOptions, setLaundryOptions] = useState([]);
-  const [courseInfo, setCourseInfo] = useState(null); // To show Course Data
-
+  const [courseInfo, setCourseInfo] = useState(null);
+  
+  // Student Search Data
+  const [existingStudents, setExistingStudents] = useState([]);
+  
   // Visual Map State
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [roomsData, setRoomsData] = useState([]);
@@ -35,14 +35,13 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
 
   // --- INITIALIZATION ---
   useEffect(() => {
-    // 1. Populate Student Data if provided
     if (student) {
         setFormData(prev => ({ ...prev, ...student }));
     }
 
     if (courseId) {
         fetchCourseDetails();
-        fetchAvailableResources();
+        fetchResourcesAndStudents();
         fetchRoomData();
     }
   }, [courseId, student]);
@@ -57,23 +56,27 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
       } catch(e) { console.error(e); }
   };
 
-  const fetchAvailableResources = async () => {
+  const fetchResourcesAndStudents = async () => {
       try {
+          // 1. Get Participants (for Search & Laundry Logic)
           const pRes = await fetch(`${API_URL}/courses/${courseId}/participants`);
           const participants = await pRes.json();
+          setExistingStudents(participants); // For Auto-fill Search
           
+          // 2. Get Lockers
           const lRes = await fetch(`${API_URL}/courses/${courseId}/available-lockers`);
           const lockers = await lRes.json();
           setMobileOptions(lockers.mobile || []);
           setValuablesOptions(lockers.valuables || []);
 
-          // Smart Laundry Logic
+          // 3. Smart Laundry Logic
           const allLaundry = Array.from({length: 200}, (_, i) => String(i + 1));
           const usedLaundry = new Set(participants.map(p => String(p.laundry_token_no)));
+          // Filter: Available OR (Current Student's Token if editing)
           const availableLaundry = allLaundry.filter(t => !usedLaundry.has(t) || (student && String(student.laundry_token_no) === t));
           setLaundryOptions(availableLaundry);
 
-      } catch (err) { console.error("Resource fetch error:", err); }
+      } catch (err) { console.error("Resource error:", err); }
   };
 
   const fetchRoomData = async () => {
@@ -89,6 +92,20 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+
+    // AUTO-POPULATE LOGIC
+    if (name === 'full_name') {
+        const found = existingStudents.find(s => s.full_name.toLowerCase() === value.toLowerCase());
+        if (found) {
+            setFormData(prev => ({
+                ...prev,
+                full_name: found.full_name,
+                age: found.age,
+                conf_no: found.conf_no,
+                gender: found.gender
+            }));
+        }
+    }
   };
 
   const handleRoomSelect = (roomObj) => {
@@ -110,20 +127,32 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
       <div className="no-print" style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
         <div>
             <h2 style={{margin:0}}>{student ? 'Edit Student' : 'New Student Check-In'}</h2>
-            {courseInfo && <div style={{fontSize:'13px', color:'#007bff', fontWeight:'bold'}}>{courseInfo.course_name} ({new Date(courseInfo.start_date).toLocaleDateString()})</div>}
+            {courseInfo && <div style={{fontSize:'13px', color:'#007bff', fontWeight:'bold', marginTop:'5px'}}>{courseInfo.course_name} ({new Date(courseInfo.start_date).toLocaleDateString()})</div>}
         </div>
         <button onClick={onCancel} style={{background:'none', border:'none', cursor:'pointer'}}><X size={24}/></button>
       </div>
 
       <form onSubmit={handleSubmit} className="no-print">
         
-        {/* ROW 1: PERSONAL DETAILS (Restored Gender & Status) */}
-        <div style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr', gap:'15px', marginBottom:'15px'}}>
+        {/* ROW 1: SEARCHABLE NAME & BASIC INFO */}
+        <div style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:'15px', marginBottom:'20px'}}>
             <div>
-                <label style={styles.label}>Full Name</label>
+                <label style={styles.label}>Full Name (Search)</label>
                 <div style={{display:'flex', alignItems:'center', border:'1px solid #ddd', borderRadius:'4px', padding:'0 5px'}}>
                     <User size={16} color="#666"/>
-                    <input name="full_name" value={formData.full_name} onChange={handleChange} style={{...styles.input, border:'none'}} required />
+                    <input 
+                        list="student-list" 
+                        name="full_name" 
+                        value={formData.full_name} 
+                        onChange={handleChange} 
+                        style={{...styles.input, border:'none'}} 
+                        required 
+                        placeholder="Type to search..." 
+                        autoComplete="off"
+                    />
+                    <datalist id="student-list">
+                        {existingStudents.map(s => <option key={s.participant_id} value={s.full_name} />)}
+                    </datalist>
                 </div>
             </div>
             <div>
@@ -141,44 +170,23 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
                     <option>Female</option>
                 </select>
             </div>
-            <div>
-                <label style={styles.label}>Status</label>
-                <select name="status" value={formData.status} onChange={handleChange} style={styles.input}>
-                    <option>Attending</option>
-                    <option>Checked In</option>
-                    <option>Cancelled</option>
-                    <option>No-Show</option>
-                </select>
-            </div>
         </div>
 
-        {/* ROW 2: COURSE HISTORY & REMARKS (Restored) */}
-        <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'15px', marginBottom:'15px'}}>
-            <div>
-                <label style={styles.label}>History (Courses Info)</label>
-                <input name="courses_info" value={formData.courses_info} onChange={handleChange} style={{...styles.input, background:'#f0f0f0'}} readOnly={false} placeholder="S:1 L:0" />
-            </div>
-            <div>
-                <label style={styles.label}>Remarks / Medical</label>
-                <input name="remarks" value={formData.remarks} onChange={handleChange} style={styles.input} placeholder="Medical issues, notes..." />
-            </div>
-        </div>
-
-        {/* ROW 3: ACCOMMODATION & DINING (Visual Map) */}
-        <div style={{background:'#f8f9fa', padding:'15px', borderRadius:'8px', border:'1px solid #eee', marginBottom:'15px'}}>
-            <h4 style={{marginTop:0, color:'#555', fontSize:'12px', textTransform:'uppercase'}}>Allocation</h4>
+        {/* ROW 2: ACCOMMODATION (Visual Map) */}
+        <div style={{background:'#f8f9fa', padding:'15px', borderRadius:'8px', border:'1px solid #eee', marginBottom:'20px'}}>
+            <h4 style={{marginTop:0, color:'#555', fontSize:'12px', textTransform:'uppercase'}}>Accommodation & Dining</h4>
             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px'}}>
                 {/* ROOM */}
                 <div>
                     <label style={styles.label}>Room / Bed</label>
                     <div style={{display:'flex', gap:'5px'}}>
                         <input value={formData.room_no} readOnly style={{...styles.input, background:'white', fontWeight:'bold'}} placeholder="Select ->" />
-                        <button type="button" onClick={() => setShowRoomModal(true)} style={{...styles.toolBtn('#007bff'), padding:'0 10px'}} title="Map">
+                        <button type="button" onClick={() => setShowRoomModal(true)} style={{...styles.toolBtn('#007bff'), padding:'0 10px'}} title="Open Map">
                             <MapPin size={16}/>
                         </button>
                     </div>
                 </div>
-                {/* PAGODA (Restored) */}
+                {/* PAGODA */}
                 <div>
                     <label style={styles.label}>Pagoda Cell</label>
                     <input name="pagoda_cell_no" value={formData.pagoda_cell_no} onChange={handleChange} style={styles.input} />
@@ -191,7 +199,7 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
             </div>
         </div>
 
-        {/* ROW 4: LOCKERS & LAUNDRY (Smart Logic) */}
+        {/* ROW 3: LOCKERS & LAUNDRY */}
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'20px'}}>
             <div>
                 <label style={styles.label}>Mobile Locker</label>
@@ -234,14 +242,13 @@ export default function StudentForm({ courseId, student = null, onSave, onCancel
                       <button onClick={()=>setShowRoomModal(false)} style={{background:'red', color:'white', border:'none', borderRadius:'4px', padding:'5px 15px', cursor:'pointer'}}>Close</button>
                   </div>
                   <div style={{flex:1, overflowY:'auto', padding:'20px', background:'#f0f2f5'}}>
-                      {/* Using the Male Layout logic - can be swapped if gender is Female */}
                       <MaleBlockLayout rooms={roomsData} occupancy={occupancyData} onRoomClick={handleRoomSelect} />
                   </div>
               </div>
           </div>
       )}
 
-      {/* --- PROFESSIONAL RECEIPT --- */}
+      {/* --- RECEIPT (Same as before) --- */}
       <div id="print-section">
           <div className="receipt-box">
               <div style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px', marginBottom:'10px'}}>
