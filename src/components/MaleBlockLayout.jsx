@@ -1,21 +1,39 @@
 import React from 'react';
 
-export default function MaleBlockLayout({ rooms = [], occupancy = [], onRoomClick }) {
+// --- CONFIGURATION ---
+const INDIAN_COMMODES = new Set([
+    ...Array.from({length: 6}, (_, i) => 301 + i), // 301-306
+    ...Array.from({length: 4}, (_, i) => 317 + i), // 317-320
+    ...Array.from({length: 7}, (_, i) => 329 + i), // 329-335
+    349, 350, 351, 362, 363
+]);
+
+export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     
+    // --- HELPER: Identify Toilet Type ---
+    const getToiletInfo = (roomNumStr) => {
+        const numMatch = roomNumStr.match(/(\d{3})/);
+        const num = numMatch ? parseInt(numMatch[1]) : 0;
+        
+        if (INDIAN_COMMODES.has(num)) {
+            return { type: 'Indian', icon: '🟤', color: '#D84315', label: 'IND' }; // Deep Orange
+        }
+        return { type: 'Western', icon: '🚽', color: '#0277bd', label: 'WES' }; // Strong Blue
+    };
+
     // --- DATA PROCESSOR ---
     const getRoomData = () => {
         const roomGroups = {};
-        // Filter for Male rooms
-        const maleRooms = (rooms || []).filter(r => (r.gender_type || 'Male') === 'Male');
 
-        maleRooms.forEach(r => {
-            // Normalize room numbers (e.g. 101A -> 101)
-            const digitMatch = r.room_no.match(/(\d{3})/);
-            const key = digitMatch ? parseInt(digitMatch[1]) : r.room_no;
+        rooms.filter(r => r.gender_type === 'Male').forEach(r => {
+            const numMatch = r.room_no.match(/(\d{3})/);
+            const baseNum = numMatch ? parseInt(numMatch[1]) : 0;
+            const key = baseNum || r.room_no;
 
             if (!roomGroups[key]) {
-                roomGroups[key] = { baseNum: key, beds: [] };
+                roomGroups[key] = { baseNum, beds: [], toilet: getToiletInfo(r.room_no) };
             }
+            
             const occupant = occupancy.find(p => p.room_no === r.room_no);
             roomGroups[key].beds.push({ ...r, occupant });
         });
@@ -23,120 +41,241 @@ export default function MaleBlockLayout({ rooms = [], occupancy = [], onRoomClic
     };
 
     const allRooms = getRoomData();
-    const getRoom = (num) => allRooms[num] || null;
 
-    // --- STATS CALCULATOR ---
-    const getBlockStats = (roomList) => {
-        let totalBeds = 0;
-        let occupiedBeds = 0;
-
-        roomList.forEach(num => {
-            const group = getRoom(num);
-            if (group) {
-                totalBeds += group.beds.length;
-                occupiedBeds += group.beds.filter(b => b.occupant).length;
-            }
-        });
-
-        const isFull = totalBeds > 0 && totalBeds === occupiedBeds;
-        return { text: `${occupiedBeds}/${totalBeds}`, isFull };
+    // --- HELPER: Get specific range of rooms ---
+    const getRange = (start, end) => {
+        const list = [];
+        for (let i = start; i <= end; i++) {
+            if (allRooms[i]) list.push(allRooms[i]);
+        }
+        return list;
     };
 
-    // --- VISUAL COMPONENTS ---
-    const RoomBox = ({ num }) => {
-        const group = getRoom(num);
-        // If room doesn't exist in DB, show placeholder
-        if (!group) return <div style={{background:'#f9f9f9', borderRadius:'4px', border:'1px dashed #ddd', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px', color:'#ccc', minHeight:'50px'}}>{num}</div>;
+    // --- HELPER: Calculate Capacity Stats for a Range ---
+    const getStats = (start, end) => {
+        const groups = getRange(start, end);
+        let total = 0;
+        let occupied = 0;
+        groups.forEach(g => {
+            total += g.beds.length;
+            occupied += g.beds.filter(b => b.occupant).length;
+        });
+        return { 
+            text: `${occupied}/${total}`, 
+            isFull: total > 0 && total === occupied,
+            hasRooms: total > 0
+        };
+    };
 
-        const isDouble = group.beds.length > 1;
+    // --- HELPER: Get remaining rooms not in ranges ---
+    const getOthers = () => {
+        const mainRanges = new Set([
+            ...Array.from({length: 20}, (_, i) => 301 + i), // 301-320 (Block A)
+            ...Array.from({length: 23}, (_, i) => 321 + i), // 321-343 (Block B)
+            ...Array.from({length: 20}, (_, i) => 344 + i)  // 344-363 (Block C)
+        ]);
+        return Object.values(allRooms).filter(g => !mainRanges.has(g.baseNum));
+    };
+
+    // --- RENDER COMPONENT: Single Bed Box ---
+    const SingleBedBox = ({ group }) => {
+        const bed = group.beds[0];
+        if (!bed) return null;
+        
+        const p = bed.occupant;
+        const isOcc = !!p;
+        const isOld = p && (p.conf_no || '').match(/^(O|S)/i);
+        const bg = isOcc ? (isOld ? '#e1bee7' : '#c8e6c9') : 'white';
+        const border = isOcc ? (isOld ? '#8e24aa' : '#2e7d32') : '#ddd';
+
+        return (
+            <div onClick={() => onRoomClick(bed)}
+                 style={{ border: `2px solid ${border}`, borderRadius: '6px', background: bg, padding: '5px', cursor: 'pointer', minHeight: '70px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                <div style={{display:'flex', justifyContent:'space-between', borderBottom:'1px solid rgba(0,0,0,0.1)', paddingBottom:'2px', marginBottom:'2px'}}>
+                    <span style={{fontWeight:'900', fontSize:'13px', color:'#333'}}>{group.baseNum}</span>
+                    <span style={{fontSize:'9px', background: group.toilet.color, color:'white', padding:'1px 3px', borderRadius:'3px', fontWeight:'bold'}}>{group.toilet.label}</span>
+                </div>
+                {isOcc ? (
+                    <div style={{fontSize:'10px', lineHeight:'1.1'}}>
+                        <div style={{fontWeight:'bold', color:'#000', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{p.full_name}</div>
+                        <div style={{fontSize:'9px', color:'#444'}}>{p.conf_no}</div>
+                    </div>
+                ) : <div style={{fontSize:'9px', color:'#ccc', textAlign:'center'}}>EMPTY</div>}
+            </div>
+        );
+    };
+
+    // --- RENDER COMPONENT: Double Bed Box (Split) ---
+    const DoubleBedBox = ({ group }) => {
         const sortedBeds = group.beds.sort((a,b) => a.room_no.localeCompare(b.room_no));
 
         return (
-            <div style={{border: '1px solid #999', borderRadius: '4px', overflow:'hidden', background:'white', height:'100%', display:'flex', flexDirection:'column', minHeight:'50px'}}>
-                <div style={{background:'#e3f2fd', padding:'2px', textAlign:'center', borderBottom:'1px solid #90caf9', fontSize:'10px', fontWeight:'900', color:'#0d47a1'}}>
-                    {group.baseNum}
+            <div style={{border: '1px solid #999', borderRadius: '6px', overflow:'hidden', background:'white', boxShadow: '0 1px 2px rgba(0,0,0,0.1)'}}>
+                <div style={{background:'#eee', padding:'2px 5px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #ccc'}}>
+                    <span style={{fontWeight:'900', fontSize:'12px'}}>{group.baseNum}</span>
+                    <span style={{fontSize:'8px', background: group.toilet.color, color:'white', padding:'1px 3px', borderRadius:'3px', fontWeight:'bold'}}>{group.toilet.label}</span>
                 </div>
-                <div style={{display:'grid', gridTemplateColumns: isDouble ? '1fr 1fr' : '1fr', flex:1, gap:'1px', background:'#ccc'}}> 
-                    {sortedBeds.map((bed, i) => {
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1px', background:'#ccc'}}> 
+                    {sortedBeds.map((bed, index) => {
                         const p = bed.occupant;
-                        const bg = p ? ((p.conf_no||'').startsWith('O') ? '#ce93d8' : '#a5d6a7') : 'white'; 
+                        const isOcc = !!p;
+                        const isOld = p && (p.conf_no || '').match(/^(O|S)/i);
+                        const bedLabel = bed.room_no.endsWith('A') ? 'Bed A' : (bed.room_no.endsWith('B') ? 'Bed B' : `Bed ${index + 1}`);
+                        
+                        let bg = index === 0 ? '#f0f8ff' : '#fffde7'; // Bed A (Blue), Bed B (Yellow)
+                        if (isOcc) bg = isOld ? '#e1bee7' : '#c8e6c9';
+
                         return (
                             <div key={bed.room_id} onClick={() => onRoomClick(bed)}
-                                 style={{background: bg, cursor: 'pointer', display:'flex', justifyContent:'center', alignItems:'center', padding:'2px'}}>
-                                {p ? (
-                                    <div style={{textAlign:'center', lineHeight:'1', fontSize:'8px'}}>
-                                        <div style={{fontWeight:'bold', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'35px'}}>{p.full_name.split(' ')[0]}</div>
+                                 style={{ background: bg, padding: '4px', cursor: 'pointer', minHeight: '50px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                <div style={{fontSize:'8px', fontWeight:'bold', color:'#777', textAlign:'center', marginBottom:'1px'}}>{bedLabel}</div>
+                                {isOcc ? (
+                                    <div style={{textAlign:'center', lineHeight:'1'}}>
+                                        <div style={{fontSize:'9px', fontWeight:'bold', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{p.full_name.split(' ')[0]}</div>
+                                        <div style={{fontSize:'8px', color:'#444'}}>{p.conf_no}</div>
                                     </div>
-                                ) : <div style={{fontSize:'7px', color:'#ccc'}}>{bed.room_no.slice(-1)}</div>}
+                                ) : <div style={{fontSize:'10px', color:'rgba(0,0,0,0.1)', textAlign:'center'}}>🛏️</div>}
                             </div>
                         );
                     })}
+                    {sortedBeds.length < 2 && <div style={{background:'#f5f5f5'}}></div>}
                 </div>
             </div>
         );
     };
 
-    const Pathway = () => <div style={{writingMode:'vertical-rl', textAlign:'center', background:'#e0e0e0', color:'#777', fontSize:'10px', fontWeight:'bold', letterSpacing:'2px', padding:'2px', borderRadius:'4px'}}>PATHWAY</div>;
-
-    const BlockContainer = ({ title, roomsInBlock, children }) => {
-        const stats = getBlockStats(roomsInBlock);
-        return (
-            <div style={{border:'2px solid #007bff', borderRadius:'8px', padding:'10px', background:'#f0f8ff'}}>
-                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #b3e5fc', paddingBottom:'5px', marginBottom:'8px'}}>
-                    <h4 style={{margin:0, color:'#0056b3'}}>{title}</h4>
-                    <span style={{fontSize:'11px', fontWeight:'bold', background: stats.isFull ? '#28a745' : '#fff', color: stats.isFull ? 'white' : '#007bff', padding:'2px 8px', borderRadius:'10px', border: stats.isFull ? 'none' : '1px solid #007bff'}}>
-                        {stats.text}
-                    </span>
-                </div>
-                <div style={{display:'flex', justifyContent:'center', gap:'10px'}}>
-                    {children}
-                </div>
-            </div>
-        );
-    };
-
-    const Column = ({ rooms }) => (
-        <div style={{display:'grid', gridTemplateRows:`repeat(${rooms.length}, 60px)`, gap:'6px', width:'80px'}}>
-            {rooms.map(num => <RoomBox key={num} num={num} />)}
+    // --- RENDER COMPONENT: Pathway/Corridor ---
+    const Pathway = ({ label }) => (
+        <div style={{
+            textAlign:'center', 
+            background:'#e0e0e0', 
+            color:'#555', 
+            fontWeight:'bold', 
+            fontSize:'11px', 
+            padding:'4px', 
+            margin:'10px 0', 
+            borderRadius:'4px',
+            border: '1px dashed #999',
+            letterSpacing: '2px'
+        }}>
+            {label}
         </div>
     );
 
-    // --- LAYOUT DEFINITIONS ---
-    const blockA = [101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112];
-    const blockB = [113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124];
-    const blockC = [125, 126, 127, 128, 129, 130];
+    // --- UPDATED BLOCK SECTION WITH STATS ---
+    const BlockSection = ({ title, color, rangeStart, rangeEnd, children }) => {
+        const stats = getStats(rangeStart, rangeEnd);
+        return (
+            <div style={{border:`2px solid ${color}`, borderRadius:'10px', padding:'15px', background:'#fff'}}>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:`1px solid ${color}33`, paddingBottom:'5px', marginBottom:'10px'}}>
+                    <h3 style={{margin:0, color:color, fontSize:'16px'}}>{title}</h3>
+                    {stats.hasRooms && (
+                        <span style={{
+                            fontSize:'12px', 
+                            fontWeight:'bold', 
+                            background: stats.isFull ? color : '#f0f0f0', 
+                            color: stats.isFull ? 'white' : color, 
+                            padding:'2px 8px', 
+                            borderRadius:'12px',
+                            border: `1px solid ${color}`
+                        }}>
+                            {stats.text}
+                        </span>
+                    )}
+                </div>
+                {children}
+            </div>
+        );
+    };
 
     return (
-        <div style={{display:'flex', flexDirection:'column', gap:'20px', overflowX:'auto', paddingBottom:'10px'}}>
+        <div style={{display:'flex', flexDirection:'column', gap:'30px'}}>
             
-            <div style={{display:'flex', gap:'20px'}}>
-                {/* BLOCK A: Split Left/Right with Pathway */}
-                <BlockContainer title="BLOCK A" roomsInBlock={blockA}>
-                    <Column rooms={blockA.slice(0,6)} />
-                    <Pathway />
-                    <Column rooms={blockA.slice(6,12)} />
-                </BlockContainer>
+            {/* --- BLOCK A (Double Beds) --- */}
+            <BlockSection title="BLOCK A (Double Beds)" color="#0056b3" rangeStart={301} rangeEnd={320}>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
+                    {getRange(301, 306).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
+                </div>
+                <div style={{height:'10px'}}></div>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
+                    {getRange(307, 311).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
+                    <div></div> 
+                </div>
+                <Pathway label="⬇️ CORRIDOR / WALKWAY ⬆️" />
+                <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
+                    {getRange(312, 316).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
+                    <div></div>
+                </div>
+                <div style={{height:'10px'}}></div>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
+                    {getRange(317, 320).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
+                </div>
+            </BlockSection>
 
-                {/* BLOCK B: Split Left/Right with Pathway */}
-                <BlockContainer title="BLOCK B" roomsInBlock={blockB}>
-                    <Column rooms={blockB.slice(0,6)} />
-                    <Pathway />
-                    <Column rooms={blockB.slice(6,12)} />
-                </BlockContainer>
+            {/* --- BLOCK B (Single Beds) --- */}
+            <BlockSection title="BLOCK B (Single Beds)" color="#f57f17" rangeStart={321} rangeEnd={343}>
+                {/* Row 1: 321-326 */}
+                <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
+                    {getRange(321, 326).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
+                </div>
+                
+                {/* Row 2: 327-332 */}
+                <div style={{height:'10px'}}></div>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
+                    {getRange(327, 332).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
+                </div>
 
-                {/* BLOCK C: Single Column */}
-                <BlockContainer title="BLOCK C" roomsInBlock={blockC}>
-                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px', width:'160px'}}>
-                         {/* Optional: Arranging Block C as 2x3 grid or just columns if preferred */}
-                         <Column rooms={blockC.slice(0,3)} />
-                         <Column rooms={blockC.slice(3,6)} />
+                <Pathway label="⬇️ CORRIDOR / WALKWAY ⬆️" />
+
+                {/* Row 3: 333-338 */}
+                <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
+                    {getRange(333, 338).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
+                </div>
+
+                {/* Row 4: 339-343 */}
+                <div style={{height:'10px'}}></div>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
+                    {getRange(339, 343).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
+                    <div></div>
+                </div>
+            </BlockSection>
+
+            {/* --- BLOCK C (Double Beds) --- */}
+            <BlockSection title="BLOCK C (Double Beds)" color="#2e7d32" rangeStart={344} rangeEnd={363}>
+                {/* Row 1: 344-348 */}
+                <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px'}}>
+                    {getRange(344, 348).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
+                </div>
+
+                {/* Row 2: 349-353 */}
+                <div style={{height:'10px'}}></div>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px'}}>
+                    {getRange(349, 353).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
+                </div>
+
+                <Pathway label="⬇️ CORRIDOR / WALKWAY ⬆️" />
+
+                {/* Row 3: 354-358 */}
+                <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px'}}>
+                    {getRange(354, 358).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
+                </div>
+
+                {/* Row 4: 359-363 */}
+                <div style={{height:'10px'}}></div>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px'}}>
+                    {getRange(359, 363).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
+                </div>
+            </BlockSection>
+
+            {/* --- OTHERS --- */}
+            {getOthers().length > 0 && (
+                <div style={{border:'2px solid #555', borderRadius:'10px', padding:'15px', background:'#fff'}}>
+                    <h3 style={{marginTop:0, color:'#555', borderBottom:'1px solid #ddd', paddingBottom:'5px', fontSize:'16px'}}>Other Rooms</h3>
+                    <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:'10px'}}>
+                        {getOthers().map(g => <SingleBedBox key={g.baseNum} group={g} />)}
                     </div>
-                </BlockContainer>
-            </div>
-
-            <div style={{background:'#1565c0', color:'white', textAlign:'center', padding:'8px', fontWeight:'bold', borderRadius:'4px', letterSpacing:'5px'}}>
-                MAIN PATHWAY
-            </div>
+                </div>
+            )}
         </div>
     );
 }
