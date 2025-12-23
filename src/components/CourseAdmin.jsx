@@ -20,7 +20,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
   const [selectedCourseForUpload, setSelectedCourseForUpload] = useState('');
   const [showOnlyInvalid, setShowOnlyInvalid] = useState(false);
 
-  // --- MANUAL ENTRY STATE (The "Fallback") ---
+  // --- MANUAL ENTRY STATE ---
   const [manualStudent, setManualStudent] = useState({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
 
   // Global Search
@@ -72,7 +72,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Excel Check
     if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
         return alert("⚠️ Excel Detected: Please allow us to read this by 'Saving As CSV' in Excel first, then upload the .csv file.");
     }
@@ -148,7 +147,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
           return p;
       });
 
-      // Merge with any manually added students (if they exist)
       setCleanedData(prev => [...prev, ...processed]);
       setImportStep(3); 
   };
@@ -169,10 +167,9 @@ export default function CourseAdmin({ courses, refreshCourses }) {
           issues: ['Manual Entry']
       };
 
-      // Add to cleaned data list (Step 3 view)
       setCleanedData(prev => [newEntry, ...prev]);
       setManualStudent({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
-      setImportStep(3); // Jump to review view
+      setImportStep(3); 
       alert("✅ Added to Import List! You can now Upload.");
   };
 
@@ -212,15 +209,20 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       } catch (err) { alert("Upload Failed."); }
   };
 
-  // --- DOWNLOAD TEMPLATE ---
+  // --- DOWNLOAD TEMPLATE (UPDATED WITH EXAMPLES) ---
   const downloadTemplate = () => {
-      const headers = ["Name,Age,Gender,Conf No,Courses Info,Email,Phone,Remarks"];
-      const row1 = ["John Doe,30,Male,N12345,S:1 L:0,john@example.com,9999999999,Medical issue"];
-      const csvContent = "data:text/csv;charset=utf-8," + headers.join("\n") + "\n" + row1.join("\n");
+      const headers = "Name,Age,Gender,Conf No,Courses Info,Email,Phone";
+      const rows = [
+          "Ramesh Kumar,30,Male,N12345,S:1 L:0,ramesh@example.com,9999999999",
+          "Sita Devi,45,Female,O98765,S:3 L:1,sita@example.com,8888888888",
+          "John Smith,28,Male,N54321,New,john@test.com,7777777777",
+          "Lakshmi P,60,Female,O11223,S:10,lakshmi@test.com,6666666666"
+      ];
+      const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "student_import_template.csv");
+      link.setAttribute("download", "dhamma_student_template.csv");
       document.body.appendChild(link);
       link.click();
   };
