@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Home, User, LayoutGrid } from 'lucide-react';
-import { API_URL, styles, PROTECTED_ROOMS } from '../config';
-import MaleBlockLayout from './MaleBlockLayout'; // ✅ Import new component
+import React, { useState, useEffect } from 'react';
+import { Home } from 'lucide-react';
+import { API_URL, styles } from '../config';
+import MaleBlockLayout from './MaleBlockLayout';     // ✅ Already existed
+import FemaleBlockLayout from './FemaleBlockLayout'; // ✅ NEW ADDITION
 
-export default function GlobalAccommodationManager({ courses, onRoomClick }) {
+export default function GlobalAccommodationManager() {
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
   const [newRoom, setNewRoom] = useState({ roomNo: '', type: 'Male' }); 
@@ -28,16 +29,14 @@ export default function GlobalAccommodationManager({ courses, onRoomClick }) {
       } catch(err) { alert("Network Error"); }
   };
 
-  // --- SMART MOVE LOGIC (Passed to Layout) ---
+  // --- SMART MOVE LOGIC ---
   const handleRoomInteraction = async (targetRoomData) => {
-      // If `targetRoomData` comes from MaleLayout, it might be the room object itself
-      // We ensure we have the occupant info
+      // Logic to handle clicking a room (Move/Swap/View)
       const targetRoomNo = targetRoomData.room_no;
       const targetOccupant = occupancy.find(p => p.room_no === targetRoomNo);
 
       if (!moveMode) {
           if (targetOccupant) {
-              // Start Move
               setMoveMode({ student: targetOccupant, sourceRoom: targetRoomNo });
           } else {
               alert(`Room ${targetRoomNo} is empty. Click an occupied room to start moving a student.`);
@@ -45,49 +44,33 @@ export default function GlobalAccommodationManager({ courses, onRoomClick }) {
           return;
       }
 
-      // 2. EXECUTE MOVE
+      // EXECUTE MOVE
       const { student, sourceRoom } = moveMode;
       
-      // Gender Check
+      // Gender Safety Check
       const studentGender = (student.gender || '').toLowerCase();
       const roomGender = (targetRoomData.gender_type || '').toLowerCase();
+      
+      // Allow move if genders match OR if room is gender-neutral (if any)
+      // "m" matches "male", "f" matches "female"
       if (!studentGender.startsWith(roomGender.charAt(0))) {
           if(!window.confirm(`⚠️ GENDER WARNING: Moving ${student.gender} student to ${targetRoomData.gender_type} room. Proceed?`)) return;
       }
 
       if (targetOccupant) {
-          // SWAP
           if (!window.confirm(`Swap ${student.full_name} <-> ${targetOccupant.full_name}?`)) return;
+          // Swap Logic
           await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: 'TEMP_SWAP' }) });
           await fetch(`${API_URL}/participants/${targetOccupant.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...targetOccupant, room_no: sourceRoom }) });
           await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: targetRoomNo }) });
       } else {
-          // MOVE TO EMPTY
           if (!window.confirm(`Move ${student.full_name} to ${targetRoomNo}?`)) return;
+          // Move Logic
           await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: targetRoomNo }) });
       }
       
       setMoveMode(null);
       loadData();
-  };
-
-  // --- SIMPLE FEMALE RENDERER (Placeholder for now) ---
-  const FemaleSimpleLayout = () => {
-      const fRooms = rooms.filter(r => r.gender_type === 'Female');
-      return (
-          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:'10px'}}>
-              {fRooms.map(r => {
-                  const occ = occupancy.find(p => p.room_no === r.room_no);
-                  return (
-                      <div key={r.room_id} onClick={() => handleRoomInteraction(r)}
-                           style={{border:'1px solid #e91e63', padding:'10px', borderRadius:'5px', background: occ ? '#fce4ec' : 'white', cursor:'pointer'}}>
-                          <div style={{fontWeight:'bold', color:'#e91e63'}}>{r.room_no}</div>
-                          {occ ? <div style={{fontSize:'11px'}}>{occ.full_name}</div> : <div style={{color:'#ccc', fontSize:'10px'}}>Empty</div>}
-                      </div>
-                  );
-              })}
-          </div>
-      );
   };
 
   return (
@@ -125,11 +108,11 @@ export default function GlobalAccommodationManager({ courses, onRoomClick }) {
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <div style={{background: activeTab === 'Male' ? '#f0f8ff' : '#fff0f5', padding:'20px', borderRadius:'0 5px 5px 5px', border:`2px solid ${activeTab==='Male'?'#007bff':'#e91e63'}`}}>
+      <div style={{background: activeTab === 'Male' ? '#f0f8ff' : '#fff0f6', padding:'20px', borderRadius:'0 5px 5px 5px', border:`2px solid ${activeTab==='Male'?'#007bff':'#e91e63'}`}}>
           {activeTab === 'Male' ? (
               <MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} />
           ) : (
-              <FemaleSimpleLayout />
+              <FemaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} />
           )}
       </div>
     </div>
