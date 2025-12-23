@@ -26,7 +26,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       confNo: '', specialSeating: 'None', seatType: 'Chair', dhammaSeat: '' 
   });
   
-  // Print State (The Fix)
+  // Print State
   const [printReceiptData, setPrintReceiptData] = useState(null);
   
   // Visual Modals
@@ -61,6 +61,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const currentGenderRaw = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
   const isMale = currentGenderRaw.startsWith('m');
   const isFemale = currentGenderRaw.startsWith('f');
+  const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : 'Male');
   const themeColor = isMale ? '#007bff' : (isFemale ? '#e91e63' : '#6c757d');
 
   // Room Logic
@@ -121,23 +122,34 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   // --- REPRINT FUNCTION ---
   const triggerReprint = () => {
       if (!selectedStudent) return;
+      prepareReceipt();
+      setTimeout(() => window.print(), 500);
+  };
+
+  const prepareReceipt = () => {
       const courseObj = courses.find(c => c.course_id == formData.courseId);
+      // Logic for Short Course Name
+      let rawName = courseObj?.course_name || 'Unknown';
+      let shortName = rawName;
+      const dayMatch = rawName.match(/(\d+)\s*-?\s*Day/i);
+      if (dayMatch) shortName = `${dayMatch[1]}-Day Course`;
+
       setPrintReceiptData({ 
-          courseName: courseObj?.course_name, 
+          courseName: shortName, 
           teacherName: courseObj?.teacher_name || 'Teacher', 
           from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', 
           to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', 
-          studentName: selectedStudent.full_name, 
+          studentName: selectedStudent?.full_name, 
           confNo: formData.confNo, 
           roomNo: formData.roomNo, 
           seatNo: formData.seatNo, 
-          lockers: formData.mobileLocker || formData.valuablesLocker || '-', 
+          mobile: formData.mobileLocker || '-',
+          valuables: formData.valuablesLocker || '-',
+          laundry: formData.laundryToken,
           language: formData.language,
           pagoda: (formData.pagodaCell && formData.pagodaCell !== 'None') ? formData.pagodaCell : null,
           special: (formData.specialSeating && formData.specialSeating !== 'None') ? formData.specialSeating : null
       });
-      // Small delay to ensure render before print
-      setTimeout(() => window.print(), 500);
   };
 
   const handleSubmit = async (e) => { 
@@ -150,29 +162,12 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           
           await fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
           
-          // --- PREPARE RECEIPT DATA FOR PRINTING ---
-          const courseObj = courses.find(c => c.course_id == formData.courseId);
-          setPrintReceiptData({ 
-              courseName: courseObj?.course_name, 
-              teacherName: courseObj?.teacher_name || 'Teacher', 
-              from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', 
-              to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', 
-              studentName: selectedStudent?.full_name, 
-              confNo: formData.confNo, 
-              roomNo: formData.roomNo, 
-              seatNo: formData.seatNo, 
-              lockers: formData.mobileLocker || formData.valuablesLocker || '-', 
-              language: formData.language,
-              pagoda: (formData.pagodaCell && formData.pagodaCell !== 'None') ? formData.pagodaCell : null,
-              special: (formData.specialSeating && formData.specialSeating !== 'None') ? formData.specialSeating : null
-          });
-
-          // Trigger Print after short delay
+          prepareReceipt();
           setTimeout(() => window.print(), 500);
 
           setStatus('✅ Success!'); 
           
-          // Reset Form
+          // Reset
           setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' }));
           setSelectedStudent(null); 
           setSearchTerm('');
@@ -309,7 +304,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
               {/* --- RIGHT: LIVE PREVIEW --- */}
               <div style={{background:'white', borderRadius:'15px', border:'2px dashed #ddd', padding:'20px', height:'fit-content'}}>
                   <div style={{textAlign:'center', borderBottom:'1px solid #eee', paddingBottom:'15px', marginBottom:'15px'}}>
-                      <h3 style={{margin:0, color:'#333'}}>BOARDING PASS</h3>
+                      <h3 style={{margin:0, color:'#333'}}>CHECK-IN PASS</h3>
                       <div style={{fontSize:'12px', color:'#999', marginTop:'5px'}}>LIVE PREVIEW</div>
                   </div>
                   {selectedStudent ? (
@@ -347,40 +342,57 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
               </div>
           )}
 
-          {/* --- INVISIBLE PRINT SECTION (Exactly copied from ParticipantList) --- */}
+          {/* --- INVISIBLE PRINT SECTION (BOLD GRID LAYOUT) --- */}
           {printReceiptData && (
               <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}>
                   <div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}>
                       <button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button>
-                      <div id="receipt-print-area" style={{padding:'10px', border:'1px dashed #ccc', fontFamily:'Helvetica, Arial, sans-serif', color:'black'}}>
-                          <div style={{textAlign:'center', fontWeight:'bold', marginBottom:'8px'}}>
-                              <div style={{fontSize:'18px'}}>VIPASSANA</div>
-                              <div style={{fontSize:'12px'}}>International Meditation Center</div>
-                              <div style={{fontSize:'14px'}}>Dhamma Nagajjuna 2</div>
+                      
+                      <div id="receipt-print-area" style={{padding:'5px', border:'3px solid black', borderRadius:'8px', fontFamily:'Helvetica, Arial, sans-serif', color:'black', width:'70mm', margin:'0 auto'}}>
+                          {/* HEADER */}
+                          <div style={{textAlign:'center', marginBottom:'5px'}}>
+                              <div style={{fontSize:'12px', textTransform:'uppercase', fontWeight:'bold', borderBottom:'2px solid black', paddingBottom:'2px'}}>DHAMMA SEAT</div>
                           </div>
-                          <div style={{borderBottom:'2px solid black', margin:'10px 0'}}></div>
-                          <div style={{fontSize:'12px', marginBottom:'10px'}}>
-                              <div><strong>Course:</strong> {printReceiptData.courseName}</div>
-                              <div><strong>Teacher:</strong> {printReceiptData.teacherName}</div>
-                              <div><strong>Dates:</strong> {printReceiptData.from} to {printReceiptData.to}</div>
+                          
+                          {/* BIG SEAT/ROOM NUMBER (Visual Focus like Token) */}
+                          <div style={{textAlign:'center', fontSize:'40px', fontWeight:'900', lineHeight:'1', margin:'5px 0'}}>
+                              {printReceiptData.roomNo || '-'}
                           </div>
-                          <div style={{borderBottom:'1px solid black', margin:'10px 0'}}></div>
-                          <div style={{fontSize:'16px', fontWeight:'bold', margin:'10px 0'}}>
-                              <div>{printReceiptData.studentName}</div>
-                              <div style={{fontSize:'14px'}}>Conf: {printReceiptData.confNo}</div>
+                          
+                          {/* STUDENT NAME */}
+                          <div style={{textAlign:'center', fontWeight:'bold', fontSize:'14px', margin:'5px 0', wordWrap:'break-word', lineHeight:'1.1'}}>
+                              {printReceiptData.studentName}
                           </div>
-                          <table style={{width:'100%', fontSize:'14px', border:'1px solid black', borderCollapse:'collapse'}}>
-                              <tbody>
-                                  <tr><td style={{border:'1px solid black', padding:'5px'}}>Room</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.roomNo}</td></tr>
-                                  <tr><td style={{border:'1px solid black', padding:'5px'}}>Dining</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.seatNo}</td></tr>
-                                  <tr><td style={{border:'1px solid black', padding:'5px'}}>Lockers</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.lockers}</td></tr>
-                                  <tr><td style={{border:'1px solid black', padding:'5px'}}>Lang</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.language}</td></tr>
-                                  {printReceiptData.pagoda && <tr><td style={{border:'1px solid black', padding:'5px'}}>Pagoda</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.pagoda}</td></tr>}
-                                  {printReceiptData.special && <tr><td style={{border:'1px solid black', padding:'5px'}}>Special</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.special}</td></tr>}
-                              </tbody>
-                          </table>
-                          <div style={{textAlign:'center', fontSize:'10px', fontStyle:'italic', marginTop:'10px'}}>*** Student Copy ***</div>
+                          <div style={{textAlign:'center', fontSize:'12px', fontWeight:'bold', marginBottom:'10px'}}>
+                              {printReceiptData.confNo}
+                          </div>
+
+                          {/* INFO GRID */}
+                          <div style={{borderTop:'2px solid black', borderBottom:'2px solid black', display:'grid', gridTemplateColumns:'1fr 1fr', fontSize:'12px'}}>
+                              <div style={{borderRight:'2px solid black', padding:'4px'}}>
+                                  <div>Dining: <strong>{printReceiptData.seatNo || '-'}</strong></div>
+                                  <div>Valuables: <strong>{printReceiptData.valuables}</strong></div>
+                              </div>
+                              <div style={{padding:'4px'}}>
+                                  <div>Mobile: <strong>{printReceiptData.mobile}</strong></div>
+                                  <div>Lang: <strong>{printReceiptData.language}</strong></div>
+                              </div>
+                          </div>
+
+                          {/* OPTIONAL EXTRAS */}
+                          {(printReceiptData.laundry || printReceiptData.pagoda) && (
+                              <div style={{display:'flex', justifyContent:'space-between', fontSize:'11px', fontWeight:'bold', padding:'4px 2px'}}>
+                                  {printReceiptData.laundry && <span>Laundry: {printReceiptData.laundry}</span>}
+                                  {printReceiptData.pagoda && <span>Pagoda: {printReceiptData.pagoda}</span>}
+                              </div>
+                          )}
+
+                          {/* FOOTER */}
+                          <div style={{textAlign:'center', fontSize:'10px', marginTop:'5px', borderTop:'1px solid #ccc', paddingTop:'2px'}}>
+                              {printReceiptData.courseName}
+                          </div>
                       </div>
+
                       <div className="no-print" style={{marginTop:'20px', display:'flex', gap:'10px'}}>
                           <button onClick={() => window.print()} style={{flex:1, padding:'12px', background:'#007bff', color:'white', border:'none', borderRadius:'6px'}}>PRINT</button>
                       </div>
