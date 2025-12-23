@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, MapPin, Coffee, Lock, Key, AlertTriangle, CheckCircle, Printer, Search, X } from 'lucide-react';
 import DiningLayout from '../DiningLayout';
 import PagodaLayout from '../PagodaLayout';
+import MaleBlockLayout from './MaleBlockLayout'; // ✅ ADDED THIS IMPORT
 import { API_URL, LANGUAGES, NUMBER_OPTIONS, styles } from '../config';
 
 export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
@@ -52,7 +53,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       }
   }, [formData.courseId]);
 
-  // --- LOGIC ENGINE (Preserved & Protected) ---
+  // --- LOGIC ENGINE ---
   const normalize = (str) => str ? str.toString().replace(/[\s-]+/g, '').toUpperCase() : '';
   const cleanNum = (val) => val ? String(val).trim() : '';
   
@@ -64,6 +65,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   // 1. Room Logic
   const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
+  // Note: We use availableRooms for logic, but the Visual Map handles display
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female');
@@ -85,7 +87,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       const pIsMale = pGender.startsWith('m');
       const pIsFemale = pGender.startsWith('f');
 
-      // Gender Strict Blocking
       if ((isMale && pIsMale) || (isFemale && pIsFemale)) {
           if (p.dining_seat_no) usedDining.add(cleanNum(p.dining_seat_no)); 
           if (p.pagoda_cell_no) usedPagoda.add(cleanNum(p.pagoda_cell_no)); 
@@ -102,7 +103,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           ...prev, 
           participantId: student.participant_id, 
           confNo: student.conf_no || '', 
-          seatNo: '', // Reset seat to force gender re-check
+          seatNo: '', 
           mobileLocker: '', 
           valuablesLocker: '' 
       }));
@@ -110,8 +111,14 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       setIsSearching(false);
   };
 
+  // ✅ NEW HANDLER FOR VISUAL MAP
+  const handleRoomSelect = (roomObj) => {
+      if (roomObj.occupant) return alert("⛔ This bed is already occupied!");
+      setFormData(prev => ({ ...prev, roomNo: roomObj.room_no }));
+      setShowVisualRoom(false);
+  };
+
   const handleDiningSeatChange = (val, typeVal) => { 
-      // Auto-assign lockers (if available) matching the seat number
       const lockerVal = (!usedMobiles.has(val) && !usedValuables.has(val)) ? val : '';
       setFormData(prev => ({ 
           ...prev, 
@@ -137,7 +144,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           
           await fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
           
-          // Prepare Receipt Data
           const courseObj = courses.find(c => c.course_id == formData.courseId);
           let cleanName = courseObj?.course_name || 'Unknown';
           cleanName = cleanName.replace(/-[A-Za-z]{3}-\d{2,4}.*$/g, '').replace(/\/.*$/, '').trim();
@@ -159,28 +165,23 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           setStatus('✅ Success!'); 
           setShowReceipt(true);
           
-          // Reset Form
           setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' }));
           setSelectedStudent(null); 
           setSearchTerm('');
           clearRoom(); 
           
-          // Refresh Data Background
           fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants); 
           fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(setOccupancy); 
           setTimeout(() => setStatus(''), 4000);
       } catch (err) { setStatus(`❌ ${err.message}`); } 
   };
 
-  // Filter for Search Box
   const searchResults = participants.filter(p => {
       if (!searchTerm) return false;
-      if (p.status === 'Attending' || p.status === 'Cancelled') return false; // Hide already processed
+      if (p.status === 'Attending' || p.status === 'Cancelled') return false; 
       const term = searchTerm.toLowerCase();
       return p.full_name.toLowerCase().includes(term) || (p.conf_no || '').toLowerCase().includes(term);
   });
-
-  const VisualSelector = ({ title, options, occupied, selected, onSelect, onClose }) => ( <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'center'}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'80%', maxHeight:'80vh', overflowY:'auto'}}><div style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}><h3>Select {title}</h3><button onClick={onClose}>Close</button></div><div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(60px, 1fr))', gap:'10px'}}>{options.map(opt => { const isOcc = occupied.has(String(opt)); return (<button key={opt} type="button" onClick={() => !isOcc && onSelect(opt)} disabled={isOcc} style={{padding:'10px', borderRadius:'5px', border:'none', cursor: isOcc?'not-allowed':'pointer', background: isOcc ? '#ffcdd2' : (String(selected)===String(opt) ? themeColor : '#c8e6c9'), color: (String(selected)===String(opt) ? 'white' : 'black'), fontWeight:'bold'}}>{opt}</button>); })}</div></div></div> );
 
   return ( 
       <div style={styles.card}> 
@@ -219,7 +220,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                               {searchTerm && <button type="button" onClick={()=>{setSearchTerm(''); setSelectedStudent(null);}} style={{position:'absolute', right:'10px', background:'none', border:'none', cursor:'pointer'}}><X size={16}/></button>}
                           </div>
                           
-                          {/* DROPDOWN RESULTS */}
                           {isSearching && searchTerm && (
                               <div style={{position:'absolute', top:'100%', left:0, right:0, background:'white', border:'1px solid #ddd', borderRadius:'8px', boxShadow:'0 4px 12px rgba(0,0,0,0.1)', zIndex:100, maxHeight:'300px', overflowY:'auto'}}>
                                   {searchResults.length === 0 ? <div style={{padding:'10px', color:'#999'}}>No matches found.</div> : 
@@ -266,9 +266,10 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                           <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'5px'}}><MapPin size={16}/> Accommodation</h4>
                           <div style={{marginBottom:'10px'}}>
                               <label style={styles.label}>Room No</label>
+                              {/* ✅ UPDATED TO OPEN VISUAL MAP */}
                               <button type="button" onClick={() => setShowVisualRoom(true)} style={{...styles.input, textAlign:'left', background: formData.roomNo ? '#e3f2fd' : 'white', color: formData.roomNo ? '#0d47a1' : '#555', fontWeight: formData.roomNo ? 'bold' : 'normal', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                  {formData.roomNo || "Select Room"}
-                                  {formData.roomNo && <CheckCircle size={16} color="#28a745"/>}
+                                  {formData.roomNo || "Select Room ->"}
+                                  {formData.roomNo ? <CheckCircle size={16} color="#28a745"/> : <MapPin size={16} color="#007bff"/>}
                               </button>
                           </div>
                           <div>
@@ -356,9 +357,27 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           {/* VISUAL MODALS */}
           {showVisualDining && <DiningLayout gender={currentGenderLabel} occupied={usedDining} selected={formData.seatNo} onSelect={handleDiningSeatChange} onClose={()=>setShowVisualDining(false)} />}
           {showVisualPagoda && <PagodaLayout gender={currentGenderLabel} occupied={usedPagoda} selected={formData.pagodaCell} onSelect={handlePagodaSelect} onClose={()=>setShowVisualPagoda(false)} />}
-          {showVisualRoom && <VisualSelector title="Room" options={availableRooms.map(r=>r.room_no)} occupied={occupiedRoomsSet} selected={formData.roomNo} onSelect={(val)=>{setFormData({...formData, roomNo:val}); setShowVisualRoom(false)}} onClose={()=>setShowVisualRoom(false)} />}
+          
+          {/* ✅ INTEGRATED MALE MAP */}
+          {showVisualRoom && (
+              <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:2000, display:'flex', flexDirection:'column', padding:'20px'}}>
+                  <div style={{background:'white', borderRadius:'8px', flex:1, display:'flex', flexDirection:'column', overflow:'hidden', maxWidth:'1200px', margin:'0 auto', width:'100%'}}>
+                      <div style={{padding:'15px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                          <h3 style={{margin:0}}>📍 Select Bed for {selectedStudent ? selectedStudent.full_name : 'Student'}</h3>
+                          <button onClick={()=>setShowVisualRoom(false)} style={{background:'red', color:'white', border:'none', borderRadius:'4px', padding:'5px 15px', cursor:'pointer'}}>Close</button>
+                      </div>
+                      <div style={{flex:1, overflowY:'auto', padding:'20px', background:'#f0f2f5'}}>
+                          <MaleBlockLayout 
+                              rooms={rooms} 
+                              occupancy={occupancy} 
+                              onRoomClick={handleRoomSelect} 
+                          />
+                      </div>
+                  </div>
+              </div>
+          )}
 
-          {/* PRINT RECEIPT (HIDDEN BUT FUNCTIONAL) */}
+          {/* PRINT RECEIPT */}
           {showReceipt && printData && (
               <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
                   <div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}>
