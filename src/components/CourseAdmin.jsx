@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Database, Save, FileText, Download, Trash2, Calendar, Search, PlusCircle, Upload, CheckCircle, AlertCircle, ArrowRight, X, Filter } from 'lucide-react';
+import { Database, Save, FileText, Download, Trash2, Calendar, Search, PlusCircle, Upload, CheckCircle, AlertCircle, ArrowRight, X, Filter, UserPlus } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 // Print styles for the preview table
@@ -19,6 +19,9 @@ export default function CourseAdmin({ courses, refreshCourses }) {
   const [cleanedData, setCleanedData] = useState([]);
   const [selectedCourseForUpload, setSelectedCourseForUpload] = useState('');
   const [showOnlyInvalid, setShowOnlyInvalid] = useState(false);
+
+  // --- MANUAL ENTRY STATE (The "Fallback") ---
+  const [manualStudent, setManualStudent] = useState({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
 
   // Global Search
   const [globalSearch, setGlobalSearch] = useState('');
@@ -64,10 +67,15 @@ export default function CourseAdmin({ courses, refreshCourses }) {
 
   // --- SMART IMPORT LOGIC ---
   
-  // 1. FILE PARSER (Robust CSV)
+  // 1. FILE PARSER (Robust CSV + Excel Check)
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
+
+    // Excel Check
+    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        return alert("⚠️ Excel Detected: Please allow us to read this by 'Saving As CSV' in Excel first, then upload the .csv file.");
+    }
     
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -75,7 +83,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         const lines = text.split('\n').filter(l => l.trim());
         if (lines.length < 2) return alert("File is empty or invalid.");
         
-        // CSV Splitter (Handles commas inside quotes)
+        // CSV Splitter
         const parseRow = (row) => {
             const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
             return row.split(regex).map(cell => cell.trim().replace(/^"|"$/g, ''));
@@ -117,7 +125,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               tempId: i,
               full_name: getVal(fieldMapping.full_name),
               conf_no: getVal(fieldMapping.conf_no),
-              age: getVal(fieldMapping.age).replace(/\D/g, ''), // Clean non-digits
+              age: getVal(fieldMapping.age).replace(/\D/g, ''),
               gender: getVal(fieldMapping.gender),
               courses_info: getVal(fieldMapping.courses_info),
               email: getVal(fieldMapping.email),
@@ -126,13 +134,11 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               issues: []
           };
 
-          // Smart Logic: Standardize Gender
           const g = p.gender.toLowerCase();
           if (g.startsWith('m')) p.gender = 'Male';
           else if (g.startsWith('f')) p.gender = 'Female';
-          else p.gender = 'Male'; // Default fallback or keep empty
+          else p.gender = 'Male'; 
 
-          // Validation Rules
           if (!p.full_name) p.issues.push('Missing Name');
           if (!p.conf_no) p.issues.push('Missing ID');
           if (!p.age) p.issues.push('Missing Age');
@@ -142,8 +148,32 @@ export default function CourseAdmin({ courses, refreshCourses }) {
           return p;
       });
 
-      setCleanedData(processed);
-      setImportStep(3); // Move to Review Step
+      // Merge with any manually added students (if they exist)
+      setCleanedData(prev => [...prev, ...processed]);
+      setImportStep(3); 
+  };
+
+  // --- MANUAL ENTRY LOGIC ---
+  const handleManualSubmit = (e) => {
+      e.preventDefault();
+      if (!manualStudent.full_name || !manualStudent.conf_no) return alert("Name and Conf No are required.");
+      
+      const newEntry = {
+          tempId: `manual_${Date.now()}`,
+          full_name: manualStudent.full_name,
+          conf_no: manualStudent.conf_no,
+          age: manualStudent.age,
+          gender: manualStudent.gender,
+          courses_info: manualStudent.courses_info,
+          isValid: true,
+          issues: ['Manual Entry']
+      };
+
+      // Add to cleaned data list (Step 3 view)
+      setCleanedData(prev => [newEntry, ...prev]);
+      setManualStudent({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
+      setImportStep(3); // Jump to review view
+      alert("✅ Added to Import List! You can now Upload.");
   };
 
   // 3. UPLOAD TO DB
@@ -160,7 +190,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
           const payload = { 
               students: validData.map(s => ({ 
                   name: s.full_name, confNo: s.conf_no, age: s.age, 
-                  gender: s.gender, courses: s.courses_info, email: s.email, phone: s.mobile 
+                  gender: s.gender, courses: s.courses_info, email: s.email || '', phone: s.mobile || ''
               }))
           };
           
@@ -180,6 +210,19 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               alert(`❌ Error: ${data.error}`);
           }
       } catch (err) { alert("Upload Failed."); }
+  };
+
+  // --- DOWNLOAD TEMPLATE ---
+  const downloadTemplate = () => {
+      const headers = ["Name,Age,Gender,Conf No,Courses Info,Email,Phone,Remarks"];
+      const row1 = ["John Doe,30,Male,N12345,S:1 L:0,john@example.com,9999999999,Medical issue"];
+      const csvContent = "data:text/csv;charset=utf-8," + headers.join("\n") + "\n" + row1.join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "student_import_template.csv");
+      document.body.appendChild(link);
+      link.click();
   };
 
   // --- ACTIONS ---
@@ -223,7 +266,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><Database size={24} className="text-blue-600"/> Mission Control</h2>
         <div style={{display:'flex', gap:'5px'}}>
            <button onClick={()=>setActiveTab('courses')} style={styles.quickBtn(activeTab==='courses')}><Calendar size={14}/> Courses</button>
-           <button onClick={()=>setActiveTab('import')} style={styles.quickBtn(activeTab==='import')}><Upload size={14}/> Smart Import</button>
+           <button onClick={()=>setActiveTab('import')} style={styles.quickBtn(activeTab==='import')}><Upload size={14}/> Import & Clean</button>
            <button onClick={()=>setActiveTab('backup')} style={styles.quickBtn(activeTab==='backup')}><Save size={14}/> Backup</button>
            <button onClick={()=>setActiveTab('search')} style={styles.quickBtn(activeTab==='search')}><Search size={14}/> Search</button>
         </div>
@@ -261,37 +304,63 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         </div>
       )}
 
-      {/* --- TAB 2: SMART IMPORT WIZARD --- */}
+      {/* --- TAB 2: IMPORT & CLEAN (HYBRID) --- */}
       {activeTab === 'import' && (
-        <div style={{maxWidth:'900px', margin:'0 auto'}}>
+        <div style={{maxWidth:'1000px', margin:'0 auto'}}>
           
-          {/* WIZARD STEPS UI */}
+          {/* WIZARD PROGRESS */}
           <div style={{display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'30px'}}>
               <div style={{display:'flex', alignItems:'center', gap:'10px', opacity: importStep >= 1 ? 1 : 0.5}}>
                   <div style={{width:'30px', height:'30px', borderRadius:'50%', background: importStep>=1 ? '#007bff' : '#ccc', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold'}}>1</div>
-                  <span style={{fontWeight:'bold'}}>Upload</span>
+                  <span style={{fontWeight:'bold'}}>Input Data</span>
               </div>
               <div style={{width:'50px', height:'2px', background:'#ccc', margin:'0 10px'}}></div>
               <div style={{display:'flex', alignItems:'center', gap:'10px', opacity: importStep >= 2 ? 1 : 0.5}}>
                   <div style={{width:'30px', height:'30px', borderRadius:'50%', background: importStep>=2 ? '#007bff' : '#ccc', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold'}}>2</div>
-                  <span style={{fontWeight:'bold'}}>Map Columns</span>
+                  <span style={{fontWeight:'bold'}}>Map & Clean</span>
               </div>
               <div style={{width:'50px', height:'2px', background:'#ccc', margin:'0 10px'}}></div>
               <div style={{display:'flex', alignItems:'center', gap:'10px', opacity: importStep >= 3 ? 1 : 0.5}}>
                   <div style={{width:'30px', height:'30px', borderRadius:'50%', background: importStep>=3 ? '#007bff' : '#ccc', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold'}}>3</div>
-                  <span style={{fontWeight:'bold'}}>Clean & Save</span>
+                  <span style={{fontWeight:'bold'}}>Review & Save</span>
               </div>
           </div>
 
-          {/* STEP 1: UPLOAD */}
+          {/* STEP 1: UPLOAD OR MANUAL */}
           {importStep === 1 && (
-              <div style={{border:'2px dashed #ccc', borderRadius:'10px', padding:'40px', textAlign:'center', background:'#f9f9f9', position:'relative'}}>
-                  <h3 style={{marginTop:0}}>Step 1: Upload Registration File</h3>
-                  <p style={{color:'#666', marginBottom:'20px'}}>Select your Excel (converted to CSV) file. <br/>Ensure it has headers like Name, Gender, Age, Conf No.</p>
-                  <input type="file" accept=".csv" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
-                  <div style={{pointerEvents:'none'}}>
-                      <Upload size={48} color="#007bff" />
-                      <button type="button" style={{marginTop:'20px', ...styles.btn(true), background:'#007bff', color:'white'}}>Select CSV File</button>
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px'}}>
+                  {/* Option A: File Upload */}
+                  <div style={{border:'2px dashed #ccc', borderRadius:'10px', padding:'30px', textAlign:'center', background:'#f9f9f9', position:'relative'}}>
+                      <h3 style={{marginTop:0}}>Option A: Bulk File Upload</h3>
+                      <p style={{color:'#666', marginBottom:'20px', fontSize:'13px'}}>Select your Excel or CSV file.<br/>(For Excel: Please Save As CSV first)</p>
+                      <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
+                      <div style={{pointerEvents:'none'}}>
+                          <Upload size={48} color="#007bff" />
+                          <button type="button" style={{marginTop:'20px', ...styles.btn(true), background:'#007bff', color:'white'}}>Select File</button>
+                      </div>
+                      <div style={{marginTop:'20px', pointerEvents:'auto'}}>
+                          <button onClick={downloadTemplate} style={{background:'none', border:'none', color:'#007bff', textDecoration:'underline', cursor:'pointer', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'5px'}}>
+                              <Download size={12}/> Download Template
+                          </button>
+                      </div>
+                  </div>
+
+                  {/* Option B: Manual Entry */}
+                  <div style={{border:'1px solid #ddd', borderRadius:'10px', padding:'20px', background:'white'}}>
+                      <h3 style={{marginTop:0, display:'flex', alignItems:'center', gap:'10px'}}><UserPlus size={18}/> Option B: Manual Entry</h3>
+                      <p style={{fontSize:'12px', color:'#666'}}>Add single student manually if file upload is not needed.</p>
+                      <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                          <input style={styles.input} placeholder="Full Name *" value={manualStudent.full_name} onChange={e=>setManualStudent({...manualStudent, full_name:e.target.value})} />
+                          <div style={{display:'flex', gap:'5px'}}>
+                              <input style={styles.input} placeholder="Conf No *" value={manualStudent.conf_no} onChange={e=>setManualStudent({...manualStudent, conf_no:e.target.value})} />
+                              <input style={styles.input} type="number" placeholder="Age" value={manualStudent.age} onChange={e=>setManualStudent({...manualStudent, age:e.target.value})} />
+                          </div>
+                          <div style={{display:'flex', gap:'5px'}}>
+                              <select style={styles.input} value={manualStudent.gender} onChange={e=>setManualStudent({...manualStudent, gender:e.target.value})}><option>Male</option><option>Female</option></select>
+                              <input style={styles.input} placeholder="Courses (S:1)" value={manualStudent.courses_info} onChange={e=>setManualStudent({...manualStudent, courses_info:e.target.value})} />
+                          </div>
+                          <button onClick={handleManualSubmit} style={{...styles.btn(true), background:'#28a745', color:'white', justifyContent:'center'}}>Add to Import List</button>
+                      </div>
                   </div>
               </div>
           )}
@@ -327,7 +396,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               </div>
           )}
 
-          {/* STEP 3: CLEAN & REVIEW */}
+          {/* STEP 3: REVIEW & UPLOAD */}
           {importStep === 3 && (
               <div style={{background:'white', padding:'20px', borderRadius:'10px', border:'1px solid #ddd'}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
@@ -378,7 +447,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                       </table>
                   </div>
                   <div style={{marginTop:'15px', display:'flex', justifyContent:'space-between', color:'#666', fontSize:'12px'}}>
-                      <button onClick={()=>setImportStep(2)} style={styles.btn(false)}>Back to Map</button>
+                      <button onClick={()=>setImportStep(1)} style={styles.btn(false)}>Start Over</button>
                       <span>Total: {cleanedData.length} | Valid: {cleanedData.filter(d=>d.isValid).length} | Invalid: {cleanedData.filter(d=>!d.isValid).length}</span>
                   </div>
               </div>
