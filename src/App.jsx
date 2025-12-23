@@ -6,7 +6,7 @@ import { API_URL } from './config';
 import Login from './components/Login';
 
 // Admin Modules
-import CourseDashboard from './components/CourseDashboard'; // ✅ Using the NEW Zero-Day Dashboard
+import CourseDashboard from './components/Dashboard'; // ✅ Using the NEW Zero-Day Dashboard
 import GlobalAccommodationManager from './components/GlobalAccommodationManager';
 import StudentForm from './components/StudentForm';
 import ParticipantList from './components/ParticipantList';
