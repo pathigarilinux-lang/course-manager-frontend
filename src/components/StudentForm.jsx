@@ -3,7 +3,7 @@ import { User, MapPin, Coffee, Lock, Key, AlertTriangle, CheckCircle, Search, X 
 import DiningLayout from '../DiningLayout';
 import PagodaLayout from '../PagodaLayout';
 import MaleBlockLayout from './MaleBlockLayout'; 
-import FemaleBlockLayout from './FemaleBlockLayout'; // ✅ 1. NEW IMPORT
+import FemaleBlockLayout from './FemaleBlockLayout'; 
 import { API_URL, LANGUAGES, NUMBER_OPTIONS, styles } from '../config';
 
 export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
@@ -62,13 +62,11 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   // Gender Detection
   const currentGenderRaw = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
   const isMale = currentGenderRaw.startsWith('m');
-  const isFemale = currentGenderRaw.startsWith('f'); // ✅ Used for Map Switching
-  const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : 'Male');
+  const isFemale = currentGenderRaw.startsWith('f'); 
   const themeColor = isMale ? '#007bff' : (isFemale ? '#e91e63' : '#6c757d');
 
   // Room Logic
   const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
-  // Note: We use availableRooms for visual modal logic, but manual entry is also allowed
   let availableRooms = rooms.filter(r => !occupiedRoomsSet.has(normalize(r.room_no)));
   if (isMale) availableRooms = availableRooms.filter(r => r.gender_type === 'Male'); 
   else if (isFemale) availableRooms = availableRooms.filter(r => r.gender_type === 'Female');
@@ -110,7 +108,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const handleRoomSelect = (roomObj) => {
       if (roomObj.occupant) return alert("⛔ This bed is already occupied!");
       
-      // Optional: Safety Check for Gender Mismatch
       const roomGender = (roomObj.gender_type || '').toLowerCase();
       const studentGenderChar = (selectedStudent?.gender || '').toLowerCase().charAt(0);
       if (roomGender && !roomGender.startsWith(studentGenderChar)) {
@@ -178,20 +175,17 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
           setStatus('✅ Success!'); 
           
-          // Reset
           setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' }));
           setSelectedStudent(null); 
           setSearchTerm('');
           clearRoom(); 
           
-          // Refresh
           fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants); 
           fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(setOccupancy); 
           setTimeout(() => setStatus(''), 4000);
       } catch (err) { setStatus(`❌ ${err.message}`); } 
   };
 
-  // Filter
   const searchResults = participants.filter(p => {
       if (!searchTerm) return false;
       if (p.status === 'Attending' || p.status === 'Cancelled') return false; 
@@ -340,7 +334,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           {showVisualDining && <DiningLayout gender={currentGenderLabel} occupied={usedDining} selected={formData.seatNo} onSelect={handleDiningSeatChange} onClose={()=>setShowVisualDining(false)} />}
           {showVisualPagoda && <PagodaLayout gender={currentGenderLabel} occupied={usedPagoda} selected={formData.pagodaCell} onSelect={handlePagodaSelect} onClose={()=>setShowVisualPagoda(false)} />}
           
-          {/* ✅ 2. INTEGRATED: CONDITIONAL MAP RENDERING */}
+          {/* VISUAL ROOM MAP (AUTO-SWITCH MALE/FEMALE) */}
           {showVisualRoom && (
               <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:2000, display:'flex', flexDirection:'column', padding:'20px'}}>
                   <div style={{background:'white', borderRadius:'8px', flex:1, display:'flex', flexDirection:'column', overflow:'hidden', maxWidth:'1200px', margin:'0 auto', width:'100%'}}>
@@ -359,13 +353,14 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
               </div>
           )}
 
-          {/* --- INVISIBLE PRINT SECTION --- */}
+          {/* --- INVISIBLE PRINT SECTION (SINGLE PAGE & ALIGNED HEADER) --- */}
           {printReceiptData && (
               <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}>
                   <div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}>
                       <button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button>
                       
                       <div id="receipt-print-area" style={{padding:'5px', border:'3px solid black', borderRadius:'8px', fontFamily:'Helvetica, Arial, sans-serif', color:'black', width:'70mm', margin:'0 auto', boxSizing:'border-box'}}>
+                          
                           {/* HEADER */}
                           <div style={{textAlign:'center', fontWeight:'bold', marginBottom:'5px'}}>
                               <div style={{fontSize:'16px'}}>VIPASSANA</div>
@@ -375,11 +370,14 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                           
                           <div style={{borderBottom:'2px solid black', margin:'5px 0'}}></div>
                           
-                          <div style={{fontSize:'11px', marginBottom:'5px', lineHeight:'1.3'}}>
-                              <div><strong>Course:</strong> {printReceiptData.courseName}</div>
-                              <div><strong>Teacher:</strong> {printReceiptData.teacherName}</div>
-                              <div><strong>Date:</strong> {printReceiptData.from} to {printReceiptData.to}</div>
-                          </div>
+                          {/* ALIGNED INFO TABLE */}
+                          <table style={{width:'100%', fontSize:'11px', marginBottom:'5px', lineHeight:'1.3'}}>
+                             <tbody>
+                                 <tr><td style={{fontWeight:'bold', width:'50px', verticalAlign:'top'}}>Course:</td><td>{printReceiptData.courseName}</td></tr>
+                                 <tr><td style={{fontWeight:'bold', width:'50px', verticalAlign:'top'}}>Teacher:</td><td>{printReceiptData.teacherName}</td></tr>
+                                 <tr><td style={{fontWeight:'bold', width:'50px', verticalAlign:'top'}}>Date:</td><td>{printReceiptData.from} to {printReceiptData.to}</td></tr>
+                             </tbody>
+                          </table>
 
                           <div style={{borderBottom:'2px solid black', margin:'5px 0'}}></div>
 
@@ -420,7 +418,16 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                           <button onClick={() => window.print()} style={{flex:1, padding:'12px', background:'#007bff', color:'white', border:'none', borderRadius:'6px'}}>PRINT</button>
                       </div>
                   </div>
-                  <style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none; } @page { size: 72mm auto; margin: 0; } }`}</style>
+                  {/* CSS: Force Single Page & Remove Margins */}
+                  <style>{`
+                    @media print { 
+                        @page { size: 72mm auto; margin: 0; } 
+                        html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; }
+                        body * { visibility: hidden; } 
+                        #receipt-print-area, #receipt-print-area * { visibility: visible; } 
+                        #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none; page-break-after: avoid; } 
+                    }
+                  `}</style>
               </div>
           )}
       </div> 
