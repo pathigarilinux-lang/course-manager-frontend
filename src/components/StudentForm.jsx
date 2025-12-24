@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, MapPin, Coffee, Lock, Key, AlertTriangle, CheckCircle, Search, X } from 'lucide-react';
+import { User, MapPin, Coffee, Lock, Key, AlertTriangle, CheckCircle, Search, X, Printer, ArrowRight } from 'lucide-react';
 import DiningLayout from '../DiningLayout';
 import PagodaLayout from '../PagodaLayout';
 import MaleBlockLayout from './MaleBlockLayout'; 
@@ -93,7 +93,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       }
   });
 
-  // ✅ SAFE FILTERING (Prevents Crash)
   const availableMobiles = (NUMBER_OPTIONS || []).filter(n => !usedMobiles.has(String(n)) || String(n) === String(formData.mobileLocker));
   const availableValuables = (NUMBER_OPTIONS || []).filter(n => !usedValuables.has(String(n)) || String(n) === String(formData.valuablesLocker));
 
@@ -200,49 +199,92 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   return ( 
       <div style={styles.card}> 
           {/* HEADER */}
-          <div className="no-print" style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
-              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><User size={24}/> Check-In Console</h2>
-              {status && <div style={{padding:'5px 15px', background: status.includes('Success')?'#d4edda':'#f8d7da', color: status.includes('Success')?'#155724':'#721c24', borderRadius:'20px', fontWeight:'bold'}}>{status}</div>}
+          <div className="no-print" style={{
+              display:'flex', justifyContent:'space-between', alignItems:'center', 
+              marginBottom:'25px', borderBottom:'1px solid #eee', paddingBottom:'15px'
+          }}>
+              <div>
+                  <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'12px', color:'#2c3e50', fontSize:'22px'}}>
+                      <User size={24} color="#007bff"/> Check-In Console
+                  </h2>
+                  <p style={{margin:'5px 0 0 35px', color:'#666', fontSize:'13px'}}>Process new arrivals and assign assets</p>
+              </div>
+              {status && (
+                  <div style={{
+                      padding:'8px 20px', 
+                      background: status.includes('Success')?'#d4edda':'#f8d7da', 
+                      color: status.includes('Success')?'#155724':'#721c24', 
+                      borderRadius:'30px', fontWeight:'bold', fontSize:'14px',
+                      boxShadow: '0 2px 5px rgba(0,0,0,0.05)', display:'flex', alignItems:'center', gap:'8px'
+                  }}>
+                      {status.includes('Success') ? <CheckCircle size={16}/> : <AlertTriangle size={16}/>}
+                      {status}
+                  </div>
+              )}
           </div>
 
           <div className="no-print" style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'30px'}}>
               {/* --- LEFT: FORM --- */}
               <form onSubmit={handleSubmit}>
-                  {/* SELECTION */}
-                  <div style={{background:'#f8f9fa', padding:'20px', borderRadius:'12px', marginBottom:'20px', border:'1px solid #e9ecef'}}>
+                  
+                  {/* 1. SELECTION & SEARCH */}
+                  <div style={{
+                      background:'linear-gradient(to bottom right, #f8f9fa, #ffffff)', 
+                      padding:'20px', borderRadius:'12px', marginBottom:'25px', 
+                      border:'1px solid #e9ecef', boxShadow:'0 2px 8px rgba(0,0,0,0.03)'
+                  }}>
                       <div style={{marginBottom:'15px'}}>
-                          <label style={styles.label}>1. Select Course</label>
-                          <select style={styles.input} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}>
+                          <label style={{...styles.label, color:'#007bff'}}>1. SELECT COURSE</label>
+                          <select style={{...styles.input, fontSize:'14px', padding:'10px'}} onChange={e => setFormData({...formData, courseId: e.target.value})} value={formData.courseId}>
                               <option value="">-- Select Active Course --</option>
                               {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
                           </select>
                       </div>
 
                       <div style={{position:'relative'}}>
-                          <label style={styles.label}>2. Find Student</label>
+                          <label style={{...styles.label, color:'#007bff'}}>2. FIND STUDENT</label>
                           <div style={{display:'flex', alignItems:'center', position:'relative'}}>
-                              <Search size={18} style={{position:'absolute', left:'10px', color:'#999'}}/>
+                              <Search size={18} style={{position:'absolute', left:'12px', color:'#999'}}/>
                               <input 
                                   ref={searchInputRef}
-                                  style={{...styles.input, paddingLeft:'35px', fontWeight:'bold'}} 
-                                  placeholder="Name or Conf No..." 
+                                  style={{...styles.input, padding:'12px 12px 12px 40px', fontSize:'15px', fontWeight:'500'}} 
+                                  placeholder="Type Name or Conf No..." 
                                   value={searchTerm}
                                   onChange={e => { setSearchTerm(e.target.value); setIsSearching(true); }}
                                   disabled={!formData.courseId}
                                   onFocus={() => setIsSearching(true)}
                               />
-                              {searchTerm && <button type="button" onClick={()=>{setSearchTerm(''); setSelectedStudent(null);}} style={{position:'absolute', right:'10px', background:'none', border:'none', cursor:'pointer'}}><X size={16}/></button>}
+                              {searchTerm && (
+                                  <button type="button" onClick={()=>{setSearchTerm(''); setSelectedStudent(null);}} 
+                                      style={{position:'absolute', right:'12px', background:'none', border:'none', cursor:'pointer', color:'#999'}}>
+                                      <X size={16}/>
+                                  </button>
+                              )}
                           </div>
                           
+                          {/* DROPDOWN RESULTS */}
                           {isSearching && searchTerm && (
-                              <div style={{position:'absolute', top:'100%', left:0, right:0, background:'white', border:'1px solid #ddd', borderRadius:'8px', boxShadow:'0 4px 12px rgba(0,0,0,0.1)', zIndex:100, maxHeight:'300px', overflowY:'auto'}}>
-                                  {searchResults.length === 0 ? <div style={{padding:'10px', color:'#999'}}>No matches.</div> : 
+                              <div style={{
+                                  position:'absolute', top:'110%', left:0, right:0, 
+                                  background:'white', border:'1px solid #eee', borderRadius:'8px', 
+                                  boxShadow:'0 10px 25px rgba(0,0,0,0.1)', zIndex:100, maxHeight:'300px', overflowY:'auto'
+                              }}>
+                                  {searchResults.length === 0 ? <div style={{padding:'15px', color:'#999', textAlign:'center'}}>No matches found.</div> : 
                                   searchResults.map(p => (
-                                      <div key={p.participant_id} onClick={() => selectStudent(p)} style={{padding:'10px', borderBottom:'1px solid #f0f0f0', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                      <div key={p.participant_id} onClick={() => selectStudent(p)} 
+                                          style={{
+                                              padding:'12px 15px', borderBottom:'1px solid #f9f9f9', cursor:'pointer', 
+                                              display:'flex', justifyContent:'space-between', alignItems:'center', transition:'background 0.2s',
+                                              ':hover': {background: '#f8f9fa'}
+                                          }}
+                                          onMouseEnter={(e) => e.currentTarget.style.background = '#f0f7ff'}
+                                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                      >
                                           <div>
-                                              <div style={{fontWeight:'bold'}}>{p.full_name}</div>
-                                              <div style={{fontSize:'12px', color:'#666'}}>{p.conf_no} | Age: {p.age}</div>
+                                              <div style={{fontWeight:'bold', color:'#333'}}>{p.full_name}</div>
+                                              <div style={{fontSize:'12px', color:'#777'}}>{p.conf_no} • {p.gender}</div>
                                           </div>
+                                          <div style={{background:'#eee', padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:'bold'}}>{p.age} Yrs</div>
                                       </div>
                                   ))}
                               </div>
@@ -250,87 +292,191 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                       </div>
                   </div>
 
-                  {/* DETAILS */}
+                  {/* 2. STUDENT DETAILS CARD */}
                   {selectedStudent && (
-                      <div style={{marginBottom:'20px'}}>
+                      <div style={{marginBottom:'25px', animation:'fadeIn 0.3s ease'}}>
                           {selectedStudent.medical_info && (
-                              <div style={{background:'#fff3cd', border:'1px solid #ffeeba', color:'#856404', padding:'15px', borderRadius:'8px', marginBottom:'15px', display:'flex', gap:'10px', alignItems:'start'}}>
+                              <div style={{
+                                  background:'#fff3cd', borderLeft:'4px solid #ffc107', 
+                                  padding:'15px', borderRadius:'6px', marginBottom:'15px', 
+                                  display:'flex', gap:'12px', alignItems:'start', color:'#856404'
+                              }}>
                                   <AlertTriangle size={20} style={{marginTop:'2px'}}/>
-                                  <div><strong>Medical Alert:</strong> {selectedStudent.medical_info}</div>
+                                  <div>
+                                      <strong style={{display:'block', marginBottom:'2px'}}>Medical Alert</strong> 
+                                      <span style={{fontSize:'14px'}}>{selectedStudent.medical_info}</span>
+                                  </div>
                               </div>
                           )}
-                          <div style={{display:'flex', gap:'15px', marginBottom:'15px'}}>
-                              <div style={{flex:1}}><label style={styles.label}>Conf No</label><input style={{...styles.input, background:'#e9ecef'}} value={formData.confNo} readOnly /></div>
-                              <div style={{flex:1}}><label style={styles.label}>Age</label><input style={{...styles.input, background:'#e9ecef'}} value={selectedStudent.age} readOnly /></div>
-                              <div style={{flex:1}}><label style={styles.label}>Gender</label><div style={{padding:'10px', background: themeColor, color:'white', borderRadius:'6px', textAlign:'center', fontWeight:'bold'}}>{selectedStudent.gender}</div></div>
+                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px'}}>
+                              <div><label style={styles.label}>Conf No</label><div style={{...styles.input, background:'#e9ecef', color:'#555', fontWeight:'bold'}}>{formData.confNo}</div></div>
+                              <div><label style={styles.label}>Age</label><div style={{...styles.input, background:'#e9ecef', color:'#555', fontWeight:'bold'}}>{selectedStudent.age}</div></div>
+                              <div>
+                                  <label style={styles.label}>Gender</label>
+                                  <div style={{
+                                      padding:'10px', background: themeColor, color:'white', 
+                                      borderRadius:'6px', textAlign:'center', fontWeight:'bold', fontSize:'14px',
+                                      boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+                                  }}>
+                                      {selectedStudent.gender}
+                                  </div>
+                              </div>
                           </div>
                       </div>
                   )}
 
-                  {/* ASSIGNMENT */}
-                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', opacity: selectedStudent ? 1 : 0.5, pointerEvents: selectedStudent ? 'auto' : 'none'}}>
-                      <div style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'15px'}}>
-                          <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'5px'}}><MapPin size={16}/> Accommodation</h4>
-                          <div style={{marginBottom:'10px'}}>
-                              <label style={styles.label}>Room No</label>
-                              <button type="button" onClick={() => setShowVisualRoom(true)} style={{...styles.input, textAlign:'left', background: formData.roomNo ? '#e3f2fd' : 'white', color: formData.roomNo ? '#0d47a1' : '#555', fontWeight: formData.roomNo ? 'bold' : 'normal', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                                  {formData.roomNo || "Select Room ->"}
-                                  {formData.roomNo ? <CheckCircle size={16} color="#28a745"/> : <MapPin size={16} color="#007bff"/>}
+                  {/* 3. ASSIGNMENT SECTION */}
+                  <div style={{
+                      display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', 
+                      opacity: selectedStudent ? 1 : 0.5, pointerEvents: selectedStudent ? 'auto' : 'none', transition:'opacity 0.3s'
+                  }}>
+                      {/* ACCOMMODATION */}
+                      <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 2px 10px rgba(0,0,0,0.02)'}}>
+                          <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px', borderBottom:'1px solid #f0f0f0', paddingBottom:'10px'}}>
+                              <MapPin size={18} color="#007bff"/> Accommodation
+                          </h4>
+                          <div style={{marginBottom:'15px'}}>
+                              <label style={styles.label}>Room / Bed</label>
+                              <button type="button" onClick={() => setShowVisualRoom(true)} 
+                                  style={{
+                                      ...styles.input, textAlign:'left', 
+                                      background: formData.roomNo ? '#e3f2fd' : 'white', 
+                                      color: formData.roomNo ? '#0d47a1' : '#555', 
+                                      borderColor: formData.roomNo ? '#90caf9' : '#ddd',
+                                      fontWeight: formData.roomNo ? 'bold' : 'normal', 
+                                      cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center'
+                                  }}>
+                                  {formData.roomNo || "Select Room"}
+                                  {formData.roomNo ? <CheckCircle size={18} color="#28a745"/> : <ArrowRight size={16} color="#ccc"/>}
                               </button>
                           </div>
-                          <div><label style={styles.label}>Laundry Token</label><input style={styles.input} value={formData.laundryToken} onChange={e=>setFormData({...formData, laundryToken:e.target.value})} placeholder="Token #" /></div>
+                          <div>
+                              <label style={styles.label}>Laundry Token</label>
+                              <input style={styles.input} value={formData.laundryToken} onChange={e=>setFormData({...formData, laundryToken:e.target.value})} placeholder="Optional Token #" />
+                          </div>
                       </div>
 
-                      <div style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'15px'}}>
-                          <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'5px'}}><Coffee size={16}/> Dining & Lockers</h4>
-                          <div style={{marginBottom:'10px'}}>
+                      {/* DINING & LOCKERS */}
+                      <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 2px 10px rgba(0,0,0,0.02)'}}>
+                          <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px', borderBottom:'1px solid #f0f0f0', paddingBottom:'10px'}}>
+                              <Coffee size={18} color="#e91e63"/> Dining & Lockers
+                          </h4>
+                          <div style={{marginBottom:'15px'}}>
                               <label style={styles.label}>Dining Seat</label>
-                              <div style={{display:'flex', gap:'5px'}}>
-                                  <select style={{...styles.input, width:'70px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select>
-                                  <button type="button" onClick={() => setShowVisualDining(true)} style={{...styles.input, textAlign:'left', background: formData.seatNo ? '#e3f2fd' : 'white', color: formData.seatNo ? '#0d47a1' : '#555', fontWeight: formData.seatNo ? 'bold' : 'normal', cursor:'pointer', flex:1}}>{formData.seatNo || "Select Seat"}</button>
+                              <div style={{display:'flex', gap:'8px'}}>
+                                  <select style={{...styles.input, width:'80px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}>
+                                      <option>Chair</option><option>Floor</option>
+                                  </select>
+                                  <button type="button" onClick={() => setShowVisualDining(true)} 
+                                      style={{
+                                          ...styles.input, textAlign:'left', flex:1,
+                                          background: formData.seatNo ? '#e3f2fd' : 'white', 
+                                          color: formData.seatNo ? '#0d47a1' : '#555', 
+                                          fontWeight: formData.seatNo ? 'bold' : 'normal', cursor:'pointer'
+                                      }}>
+                                      {formData.seatNo || "Select Seat"}
+                                  </button>
                               </div>
                           </div>
-                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'5px'}}>
-                              <div><label style={{fontSize:'11px', color:'#777'}}>Mobile <Lock size={10}/></label><select style={styles.input} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">None</option>{availableMobiles.map(n => <option key={n} value={n}>{n}</option>)}</select></div>
-                              <div><label style={{fontSize:'11px', color:'#777'}}>Valuables <Key size={10}/></label><select style={styles.input} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">None</option>{availableValuables.map(n => <option key={n} value={n}>{n}</option>)}</select></div>
+                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
+                              <div>
+                                  <label style={{fontSize:'11px', color:'#777', fontWeight:'bold', display:'flex', gap:'4px'}}><Lock size={12}/> Mobile</label>
+                                  <select style={styles.input} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}>
+                                      <option value="">None</option>{availableMobiles.map(n => <option key={n} value={n}>{n}</option>)}
+                                  </select>
+                              </div>
+                              <div>
+                                  <label style={{fontSize:'11px', color:'#777', fontWeight:'bold', display:'flex', gap:'4px'}}><Key size={12}/> Valuables</label>
+                                  <select style={styles.input} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}>
+                                      <option value="">None</option>{availableValuables.map(n => <option key={n} value={n}>{n}</option>)}
+                                  </select>
+                              </div>
                           </div>
                       </div>
                   </div>
 
-                  {/* EXTRAS */}
-                  <div style={{marginTop:'20px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', opacity: selectedStudent ? 1 : 0.5}}>
+                  {/* 4. EXTRAS */}
+                  <div style={{
+                      marginTop:'25px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px', 
+                      opacity: selectedStudent ? 1 : 0.5, transition:'opacity 0.3s'
+                  }}>
                       <div><label style={styles.label}>Language</label><select style={styles.input} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>{LANGUAGES.map(l=><option key={l}>{l}</option>)}</select></div>
-                      <div><label style={styles.label}>Pagoda</label><button type="button" onClick={() => setShowVisualPagoda(true)} style={{...styles.input, textAlign:'left', cursor:'pointer'}}>{formData.pagodaCell || "None"}</button></div>
-                      <div><label style={styles.label}>Special</label><select style={styles.input} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option value="Chowky">Chowky</option><option value="Chair">Chair</option><option value="BackRest">BackRest</option></select></div>
+                      <div><label style={styles.label}>Pagoda Cell</label><button type="button" onClick={() => setShowVisualPagoda(true)} style={{...styles.input, textAlign:'left', cursor:'pointer'}}>{formData.pagodaCell || "None"}</button></div>
+                      <div><label style={styles.label}>Special Seating</label><select style={styles.input} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option value="Chowky">Chowky</option><option value="Chair">Chair</option><option value="BackRest">BackRest</option></select></div>
                   </div>
 
-                  <div style={{marginTop:'30px', textAlign:'right', display:'flex', justifyContent:'flex-end', gap:'10px'}}>
-                      <button type="button" onClick={triggerReprint} disabled={!selectedStudent} style={{...styles.btn(false), background:'#6c757d', color:'white'}}>🖨️ Reprint</button>
-                      <button type="submit" disabled={!selectedStudent} style={{...styles.btn(true), background: selectedStudent ? '#28a745' : '#ccc', color:'white', padding:'12px 30px', fontSize:'16px'}}>Confirm Check-In</button>
+                  {/* 5. ACTIONS */}
+                  <div style={{marginTop:'35px', textAlign:'right', display:'flex', justifyContent:'flex-end', gap:'15px'}}>
+                      <button type="button" onClick={triggerReprint} disabled={!selectedStudent} 
+                          style={{
+                              ...styles.btn(false), background:'white', border:'1px solid #ccc', color:'#555', 
+                              display:'flex', alignItems:'center', gap:'8px', padding:'12px 20px'
+                          }}>
+                          <Printer size={18}/> Reprint Pass
+                      </button>
+                      <button type="submit" disabled={!selectedStudent} 
+                          style={{
+                              ...styles.btn(true), 
+                              background: selectedStudent ? 'linear-gradient(45deg, #28a745, #218838)' : '#e0e0e0', 
+                              color: selectedStudent ? 'white' : '#999', 
+                              padding:'12px 40px', fontSize:'16px', borderRadius:'30px',
+                              boxShadow: selectedStudent ? '0 4px 15px rgba(40,167,69,0.3)' : 'none',
+                              cursor: selectedStudent ? 'pointer' : 'not-allowed',
+                              display:'flex', alignItems:'center', gap:'10px'
+                          }}>
+                          <CheckCircle size={20}/> Confirm Check-In
+                      </button>
                   </div>
               </form>
 
-              {/* --- RIGHT: LIVE PREVIEW --- */}
-              <div style={{background:'white', borderRadius:'15px', border:'2px dashed #ddd', padding:'20px', height:'fit-content'}}>
-                  <div style={{textAlign:'center', borderBottom:'1px solid #eee', paddingBottom:'15px', marginBottom:'15px'}}>
-                      <h3 style={{margin:0, color:'#333'}}>CHECK-IN PASS</h3>
-                      <div style={{fontSize:'12px', color:'#999', marginTop:'5px'}}>LIVE PREVIEW</div>
+              {/* --- RIGHT: LIVE PREVIEW CARD --- */}
+              <div style={{
+                  background:'white', borderRadius:'16px', 
+                  boxShadow:'0 10px 30px rgba(0,0,0,0.08)', padding:'0', 
+                  height:'fit-content', overflow:'hidden', position:'sticky', top:'20px'
+              }}>
+                  <div style={{background: themeColor, padding:'15px', textAlign:'center', color:'white'}}>
+                      <h3 style={{margin:0, fontSize:'16px', letterSpacing:'1px', textTransform:'uppercase'}}>Arrival Pass</h3>
+                      <div style={{fontSize:'11px', opacity:0.8, marginTop:'4px'}}>LIVE PREVIEW</div>
                   </div>
+                  
                   {selectedStudent ? (
-                      <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
-                          <div style={{textAlign:'center'}}>
-                              <div style={{fontWeight:'bold', fontSize:'18px', color: themeColor}}>{selectedStudent.full_name}</div>
-                              <div style={{fontSize:'14px', color:'#666'}}>{formData.confNo}</div>
+                      <div style={{padding:'25px'}}>
+                          <div style={{textAlign:'center', marginBottom:'20px'}}>
+                              <div style={{fontWeight:'800', fontSize:'20px', color:'#333', lineHeight:'1.2'}}>{selectedStudent.full_name}</div>
+                              <div style={{fontSize:'13px', color:'#777', marginTop:'5px'}}>{formData.confNo}</div>
                           </div>
-                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', background:'#f8f9fa', padding:'15px', borderRadius:'10px'}}>
-                              <div><div style={{fontSize:'11px', color:'#999'}}>ROOM</div><div style={{fontWeight:'bold', fontSize:'20px'}}>{formData.roomNo || '-'}</div></div>
-                              <div><div style={{fontSize:'11px', color:'#999'}}>DINING</div><div style={{fontWeight:'bold', fontSize:'20px'}}>{formData.seatNo || '-'}</div></div>
-                              <div><div style={{fontSize:'11px', color:'#999'}}>MOBILE</div><div style={{fontWeight:'bold', fontSize:'16px'}}>{formData.mobileLocker || '-'}</div></div>
-                              <div><div style={{fontSize:'11px', color:'#999'}}>VALUABLES</div><div style={{fontWeight:'bold', fontSize:'16px'}}>{formData.valuablesLocker || '-'}</div></div>
+                          
+                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1px', background:'#eee', border:'1px solid #eee', borderRadius:'10px', overflow:'hidden', marginBottom:'20px'}}>
+                              <div style={{background:'white', padding:'15px', textAlign:'center'}}>
+                                  <div style={{fontSize:'10px', color:'#999', fontWeight:'bold', textTransform:'uppercase'}}>Room</div>
+                                  <div style={{fontWeight:'900', fontSize:'24px', color:'#333'}}>{formData.roomNo || '-'}</div>
+                              </div>
+                              <div style={{background:'white', padding:'15px', textAlign:'center'}}>
+                                  <div style={{fontSize:'10px', color:'#999', fontWeight:'bold', textTransform:'uppercase'}}>Dining</div>
+                                  <div style={{fontWeight:'900', fontSize:'24px', color:'#333'}}>{formData.seatNo || '-'}</div>
+                              </div>
+                              <div style={{background:'white', padding:'15px', textAlign:'center'}}>
+                                  <div style={{fontSize:'10px', color:'#999', fontWeight:'bold', textTransform:'uppercase'}}>Mobile</div>
+                                  <div style={{fontWeight:'bold', fontSize:'16px', color:'#555'}}>{formData.mobileLocker || '-'}</div>
+                              </div>
+                              <div style={{background:'white', padding:'15px', textAlign:'center'}}>
+                                  <div style={{fontSize:'10px', color:'#999', fontWeight:'bold', textTransform:'uppercase'}}>Valuables</div>
+                                  <div style={{fontWeight:'bold', fontSize:'16px', color:'#555'}}>{formData.valuablesLocker || '-'}</div>
+                              </div>
                           </div>
-                          <div style={{textAlign:'center', fontSize:'12px', color:'#aaa'}}>{formData.language} • {selectedStudent.age} Yrs</div>
+                          
+                          <div style={{textAlign:'center', fontSize:'12px', color:'#aaa', fontStyle:'italic'}}>
+                              {formData.language} • {selectedStudent.age} Yrs • {selectedStudent.gender}
+                          </div>
                       </div>
-                  ) : <div style={{textAlign:'center', color:'#ccc', padding:'40px 0'}}>Select a student</div>}
+                  ) : (
+                      <div style={{padding:'50px 20px', textAlign:'center', color:'#ccc'}}>
+                          <User size={40} style={{opacity:0.2, marginBottom:'10px'}}/>
+                          <div>Select a student to preview pass.</div>
+                      </div>
+                  )}
+                  {selectedStudent && <div style={{height:'8px', background: `repeating-linear-gradient(45deg, ${themeColor}, ${themeColor} 10px, white 10px, white 20px)`}}></div>}
               </div>
           </div>
 
@@ -433,6 +579,10 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                   `}</style>
               </div>
           )}
+          
+          <style>{`
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+          `}</style>
       </div> 
   );
 }
