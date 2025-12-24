@@ -10,8 +10,7 @@ const PRODUCTS = [
   { id: 'brush', name: 'Toothbrush', price: 20, icon: '🦷', type: 'Item' },
   { id: 'mosquito', name: 'Mosquito Coil', price: 10, icon: '🦟', type: 'Item' },
   { id: 'med', name: 'Medicine', price: 0, icon: '💊', type: 'Medical' }, 
-  { id: 'donation', name: 'Donation', price: 0, icon: '🙏', type: 'Donation' },
-];
+ ];
 
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
 
