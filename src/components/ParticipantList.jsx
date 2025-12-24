@@ -42,35 +42,28 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
   // --- HELPERS ---
   const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
-  
+  const getCategoryRank = (conf) => { const cat = getCategory(conf); return cat === 'OLD' ? 1 : 2; };
+
   const getStudentStats = (p) => {
       if (!p) return { cat: '', s: 0, l: 0, age: '' };
       const conf = (p.conf_no || '').toUpperCase();
       const isOld = conf.startsWith('O') || conf.startsWith('S');
       const cat = isOld ? '(O)' : '(N)';
-      // Robust Regex to find S: and L: even if user types "s-5" or "S=5"
-      const sMatch = (p.courses_info || '').match(/[Ss]\s*[:=-]?\s*(\d+)/);
-      const lMatch = (p.courses_info || '').match(/[Ll]\s*[:=-]?\s*(\d+)/);
-      const s = sMatch ? parseInt(sMatch[1]) : 0;
-      const l = lMatch ? parseInt(lMatch[1]) : 0;
-      return { cat, s, l, age: parseInt(p.age) || 0 };
+      const sMatch = (p.courses_info || '').match(/S\s*[:=-]?\s*(\d+)/i);
+      const lMatch = (p.courses_info || '').match(/L\s*[:=-]?\s*(\d+)/i);
+      const s = sMatch ? sMatch[1] : '0';
+      const l = lMatch ? lMatch[1] : '0';
+      return { cat, s, l, age: p.age || '?' };
   };
 
-  // ✅ ADVANCED PRIORITY SCORE CALCULATOR (Formula A)
+  // Formula A: Priority Score
   const calculatePriorityScore = (p) => {
       const stats = getStudentStats(p);
       let score = 0;
-
-      // 1. Base Score (Old vs New)
       if (stats.cat === '(O)') score += 10000;
-
-      // 2. Experience Bonus (+100 per sit, +500 per Long Course)
-      score += (stats.s * 100);
-      score += (stats.l * 500);
-
-      // 3. Age Tie-Breaker (+1 per year)
-      score += stats.age;
-
+      score += (parseInt(stats.s) * 100);
+      score += (parseInt(stats.l) * 500);
+      score += parseInt(stats.age);
       return score;
   };
 
@@ -101,10 +94,18 @@ export default function ParticipantList({ courses, refreshCourses }) {
       return items;
   }, [participants, sortConfig, search, filterType]);
 
-  const generateColLabels = (count) => { const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return letters.slice(0, count).reverse(); };
-  const generateChowkyLabels = (count) => { const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return letters.slice(0, count).reverse().map(l => `CW-${l}`); };
+  // ✅ UPDATED: Removed .reverse() so columns go A -> B -> C
+  const generateColLabels = (count) => { 
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); 
+      return letters.slice(0, count); // A, B, C...
+  };
+  
+  const generateChowkyLabels = (count) => { 
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); 
+      return letters.slice(0, count).map(l => `CW-${l}`); // CW-A, CW-B...
+  };
 
-  // --- 🛠️ ADVANCED AUTO-ASSIGN LOGIC (With Score) ---
+  // --- AUTO-ASSIGN LOGIC (Formula A + Alphabetical Order) ---
   const handleAutoAssign = async () => {
       if (!window.confirm("⚠️ This will overwrite unlocked seats based on Seniority Logic. Continue?")) return;
       setIsAssigning(true);
@@ -124,6 +125,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
               return s;
           };
 
+          // With new label order, seats generate as A1, B1, C1...
           const mRegSeats = genSeats(generateColLabels(seatingConfig.mCols), seatingConfig.mRows);
           const mSpecSeats = genSeats(generateChowkyLabels(seatingConfig.mChowky), seatingConfig.mRows);
           const fRegSeats = genSeats(generateColLabels(seatingConfig.fCols), seatingConfig.fRows);
@@ -138,22 +140,19 @@ export default function ParticipantList({ courses, refreshCourses }) {
               const availReg = regSeats.filter(s => !lockedSeats.has(s));
               const availSpec = specSeats.filter(s => !lockedSeats.has(s));
 
-              // ✅ NEW: Sort by Priority Score (Desc)
+              // Sort by Priority Score
               const toAssign = students.filter(p => !p.is_seat_locked).sort((a,b) => {
                   return calculatePriorityScore(b) - calculatePriorityScore(a); 
               });
 
-              // Separate Special Needs
               const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating));
               const normalGroup = toAssign.filter(p => !specGroup.includes(p));
 
-              // Assign Special Seats First (Chowky)
               specGroup.forEach(p => {
                   if (availSpec.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availSpec.shift() });
-                  else if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); // Fallback to normal
+                  else if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); 
               });
 
-              // Assign Normal Seats (Reg)
               normalGroup.forEach(p => {
                   if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() });
               });
@@ -164,7 +163,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
           const allUpdates = [...assignGroup(males, mRegSeats, mSpecSeats), ...assignGroup(females, fRegSeats, fSpecSeats)];
           if (allUpdates.length === 0) { alert("✅ No new assignments needed."); setIsAssigning(false); return; }
 
-          // Batch Upload
           const BATCH_SIZE = 5;
           for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) {
               await Promise.all(allUpdates.slice(i, i + BATCH_SIZE).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) })));
@@ -197,7 +195,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
       document.body.appendChild(iframe);
       let htmlContent = `<html><head><title>Tokens</title><style>@page { size: 72mm auto; margin: 0; } body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; } .ticket-container { width: 70mm; margin: 0 auto; padding-top: 5mm; padding-bottom: 5mm; page-break-after: always; } .ticket-container:last-child { page-break-after: auto; } .ticket-box { border: 3px solid #000; border-radius: 8px; padding: 10px; width: 64mm; margin: 0 auto; text-align: center; box-sizing: border-box; } .header { font-size: 14px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; } .seat { font-size: 55px; font-weight: 900; line-height: 1; margin: 5px 0; } .name { font-size: 15px; font-weight: bold; margin: 5px 0; word-wrap: break-word; line-height: 1.2; } .conf { font-size: 12px; color: #333; margin-bottom: 10px; } .footer { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; } .stats { font-size: 10px; margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px; display: flex; justify-content: space-between; } </style></head><body>`;
       tokens.forEach(t => { 
-          const s = getStudentStats(t.raw); // helper on token
+          const s = getStudentStats(t.raw); 
           htmlContent += `<div class="ticket-container"><div class="ticket-box"><div class="header">DHAMMA SEAT</div><div class="seat">${t.seat}</div><div class="name">${t.name}</div><div class="conf">${t.conf}</div><div class="footer"><span>Cell: ${t.cell}</span><span>Room: ${t.room}</span></div><div class="stats"><span>${s.cat}</span><span>S:${s.s} L:${s.l}</span><span>Age: ${s.age}</span></div></div></div>`; 
       });
       htmlContent += `</body></html>`;
@@ -243,7 +241,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
       document.head.appendChild(style); window.print(); document.head.removeChild(style); 
   };
 
-  // ✅ FIXED A4 PRINTING (Robust Layout)
+  // ✅ FIXED A4 PRINTING (Correct Borders & Sizing)
   const printA4List = (sectionId) => {
       const style = document.createElement('style');
       style.innerHTML = `
@@ -252,7 +250,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
               html, body { margin: 0; padding: 0; background: white; }
               body * { visibility: hidden; }
               
-              /* Main Box Wrapper */
               #${sectionId}, #${sectionId} * { visibility: visible; }
               #${sectionId} {
                   position: absolute;
@@ -260,21 +257,20 @@ export default function ParticipantList({ courses, refreshCourses }) {
                   top: 0;
                   width: 100%; 
                   box-sizing: border-box; 
-                  border: 2px solid black !important; /* Thick Box Border */
+                  border: 2px solid black !important; 
                   padding: 10px !important;
                   margin: 0;
               }
 
               .no-print { display: none !important; }
 
-              /* Table Styles */
               table { 
                   width: 100%; 
                   border-collapse: collapse; 
                   font-family: 'Helvetica', sans-serif; 
                   font-size: 10pt; 
                   margin-top: 10px;
-                  table-layout: fixed; /* Ensures even columns if needed */
+                  table-layout: fixed; 
               }
               
               th, td { 
