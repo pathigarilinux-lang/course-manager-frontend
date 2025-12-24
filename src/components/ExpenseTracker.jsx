@@ -113,7 +113,7 @@ export default function ExpenseTracker({ courses }) {
       }); 
   };
 
-  // ✅ NEW: Load Pending Dues Report
+  // PENDING DUES REPORT
   const loadPendingReport = () => {
       if (!courseId) return;
       fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => {
@@ -132,7 +132,7 @@ export default function ExpenseTracker({ courses }) {
       <div className="invoice-box" style={{maxWidth: '800px', margin: '0 auto', border: '1px solid #eee', padding: '40px', fontFamily: 'Helvetica, Arial, sans-serif', background:'white'}}>
           <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '40px'}}>
               <div><h1 style={{margin: 0}}>INVOICE</h1><p style={{color: '#666'}}>Date: {new Date().toLocaleDateString()}</p></div>
-              <div style={{textAlign: 'right'}}><h3>{currentStudent?.full_name}</h3><p>Room: {currentStudent?.room_no}</p><p>{selectedCourseName}</p></div>
+              <div style={{textAlign: 'right'}}><h3>{currentStudent?.full_name}</h3><p>Conf: {currentStudent?.conf_no}</p><p>Room: {currentStudent?.room_no}</p><p>{selectedCourseName}</p></div>
           </div>
           <table style={{width: '100%', borderCollapse: 'collapse', marginBottom: '30px'}}>
               <thead><tr style={{background: '#f9f9f9', borderBottom: '2px solid #333'}}><th style={{textAlign: 'left', padding: '10px'}}>Description</th><th style={{textAlign: 'left', padding: '10px'}}>Date</th><th style={{textAlign: 'right', padding: '10px'}}>Amount</th></tr></thead>
@@ -178,7 +178,7 @@ export default function ExpenseTracker({ courses }) {
       ); 
   }
 
-  // ✅ NEW: PENDING DUES REPORT VIEW
+  // PENDING DUES REPORT VIEW
   if (reportMode === 'pending') {
       const totalPending = financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0);
       return (
@@ -244,7 +244,11 @@ export default function ExpenseTracker({ courses }) {
               <div style={{background:'#fff5f5', padding:'30px', borderRadius:'10px', border:'2px solid #ffcdd2', textAlign:'center'}}>
                   <h3 style={{color:'#d32f2f', marginTop:0}}>🔐 Return Valuables & Checkout</h3>
                   <div style={{maxWidth:'500px', margin:'0 auto 20px auto'}}>
-                      <select style={styles.input} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} value={selectedStudentId}><option value="">-- Select Student --</option>{participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no})</option>)}</select>
+                      {/* ✅ UPDATED DROPDOWN (Includes Conf No) */}
+                      <select style={styles.input} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} value={selectedStudentId}>
+                          <option value="">-- Select Student --</option>
+                          {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no})</option>)}
+                      </select>
                   </div>
                   
                   {currentStudent ? (
@@ -285,7 +289,11 @@ export default function ExpenseTracker({ courses }) {
       {activeTab !== 'checkout' && (
           <div style={{marginBottom:'20px', display:'grid', gridTemplateColumns:'1fr 2fr', gap:'15px'}}>
               <select style={styles.input} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
-              <select style={styles.input} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} value={selectedStudentId}><option value="">-- Select Student --</option>{participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.room_no || 'No Room'})</option>)}</select>
+              {/* ✅ UPDATED DROPDOWN: Shows Name + Conf No + Room */}
+              <select style={styles.input} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} value={selectedStudentId}>
+                  <option value="">-- Select Student --</option>
+                  {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no} | {p.room_no || 'No Room'})</option>)}
+              </select>
           </div>
       )}
 
