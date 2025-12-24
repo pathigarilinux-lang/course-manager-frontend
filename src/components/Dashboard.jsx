@@ -6,7 +6,7 @@ import { API_URL, styles } from '../config';
 const COLORS = { male: '#007bff', female: '#e91e63', arrived: '#28a745', pending: '#ffc107', cancelled: '#dc3545', old: '#6f42c1', new: '#20c997' };
 const LANG_COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#a4de6c', '#d0ed57'];
 
-// ✅ NEW: Detailed Palette for Student Mix
+// Detailed Palette for Student Mix
 const MIX_COLORS = {
   OM: '#0d47a1', // Dark Blue
   NM: '#64b5f6', // Light Blue
@@ -45,6 +45,25 @@ export default function CourseDashboard({ courses }) {
       const expectedFemale = valid.filter(p => (p.gender || '').toLowerCase().startsWith('f')).length;
       const arrivalRate = Math.round((arrived.length / valid.length) * 100) || 0;
 
+      // --- HELPER: GET BREAKDOWN (OM, NM, OF, NF) ---
+      const getBreakdown = (list) => {
+          const b = { om: 0, nm: 0, of: 0, nf: 0 };
+          list.forEach(p => {
+              const isMale = (p.gender || '').toLowerCase().startsWith('m');
+              const conf = (p.conf_no || '').toUpperCase();
+              // Treat Servers (S) as Old (O) for this high-level summary
+              const isOld = conf.startsWith('O') || conf.startsWith('S'); 
+              
+              if (isMale) { isOld ? b.om++ : b.nm++; }
+              else { isOld ? b.of++ : b.nf++; }
+          });
+          return b;
+      };
+
+      const arrivedStats = getBreakdown(arrived);
+      const pendingStats = getBreakdown(pending);
+
+      // --- AGE DISTRIBUTION ---
       const ageGroups = { '18-29': {m:0, f:0}, '30-49': {m:0, f:0}, '50-64': {m:0, f:0}, '65+': {m:0, f:0} };
       valid.forEach(p => {
           const age = parseInt(p.age) || 0;
@@ -55,26 +74,15 @@ export default function CourseDashboard({ courses }) {
       });
       const ageData = Object.keys(ageGroups).map(key => ({ name: key, Male: ageGroups[key].m, Female: ageGroups[key].f }));
 
-      // ✅ UPDATED: Detailed Student Mix Logic (OM/NM/OF/NF/SM/SF)
+      // --- DETAILED STUDENT MIX (OM/NM/OF/NF/SM/SF) ---
       const mixCounts = { OM:0, NM:0, OF:0, NF:0, SM:0, SF:0 };
-      
       valid.forEach(p => {
           const conf = (p.conf_no || '').toUpperCase();
           const isMale = (p.gender || '').toLowerCase().startsWith('m');
-          
-          if (conf.startsWith('S')) {
-              // Servers
-              if (isMale) mixCounts.SM++; else mixCounts.SF++;
-          } else if (conf.startsWith('O')) {
-              // Old Students
-              if (isMale) mixCounts.OM++; else mixCounts.OF++;
-          } else {
-              // New Students (Default)
-              if (isMale) mixCounts.NM++; else mixCounts.NF++;
-          }
+          if (conf.startsWith('S')) { isMale ? mixCounts.SM++ : mixCounts.SF++; } 
+          else if (conf.startsWith('O')) { isMale ? mixCounts.OM++ : mixCounts.OF++; } 
+          else { isMale ? mixCounts.NM++ : mixCounts.NF++; }
       });
-
-      // Transform for Chart
       const catData = [
           { name: 'Old Male', value: mixCounts.OM, code: 'OM', color: MIX_COLORS.OM },
           { name: 'New Male', value: mixCounts.NM, code: 'NM', color: MIX_COLORS.NM },
@@ -82,7 +90,7 @@ export default function CourseDashboard({ courses }) {
           { name: 'New Female', value: mixCounts.NF, code: 'NF', color: MIX_COLORS.NF },
           { name: 'Server M', value: mixCounts.SM, code: 'SM', color: MIX_COLORS.SM },
           { name: 'Server F', value: mixCounts.SF, code: 'SF', color: MIX_COLORS.SF }
-      ].filter(item => item.value > 0); // Only show non-zero slices
+      ].filter(item => item.value > 0);
 
       const criticalPending = pending.filter(p => (parseInt(p.age) >= 65) || (p.medical_info && p.medical_info.length > 2));
 
@@ -90,23 +98,35 @@ export default function CourseDashboard({ courses }) {
       arrived.forEach(p => { const lang = p.discourse_language; if (lang && lang.trim() !== '' && lang !== 'Unknown') { langCounts[lang] = (langCounts[lang] || 0) + 1; } });
       const langData = Object.keys(langCounts).map(key => ({ name: key, count: langCounts[key] })).sort((a,b) => b.count - a.count);
 
-      // --- SEATING STATS FOR ADMIN ---
+      // --- SEATING STATS ---
       const seatingStats = { Chowky: {t:0,m:0,f:0}, Chair: {t:0,m:0,f:0}, BackRest: {t:0,m:0,f:0}, Floor: {t:0,m:0,f:0} };
       valid.forEach(p => {
           const type = p.special_seating || 'None';
           const isMale = (p.gender||'').toLowerCase().startsWith('m');
           const k = isMale ? 'm' : 'f';
           let cat = 'Floor';
-          if(type === 'Chowky') cat = 'Chowky';
-          else if(type === 'Chair') cat = 'Chair';
-          else if(type === 'BackRest') cat = 'BackRest';
+          if(type === 'Chowky') cat = 'Chowky'; else if(type === 'Chair') cat = 'Chair'; else if(type === 'BackRest') cat = 'BackRest';
           seatingStats[cat].t++; seatingStats[cat][k]++;
       });
 
-      return { total: valid.length, expectedMale, expectedFemale, arrived: arrived.length, pending: pending.length, arrivalRate, ageData, catData, langData, criticalPending, arrivedList: arrived.reverse().slice(0, 5), seatingStats }; 
+      return { total: valid.length, expectedMale, expectedFemale, arrived: arrived.length, pending: pending.length, arrivalRate, ageData, catData, langData, criticalPending, arrivedList: arrived.reverse().slice(0, 5), seatingStats, arrivedStats, pendingStats }; 
   }, [participants]);
 
   const selectedCourse = courses.find(c => c.course_id == courseId);
+
+  // --- SUB-COMPONENT: Breakdown Grid ---
+  const BreakdownGrid = ({ data }) => (
+      <div style={{marginTop:'10px', fontSize:'11px', background:'rgba(255,255,255,0.6)', borderRadius:'6px', padding:'5px'}}>
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'2px'}}>
+              <span style={{color: COLORS.male, fontWeight:'bold'}}>M:</span>
+              <span><span style={{color: COLORS.old, fontWeight:'bold'}}>O: {data.om}</span> <span style={{color:'#aaa'}}>|</span> <span style={{color: COLORS.new, fontWeight:'bold'}}>N: {data.nm}</span></span>
+          </div>
+          <div style={{display:'flex', justifyContent:'space-between'}}>
+              <span style={{color: COLORS.female, fontWeight:'bold'}}>F:</span>
+              <span><span style={{color: COLORS.old, fontWeight:'bold'}}>O: {data.of}</span> <span style={{color:'#aaa'}}>|</span> <span style={{color: COLORS.new, fontWeight:'bold'}}>N: {data.nf}</span></span>
+          </div>
+      </div>
+  );
 
   return (
     <div style={styles.card}>
@@ -119,40 +139,47 @@ export default function CourseDashboard({ courses }) {
 
       {stats && !loading && (
           <>
+              {/* TOP KPI CARDS */}
               <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'20px', marginBottom:'30px'}}>
-                  <div style={{background:'#e3f2fd', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.male}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#0d47a1', textTransform:'uppercase'}}>Expected Total</div><div style={{fontSize:'32px', fontWeight:'900', color:'#333', display:'flex', alignItems:'baseline', gap:'10px'}}>{stats.total}<span style={{fontSize:'14px', fontWeight:'normal', color:'#555'}}>(M: <span style={{color: COLORS.male, fontWeight:'bold'}}>{stats.expectedMale}</span> | F: <span style={{color: COLORS.female, fontWeight:'bold'}}>{stats.expectedFemale}</span>)</span></div><div style={{fontSize:'11px', color:'#666'}}>Valid Registrations</div></div>
-                  <div style={{background:'#e8f5e9', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.arrived}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#1b5e20', textTransform:'uppercase'}}>Checked-In</div><div style={{fontSize:'32px', fontWeight:'900', color:'#333'}}>{stats.arrived}</div><div style={{fontSize:'11px', color:'#666'}}>{stats.arrivalRate}% Completion</div></div>
-                  <div style={{background:'#fff3e0', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.pending}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#e65100', textTransform:'uppercase'}}>Pending Arrival</div><div style={{fontSize:'32px', fontWeight:'900', color:'#333'}}>{stats.pending}</div><div style={{fontSize:'11px', color:'#666'}}>Remaining</div></div>
-                  <div style={{background:'#fce4ec', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.female}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#880e4f', textTransform:'uppercase'}}>Critical Pending</div><div style={{fontSize:'32px', fontWeight:'900', color:'#c2185b'}}>{stats.criticalPending.length}</div><div style={{fontSize:'11px', color:'#666'}}>Medical / Elderly (65+)</div></div>
+                  
+                  {/* EXPECTED */}
+                  <div style={{background:'#e3f2fd', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.male}`}}>
+                      <div style={{fontSize:'12px', fontWeight:'bold', color:'#0d47a1', textTransform:'uppercase'}}>Expected Total</div>
+                      <div style={{fontSize:'32px', fontWeight:'900', color:'#333', display:'flex', alignItems:'baseline', gap:'10px'}}>
+                          {stats.total}
+                          <span style={{fontSize:'14px', fontWeight:'normal', color:'#555'}}>(M: <span style={{color: COLORS.male, fontWeight:'bold'}}>{stats.expectedMale}</span> | F: <span style={{color: COLORS.female, fontWeight:'bold'}}>{stats.expectedFemale}</span>)</span>
+                      </div>
+                      <div style={{fontSize:'11px', color:'#666'}}>Valid Registrations</div>
+                  </div>
+
+                  {/* CHECKED IN */}
+                  <div style={{background:'#e8f5e9', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.arrived}`}}>
+                      <div style={{fontSize:'12px', fontWeight:'bold', color:'#1b5e20', textTransform:'uppercase'}}>Checked-In</div>
+                      <div style={{fontSize:'32px', fontWeight:'900', color:'#333'}}>{stats.arrived}</div>
+                      {/* Breakdown Grid */}
+                      <BreakdownGrid data={stats.arrivedStats} />
+                  </div>
+
+                  {/* PENDING ARRIVAL */}
+                  <div style={{background:'#fff3e0', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.pending}`}}>
+                      <div style={{fontSize:'12px', fontWeight:'bold', color:'#e65100', textTransform:'uppercase'}}>Pending Arrival</div>
+                      <div style={{fontSize:'32px', fontWeight:'900', color:'#333'}}>{stats.pending}</div>
+                      {/* Breakdown Grid */}
+                      <BreakdownGrid data={stats.pendingStats} />
+                  </div>
+
+                  {/* CRITICAL */}
+                  <div style={{background:'#fce4ec', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.female}`}}>
+                      <div style={{fontSize:'12px', fontWeight:'bold', color:'#880e4f', textTransform:'uppercase'}}>Critical Pending</div>
+                      <div style={{fontSize:'32px', fontWeight:'900', color:'#c2185b'}}>{stats.criticalPending.length}</div>
+                      <div style={{fontSize:'11px', color:'#666', marginTop:'10px'}}>Medical / Elderly (65+)</div>
+                  </div>
               </div>
 
+              {/* CHARTS ROW 1 */}
               <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'20px', marginBottom:'30px'}}>
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}><h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}><Users size={18}/> Expected Age Distribution</h4><div style={{height:'300px', width:'100%'}}><ResponsiveContainer><BarChart data={stats.ageData} margin={{top: 20, right: 30, left: 0, bottom: 5}}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><Tooltip cursor={{fill: 'transparent'}} /><Legend /><Bar dataKey="Male" fill={COLORS.male} radius={[4, 4, 0, 0]} /><Bar dataKey="Female" fill={COLORS.female} radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></div>
-                  
-                  {/* ✅ UPDATED: Detailed Student Mix Pie Chart */}
-                  <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}>
-                      <h4 style={{marginTop:0, color:'#555'}}>Student Mix</h4>
-                      <div style={{height:'220px', width:'100%'}}>
-                          <ResponsiveContainer>
-                              <PieChart>
-                                  <Pie data={stats.catData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={2} dataKey="value">
-                                      {stats.catData.map((entry, index) => (
-                                          <Cell key={`cell-${index}`} fill={entry.color} />
-                                      ))}
-                                  </Pie>
-                                  <Tooltip />
-                              </PieChart>
-                          </ResponsiveContainer>
-                      </div>
-                      <div style={{display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'10px', marginTop:'5px'}}>
-                          {stats.catData.map(d => (
-                              <div key={d.name} style={{fontSize:'11px', display:'flex', alignItems:'center', gap:'4px'}}>
-                                  <div style={{width:'8px', height:'8px', borderRadius:'50%', background:d.color}}></div>
-                                  <span style={{color:'#555', fontWeight:'bold'}}>{d.code}: {d.value}</span>
-                              </div>
-                          ))}
-                      </div>
-                  </div>
+                  <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}><h4 style={{marginTop:0, color:'#555'}}>Student Mix</h4><div style={{height:'220px', width:'100%'}}><ResponsiveContainer><PieChart><Pie data={stats.catData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={2} dataKey="value">{stats.catData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}</Pie><Tooltip /></PieChart></ResponsiveContainer></div><div style={{display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'10px', marginTop:'5px'}}>{stats.catData.map(d => (<div key={d.name} style={{fontSize:'11px', display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'8px', height:'8px', borderRadius:'50%', background:d.color}}></div><span style={{color:'#555', fontWeight:'bold'}}>{d.code}: {d.value}</span></div>))}</div></div>
               </div>
 
               {/* SEATING LOGISTICS FOR ADMIN */}
@@ -171,6 +198,7 @@ export default function CourseDashboard({ courses }) {
                   </div>
               </div>
 
+              {/* CHARTS ROW 2 */}
               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'30px'}}>
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}><h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}><Headphones size={18}/> Live Discourse Req. (Checked-In)</h4><div style={{height:'200px', width:'100%'}}>{stats.langData.length > 0 ? (<ResponsiveContainer><BarChart data={stats.langData} layout="vertical" margin={{top: 5, right: 30, left: 20, bottom: 5}}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" /><YAxis dataKey="name" type="category" width={80} style={{fontSize:'12px', fontWeight:'bold'}} /><Tooltip cursor={{fill: 'transparent'}} /><Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={20} name="Students">{stats.langData.map((entry, index) => <Cell key={`cell-${index}`} fill={LANG_COLORS[index % LANG_COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer>) : <div style={{height:'100%', display:'flex', alignItems:'center', justifyContent:'center', color:'#ccc'}}>No check-in language data yet.</div>}</div></div>
                   <div style={{border:'1px solid #ffcdd2', borderRadius:'12px', overflow:'hidden', display:'flex', flexDirection:'column'}}><div style={{background:'#ffebee', padding:'10px 15px', color:'#c62828', fontWeight:'bold', display:'flex', alignItems:'center', gap:'10px'}}><AlertTriangle size={18}/> Critical Pending (Medical/65+)</div><div style={{flex:1, overflowY:'auto', maxHeight:'240px', background:'#fff'}}>{stats.criticalPending.length > 0 ? (stats.criticalPending.map(p => (<div key={p.participant_id} style={{padding:'10px', borderBottom:'1px solid #eee', fontSize:'13px'}}><div style={{display:'flex', justifyContent:'space-between'}}><span style={{fontWeight:'bold'}}>{p.full_name}</span><span style={{fontSize:'11px', background:'#eee', padding:'1px 5px', borderRadius:'4px'}}>{p.conf_no}</span></div><div style={{color:'#666', fontSize:'11px'}}>Age: {p.age} • {p.gender}</div>{p.medical_info && <div style={{color:'red', fontSize:'11px', marginTop:'2px'}}>⚠️ {p.medical_info}</div>}</div>))) : <div style={{padding:'20px', textAlign:'center', color:'#999'}}>No critical pending cases.</div>}</div></div>
