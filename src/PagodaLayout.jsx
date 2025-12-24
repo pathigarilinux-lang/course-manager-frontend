@@ -43,7 +43,7 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
         </div>
 
         {/* Legend */}
-        <div style={{ display: 'flex', gap: '15px', fontSize: '12px', marginBottom: '15px', color: '#555', background:'#f9f9f9', padding:'10px', borderRadius:'8px' }}>
+        <div style={{ display: 'flex', gap: '15px', fontSize: '12px', marginBottom: '15px', justifyContent:'center', background:'#f9f9f9', padding:'10px', borderRadius:'8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '18px', height: '18px', borderRadius: '50%', border: `2px solid ${themeColor}`, background:'white' }}></div> Free</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#e3f2fd', border: '1px solid #90caf9', color:'#0d47a1', fontWeight:'bold', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px' }}>O</div> Old</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#fff3cd', border: '1px solid #ffeeba', color:'#856404', fontWeight:'bold', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px' }}>N</div> New</div>
@@ -64,13 +64,15 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
                   let bg = 'white';
                   let border = '1px solid #ccc';
                   let textColor = '#333';
+                  let badgeBg = 'transparent';
+                  let badgeColor = 'transparent';
 
                   if (isSel) {
                       bg = 'white'; border = `3px solid ${themeColor}`; textColor = themeColor;
                   } else if (isOcc) {
-                      if (occupantCat === 'O') { bg = '#e3f2fd'; border = '1px solid #90caf9'; textColor = '#0d47a1'; }
-                      else if (occupantCat === 'N') { bg = '#fff3cd'; border = '1px solid #ffeeba'; textColor = '#856404'; }
-                      else { bg = '#f0f0f0'; border = '1px solid #ddd'; textColor = '#aaa'; }
+                      bg = '#f5f5f5'; textColor = '#aaa'; // Dim the main button
+                      if (occupantCat === 'O') { badgeBg = '#007bff'; badgeColor = 'white'; }
+                      else if (occupantCat === 'N') { badgeBg = '#ffc107'; badgeColor = 'black'; }
                   }
 
                   return (
@@ -80,14 +82,28 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
                       onClick={() => !isOcc && onSelect(num)}
                       disabled={isOcc}
                       style={{
-                        width: '40px', height: '40px', borderRadius: '50%',
+                        width: '45px', height: '45px', borderRadius: '50%',
                         border: border, background: bg, color: textColor,
                         fontWeight: 'bold', cursor: isOcc ? 'not-allowed' : 'pointer',
                         boxShadow: isSel ? `0 0 10px ${themeColor}60` : '0 2px 4px rgba(0,0,0,0.05)',
-                        fontSize: '13px', display:'flex', alignItems:'center', justifyContent:'center'
+                        fontSize: '14px', display:'flex', alignItems:'center', justifyContent:'center',
+                        position: 'relative' // Essential for the badge
                       }}
                     >
-                      {isOcc && occupantCat ? occupantCat : num}
+                      {num}
+                      
+                      {/* THE SMALL BADGE */}
+                      {isOcc && occupantCat && (
+                          <div style={{
+                              position: 'absolute', top: '-2px', right: '-2px',
+                              width: '16px', height: '16px', borderRadius: '50%',
+                              background: badgeBg, color: badgeColor,
+                              fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              border: '1px solid white', boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                          }}>
+                              {occupantCat}
+                          </div>
+                      )}
                     </button>
                   );
                 })}
