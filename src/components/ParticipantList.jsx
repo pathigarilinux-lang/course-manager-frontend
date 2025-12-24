@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User } from 'lucide-react';
+import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, ArrowUp, ArrowDown } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 export default function ParticipantList({ courses, refreshCourses }) {
@@ -10,7 +10,13 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [filterType, setFilterType] = useState('ALL'); 
   const [editingStudent, setEditingStudent] = useState(null); 
   const [viewMode, setViewMode] = useState('list'); 
+  
+  // Sorting State for Main List
   const [sortConfig, setSortConfig] = useState({ key: 'full_name', direction: 'asc' });
+
+  // ✅ NEW: Sorting State for Sub-Views
+  const [diningSort, setDiningSort] = useState({ key: 'dining_seat_no', direction: 'asc' });
+  const [pagodaSort, setPagodaSort] = useState({ key: 'pagoda_cell_no', direction: 'asc' });
   
   // Logic State
   const [selectedSeat, setSelectedSeat] = useState(null);
@@ -132,17 +138,19 @@ export default function ParticipantList({ courses, refreshCourses }) {
       setTimeout(() => window.print(), 500); 
   };
 
-  // --- EXPORTS ---
+  // --- EXPORTS (✅ UPDATED: Cross Referencing) ---
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses Info", "Age", "Gender", "Room", "Dining Seat", "Pagoda", "Dhamma Seat", "Status", "Mobile Locker", "Valuables Locker", "Laundry Token", "Language"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', `"${p.courses_info || ''}"`, p.age || '', p.gender || '', p.room_no || '', p.dining_seat_no || '', p.pagoda_cell_no || '', p.dhamma_hall_seat_no || '', p.status || '', p.mobile_locker_no || '', p.valuables_locker_no || '', p.laundry_token_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
-  const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `dining_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   
-  // ✅ NEW: Pagoda CSV Export
+  // ✅ UPDATED DINING EXPORT: Added Pagoda Cell
+  const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Pagoda Cell", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.pagoda_cell_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `dining_${courseId}.csv`); document.body.appendChild(link); link.click(); };
+  
+  // ✅ UPDATED PAGODA EXPORT: Added Dining Seat
   const handlePagodaExport = () => {
       const assigned = participants.filter(p => p.status === 'Attending' && p.pagoda_cell_no);
       if (assigned.length === 0) return alert("No pagoda assignments found.");
-      const headers = ["Cell", "Name", "Conf", "Gender", "Room"];
+      const headers = ["Cell", "Name", "Conf", "Gender", "Room", "Dining Seat"];
       const rows = assigned.sort((a,b) => String(a.pagoda_cell_no).localeCompare(String(b.pagoda_cell_no), undefined, {numeric:true}))
-          .map(p => [p.pagoda_cell_no, `"${p.full_name || ''}"`, p.conf_no, p.gender, p.room_no]);
+          .map(p => [p.pagoda_cell_no, `"${p.full_name || ''}"`, p.conf_no, p.gender, p.room_no, p.dining_seat_no || '']);
       const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
@@ -166,18 +174,51 @@ export default function ParticipantList({ courses, refreshCourses }) {
       document.head.appendChild(style); window.print(); document.head.removeChild(style); 
   };
 
-  // ✅ UPDATED: renderTable supports Dynamic Title
-  const renderTable = (list, title, color, sectionId, subTitle) => ( 
-      <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> 
-          <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}>
-              <button onClick={() => printChart(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title}</button>
-          </div> 
-          <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} {subTitle}</h2> 
-          <h3 style={{textAlign:'center', marginTop:0, marginBottom:'20px', color:'#555'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3>
-          <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}><thead><tr><th style={styles.th}>S.N.</th><th style={styles.th}>Seat</th><th style={styles.th}>Name</th><th style={styles.th}>Cat</th><th style={styles.th}>Room</th></tr></thead><tbody>{list.map((p,i)=>(<tr key={p.participant_id}><td style={styles.td}>{i+1}</td><td style={{...styles.td, fontWeight:'bold'}}>{p.dining_seat_no || p.pagoda_cell_no}</td><td style={styles.td}>{p.full_name}</td><td style={styles.td}>{getCategory(p.conf_no)}</td><td style={styles.td}>{p.room_no}</td></tr>))}</tbody></table> 
-      </div> 
-  );
-  
+  // ✅ NEW: Professional A4 List Printer Function
+  const printA4List = (sectionId) => {
+      const style = document.createElement('style');
+      style.innerHTML = `
+          @media print {
+              @page { size: A4 portrait; margin: 10mm; }
+              html, body { margin: 0; padding: 0; background: white; }
+              body * { visibility: hidden; }
+              #${sectionId}, #${sectionId} * { visibility: visible; }
+              #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; }
+              .no-print { display: none !important; }
+              table { width: 100%; border-collapse: collapse; font-family: 'Helvetica', sans-serif; font-size: 11pt; }
+              th { background-color: #f2f2f2 !important; font-weight: bold; border: 1px solid #000; padding: 8px; text-transform: uppercase; }
+              td { border: 1px solid #000; padding: 6px 8px; }
+              h2, h3 { text-align: center; color: black !important; margin: 5px 0; }
+          }
+      `;
+      document.head.appendChild(style);
+      window.print();
+      document.head.removeChild(style);
+  };
+
+  // ✅ SORTING HELPER
+  const sortParticipants = (list, key, dir) => {
+      return [...list].sort((a, b) => {
+          let valA = a[key] || '';
+          let valB = b[key] || '';
+          
+          if (key === 'category') {
+              valA = getCategory(a.conf_no);
+              valB = getCategory(b.conf_no);
+          }
+
+          if (key === 'dining_seat_no' || key === 'pagoda_cell_no') {
+              return dir === 'asc' 
+                  ? String(valA).localeCompare(String(valB), undefined, { numeric: true })
+                  : String(valB).localeCompare(String(valA), undefined, { numeric: true });
+          }
+          
+          if (valA < valB) return dir === 'asc' ? -1 : 1;
+          if (valA > valB) return dir === 'asc' ? 1 : -1;
+          return 0;
+      });
+  };
+
   const getStatusColor = (s) => { if (s === 'Attending') return '#28a745'; if (s === 'Gate Check-In') return '#ffc107'; if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; return '#6c757d'; };
 
   // --- VIEW MODES ---
@@ -187,34 +228,129 @@ export default function ParticipantList({ courses, refreshCourses }) {
       return ( <div style={styles.card}> <div className="no-print"><button onClick={() => setShowSummaryReport(false)} style={styles.btn(false)}>← Back</button><button onClick={() => window.print()} style={{...styles.toolBtn('#007bff'), marginLeft:'10px'}}>Print PDF</button></div> <div className="print-area" id="print-summary" style={{padding:'20px'}}> <h2 style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px'}}>COURSE SUMMARY REPORT</h2> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><div><strong>Centre Name:</strong> Dhamma Nagajjuna 2</div><div><strong>Course Date:</strong> {courses.find(c=>c.course_id==courseId)?.start_date}</div></div> <h3 style={{background:'#eee', padding:'5px'}}>COURSE DETAILS</h3> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', marginBottom:'20px'}}><thead><tr style={{background:'#f0f0f0'}}><th rowSpan="2" style={styles.th}>Category</th><th colSpan="2" style={styles.th}>INDIAN</th><th colSpan="2" style={styles.th}>FOREIGNER</th><th rowSpan="2" style={styles.th}>TOTAL</th></tr><tr style={{background:'#f0f0f0'}}><th style={styles.th}>OLD</th><th style={styles.th}>NEW</th><th style={styles.th}>OLD</th><th style={styles.th}>NEW</th></tr></thead><tbody><tr><td style={styles.td}>MALE</td><td style={styles.td}>{getCount('m', 'OLD')}</td><td style={styles.td}>{getCount('m', 'NEW')}</td><td style={styles.td}>0</td><td style={styles.td}>0</td><td style={styles.td}><strong>{getCount('m', 'OLD') + getCount('m', 'NEW')}</strong></td></tr><tr><td style={styles.td}>FEMALE</td><td style={styles.td}>{getCount('f', 'OLD')}</td><td style={styles.td}>{getCount('f', 'NEW')}</td><td style={styles.td}>0</td><td style={styles.td}>0</td><td style={styles.td}><strong>{getCount('f', 'OLD') + getCount('f', 'NEW')}</strong></td></tr><tr style={{background:'#f0f0f0', fontWeight:'bold'}}><td style={styles.td}>TOTAL</td><td style={styles.td}>{getCount('m', 'OLD') + getCount('f', 'OLD')}</td><td style={styles.td}>{getCount('m', 'NEW') + getCount('f', 'NEW')}</td><td style={styles.td}>0</td><td style={styles.td}>0</td><td style={styles.td}>{arrived.length}</td></tr></tbody></table> </div> </div> );
   }
 
-  // ✅ UPDATED DINING VIEW
+  // ✅ VIEW: DINING (With Sorting & Pagoda Cell)
   if (viewMode === 'dining') { 
       const arrived = participants.filter(p => p.status==='Attending'); 
-      const sorter = (a,b) => String(a.dining_seat_no || '0').localeCompare(String(b.dining_seat_no || '0'), undefined, { numeric: true }); 
+      
+      const renderDiningTable = (list, title, color, sectionId) => {
+        // Sort the list based on state
+        const sortedList = sortParticipants(list, diningSort.key, diningSort.direction);
+
+        const handleSortClick = (key) => {
+            const dir = (diningSort.key === key && diningSort.direction === 'asc') ? 'desc' : 'asc';
+            setDiningSort({ key, direction: dir });
+        };
+
+        return (
+            <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}>
+                <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}>
+                    <button onClick={() => printA4List(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title} (A4)</button>
+                </div>
+                <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Dining List</h2>
+                <h3 style={{textAlign:'center', marginTop:0, marginBottom:'20px', color:'#555'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3>
+                
+                <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}>
+                    <thead>
+                        <tr style={{background:'#f0f0f0'}}>
+                            <th style={styles.th}>S.N.</th>
+                            <th style={{...styles.th, cursor:'pointer'}} onClick={()=>handleSortClick('dining_seat_no')}>
+                                SEAT {diningSort.key==='dining_seat_no' && (diningSort.direction==='asc' ? '▲' : '▼')}
+                            </th>
+                            <th style={styles.th}>Name</th>
+                            <th style={{...styles.th, cursor:'pointer'}} onClick={()=>handleSortClick('category')}>
+                                CAT {diningSort.key==='category' && (diningSort.direction==='asc' ? '▲' : '▼')}
+                            </th>
+                            <th style={styles.th}>Room</th>
+                            <th style={styles.th}>Pagoda</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sortedList.map((p,i)=>(
+                            <tr key={p.participant_id}>
+                                <td style={styles.td}>{i+1}</td>
+                                <td style={{...styles.td, fontWeight:'bold'}}>{p.dining_seat_no}</td>
+                                <td style={styles.td}>{p.full_name}</td>
+                                <td style={styles.td}>{getCategory(p.conf_no)}</td>
+                                <td style={styles.td}>{p.room_no}</td>
+                                <td style={styles.td}>{p.pagoda_cell_no}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+      };
+
       return (
           <div style={styles.card}>
               <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}>
                   <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button>
                   <button onClick={handleDiningExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Dining CSV</button>
               </div>
-              {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-m", "Dining Seating List")}
-              {renderTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-f", "Dining Seating List")}
+              {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff", "pd-m")}
+              {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63", "pd-f")}
           </div>
       ); 
   }
   
-  // ✅ UPDATED PAGODA VIEW
+  // ✅ VIEW: PAGODA (Renamed Seat->Cell, Added Dining, Added Sorting)
   if (viewMode === 'pagoda') { 
       const assigned = participants.filter(p => p.status==='Attending' && p.pagoda_cell_no); 
-      const sorter = (a,b) => String(a.pagoda_cell_no || '0').localeCompare(String(b.pagoda_cell_no || '0'), undefined, { numeric: true }); 
+      
+      const renderPagodaTable = (list, title, color, sectionId) => {
+        const sortedList = sortParticipants(list, pagodaSort.key, pagodaSort.direction);
+
+        const handleSortClick = (key) => {
+            const dir = (pagodaSort.key === key && pagodaSort.direction === 'asc') ? 'desc' : 'asc';
+            setPagodaSort({ key, direction: dir });
+        };
+
+        return (
+            <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}>
+                <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}>
+                    <button onClick={() => printA4List(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title} (A4)</button>
+                </div>
+                <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Pagoda Cell List</h2>
+                <h3 style={{textAlign:'center', marginTop:0, marginBottom:'20px', color:'#555'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3>
+                
+                <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}>
+                    <thead>
+                        <tr style={{background:'#f0f0f0'}}>
+                            <th style={styles.th}>S.N.</th>
+                            <th style={{...styles.th, cursor:'pointer'}} onClick={()=>handleSortClick('pagoda_cell_no')}>
+                                CELL {pagodaSort.key==='pagoda_cell_no' && (pagodaSort.direction==='asc' ? '▲' : '▼')}
+                            </th>
+                            <th style={styles.th}>Name</th>
+                            <th style={styles.th}>Cat</th>
+                            <th style={styles.th}>Room</th>
+                            <th style={styles.th}>Dining</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sortedList.map((p,i)=>(
+                            <tr key={p.participant_id}>
+                                <td style={styles.td}>{i+1}</td>
+                                <td style={{...styles.td, fontWeight:'bold'}}>{p.pagoda_cell_no}</td>
+                                <td style={styles.td}>{p.full_name}</td>
+                                <td style={styles.td}>{getCategory(p.conf_no)}</td>
+                                <td style={styles.td}>{p.room_no}</td>
+                                <td style={styles.td}>{p.dining_seat_no}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+      };
+
       return (
           <div style={styles.card}>
               <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}>
                   <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button>
                   <button onClick={handlePagodaExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Pagoda CSV</button>
               </div>
-              {renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')).sort(sorter), "MALE", "#007bff", "pd-pm", "Pagoda Cell List")}
-              {renderTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')).sort(sorter), "FEMALE", "#e91e63", "pd-pf", "Pagoda Cell List")}
+              {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff", "pd-pm")}
+              {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63", "pd-pf")}
           </div>
       ); 
   }
@@ -362,7 +498,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
       {/* RECEIPT MODAL */}
       {printReceiptData && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}><button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button><div id="receipt-print-area" style={{padding:'10px', border:'1px dashed #ccc', fontFamily:'Helvetica, Arial, sans-serif', color:'black'}}><div style={{textAlign:'center', fontWeight:'bold', marginBottom:'8px'}}><div style={{fontSize:'18px'}}>VIPASSANA</div><div style={{fontSize:'12px'}}>International Meditation Center</div><div style={{fontSize:'14px'}}>Dhamma Nagajjuna 2</div></div><div style={{borderBottom:'2px solid black', margin:'10px 0'}}></div><div style={{fontSize:'12px', marginBottom:'10px'}}><div><strong>Course:</strong> {printReceiptData.courseName}</div><div><strong>Teacher:</strong> {printReceiptData.teacherName}</div><div><strong>Dates:</strong> {printReceiptData.from} to {printReceiptData.to}</div></div><div style={{borderBottom:'1px solid black', margin:'10px 0'}}></div><div style={{fontSize:'16px', fontWeight:'bold', margin:'10px 0'}}><div>{printReceiptData.studentName}</div><div style={{fontSize:'14px'}}>Conf: {printReceiptData.confNo}</div></div><table style={{width:'100%', fontSize:'14px', border:'1px solid black', borderCollapse:'collapse'}}><tbody><tr><td style={{border:'1px solid black', padding:'5px'}}>Room</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.roomNo}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Dining</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.seatNo}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Lockers</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.lockers}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Lang</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.language}</td></tr>{printReceiptData.pagoda && <tr><td style={{border:'1px solid black', padding:'5px'}}>Pagoda</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.pagoda}</td></tr>}{printReceiptData.special && <tr><td style={{border:'1px solid black', padding:'5px'}}>Special</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.special}</td></tr>}</tbody></table><div style={{textAlign:'center', fontSize:'10px', fontStyle:'italic', marginTop:'10px'}}>*** Student Copy ***</div></div><div className="no-print" style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={() => window.print()} style={{flex:1, padding:'12px', background:'#007bff', color:'white', border:'none', borderRadius:'6px'}}>PRINT</button></div></div><style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none; } @page { size: 72mm auto; margin: 0; } }`}</style></div>}
 
-      {/* BULK TOKEN UI MODAL (Trigger Only) */}
+      {/* BULK TOKEN UI MODAL */}
       {showBulkModal && (
           <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}>
               <div style={{background:'white', padding:'30px', borderRadius:'10px', width:'400px', textAlign:'center'}}>
