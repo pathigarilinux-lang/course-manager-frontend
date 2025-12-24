@@ -1,4 +1,5 @@
 import React from 'react';
+import { AlertCircle } from 'lucide-react';
 
 // --- CONFIGURATION ---
 const INDIAN_COMMODES = new Set([
@@ -84,30 +85,81 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
         
         const p = bed.occupant;
         const isOcc = !!p;
-        const isOld = p && (p.conf_no || '').match(/^(O|S)/i);
-        const bg = isOcc ? (isOld ? '#e1bee7' : '#c8e6c9') : 'white';
-        const border = isOcc ? (isOld ? '#8e24aa' : '#2e7d32') : '#ddd';
+        
+        // Medical Logic (Rooms 321 - 328)
+        const isMedical = group.baseNum >= 321 && group.baseNum <= 328;
+
+        // O/N Logic
+        let isOld = false;
+        let badgeColor = null;
+        let badgeText = null;
+
+        if (isOcc) {
+            const conf = (p.conf_no || '').toUpperCase();
+            isOld = conf.startsWith('O') || conf.startsWith('S');
+            badgeText = isOld ? 'O' : 'N';
+            badgeColor = isOld ? '#007bff' : '#ffc107'; // Blue vs Yellow
+        }
+
+        const bg = isOcc ? '#f8f9fa' : (isMedical ? '#fff8e1' : 'white');
+        const border = isOcc ? '#ccc' : (isMedical ? '#ffcc80' : '#ddd');
 
         return (
             <div onClick={() => onRoomClick(bed)}
-                 style={{ border: `2px solid ${border}`, borderRadius: '6px', background: bg, padding: '5px', cursor: 'pointer', minHeight: '70px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                 title={isMedical ? "Reserved for Medical/Senior" : ""}
+                 style={{ 
+                     border: `2px solid ${border}`, 
+                     borderRadius: '6px', 
+                     background: bg, 
+                     padding: '5px', 
+                     cursor: 'pointer', 
+                     minHeight: '70px', 
+                     display: 'flex', flexDirection: 'column', justifyContent: 'space-between', 
+                     boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                     position: 'relative'
+                 }}>
+                
+                {/* Header */}
                 <div style={{display:'flex', justifyContent:'space-between', borderBottom:'1px solid rgba(0,0,0,0.1)', paddingBottom:'2px', marginBottom:'2px'}}>
-                    <span style={{fontWeight:'900', fontSize:'13px', color:'#333'}}>{group.baseNum}</span>
+                    <div style={{display:'flex', alignItems:'center', gap:'2px'}}>
+                        <span style={{fontWeight:'900', fontSize:'13px', color: isMedical ? '#e65100' : '#333'}}>{group.baseNum}</span>
+                        {isMedical && <AlertCircle size={10} color="#f57c00" />}
+                    </div>
                     <span style={{fontSize:'9px', background: group.toilet.color, color:'white', padding:'1px 3px', borderRadius:'3px', fontWeight:'bold'}}>{group.toilet.label}</span>
                 </div>
+
+                {/* Content */}
                 {isOcc ? (
                     <div style={{fontSize:'10px', lineHeight:'1.1'}}>
                         <div style={{fontWeight:'bold', color:'#000', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{p.full_name}</div>
                         <div style={{fontSize:'9px', color:'#444'}}>{p.conf_no}</div>
                     </div>
-                ) : <div style={{fontSize:'9px', color:'#ccc', textAlign:'center'}}>EMPTY</div>}
+                ) : <div style={{fontSize:'9px', color: isMedical ? '#e65100' : '#ccc', textAlign:'center', fontWeight: isMedical ? 'bold' : 'normal'}}>{isMedical ? 'MED/SR' : 'EMPTY'}</div>}
+
+                {/* O/N Badge */}
+                {isOcc && (
+                    <div style={{
+                        position: 'absolute', top: '-6px', right: '-6px',
+                        width: '16px', height: '16px', borderRadius: '50%',
+                        background: badgeColor, color: badgeText === 'N' ? 'black' : 'white',
+                        fontSize: '9px', fontWeight:'bold', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        border: '1px solid white', boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                    }}>
+                        {badgeText}
+                    </div>
+                )}
             </div>
         );
     };
 
-    // --- RENDER COMPONENT: Double Bed Box (Split) ---
+    // --- RENDER COMPONENT: Double Bed Box ---
     const DoubleBedBox = ({ group }) => {
-        const sortedBeds = group.beds.sort((a,b) => a.room_no.localeCompare(b.room_no));
+        let sortedBeds = group.beds.sort((a,b) => a.room_no.localeCompare(b.room_no));
+
+        // ✅ FIX: Force Room 363 to 2 Beds max
+        if (group.baseNum === 363 && sortedBeds.length > 2) {
+            sortedBeds = sortedBeds.slice(0, 2);
+        }
 
         return (
             <div style={{border: '1px solid #999', borderRadius: '6px', overflow:'hidden', background:'white', boxShadow: '0 1px 2px rgba(0,0,0,0.1)'}}>
@@ -119,15 +171,24 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                     {sortedBeds.map((bed, index) => {
                         const p = bed.occupant;
                         const isOcc = !!p;
-                        const isOld = p && (p.conf_no || '').match(/^(O|S)/i);
                         const bedLabel = bed.room_no.endsWith('A') ? 'Bed A' : (bed.room_no.endsWith('B') ? 'Bed B' : `Bed ${index + 1}`);
                         
-                        let bg = index === 0 ? '#f0f8ff' : '#fffde7'; // Bed A (Blue), Bed B (Yellow)
-                        if (isOcc) bg = isOld ? '#e1bee7' : '#c8e6c9';
+                        let bg = index === 0 ? '#f0f8ff' : '#fffde7'; 
+                        if (isOcc) bg = '#f5f5f5'; // Dim occupied
+
+                        // O/N Logic
+                        let badgeColor = null;
+                        let badgeText = null;
+                        if (isOcc) {
+                            const conf = (p.conf_no || '').toUpperCase();
+                            const isOld = conf.startsWith('O') || conf.startsWith('S');
+                            badgeText = isOld ? 'O' : 'N';
+                            badgeColor = isOld ? '#007bff' : '#ffc107';
+                        }
 
                         return (
                             <div key={bed.room_id} onClick={() => onRoomClick(bed)}
-                                 style={{ background: bg, padding: '4px', cursor: 'pointer', minHeight: '50px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                 style={{ background: bg, padding: '4px', cursor: 'pointer', minHeight: '50px', display: 'flex', flexDirection: 'column', justifyContent: 'center', position:'relative' }}>
                                 <div style={{fontSize:'8px', fontWeight:'bold', color:'#777', textAlign:'center', marginBottom:'1px'}}>{bedLabel}</div>
                                 {isOcc ? (
                                     <div style={{textAlign:'center', lineHeight:'1'}}>
@@ -135,6 +196,19 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                                         <div style={{fontSize:'8px', color:'#444'}}>{p.conf_no}</div>
                                     </div>
                                 ) : <div style={{fontSize:'10px', color:'rgba(0,0,0,0.1)', textAlign:'center'}}>🛏️</div>}
+
+                                {/* O/N Badge */}
+                                {isOcc && (
+                                    <div style={{
+                                        position: 'absolute', top: '2px', right: '2px',
+                                        width: '12px', height: '12px', borderRadius: '50%',
+                                        background: badgeColor, color: badgeText === 'N' ? 'black' : 'white',
+                                        fontSize: '8px', fontWeight:'bold', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        border: '1px solid white'
+                                    }}>
+                                        {badgeText}
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
@@ -162,7 +236,7 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
         </div>
     );
 
-    // --- UPDATED BLOCK SECTION WITH STATS ---
+    // --- BLOCK SECTION ---
     const BlockSection = ({ title, color, rangeStart, rangeEnd, children }) => {
         const stats = getStats(rangeStart, rangeEnd);
         return (
