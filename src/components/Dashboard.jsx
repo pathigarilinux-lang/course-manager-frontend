@@ -6,6 +6,16 @@ import { API_URL, styles } from '../config';
 const COLORS = { male: '#007bff', female: '#e91e63', arrived: '#28a745', pending: '#ffc107', cancelled: '#dc3545', old: '#6f42c1', new: '#20c997' };
 const LANG_COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#a4de6c', '#d0ed57'];
 
+// ✅ NEW: Detailed Palette for Student Mix
+const MIX_COLORS = {
+  OM: '#0d47a1', // Dark Blue
+  NM: '#64b5f6', // Light Blue
+  OF: '#880e4f', // Dark Pink
+  NF: '#f06292', // Light Pink
+  SM: '#2e7d32', // Dark Green
+  SF: '#69f0ae'  // Light Green
+};
+
 export default function CourseDashboard({ courses }) {
   const [courseId, setCourseId] = useState('');
   const [participants, setParticipants] = useState([]);
@@ -45,9 +55,34 @@ export default function CourseDashboard({ courses }) {
       });
       const ageData = Object.keys(ageGroups).map(key => ({ name: key, Male: ageGroups[key].m, Female: ageGroups[key].f }));
 
-      let oldS = 0, newS = 0;
-      valid.forEach(p => { const conf = (p.conf_no || '').toUpperCase(); if (conf.startsWith('O') || conf.startsWith('S')) oldS++; else newS++; });
-      const catData = [{ name: 'Old Student', value: oldS }, { name: 'New Student', value: newS }];
+      // ✅ UPDATED: Detailed Student Mix Logic (OM/NM/OF/NF/SM/SF)
+      const mixCounts = { OM:0, NM:0, OF:0, NF:0, SM:0, SF:0 };
+      
+      valid.forEach(p => {
+          const conf = (p.conf_no || '').toUpperCase();
+          const isMale = (p.gender || '').toLowerCase().startsWith('m');
+          
+          if (conf.startsWith('S')) {
+              // Servers
+              if (isMale) mixCounts.SM++; else mixCounts.SF++;
+          } else if (conf.startsWith('O')) {
+              // Old Students
+              if (isMale) mixCounts.OM++; else mixCounts.OF++;
+          } else {
+              // New Students (Default)
+              if (isMale) mixCounts.NM++; else mixCounts.NF++;
+          }
+      });
+
+      // Transform for Chart
+      const catData = [
+          { name: 'Old Male', value: mixCounts.OM, code: 'OM', color: MIX_COLORS.OM },
+          { name: 'New Male', value: mixCounts.NM, code: 'NM', color: MIX_COLORS.NM },
+          { name: 'Old Female', value: mixCounts.OF, code: 'OF', color: MIX_COLORS.OF },
+          { name: 'New Female', value: mixCounts.NF, code: 'NF', color: MIX_COLORS.NF },
+          { name: 'Server M', value: mixCounts.SM, code: 'SM', color: MIX_COLORS.SM },
+          { name: 'Server F', value: mixCounts.SF, code: 'SF', color: MIX_COLORS.SF }
+      ].filter(item => item.value > 0); // Only show non-zero slices
 
       const criticalPending = pending.filter(p => (parseInt(p.age) >= 65) || (p.medical_info && p.medical_info.length > 2));
 
@@ -93,7 +128,31 @@ export default function CourseDashboard({ courses }) {
 
               <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'20px', marginBottom:'30px'}}>
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}><h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}><Users size={18}/> Expected Age Distribution</h4><div style={{height:'300px', width:'100%'}}><ResponsiveContainer><BarChart data={stats.ageData} margin={{top: 20, right: 30, left: 0, bottom: 5}}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><Tooltip cursor={{fill: 'transparent'}} /><Legend /><Bar dataKey="Male" fill={COLORS.male} radius={[4, 4, 0, 0]} /><Bar dataKey="Female" fill={COLORS.female} radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></div>
-                  <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}><h4 style={{marginTop:0, color:'#555'}}>Student Mix</h4><div style={{height:'250px', width:'100%'}}><ResponsiveContainer><PieChart><Pie data={stats.catData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"><Cell fill={COLORS.old} /><Cell fill={COLORS.new} /></Pie><Tooltip /><Legend verticalAlign="bottom" height={36}/></PieChart></ResponsiveContainer></div><div style={{textAlign:'center', marginTop:'10px'}}><span style={{fontSize:'12px', color: COLORS.old, fontWeight:'bold', marginRight:'10px'}}>Old: {stats.catData[0].value}</span><span style={{fontSize:'12px', color: COLORS.new, fontWeight:'bold'}}>New: {stats.catData[1].value}</span></div></div>
+                  
+                  {/* ✅ UPDATED: Detailed Student Mix Pie Chart */}
+                  <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}>
+                      <h4 style={{marginTop:0, color:'#555'}}>Student Mix</h4>
+                      <div style={{height:'220px', width:'100%'}}>
+                          <ResponsiveContainer>
+                              <PieChart>
+                                  <Pie data={stats.catData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={2} dataKey="value">
+                                      {stats.catData.map((entry, index) => (
+                                          <Cell key={`cell-${index}`} fill={entry.color} />
+                                      ))}
+                                  </Pie>
+                                  <Tooltip />
+                              </PieChart>
+                          </ResponsiveContainer>
+                      </div>
+                      <div style={{display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'10px', marginTop:'5px'}}>
+                          {stats.catData.map(d => (
+                              <div key={d.name} style={{fontSize:'11px', display:'flex', alignItems:'center', gap:'4px'}}>
+                                  <div style={{width:'8px', height:'8px', borderRadius:'50%', background:d.color}}></div>
+                                  <span style={{color:'#555', fontWeight:'bold'}}>{d.code}: {d.value}</span>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
               </div>
 
               {/* SEATING LOGISTICS FOR ADMIN */}
