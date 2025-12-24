@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Utensils, BarChart2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Utensils, BarChart2, Armchair, LayoutGrid } from 'lucide-react'; // Added Icons
 import { API_URL, styles } from '../config';
-import Dashboard from './Dashboard'; // Import Dashboard
+import Dashboard from './Dashboard'; 
 
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
 const tdPrint = { padding: '8px', border: '1px solid #000', fontSize:'12px', verticalAlign:'middle' };
@@ -13,9 +13,24 @@ export default function ATPanel({ courses }) {
   const [editingStudent, setEditingStudent] = useState(null);
   const [sortOrder, setSortOrder] = useState('desc');
   const [showKitchenReport, setShowKitchenReport] = useState(false);
-  const [showDashboard, setShowDashboard] = useState(false); // Default hidden for teachers
+  const [showDashboard, setShowDashboard] = useState(false); 
 
   useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(setParticipants); }, [courseId]);
+
+  // --- SEATING STATS ENGINE ---
+  const seatingStats = useMemo(() => {
+      const stats = { Chowky: 0, Chair: 0, BackRest: 0, Floor: 0, Total: 0 };
+      participants.forEach(p => {
+          if(p.status === 'Cancelled') return;
+          const type = p.special_seating || 'None';
+          if(type === 'Chowky') stats.Chowky++;
+          else if(type === 'Chair') stats.Chair++;
+          else if(type === 'BackRest') stats.BackRest++;
+          else stats.Floor++;
+          stats.Total++;
+      });
+      return stats;
+  }, [participants]);
 
   const handleLocalChange = (field, value) => setEditingStudent(prev => ({ ...prev, [field]: value }));
 
@@ -56,12 +71,41 @@ export default function ATPanel({ courses }) {
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
           <h2>AT Panel</h2>
           <div style={{display:'flex', gap:'10px'}}>
-             <button onClick={()=>setShowDashboard(!showDashboard)} style={styles.btn(showDashboard)}><BarChart2 size={16}/> {showDashboard ? 'Hide Stats' : 'View Dashboard'}</button>
+             <button onClick={()=>setShowDashboard(!showDashboard)} style={styles.btn(showDashboard)}><BarChart2 size={16}/> {showDashboard ? 'Hide Stats' : 'View Arrival Stats'}</button>
              <button onClick={() => {setShowKitchenReport(true); setTimeout(() => window.print(), 500);}} disabled={!courseId} style={styles.toolBtn('#ff9800')}><Utensils size={16}/> Kitchen Report</button>
           </div>
       </div>
 
-      {/* EMBEDDED DASHBOARD */}
+      {/* 1. SEATING LOGISTICS DASHBOARD (New Requirement) */}
+      {courseId && (
+          <div style={{background:'linear-gradient(to right, #f8f9fa, #e9ecef)', padding:'20px', borderRadius:'12px', marginBottom:'25px', border:'1px solid #dee2e6', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+              <div>
+                  <h3 style={{margin:'0 0 5px 0', color:'#495057', display:'flex', alignItems:'center', gap:'8px'}}>
+                      <Armchair size={20}/> Dhamma Hall Setup Plan
+                  </h3>
+                  <div style={{fontSize:'12px', color:'#666'}}>Physical arrangement counts based on student requests</div>
+              </div>
+              <div style={{display:'flex', gap:'20px'}}>
+                  <div style={{background:'white', padding:'10px 20px', borderRadius:'8px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', textAlign:'center', borderBottom:'3px solid #007bff'}}>
+                      <div style={{fontSize:'24px', fontWeight:'bold', color:'#007bff'}}>{seatingStats.Chowky}</div>
+                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#666', textTransform:'uppercase'}}>Chowky</div>
+                  </div>
+                  <div style={{background:'white', padding:'10px 20px', borderRadius:'8px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', textAlign:'center', borderBottom:'3px solid #e91e63'}}>
+                      <div style={{fontSize:'24px', fontWeight:'bold', color:'#e91e63'}}>{seatingStats.Chair}</div>
+                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#666', textTransform:'uppercase'}}>Chair</div>
+                  </div>
+                  <div style={{background:'white', padding:'10px 20px', borderRadius:'8px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', textAlign:'center', borderBottom:'3px solid #fd7e14'}}>
+                      <div style={{fontSize:'24px', fontWeight:'bold', color:'#fd7e14'}}>{seatingStats.BackRest}</div>
+                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#666', textTransform:'uppercase'}}>BackRest</div>
+                  </div>
+                  <div style={{background:'white', padding:'10px 20px', borderRadius:'8px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', textAlign:'center', borderBottom:'3px solid #28a745'}}>
+                      <div style={{fontSize:'24px', fontWeight:'bold', color:'#28a745'}}>{seatingStats.Floor}</div>
+                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#666', textTransform:'uppercase'}}>Floor Cushion</div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {showDashboard && (
           <div style={{marginBottom:'30px', borderBottom:'2px solid #eee', paddingBottom:'20px'}}>
               <Dashboard courses={courses} externalData={{ participants }} role="teacher" />
@@ -89,7 +133,11 @@ export default function ATPanel({ courses }) {
                  <td style={{padding:'10px', color:'#777'}}>{i+1}</td>
                  <td style={{padding:'10px'}}><strong>{p.full_name}</strong></td>
                  <td style={{padding:'10px'}}>{p.conf_no}</td>
-                 <td style={{padding:'10px'}}>{p.special_seating || '-'}</td>
+                 <td style={{padding:'10px'}}>
+                     {p.special_seating === 'Chair' && '🪑 '} 
+                     {p.special_seating === 'Chowky' && '🧘 '}
+                     {p.special_seating || '-'}
+                 </td>
                  <td style={{padding:'10px'}}>{p.evening_food || '-'}</td>
                  <td style={{padding:'10px'}}>{p.medical_info || '-'}</td>
                  <td style={{padding:'10px'}}><button onClick={() => setEditingStudent(p)} style={{...styles.toolBtn('#007bff'), padding:'5px 10px'}}>✏️ Detail</button></td>
