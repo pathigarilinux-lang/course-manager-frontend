@@ -132,7 +132,7 @@ export default function CourseDashboard({ courses }) {
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'15px'}}>
           <div>
               <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px', color:'#2c3e50'}}>
-                  <Activity size={28} color="#e91e63"/> Zero-Day-Course-Dashboard
+                  <Activity size={28} color="#e91e63"/> Zero-Day-Dashboard
               </h2>
               <div style={{color:'#666', marginTop:'5px', fontSize:'14px'}}>
                   Real-time Operational Metrics • {selectedCourse?.course_name || 'Select Course'}
