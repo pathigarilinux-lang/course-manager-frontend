@@ -14,18 +14,9 @@ const COLORS = {
   new: '#20c997'
 };
 
-// ✅ NEW: Vibrant Palette for Languages (Cycle through these)
+// Vibrant Palette for Languages
 const LANG_COLORS = [
-  '#8884d8', // Purple
-  '#82ca9d', // Light Green
-  '#ffc658', // Yellow/Orange
-  '#ff8042', // Deep Orange
-  '#0088FE', // Blue
-  '#00C49F', // Teal
-  '#FFBB28', // Yellow
-  '#FF8042', // Orange
-  '#a4de6c', // Lime
-  '#d0ed57'  // Yellow-Green
+  '#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#a4de6c', '#d0ed57'
 ];
 
 export default function CourseDashboard({ courses }) {
@@ -62,10 +53,14 @@ export default function CourseDashboard({ courses }) {
       const arrived = valid.filter(p => p.status === 'Attending');
       const pending = valid.filter(p => p.status !== 'Attending');
       
-      // 1. Arrival Speed
+      // 1. Gender Split for Expected Total (✅ NEW FEATURE)
+      const expectedMale = valid.filter(p => (p.gender || '').toLowerCase().startsWith('m')).length;
+      const expectedFemale = valid.filter(p => (p.gender || '').toLowerCase().startsWith('f')).length;
+
+      // 2. Arrival Speed
       const arrivalRate = Math.round((arrived.length / valid.length) * 100) || 0;
 
-      // 2. Age Distribution (Expected)
+      // 3. Age Distribution (Expected)
       const ageGroups = { '18-29': {m:0, f:0}, '30-49': {m:0, f:0}, '50-64': {m:0, f:0}, '65+': {m:0, f:0} };
       valid.forEach(p => {
           const age = parseInt(p.age) || 0;
@@ -84,7 +79,7 @@ export default function CourseDashboard({ courses }) {
           Female: ageGroups[key].f
       }));
 
-      // 3. Category Split
+      // 4. Category Split
       let oldS = 0, newS = 0;
       valid.forEach(p => {
           const conf = (p.conf_no || '').toUpperCase();
@@ -96,12 +91,12 @@ export default function CourseDashboard({ courses }) {
           { name: 'New Student', value: newS }
       ];
 
-      // 4. Critical Pending (Medical/Elderly)
+      // 5. Critical Pending (Medical/Elderly)
       const criticalPending = pending.filter(p => 
           (parseInt(p.age) >= 65) || (p.medical_info && p.medical_info.length > 2)
       );
 
-      // 5. Discourse Language Distribution (Live Check-In Only)
+      // 6. Discourse Language Distribution (Live Check-In Only)
       const langCounts = {};
       arrived.forEach(p => {
           const lang = p.discourse_language;
@@ -114,7 +109,19 @@ export default function CourseDashboard({ courses }) {
           count: langCounts[key]
       })).sort((a,b) => b.count - a.count);
 
-      return { total: valid.length, arrived: arrived.length, pending: pending.length, arrivalRate, ageData, catData, langData, criticalPending, arrivedList: arrived.reverse().slice(0, 5) }; 
+      return { 
+          total: valid.length, 
+          expectedMale, // ✅
+          expectedFemale, // ✅
+          arrived: arrived.length, 
+          pending: pending.length, 
+          arrivalRate, 
+          ageData, 
+          catData, 
+          langData, 
+          criticalPending, 
+          arrivedList: arrived.reverse().slice(0, 5) 
+      }; 
   }, [participants]);
 
   const selectedCourse = courses.find(c => c.course_id == courseId);
@@ -143,11 +150,18 @@ export default function CourseDashboard({ courses }) {
           <>
               {/* TOP KPI CARDS */}
               <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'20px', marginBottom:'30px'}}>
+                  {/* ✅ UPDATED: EXPECTED TOTAL CARD */}
                   <div style={{background:'#e3f2fd', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.male}`}}>
                       <div style={{fontSize:'12px', fontWeight:'bold', color:'#0d47a1', textTransform:'uppercase'}}>Expected Total</div>
-                      <div style={{fontSize:'32px', fontWeight:'900', color:'#333'}}>{stats.total}</div>
+                      <div style={{fontSize:'32px', fontWeight:'900', color:'#333', display:'flex', alignItems:'baseline', gap:'10px'}}>
+                          {stats.total}
+                          <span style={{fontSize:'14px', fontWeight:'normal', color:'#555'}}>
+                              (M: <span style={{color: COLORS.male, fontWeight:'bold'}}>{stats.expectedMale}</span> | F: <span style={{color: COLORS.female, fontWeight:'bold'}}>{stats.expectedFemale}</span>)
+                          </span>
+                      </div>
                       <div style={{fontSize:'11px', color:'#666'}}>Valid Registrations</div>
                   </div>
+
                   <div style={{background:'#e8f5e9', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.arrived}`}}>
                       <div style={{fontSize:'12px', fontWeight:'bold', color:'#1b5e20', textTransform:'uppercase'}}>Checked-In</div>
                       <div style={{fontSize:'32px', fontWeight:'900', color:'#333'}}>{stats.arrived}</div>
@@ -167,12 +181,8 @@ export default function CourseDashboard({ courses }) {
 
               {/* CHARTS ROW 1 */}
               <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'20px', marginBottom:'30px'}}>
-                  
-                  {/* AGE DISTRIBUTION CHART */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}>
-                      <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}>
-                          <Users size={18}/> Expected Age Distribution
-                      </h4>
+                      <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}><Users size={18}/> Expected Age Distribution</h4>
                       <div style={{height:'300px', width:'100%'}}>
                           <ResponsiveContainer>
                               <BarChart data={stats.ageData} margin={{top: 20, right: 30, left: 0, bottom: 5}}>
@@ -187,21 +197,12 @@ export default function CourseDashboard({ courses }) {
                           </ResponsiveContainer>
                       </div>
                   </div>
-
-                  {/* STUDENT MIX PIE CHART */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}>
                       <h4 style={{marginTop:0, color:'#555'}}>Student Mix</h4>
                       <div style={{height:'250px', width:'100%'}}>
                           <ResponsiveContainer>
                               <PieChart>
-                                  <Pie
-                                      data={stats.catData}
-                                      cx="50%" cy="50%"
-                                      innerRadius={60}
-                                      outerRadius={80}
-                                      paddingAngle={5}
-                                      dataKey="value"
-                                  >
+                                  <Pie data={stats.catData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                                       <Cell fill={COLORS.old} />
                                       <Cell fill={COLORS.new} />
                                   </Pie>
@@ -217,14 +218,10 @@ export default function CourseDashboard({ courses }) {
                   </div>
               </div>
 
-              {/* CHARTS ROW 2: LANGUAGE & CRITICAL */}
+              {/* CHARTS ROW 2 */}
               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'30px'}}>
-                  
-                  {/* ✅ UPDATED: COLOR CODED LANGUAGE CHART */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}>
-                      <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}>
-                          <Headphones size={18}/> Live Discourse Req. (Checked-In)
-                      </h4>
+                      <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}><Headphones size={18}/> Live Discourse Req. (Checked-In)</h4>
                       <div style={{height:'200px', width:'100%'}}>
                           {stats.langData.length > 0 ? (
                               <ResponsiveContainer>
@@ -234,37 +231,20 @@ export default function CourseDashboard({ courses }) {
                                       <YAxis dataKey="name" type="category" width={80} style={{fontSize:'12px', fontWeight:'bold'}} />
                                       <Tooltip cursor={{fill: 'transparent'}} />
                                       <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={20} name="Students">
-                                          {/* Apply Unique Color to Each Bar */}
-                                          {stats.langData.map((entry, index) => (
-                                              <Cell key={`cell-${index}`} fill={LANG_COLORS[index % LANG_COLORS.length]} />
-                                          ))}
+                                          {stats.langData.map((entry, index) => <Cell key={`cell-${index}`} fill={LANG_COLORS[index % LANG_COLORS.length]} />)}
                                       </Bar>
                                   </BarChart>
                               </ResponsiveContainer>
-                          ) : (
-                              <div style={{height:'100%', display:'flex', alignItems:'center', justifyContent:'center', color:'#ccc'}}>
-                                  No check-in language data yet.
-                              </div>
-                          )}
-                      </div>
-                      <div style={{textAlign:'center', fontSize:'11px', color:'#999', marginTop:'5px'}}>
-                          * Distinct colors per language for easier reading.
+                          ) : <div style={{height:'100%', display:'flex', alignItems:'center', justifyContent:'center', color:'#ccc'}}>No check-in language data yet.</div>}
                       </div>
                   </div>
-
-                  {/* CRITICAL PENDING LIST */}
                   <div style={{border:'1px solid #ffcdd2', borderRadius:'12px', overflow:'hidden', display:'flex', flexDirection:'column'}}>
-                      <div style={{background:'#ffebee', padding:'10px 15px', color:'#c62828', fontWeight:'bold', display:'flex', alignItems:'center', gap:'10px'}}>
-                          <AlertTriangle size={18}/> Critical Pending (Medical/65+)
-                      </div>
+                      <div style={{background:'#ffebee', padding:'10px 15px', color:'#c62828', fontWeight:'bold', display:'flex', alignItems:'center', gap:'10px'}}><AlertTriangle size={18}/> Critical Pending (Medical/65+)</div>
                       <div style={{flex:1, overflowY:'auto', maxHeight:'240px', background:'#fff'}}>
                           {stats.criticalPending.length > 0 ? (
                               stats.criticalPending.map(p => (
                                   <div key={p.participant_id} style={{padding:'10px', borderBottom:'1px solid #eee', fontSize:'13px'}}>
-                                      <div style={{display:'flex', justifyContent:'space-between'}}>
-                                          <span style={{fontWeight:'bold'}}>{p.full_name}</span>
-                                          <span style={{fontSize:'11px', background:'#eee', padding:'1px 5px', borderRadius:'4px'}}>{p.conf_no}</span>
-                                      </div>
+                                      <div style={{display:'flex', justifyContent:'space-between'}}><span style={{fontWeight:'bold'}}>{p.full_name}</span><span style={{fontSize:'11px', background:'#eee', padding:'1px 5px', borderRadius:'4px'}}>{p.conf_no}</span></div>
                                       <div style={{color:'#666', fontSize:'11px'}}>Age: {p.age} • {p.gender}</div>
                                       {p.medical_info && <div style={{color:'red', fontSize:'11px', marginTop:'2px'}}>⚠️ {p.medical_info}</div>}
                                   </div>
@@ -276,16 +256,11 @@ export default function CourseDashboard({ courses }) {
 
               {/* LIVE FEED */}
               <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'12px'}}>
-                  <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}>
-                      <CheckCircle size={18} color="green"/> Recent Check-Ins
-                  </h4>
+                  <h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}><CheckCircle size={18} color="green"/> Recent Check-Ins</h4>
                   <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
                       {stats.arrivedList.length > 0 ? stats.arrivedList.map((p, i) => (
                           <div key={p.participant_id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', background:'white', padding:'10px', borderRadius:'6px', borderLeft:`4px solid ${p.gender.toLowerCase().startsWith('m')?COLORS.male:COLORS.female}`}}>
-                              <div>
-                                  <span style={{fontWeight:'bold'}}>{p.full_name}</span>
-                                  <span style={{fontSize:'12px', color:'#777', marginLeft:'10px'}}>{p.room_no ? `📍 Room ${p.room_no}` : 'No Room'}</span>
-                              </div>
+                              <div><span style={{fontWeight:'bold'}}>{p.full_name}</span><span style={{fontSize:'12px', color:'#777', marginLeft:'10px'}}>{p.room_no ? `📍 Room ${p.room_no}` : 'No Room'}</span></div>
                               <span style={{fontSize:'11px', background:'#e8f5e9', color:'#2e7d32', padding:'2px 8px', borderRadius:'10px'}}>Just Arrived</span>
                           </div>
                       )) : <div style={{color:'#999', fontStyle:'italic'}}>No arrivals yet today.</div>}
