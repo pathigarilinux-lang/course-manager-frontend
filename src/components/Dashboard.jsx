@@ -80,8 +80,8 @@ export default function CourseDashboard({ courses }) {
           { name: 'New Male', value: mixCounts.NM, code: 'NM', color: MIX_COLORS.NM },
           { name: 'Old Female', value: mixCounts.OF, code: 'OF', color: MIX_COLORS.OF },
           { name: 'New Female', value: mixCounts.NF, code: 'NF', color: MIX_COLORS.NF },
-          { name: 'Server F', value: mixCounts.SF, code: 'SF', color: MIX_COLORS.SF },
-          { name: 'Server M', value: mixCounts.SM, code: 'SM', color: MIX_COLORS.SM }
+          { name: 'Server M', value: mixCounts.SM, code: 'SM', color: MIX_COLORS.SM },
+          { name: 'Server F', value: mixCounts.SF, code: 'SF', color: MIX_COLORS.SF }
       ].filter(item => item.value > 0); // Only show non-zero slices
 
       const criticalPending = pending.filter(p => (parseInt(p.age) >= 65) || (p.medical_info && p.medical_info.length > 2));
