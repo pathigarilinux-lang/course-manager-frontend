@@ -42,18 +42,36 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
   // --- HELPERS ---
   const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
-  const getCategoryRank = (conf) => { const cat = getCategory(conf); return cat === 'OLD' ? 1 : 2; };
-
+  
   const getStudentStats = (p) => {
       if (!p) return { cat: '', s: 0, l: 0, age: '' };
       const conf = (p.conf_no || '').toUpperCase();
       const isOld = conf.startsWith('O') || conf.startsWith('S');
       const cat = isOld ? '(O)' : '(N)';
-      const sMatch = (p.courses_info || '').match(/S\s*[:=-]?\s*(\d+)/i);
-      const lMatch = (p.courses_info || '').match(/L\s*[:=-]?\s*(\d+)/i);
-      const s = sMatch ? sMatch[1] : '0';
-      const l = lMatch ? lMatch[1] : '0';
-      return { cat, s, l, age: p.age || '?' };
+      // Robust Regex to find S: and L: even if user types "s-5" or "S=5"
+      const sMatch = (p.courses_info || '').match(/[Ss]\s*[:=-]?\s*(\d+)/);
+      const lMatch = (p.courses_info || '').match(/[Ll]\s*[:=-]?\s*(\d+)/);
+      const s = sMatch ? parseInt(sMatch[1]) : 0;
+      const l = lMatch ? parseInt(lMatch[1]) : 0;
+      return { cat, s, l, age: parseInt(p.age) || 0 };
+  };
+
+  // ✅ ADVANCED PRIORITY SCORE CALCULATOR (Formula A)
+  const calculatePriorityScore = (p) => {
+      const stats = getStudentStats(p);
+      let score = 0;
+
+      // 1. Base Score (Old vs New)
+      if (stats.cat === '(O)') score += 10000;
+
+      // 2. Experience Bonus (+100 per sit, +500 per Long Course)
+      score += (stats.s * 100);
+      score += (stats.l * 500);
+
+      // 3. Age Tie-Breaker (+1 per year)
+      score += stats.age;
+
+      return score;
   };
 
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
@@ -86,9 +104,9 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const generateColLabels = (count) => { const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return letters.slice(0, count).reverse(); };
   const generateChowkyLabels = (count) => { const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return letters.slice(0, count).reverse().map(l => `CW-${l}`); };
 
-  // --- AUTO-ASSIGN LOGIC (Restored) ---
+  // --- 🛠️ ADVANCED AUTO-ASSIGN LOGIC (With Score) ---
   const handleAutoAssign = async () => {
-      if (!window.confirm("⚠️ This will overwrite unlocked seats. Continue?")) return;
+      if (!window.confirm("⚠️ This will overwrite unlocked seats based on Seniority Logic. Continue?")) return;
       setIsAssigning(true);
       setShowAutoAssignModal(false);
 
@@ -96,6 +114,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
           const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
           const allP = await res.json();
           const active = allP.filter(p => p.status === 'Attending' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre)));
+          
           const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
           const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
 
@@ -113,30 +132,44 @@ export default function ParticipantList({ courses, refreshCourses }) {
           const assignGroup = (students, regSeats, specSeats) => {
               const updates = [];
               const lockedSeats = new Set();
+              
               students.forEach(p => { if (p.is_seat_locked && p.dhamma_hall_seat_no) lockedSeats.add(p.dhamma_hall_seat_no); });
+              
               const availReg = regSeats.filter(s => !lockedSeats.has(s));
               const availSpec = specSeats.filter(s => !lockedSeats.has(s));
+
+              // ✅ NEW: Sort by Priority Score (Desc)
               const toAssign = students.filter(p => !p.is_seat_locked).sort((a,b) => {
-                  const rA = getCategoryRank(a.conf_no), rB = getCategoryRank(b.conf_no);
-                  if (rA !== rB) return rA - rB;
-                  return (parseInt(b.age)||0) - (parseInt(a.age)||0);
+                  return calculatePriorityScore(b) - calculatePriorityScore(a); 
               });
+
+              // Separate Special Needs
               const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating));
               const normalGroup = toAssign.filter(p => !specGroup.includes(p));
 
-              specGroup.forEach(p => { if (availSpec.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availSpec.shift() }); else if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); });
-              normalGroup.forEach(p => { if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); });
+              // Assign Special Seats First (Chowky)
+              specGroup.forEach(p => {
+                  if (availSpec.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availSpec.shift() });
+                  else if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); // Fallback to normal
+              });
+
+              // Assign Normal Seats (Reg)
+              normalGroup.forEach(p => {
+                  if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() });
+              });
+
               return updates;
           };
 
           const allUpdates = [...assignGroup(males, mRegSeats, mSpecSeats), ...assignGroup(females, fRegSeats, fSpecSeats)];
           if (allUpdates.length === 0) { alert("✅ No new assignments needed."); setIsAssigning(false); return; }
 
+          // Batch Upload
           const BATCH_SIZE = 5;
           for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) {
               await Promise.all(allUpdates.slice(i, i + BATCH_SIZE).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) })));
           }
-          alert(`✅ Assigned seats to ${allUpdates.length} students!`);
+          alert(`✅ Assigned seats to ${allUpdates.length} students based on Seniority Score!`);
           const finalRes = await fetch(`${API_URL}/courses/${courseId}/participants`);
           setParticipants(await finalRes.json());
       } catch (err) { console.error(err); alert("❌ Error during auto-assign."); }
@@ -163,7 +196,10 @@ export default function ParticipantList({ courses, refreshCourses }) {
       iframe.style.border = 'none';
       document.body.appendChild(iframe);
       let htmlContent = `<html><head><title>Tokens</title><style>@page { size: 72mm auto; margin: 0; } body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; } .ticket-container { width: 70mm; margin: 0 auto; padding-top: 5mm; padding-bottom: 5mm; page-break-after: always; } .ticket-container:last-child { page-break-after: auto; } .ticket-box { border: 3px solid #000; border-radius: 8px; padding: 10px; width: 64mm; margin: 0 auto; text-align: center; box-sizing: border-box; } .header { font-size: 14px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; } .seat { font-size: 55px; font-weight: 900; line-height: 1; margin: 5px 0; } .name { font-size: 15px; font-weight: bold; margin: 5px 0; word-wrap: break-word; line-height: 1.2; } .conf { font-size: 12px; color: #333; margin-bottom: 10px; } .footer { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; } .stats { font-size: 10px; margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px; display: flex; justify-content: space-between; } </style></head><body>`;
-      tokens.forEach(t => { htmlContent += `<div class="ticket-container"><div class="ticket-box"><div class="header">DHAMMA SEAT</div><div class="seat">${t.seat}</div><div class="name">${t.name}</div><div class="conf">${t.conf}</div><div class="footer"><span>Cell: ${t.cell}</span><span>Room: ${t.room}</span></div><div class="stats"><span>${t.cat}</span><span>S:${t.sVal} L:${t.lVal}</span><span>Age: ${t.age}</span></div></div></div>`; });
+      tokens.forEach(t => { 
+          const s = getStudentStats(t.raw); // helper on token
+          htmlContent += `<div class="ticket-container"><div class="ticket-box"><div class="header">DHAMMA SEAT</div><div class="seat">${t.seat}</div><div class="name">${t.name}</div><div class="conf">${t.conf}</div><div class="footer"><span>Cell: ${t.cell}</span><span>Room: ${t.room}</span></div><div class="stats"><span>${s.cat}</span><span>S:${s.s} L:${s.l}</span><span>Age: ${s.age}</span></div></div></div>`; 
+      });
       htmlContent += `</body></html>`;
       const doc = iframe.contentWindow.document;
       doc.open(); doc.write(htmlContent); doc.close();
@@ -175,13 +211,13 @@ export default function ParticipantList({ courses, refreshCourses }) {
       if (filter === 'Male') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
       if (filter === 'Female') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
       if (valid.length === 0) return alert("No students found.");
-      const tokens = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(s => ({ seat: s.dhamma_hall_seat_no, name: s.full_name, conf: s.conf_no, cell: s.pagoda_cell_no || '-', room: s.room_no || '-', age: s.age, cat: getCategory(s.conf_no), sVal: (s.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], lVal: (s.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] }));
+      const tokens = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true})).map(s => ({ seat: s.dhamma_hall_seat_no, name: s.full_name, conf: s.conf_no, cell: s.pagoda_cell_no || '-', room: s.room_no || '-', raw: s }));
       printDirectly(tokens);
   };
 
   const handleSingleToken = (student) => {
       if (!student.dhamma_hall_seat_no) return alert("No seat assigned.");
-      printDirectly([{ seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no || '-', room: student.room_no || '-', age: student.age, cat: getCategory(student.conf_no), sVal: (student.courses_info?.match(/S\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1], lVal: (student.courses_info?.match(/L\s*[:=-]?\s*(\d+)/i)||[0,'-'])[1] }]);
+      printDirectly([{ seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no || '-', room: student.room_no || '-', raw: student }]);
   };
 
   const prepareReceipt = (student) => { 
@@ -207,7 +243,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
       document.head.appendChild(style); window.print(); document.head.removeChild(style); 
   };
 
-  // ✅ FIXED A4 PRINTING (Correct Borders & Sizing)
+  // ✅ FIXED A4 PRINTING (Robust Layout)
   const printA4List = (sectionId) => {
       const style = document.createElement('style');
       style.innerHTML = `
@@ -216,37 +252,36 @@ export default function ParticipantList({ courses, refreshCourses }) {
               html, body { margin: 0; padding: 0; background: white; }
               body * { visibility: hidden; }
               
-              /* Show only the target section */
+              /* Main Box Wrapper */
               #${sectionId}, #${sectionId} * { visibility: visible; }
-              
-              /* Main Border Box Wrapper */
               #${sectionId} {
                   position: absolute;
                   left: 0;
                   top: 0;
-                  width: 100%; /* Ensure it fits the page width */
-                  box-sizing: border-box; /* Include padding in width */
-                  border: 2px solid black !important; /* The Outer Border */
+                  width: 100%; 
+                  box-sizing: border-box; 
+                  border: 2px solid black !important; /* Thick Box Border */
                   padding: 10px !important;
                   margin: 0;
               }
 
               .no-print { display: none !important; }
 
-              /* Professional Table Styling */
+              /* Table Styles */
               table { 
                   width: 100%; 
                   border-collapse: collapse; 
                   font-family: 'Helvetica', sans-serif; 
                   font-size: 10pt; 
                   margin-top: 10px;
+                  table-layout: fixed; /* Ensures even columns if needed */
               }
               
-              /* Table Borders */
               th, td { 
                   border: 1px solid black !important; 
                   padding: 6px; 
                   text-align: left;
+                  word-wrap: break-word;
               }
               
               th { 
@@ -256,7 +291,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
                   -webkit-print-color-adjust: exact; 
               }
 
-              /* Header Alignment */
               h2, h3 { 
                   text-align: center; 
                   color: black !important; 
