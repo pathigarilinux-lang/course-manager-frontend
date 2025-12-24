@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Utensils, BarChart2, Armchair, LayoutGrid } from 'lucide-react'; // Added Icons
+import { Utensils, BarChart2, Armchair } from 'lucide-react'; 
 import { API_URL, styles } from '../config';
 import Dashboard from './Dashboard'; 
 
@@ -17,17 +17,30 @@ export default function ATPanel({ courses }) {
 
   useEffect(() => { if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(setParticipants); }, [courseId]);
 
-  // --- SEATING STATS ENGINE ---
+  // --- UPDATED SEATING STATS ENGINE (M/F Split) ---
   const seatingStats = useMemo(() => {
-      const stats = { Chowky: 0, Chair: 0, BackRest: 0, Floor: 0, Total: 0 };
+      // Structure: { total: 0, m: 0, f: 0 } for each type
+      const stats = { 
+          Chowky: { total: 0, m: 0, f: 0 }, 
+          Chair: { total: 0, m: 0, f: 0 }, 
+          BackRest: { total: 0, m: 0, f: 0 }, 
+          Floor: { total: 0, m: 0, f: 0 } 
+      };
+
       participants.forEach(p => {
           if(p.status === 'Cancelled') return;
+          
           const type = p.special_seating || 'None';
-          if(type === 'Chowky') stats.Chowky++;
-          else if(type === 'Chair') stats.Chair++;
-          else if(type === 'BackRest') stats.BackRest++;
-          else stats.Floor++;
-          stats.Total++;
+          const isMale = (p.gender || '').toLowerCase().startsWith('m');
+          const genderKey = isMale ? 'm' : 'f';
+
+          let category = 'Floor'; // Default
+          if(type === 'Chowky') category = 'Chowky';
+          else if(type === 'Chair') category = 'Chair';
+          else if(type === 'BackRest') category = 'BackRest';
+
+          stats[category].total++;
+          stats[category][genderKey]++;
       });
       return stats;
   }, [participants]);
@@ -76,31 +89,47 @@ export default function ATPanel({ courses }) {
           </div>
       </div>
 
-      {/* 1. SEATING LOGISTICS DASHBOARD (New Requirement) */}
+      {/* 1. SEATING LOGISTICS DASHBOARD (Enhanced M/F Split) */}
       {courseId && (
           <div style={{background:'linear-gradient(to right, #f8f9fa, #e9ecef)', padding:'20px', borderRadius:'12px', marginBottom:'25px', border:'1px solid #dee2e6', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
               <div>
                   <h3 style={{margin:'0 0 5px 0', color:'#495057', display:'flex', alignItems:'center', gap:'8px'}}>
                       <Armchair size={20}/> Dhamma Hall Setup Plan
                   </h3>
-                  <div style={{fontSize:'12px', color:'#666'}}>Physical arrangement counts based on student requests</div>
+                  <div style={{fontSize:'12px', color:'#666'}}>Physical counts (Requested)</div>
               </div>
               <div style={{display:'flex', gap:'20px'}}>
-                  <div style={{background:'white', padding:'10px 20px', borderRadius:'8px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', textAlign:'center', borderBottom:'3px solid #007bff'}}>
-                      <div style={{fontSize:'24px', fontWeight:'bold', color:'#007bff'}}>{seatingStats.Chowky}</div>
+                  {/* CHOWKY */}
+                  <div style={{background:'white', padding:'10px 15px', borderRadius:'8px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', textAlign:'center', borderBottom:'3px solid #007bff', minWidth:'100px'}}>
+                      <div style={{fontSize:'24px', fontWeight:'bold', color:'#007bff'}}>{seatingStats.Chowky.total}</div>
                       <div style={{fontSize:'11px', fontWeight:'bold', color:'#666', textTransform:'uppercase'}}>Chowky</div>
+                      <div style={{fontSize:'10px', color:'#999', marginTop:'2px', background:'#f1f3f5', borderRadius:'4px', padding:'2px'}}>
+                          M: <b>{seatingStats.Chowky.m}</b> | F: <b>{seatingStats.Chowky.f}</b>
+                      </div>
                   </div>
-                  <div style={{background:'white', padding:'10px 20px', borderRadius:'8px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', textAlign:'center', borderBottom:'3px solid #e91e63'}}>
-                      <div style={{fontSize:'24px', fontWeight:'bold', color:'#e91e63'}}>{seatingStats.Chair}</div>
+                  {/* CHAIR */}
+                  <div style={{background:'white', padding:'10px 15px', borderRadius:'8px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', textAlign:'center', borderBottom:'3px solid #e91e63', minWidth:'100px'}}>
+                      <div style={{fontSize:'24px', fontWeight:'bold', color:'#e91e63'}}>{seatingStats.Chair.total}</div>
                       <div style={{fontSize:'11px', fontWeight:'bold', color:'#666', textTransform:'uppercase'}}>Chair</div>
+                      <div style={{fontSize:'10px', color:'#999', marginTop:'2px', background:'#f1f3f5', borderRadius:'4px', padding:'2px'}}>
+                          M: <b>{seatingStats.Chair.m}</b> | F: <b>{seatingStats.Chair.f}</b>
+                      </div>
                   </div>
-                  <div style={{background:'white', padding:'10px 20px', borderRadius:'8px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', textAlign:'center', borderBottom:'3px solid #fd7e14'}}>
-                      <div style={{fontSize:'24px', fontWeight:'bold', color:'#fd7e14'}}>{seatingStats.BackRest}</div>
+                  {/* BACKREST */}
+                  <div style={{background:'white', padding:'10px 15px', borderRadius:'8px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', textAlign:'center', borderBottom:'3px solid #fd7e14', minWidth:'100px'}}>
+                      <div style={{fontSize:'24px', fontWeight:'bold', color:'#fd7e14'}}>{seatingStats.BackRest.total}</div>
                       <div style={{fontSize:'11px', fontWeight:'bold', color:'#666', textTransform:'uppercase'}}>BackRest</div>
+                      <div style={{fontSize:'10px', color:'#999', marginTop:'2px', background:'#f1f3f5', borderRadius:'4px', padding:'2px'}}>
+                          M: <b>{seatingStats.BackRest.m}</b> | F: <b>{seatingStats.BackRest.f}</b>
+                      </div>
                   </div>
-                  <div style={{background:'white', padding:'10px 20px', borderRadius:'8px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', textAlign:'center', borderBottom:'3px solid #28a745'}}>
-                      <div style={{fontSize:'24px', fontWeight:'bold', color:'#28a745'}}>{seatingStats.Floor}</div>
-                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#666', textTransform:'uppercase'}}>Floor Cushion</div>
+                  {/* FLOOR */}
+                  <div style={{background:'white', padding:'10px 15px', borderRadius:'8px', boxShadow:'0 2px 5px rgba(0,0,0,0.05)', textAlign:'center', borderBottom:'3px solid #28a745', minWidth:'100px'}}>
+                      <div style={{fontSize:'24px', fontWeight:'bold', color:'#28a745'}}>{seatingStats.Floor.total}</div>
+                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#666', textTransform:'uppercase'}}>Cushion</div>
+                      <div style={{fontSize:'10px', color:'#999', marginTop:'2px', background:'#f1f3f5', borderRadius:'4px', padding:'2px'}}>
+                          M: <b>{seatingStats.Floor.m}</b> | F: <b>{seatingStats.Floor.f}</b>
+                      </div>
                   </div>
               </div>
           </div>
