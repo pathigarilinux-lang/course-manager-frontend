@@ -7,6 +7,7 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
 
   // CONFIGURATION
   const MALE_CIRCLES = [
+    { name: 'Circle G (Outer)', range: [124, 128] },
     { name: 'Circle G (Outer)', range: [113, 123] },
     { name: 'Circle F (Outer)', range: [101, 112] },
     { name: 'Circle E', range: [89, 100] },
