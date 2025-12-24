@@ -1,29 +1,20 @@
 import React, { useState } from 'react';
-import { Database, Save, FileText, Download, Trash2, Calendar, Search, PlusCircle, Upload, CheckCircle, AlertCircle, ArrowRight, X, Filter, UserPlus } from 'lucide-react';
+import { Upload, Database, Save, FileText, Download, Trash2, Calendar, Search, PlusCircle, Archive } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 // Print styles for the preview table
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
 
 export default function CourseAdmin({ courses, refreshCourses }) {
-  // Tabs: 'courses', 'import', 'backup', 'search'
+  // Tabs: 'courses' (List/Create), 'import' (CSV/Manual), 'backup' (JSON)
   const [activeTab, setActiveTab] = useState('courses'); 
   
-  // State for Course Manager
-  const [newCourseData, setNewCourseData] = useState({ name: '', teacher: '', startDate: '', endDate: '' });
-  
-  // --- SMART IMPORT STATE ---
-  const [importStep, setImportStep] = useState(1); // 1: Upload, 2: Map, 3: Clean/Review
-  const [rawFileData, setRawFileData] = useState({ headers: [], rows: [] });
-  const [fieldMapping, setFieldMapping] = useState({ full_name: '', conf_no: '', age: '', gender: '', courses_info: '', email: '', mobile: '' });
-  const [cleanedData, setCleanedData] = useState([]);
+  // State
+  const [students, setStudents] = useState([]);
+  const [uploadStatus, setUploadStatus] = useState(null);
   const [selectedCourseForUpload, setSelectedCourseForUpload] = useState('');
-  const [showOnlyInvalid, setShowOnlyInvalid] = useState(false);
-
-  // --- MANUAL ENTRY STATE ---
+  const [newCourseData, setNewCourseData] = useState({ name: '', teacher: '', startDate: '', endDate: '' });
   const [manualStudent, setManualStudent] = useState({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
-
-  // Global Search
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalResults, setGlobalResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -65,169 +56,118 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       }
   };
 
-  // --- SMART IMPORT LOGIC ---
-  
-  // 1. FILE PARSER (Robust CSV + Excel Check)
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-        return alert("⚠️ Excel Detected: Please allow us to read this by 'Saving As CSV' in Excel first, then upload the .csv file.");
-    }
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const text = e.target.result;
-        const lines = text.split('\n').filter(l => l.trim());
-        if (lines.length < 2) return alert("File is empty or invalid.");
-        
-        // CSV Splitter
-        const parseRow = (row) => {
-            const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
-            return row.split(regex).map(cell => cell.trim().replace(/^"|"$/g, ''));
-        };
-
-        const headers = parseRow(lines[0]);
-        const rows = lines.slice(1).map(line => parseRow(line));
-        
-        setRawFileData({ headers, rows });
-        
-        // Auto-Guess Mapping
-        const newMap = { ...fieldMapping };
-        headers.forEach((h, index) => {
-            const head = h.toLowerCase();
-            if (head.includes('name')) newMap.full_name = index;
-            if (head.includes('conf') || head.includes('id')) newMap.conf_no = index;
-            if (head.includes('age')) newMap.age = index;
-            if (head.includes('gender') || head.includes('sex')) newMap.gender = index;
-            if (head.includes('course') || head.includes('history')) newMap.courses_info = index;
-            if (head.includes('email')) newMap.email = index;
-            if (head.includes('mobile') || head.includes('phone')) newMap.mobile = index;
-        });
-        setFieldMapping(newMap);
-        setImportStep(2); // Move to Map Step
-    };
-    reader.readAsText(file);
-  };
-
-  // 2. PROCESS & VALIDATE
-  const runSmartCleaner = () => {
-      if (fieldMapping.full_name === '' || fieldMapping.conf_no === '') {
-          return alert("Please map at least 'Full Name' and 'Conf No' columns.");
-      }
-
-      const processed = rawFileData.rows.map((row, i) => {
-          const getVal = (idx) => (idx !== '' && row[idx] ? row[idx] : '');
-          
-          let p = {
-              tempId: i,
-              full_name: getVal(fieldMapping.full_name),
-              conf_no: getVal(fieldMapping.conf_no),
-              age: getVal(fieldMapping.age).replace(/\D/g, ''),
-              gender: getVal(fieldMapping.gender),
-              courses_info: getVal(fieldMapping.courses_info),
-              email: getVal(fieldMapping.email),
-              mobile: getVal(fieldMapping.mobile),
-              isValid: true,
-              issues: []
-          };
-
-          const g = p.gender.toLowerCase();
-          if (g.startsWith('m')) p.gender = 'Male';
-          else if (g.startsWith('f')) p.gender = 'Female';
-          else p.gender = 'Male'; 
-
-          if (!p.full_name) p.issues.push('Missing Name');
-          if (!p.conf_no) p.issues.push('Missing ID');
-          if (!p.age) p.issues.push('Missing Age');
-          
-          if (p.issues.length > 0) p.isValid = false;
-
-          return p;
-      });
-
-      setCleanedData(prev => [...prev, ...processed]);
-      setImportStep(3); 
-  };
-
-  // --- MANUAL ENTRY LOGIC ---
-  const handleManualSubmit = (e) => {
-      e.preventDefault();
-      if (!manualStudent.full_name || !manualStudent.conf_no) return alert("Name and Conf No are required.");
-      
-      const newEntry = {
-          tempId: `manual_${Date.now()}`,
-          full_name: manualStudent.full_name,
-          conf_no: manualStudent.conf_no,
-          age: manualStudent.age,
-          gender: manualStudent.gender,
-          courses_info: manualStudent.courses_info,
-          isValid: true,
-          issues: ['Manual Entry']
-      };
-
-      setCleanedData(prev => [newEntry, ...prev]);
-      setManualStudent({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
-      setImportStep(3); 
-      alert("✅ Added to Import List! You can now Upload.");
-  };
-
-  // 3. UPLOAD TO DB
-  const handleFinalUpload = async () => {
-      const validData = cleanedData.filter(p => p.isValid);
-      if (validData.length === 0) return alert("No valid data to upload.");
-      
-      const targetCourse = courses.find(c => c.course_name === selectedCourseForUpload);
-      if (!targetCourse) return alert("Select a target course.");
-
-      if (!window.confirm(`Upload ${validData.length} students to ${selectedCourseForUpload}?`)) return;
-
-      try {
-          const payload = { 
-              students: validData.map(s => ({ 
-                  name: s.full_name, confNo: s.conf_no, age: s.age, 
-                  gender: s.gender, courses: s.courses_info, email: s.email || '', phone: s.mobile || ''
-              }))
-          };
-          
-          const res = await fetch(`${API_URL}/courses/${targetCourse.course_id}/import`, { 
-              method: 'POST', 
-              headers: { 'Content-Type': 'application/json' }, 
-              body: JSON.stringify(payload) 
-          });
-          
-          const data = await res.json();
-          if (res.ok) {
-              alert(`✅ Success! Imported ${data.count || validData.length} students.`);
-              setImportStep(1);
-              setCleanedData([]);
-              setRawFileData({ headers: [], rows: [] });
-          } else {
-              alert(`❌ Error: ${data.error}`);
-          }
-      } catch (err) { alert("Upload Failed."); }
-  };
-
-  // --- DOWNLOAD TEMPLATE (UPDATED WITH EXAMPLES) ---
+  // --- IMPORT TOOLS ---
   const downloadTemplate = () => {
-      const headers = "Name,Age,Gender,Conf No,Courses Info,Email,Phone";
-      const rows = [
-          "Ramesh Kumar,30,Male,N12345,S:1 L:0,ramesh@example.com,9999999999",
-          "Sita Devi,45,Female,O98765,S:3 L:1,sita@example.com,8888888888",
-          "John Smith,28,Male,N54321,New,john@test.com,7777777777",
-          "Lakshmi P,60,Female,O11223,S:10,lakshmi@test.com,6666666666"
-      ];
-      const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+      const headers = ["Name,Age,Gender,Conf No,Courses Info,Email,Phone,Remarks"];
+      const row1 = ["John Doe,30,Male,N12345,S:1 L:0,john@example.com,9999999999,Medical issue"];
+      const csvContent = "data:text/csv;charset=utf-8," + headers.join("\n") + "\n" + row1.join("\n");
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "dhamma_student_template.csv");
+      link.setAttribute("download", "student_import_template.csv");
       document.body.appendChild(link);
       link.click();
   };
 
-  // --- ACTIONS ---
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => { 
+        try { processCSV(e.target.result); } 
+        catch (err) { console.error(err); setUploadStatus({ type: 'error', msg: 'Failed to parse CSV.' }); } 
+    };
+    reader.readAsText(file);
+  };
+
+  const processCSV = (csvText) => {
+    const lines = csvText.split('\n').filter(line => line.trim() !== '');
+    if (lines.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty or too short.' }); return; }
+    
+    const splitRow = (rowStr) => rowStr.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
+    let headerRowIndex = -1;
+    let headers = [];
+    
+    // Auto-detect header row
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+        const lineLower = lines[i].toLowerCase();
+        if (lineLower.includes('name') && (lineLower.includes('gender') || lineLower.includes('age'))) {
+            headerRowIndex = i;
+            headers = splitRow(lines[i]).map(h => h.toLowerCase());
+            break;
+        }
+    }
+    
+    if (headerRowIndex === -1) { setUploadStatus({ type: 'error', msg: 'Could not detect headers (Name, Gender, Age). Please check CSV format.' }); return; }
+    
+    const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
+    const map = { 
+        conf: getIndex(['conf', 'ref', 'id', 'no.']), 
+        name: getIndex(['name', 'student', 'given']), 
+        age: getIndex(['age']), 
+        gender: getIndex(['gender', 'sex']), 
+        courses: getIndex(['course', 'history']), 
+        seat: getIndex(['seat', 'dining']), 
+        email: getIndex(['email']), 
+        phone: getIndex(['phone', 'mobile']), 
+        notes: getIndex(['notes', 'remark']) 
+    };
+    
+    const parsedStudents = lines.slice(headerRowIndex + 1).map((line, index) => {
+      const row = splitRow(line);
+      const rawName = map.name > -1 ? row[map.name] : '';
+      const rawConf = map.conf > -1 ? row[map.conf] : '';
+      
+      if (!rawName && !rawConf) return null; 
+      
+      return { 
+          id: Date.now() + index, 
+          conf_no: rawConf || `TEMP-${index + 1}`, 
+          full_name: rawName || 'Unknown Student', 
+          age: map.age > -1 ? row[map.age] : '', 
+          gender: map.gender > -1 ? row[map.gender] : '', 
+          courses_info: map.courses > -1 ? row[map.courses] : '', 
+          dining_seat: map.seat > -1 ? row[map.seat] : '', 
+          email: map.email > -1 ? row[map.email] : '', 
+          mobile: map.phone > -1 ? row[map.phone] : '', 
+          notes: map.notes > -1 ? row[map.notes] : '', 
+          status: rawConf ? 'Active' : 'Pending ID' 
+      };
+    }).filter(s => s !== null);
+    
+    setStudents(parsedStudents);
+    setUploadStatus({ type: 'success', msg: `Ready! Loaded ${parsedStudents.length} valid students.` });
+  };
+
+  const saveToDatabase = async () => {
+    if (students.length === 0) return;
+    const targetCourse = courses.find(c => c.course_name === selectedCourseForUpload);
+    if (!targetCourse) return alert("Please select a valid course first.");
+    if (!window.confirm(`Save ${students.length} students to ${selectedCourseForUpload}?`)) return;
+    
+    try {
+        const payload = { students: students.map(s => ({ name: s.full_name, confNo: s.conf_no, age: s.age, gender: s.gender, courses: s.courses_info, email: s.email, phone: s.mobile }))};
+        const res = await fetch(`${API_URL}/courses/${targetCourse.course_id}/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if(res.ok) { 
+            alert(`✅ Success: ${data.message}`); 
+            setStudents([]); 
+        } else { 
+            alert(`❌ Error: ${data.error}`); 
+        }
+    } catch(err) { alert("Network Error: Failed to save data."); console.error(err); }
+  };
+
+  const handleManualSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedCourseForUpload) return alert("Please select a target course first.");
+    if (!manualStudent.full_name) return alert("Name is required.");
+    const newStudent = { id: Date.now(), ...manualStudent, conf_no: manualStudent.conf_no || `MANUAL-${Date.now()}`, status: 'Active', dining_seat: '', room_no: '' };
+    setStudents(prev => [newStudent, ...prev]);
+    alert(`Added ${newStudent.full_name} to the Preview list.`);
+    setManualStudent({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
+  };
+
   const handleDownloadBackup = async () => {
       try {
           const resCourses = await fetch(`${API_URL}/courses`);
@@ -248,15 +188,22 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       } catch(e) { alert("Backup Failed"); }
   };
 
+  // --- GLOBAL SEARCH (Client-Side for simplicity) ---
   const handleGlobalSearch = async () => {
       if(!globalSearch) return;
       setIsSearching(true);
       let results = [];
+      // Fetch data from ALL courses (Caution: Heavy operation if DB is huge, but fine for local centers)
       for (let c of courses) {
           const res = await fetch(`${API_URL}/courses/${c.course_id}/participants`);
           const data = await res.json();
-          const matches = data.filter(p => p.full_name.toLowerCase().includes(globalSearch.toLowerCase()) || (p.conf_no && p.conf_no.toLowerCase().includes(globalSearch.toLowerCase())));
-          if (matches.length > 0) results.push(...matches.map(m => ({ ...m, courseName: c.course_name })));
+          const matches = data.filter(p => 
+              p.full_name.toLowerCase().includes(globalSearch.toLowerCase()) || 
+              (p.conf_no && p.conf_no.toLowerCase().includes(globalSearch.toLowerCase()))
+          );
+          if (matches.length > 0) {
+              results.push(...matches.map(m => ({ ...m, courseName: c.course_name })));
+          }
       }
       setGlobalResults(results);
       setIsSearching(false);
@@ -268,15 +215,16 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><Database size={24} className="text-blue-600"/> Mission Control</h2>
         <div style={{display:'flex', gap:'5px'}}>
            <button onClick={()=>setActiveTab('courses')} style={styles.quickBtn(activeTab==='courses')}><Calendar size={14}/> Courses</button>
-           <button onClick={()=>setActiveTab('import')} style={styles.quickBtn(activeTab==='import')}><Upload size={14}/> Import & Clean</button>
+           <button onClick={()=>setActiveTab('import')} style={styles.quickBtn(activeTab==='import')}><Upload size={14}/> Import Data</button>
            <button onClick={()=>setActiveTab('backup')} style={styles.quickBtn(activeTab==='backup')}><Save size={14}/> Backup</button>
-           <button onClick={()=>setActiveTab('search')} style={styles.quickBtn(activeTab==='search')}><Search size={14}/> Search</button>
+           <button onClick={()=>setActiveTab('search')} style={styles.quickBtn(activeTab==='search')}><Search size={14}/> Global Search</button>
         </div>
       </div>
 
       {/* --- TAB 1: COURSES MANAGER --- */}
       {activeTab === 'courses' && (
         <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'30px'}}>
+            {/* Create Form */}
             <div style={{background:'#f9f9f9', padding:'20px', borderRadius:'10px', height:'fit-content'}}>
                 <h3 style={{marginTop:0, display:'flex', alignItems:'center', gap:'10px'}}><PlusCircle size={18}/> Create Course</h3>
                 <form onSubmit={handleCreateCourse} style={{display:'flex', flexDirection:'column', gap:'15px'}}>
@@ -289,15 +237,40 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                     <button type="submit" style={{...styles.btn(true), background:'#28a745', color:'white', justifyContent:'center'}}>Create New Course</button>
                 </form>
             </div>
+
+            {/* Course List Table */}
             <div>
                 <h3 style={{marginTop:0}}>All Courses ({courses.length})</h3>
                 <div style={{maxHeight:'500px', overflowY:'auto', border:'1px solid #eee', borderRadius:'8px'}}>
                     <table style={{width:'100%', borderCollapse:'collapse', fontSize:'13px'}}>
-                        <thead style={{position:'sticky', top:0, background:'#f8f9fa'}}><tr style={{borderBottom:'2px solid #ddd'}}><th style={{padding:'12px', textAlign:'left'}}>Course Name</th><th style={{padding:'12px', textAlign:'left'}}>Teacher</th><th style={{padding:'12px', textAlign:'center'}}>Status</th><th style={{padding:'12px', textAlign:'right'}}>Action</th></tr></thead>
+                        <thead style={{position:'sticky', top:0, background:'#f8f9fa'}}>
+                            <tr style={{borderBottom:'2px solid #ddd'}}>
+                                <th style={{padding:'12px', textAlign:'left'}}>Course Name</th>
+                                <th style={{padding:'12px', textAlign:'left'}}>Teacher</th>
+                                <th style={{padding:'12px', textAlign:'center'}}>Status</th>
+                                <th style={{padding:'12px', textAlign:'right'}}>Action</th>
+                            </tr>
+                        </thead>
                         <tbody>
                             {courses.slice().reverse().map(c => {
                                 const status = getCourseStatus(c);
-                                return ( <tr key={c.course_id} style={{borderBottom:'1px solid #eee'}}><td style={{padding:'12px'}}><div style={{fontWeight:'bold'}}>{c.course_name.split('/')[0]}</div><div style={{fontSize:'11px', color:'#666'}}>{new Date(c.start_date).toLocaleDateString()} - {new Date(c.end_date).toLocaleDateString()}</div></td><td style={{padding:'12px'}}>{c.teacher_name}</td><td style={{padding:'12px', textAlign:'center'}}><span style={{background: status.bg, color: status.color, padding:'4px 8px', borderRadius:'12px', fontSize:'11px', fontWeight:'bold', display:'inline-block', minWidth:'70px'}}>{status.label}</span></td><td style={{padding:'12px', textAlign:'right'}}><button onClick={()=>handleDeleteCourse(c.course_id, c.course_name)} style={{padding:'6px', background:'#fff5f5', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'4px', cursor:'pointer'}} title="Delete Course"><Trash2 size={16}/></button></td></tr> );
+                                return (
+                                    <tr key={c.course_id} style={{borderBottom:'1px solid #eee'}}>
+                                        <td style={{padding:'12px'}}>
+                                            <div style={{fontWeight:'bold'}}>{c.course_name.split('/')[0]}</div>
+                                            <div style={{fontSize:'11px', color:'#666'}}>{new Date(c.start_date).toLocaleDateString()} - {new Date(c.end_date).toLocaleDateString()}</div>
+                                        </td>
+                                        <td style={{padding:'12px'}}>{c.teacher_name}</td>
+                                        <td style={{padding:'12px', textAlign:'center'}}>
+                                            <span style={{background: status.bg, color: status.color, padding:'4px 8px', borderRadius:'12px', fontSize:'11px', fontWeight:'bold', display:'inline-block', minWidth:'70px'}}>{status.label}</span>
+                                        </td>
+                                        <td style={{padding:'12px', textAlign:'right'}}>
+                                            <button onClick={()=>handleDeleteCourse(c.course_id, c.course_name)} style={{padding:'6px', background:'#fff5f5', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'4px', cursor:'pointer'}} title="Delete Course">
+                                                <Trash2 size={16}/>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
                             })}
                         </tbody>
                     </table>
@@ -306,153 +279,70 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         </div>
       )}
 
-      {/* --- TAB 2: IMPORT & CLEAN (HYBRID) --- */}
+      {/* --- TAB 2: IMPORT DATA --- */}
       {activeTab === 'import' && (
-        <div style={{maxWidth:'1000px', margin:'0 auto'}}>
-          
-          {/* WIZARD PROGRESS */}
-          <div style={{display:'flex', alignItems:'center', justifyContent:'center', marginBottom:'30px'}}>
-              <div style={{display:'flex', alignItems:'center', gap:'10px', opacity: importStep >= 1 ? 1 : 0.5}}>
-                  <div style={{width:'30px', height:'30px', borderRadius:'50%', background: importStep>=1 ? '#007bff' : '#ccc', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold'}}>1</div>
-                  <span style={{fontWeight:'bold'}}>Input Data</span>
+        <div style={{maxWidth:'800px', margin:'0 auto'}}>
+          <div style={{marginBottom:'20px', background:'#f0f8ff', padding:'15px', borderRadius:'8px', border:'1px solid #cce5ff'}}>
+            <label style={styles.label}>1. Select Target Course</label>
+            <select style={styles.input} value={selectedCourseForUpload} onChange={(e) => setSelectedCourseForUpload(e.target.value)}>
+              <option value="">-- Select Course --</option>
+              {courses.map(c => <option key={c.course_id} value={c.course_name}>{c.course_name}</option>)}
+            </select>
+          </div>
+
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
+              {/* CSV Upload */}
+              <div style={{border:'2px dashed #ccc', borderRadius:'8px', padding:'30px', textAlign:'center', background:'#f9f9f9', position:'relative'}}>
+                <h4 style={{margin:'0 0 10px 0'}}>Option A: Bulk Upload</h4>
+                <input type="file" accept=".csv" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
+                <div style={{pointerEvents:'none'}}>
+                    <Database size={40} color="#999" />
+                    <p style={{margin:'10px 0', color:'#555', fontWeight:'bold'}}>Drag CSV Here</p>
+                    <button type="button" style={styles.btn(false)}>Browse File</button>
+                </div>
+                <div style={{marginTop:'20px', pointerEvents:'auto'}}>
+                    <button onClick={downloadTemplate} style={{background:'none', border:'none', color:'#007bff', textDecoration:'underline', cursor:'pointer', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'5px'}}>
+                        <Download size={12}/> Download Template CSV
+                    </button>
+                </div>
               </div>
-              <div style={{width:'50px', height:'2px', background:'#ccc', margin:'0 10px'}}></div>
-              <div style={{display:'flex', alignItems:'center', gap:'10px', opacity: importStep >= 2 ? 1 : 0.5}}>
-                  <div style={{width:'30px', height:'30px', borderRadius:'50%', background: importStep>=2 ? '#007bff' : '#ccc', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold'}}>2</div>
-                  <span style={{fontWeight:'bold'}}>Map & Clean</span>
-              </div>
-              <div style={{width:'50px', height:'2px', background:'#ccc', margin:'0 10px'}}></div>
-              <div style={{display:'flex', alignItems:'center', gap:'10px', opacity: importStep >= 3 ? 1 : 0.5}}>
-                  <div style={{width:'30px', height:'30px', borderRadius:'50%', background: importStep>=3 ? '#007bff' : '#ccc', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold'}}>3</div>
-                  <span style={{fontWeight:'bold'}}>Review & Save</span>
+
+              {/* Manual Entry */}
+              <div style={{border:'1px solid #eee', borderRadius:'8px', padding:'20px'}}>
+                  <h4 style={{margin:'0 0 15px 0'}}>Option B: Manual Entry</h4>
+                  <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                      <input style={styles.input} placeholder="Full Name" value={manualStudent.full_name} onChange={e=>setManualStudent({...manualStudent, full_name:e.target.value})} />
+                      <div style={{display:'flex', gap:'5px'}}>
+                          <input style={styles.input} placeholder="Conf No" value={manualStudent.conf_no} onChange={e=>setManualStudent({...manualStudent, conf_no:e.target.value})} />
+                          <input style={styles.input} type="number" placeholder="Age" value={manualStudent.age} onChange={e=>setManualStudent({...manualStudent, age:e.target.value})} />
+                      </div>
+                      <div style={{display:'flex', gap:'5px'}}>
+                          <select style={styles.input} value={manualStudent.gender} onChange={e=>setManualStudent({...manualStudent, gender:e.target.value})}><option>Male</option><option>Female</option></select>
+                          <input style={styles.input} placeholder="Courses (S:1)" value={manualStudent.courses_info} onChange={e=>setManualStudent({...manualStudent, courses_info:e.target.value})} />
+                      </div>
+                      <button onClick={handleManualSubmit} style={{...styles.btn(true), background:'#007bff', color:'white', justifyContent:'center'}}>Add to Preview</button>
+                  </div>
               </div>
           </div>
 
-          {/* STEP 1: UPLOAD OR MANUAL */}
-          {importStep === 1 && (
-              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px'}}>
-                  {/* Option A: File Upload */}
-                  <div style={{border:'2px dashed #ccc', borderRadius:'10px', padding:'30px', textAlign:'center', background:'#f9f9f9', position:'relative'}}>
-                      <h3 style={{marginTop:0}}>Option A: Bulk File Upload</h3>
-                      <p style={{color:'#666', marginBottom:'20px', fontSize:'13px'}}>Select your Excel or CSV file.<br/>(For Excel: Please Save As CSV first)</p>
-                      <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
-                      <div style={{pointerEvents:'none'}}>
-                          <Upload size={48} color="#007bff" />
-                          <button type="button" style={{marginTop:'20px', ...styles.btn(true), background:'#007bff', color:'white'}}>Select File</button>
-                      </div>
-                      <div style={{marginTop:'20px', pointerEvents:'auto'}}>
-                          <button onClick={downloadTemplate} style={{background:'none', border:'none', color:'#007bff', textDecoration:'underline', cursor:'pointer', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'5px'}}>
-                              <Download size={12}/> Download Template
-                          </button>
-                      </div>
+          {uploadStatus && <div style={{marginTop:'15px', padding:'10px', background:'#e6fffa', color:'#2c7a7b', borderRadius:'5px'}}>{uploadStatus.msg}</div>}
+          
+          {students.length > 0 && (
+            <div style={{marginTop:'25px', borderTop:'1px solid #eee', paddingTop:'15px'}}>
+               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
+                  <h3 style={{margin:0}}>Preview ({students.length})</h3>
+                  <div style={{display:'flex', gap:'10px'}}>
+                      <button onClick={()=>setStudents([])} style={styles.btn(false)}>Clear</button>
+                      <button onClick={saveToDatabase} style={{...styles.btn(true), background:'#28a745', color:'white'}}><Save size={16}/> Save to Database</button>
                   </div>
-
-                  {/* Option B: Manual Entry */}
-                  <div style={{border:'1px solid #ddd', borderRadius:'10px', padding:'20px', background:'white'}}>
-                      <h3 style={{marginTop:0, display:'flex', alignItems:'center', gap:'10px'}}><UserPlus size={18}/> Option B: Manual Entry</h3>
-                      <p style={{fontSize:'12px', color:'#666'}}>Add single student manually if file upload is not needed.</p>
-                      <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
-                          <input style={styles.input} placeholder="Full Name *" value={manualStudent.full_name} onChange={e=>setManualStudent({...manualStudent, full_name:e.target.value})} />
-                          <div style={{display:'flex', gap:'5px'}}>
-                              <input style={styles.input} placeholder="Conf No *" value={manualStudent.conf_no} onChange={e=>setManualStudent({...manualStudent, conf_no:e.target.value})} />
-                              <input style={styles.input} type="number" placeholder="Age" value={manualStudent.age} onChange={e=>setManualStudent({...manualStudent, age:e.target.value})} />
-                          </div>
-                          <div style={{display:'flex', gap:'5px'}}>
-                              <select style={styles.input} value={manualStudent.gender} onChange={e=>setManualStudent({...manualStudent, gender:e.target.value})}><option>Male</option><option>Female</option></select>
-                              <input style={styles.input} placeholder="Courses (S:1)" value={manualStudent.courses_info} onChange={e=>setManualStudent({...manualStudent, courses_info:e.target.value})} />
-                          </div>
-                          <button onClick={handleManualSubmit} style={{...styles.btn(true), background:'#28a745', color:'white', justifyContent:'center'}}>Add to Import List</button>
-                      </div>
-                  </div>
-              </div>
-          )}
-
-          {/* STEP 2: MAP COLUMNS */}
-          {importStep === 2 && (
-              <div style={{background:'white', padding:'25px', borderRadius:'10px', border:'1px solid #ddd'}}>
-                  <h3 style={{marginTop:0}}>Step 2: Map Your Columns</h3>
-                  <p style={{color:'#666', marginBottom:'20px'}}>We found {rawFileData.rows.length} rows. Please confirm which column is which.</p>
-                  
-                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
-                      {Object.keys(fieldMapping).map(key => (
-                          <div key={key} style={{marginBottom:'10px'}}>
-                              <label style={{display:'block', fontSize:'12px', fontWeight:'bold', textTransform:'uppercase', color:'#555', marginBottom:'5px'}}>
-                                  {key.replace('_', ' ')} <span style={{color:'red'}}>*</span>
-                              </label>
-                              <select 
-                                  style={{...styles.input, border: fieldMapping[key] !== '' ? '1px solid #28a745' : '1px solid #ccc'}} 
-                                  value={fieldMapping[key]} 
-                                  onChange={e => setFieldMapping({...fieldMapping, [key]: e.target.value})}
-                              >
-                                  <option value="">-- Select Column --</option>
-                                  {rawFileData.headers.map((h, i) => <option key={i} value={i}>{h}</option>)}
-                              </select>
-                          </div>
-                      ))}
-                  </div>
-
-                  <div style={{marginTop:'30px', display:'flex', justifyContent:'space-between'}}>
-                      <button onClick={()=>setImportStep(1)} style={styles.btn(false)}>Back</button>
-                      <button onClick={runSmartCleaner} style={{...styles.btn(true), background:'#28a745', color:'white'}}>Next: Clean Data <ArrowRight size={16}/></button>
-                  </div>
-              </div>
-          )}
-
-          {/* STEP 3: REVIEW & UPLOAD */}
-          {importStep === 3 && (
-              <div style={{background:'white', padding:'20px', borderRadius:'10px', border:'1px solid #ddd'}}>
-                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-                      <h3 style={{margin:0}}>Step 3: Review & Upload</h3>
-                      <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
-                          <label style={{fontSize:'13px', display:'flex', alignItems:'center', gap:'5px', cursor:'pointer'}}>
-                              <input type="checkbox" checked={showOnlyInvalid} onChange={e=>setShowOnlyInvalid(e.target.checked)} />
-                              Show Only Errors
-                          </label>
-                          <select style={styles.input} value={selectedCourseForUpload} onChange={e=>setSelectedCourseForUpload(e.target.value)}>
-                              <option value="">-- Select Target Course --</option>
-                              {courses.map(c => <option key={c.course_id} value={c.course_name}>{c.course_name}</option>)}
-                          </select>
-                          <button onClick={handleFinalUpload} style={{...styles.btn(true), background:'#28a745', color:'white'}}>
-                              <Save size={16}/> Finish Import
-                          </button>
-                      </div>
-                  </div>
-
-                  <div style={{maxHeight:'400px', overflowY:'auto', border:'1px solid #eee'}}>
-                      <table style={{width:'100%', fontSize:'13px', borderCollapse:'collapse'}}>
-                          <thead style={{position:'sticky', top:0, background:'#f8f9fa', zIndex:10}}>
-                              <tr>
-                                  <th style={thPrint}>Status</th>
-                                  <th style={thPrint}>Conf No</th>
-                                  <th style={thPrint}>Name</th>
-                                  <th style={thPrint}>Age</th>
-                                  <th style={thPrint}>Gender</th>
-                                  <th style={thPrint}>Issues</th>
-                              </tr>
-                          </thead>
-                          <tbody>
-                              {cleanedData
-                                  .filter(row => !showOnlyInvalid || !row.isValid)
-                                  .map((row, i) => (
-                                  <tr key={i} style={{borderBottom:'1px solid #eee', background: row.isValid ? 'white' : '#fff5f5'}}>
-                                      <td style={{padding:'8px', textAlign:'center'}}>
-                                          {row.isValid ? <CheckCircle size={16} color="green"/> : <AlertCircle size={16} color="red"/>}
-                                      </td>
-                                      <td style={{padding:'8px', fontWeight:'bold'}}>{row.conf_no}</td>
-                                      <td style={{padding:'8px'}}>{row.full_name}</td>
-                                      <td style={{padding:'8px'}}>{row.age}</td>
-                                      <td style={{padding:'8px'}}>{row.gender}</td>
-                                      <td style={{padding:'8px', color:'red', fontSize:'11px'}}>{row.issues.join(', ')}</td>
-                                  </tr>
-                              ))}
-                          </tbody>
-                      </table>
-                  </div>
-                  <div style={{marginTop:'15px', display:'flex', justifyContent:'space-between', color:'#666', fontSize:'12px'}}>
-                      <button onClick={()=>setImportStep(1)} style={styles.btn(false)}>Start Over</button>
-                      <span>Total: {cleanedData.length} | Valid: {cleanedData.filter(d=>d.isValid).length} | Invalid: {cleanedData.filter(d=>!d.isValid).length}</span>
-                  </div>
-              </div>
+               </div>
+               <div style={{maxHeight:'300px', overflowY:'auto', border:'1px solid #eee'}}>
+                 <table style={{width:'100%', fontSize:'13px', borderCollapse:'collapse'}}>
+                   <thead style={{position:'sticky', top:0, background:'#f1f1f1'}}><tr><th style={thPrint}>Conf</th><th style={thPrint}>Name</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Courses</th></tr></thead>
+                   <tbody>{students.map(s => (<tr key={s.id} style={{borderBottom:'1px solid #eee'}}><td style={{padding:'8px', color: s.status === 'Pending ID' ? 'orange' : 'blue'}}>{s.conf_no}</td><td style={{padding:'8px'}}>{s.full_name}</td><td style={{padding:'8px'}}>{s.age}</td><td style={{padding:'8px'}}>{s.gender}</td><td style={{padding:'8px', color:'#666'}}>{s.courses_info}</td></tr>))}</tbody>
+                 </table>
+               </div>
+            </div>
           )}
         </div>
       )}
