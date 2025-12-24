@@ -1,4 +1,5 @@
 import React from 'react';
+import { AlertCircle } from 'lucide-react'; // Added icon for Medical
 
 // --- CONFIGURATION: Indian Commode Rooms (Female) ---
 const INDIAN_COMMODES = new Set([
@@ -64,20 +65,48 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
         const isDouble = group.beds.length > 1 || group.beds.some(b => b.room_no.match(/[AB]$/));
         const sortedBeds = group.beds.sort((a,b) => a.room_no.localeCompare(b.room_no));
         const wrongGender = group.beds.some(b => (b.gender_type || 'Female') === 'Male');
-        const boxBorder = wrongGender ? '2px solid red' : '1px solid #999';
+        
+        // ✅ MEDICAL LOGIC: Check if it's Block F (starts with FRC)
+        const isMedical = String(group.baseNum).startsWith('FRC');
+
+        // Style overrides for Medical Rooms
+        let boxBorder = wrongGender ? '2px solid red' : '1px solid #999';
+        if (isMedical) boxBorder = '2px solid #ffcc80'; // Orange border for medical
 
         return (
-            <div style={{border: boxBorder, borderRadius: '4px', overflow:'hidden', background:'white', height:'100%', display:'flex', flexDirection:'column'}}>
-                <div style={{background:'#eee', padding:'2px 4px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #ccc', fontSize:'10px'}}>
-                    <span style={{fontWeight:'900'}}>{group.baseNum} {wrongGender && '⚠️'}</span>
+            <div 
+                title={isMedical ? "Reserved for Medical / Senior Citizen" : ""}
+                style={{
+                    border: boxBorder, 
+                    borderRadius: '4px', overflow:'hidden', 
+                    background: isMedical ? '#fff8e1' : 'white', // Light yellow bg for medical 
+                    height:'100%', display:'flex', flexDirection:'column'
+                }}>
+                
+                {/* Header */}
+                <div style={{background: isMedical ? '#ffe0b2' : '#eee', padding:'2px 4px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #ccc', fontSize:'10px'}}>
+                    <div style={{display:'flex', alignItems:'center', gap:'2px'}}>
+                        <span style={{fontWeight:'900', color: isMedical ? '#e65100' : '#333'}}>{group.baseNum} {wrongGender && '⚠️'}</span>
+                        {/* ✅ ICON TAG */}
+                        {isMedical && <AlertCircle size={10} color="#e65100" />}
+                    </div>
                     <span style={{fontSize:'8px', background: group.toilet.color, color:'white', padding:'0 2px', borderRadius:'2px'}}>{group.toilet.label}</span>
                 </div>
+
+                {/* Beds Grid */}
                 <div style={{display:'grid', gridTemplateColumns: isDouble ? '1fr 1fr' : '1fr', flex:1, gap:'1px', background:'#ccc'}}> 
                     {sortedBeds.map((bed, i) => {
                         const p = bed.occupant;
+                        
+                        // Default Female Colors
                         let bg = i === 0 ? '#fce4ec' : '#f3e5f5'; 
+                        
+                        // Occupied Colors (Old/New)
                         if (p) bg = (p.conf_no||'').startsWith('O') ? '#ce93d8' : '#a5d6a7'; 
                         
+                        // Medical Empty State Color
+                        if (!p && isMedical) bg = '#fff3e0'; 
+
                         return (
                             <div key={bed.room_id} onClick={() => onRoomClick(bed)}
                                  style={{background: bg, cursor: 'pointer', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', padding:'2px'}}>
@@ -90,6 +119,17 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                         );
                     })}
                 </div>
+
+                {/* ✅ TEXT LABEL FOR MEDICAL */}
+                {isMedical && (
+                    <div style={{
+                        fontSize:'8px', color:'#e65100', 
+                        textAlign:'center', fontWeight:'bold', 
+                        background:'#fff3e0', padding:'1px'
+                    }}>
+                        MED/SR
+                    </div>
+                )}
             </div>
         );
     };
@@ -153,7 +193,7 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
 
             {/* ROW 2 */}
             <div style={{display:'flex', gap:'20px', justifyContent:'flex-end'}}>
-                <BlockContainer title="BLOCK F" roomsInBlock={blockF}>
+                <BlockContainer title="BLOCK F (Medical)" roomsInBlock={blockF}>
                     <div style={{display:'grid', gridTemplateRows:'repeat(3, 60px)', gap:'8px', width:'90px'}}>
                         <RoomBox num="FRC-1" />
                         <RoomBox num="FRC-2" />
