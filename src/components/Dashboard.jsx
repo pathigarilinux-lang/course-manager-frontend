@@ -12,8 +12,8 @@ const MIX_COLORS = {
   NM: '#64b5f6', // Light Blue
   OF: '#880e4f', // Dark Pink
   NF: '#f06292', // Light Pink
-  SM: '#2e7d32', // Dark Green
   SF: '#69f0ae'  // Light Green
+  SM: '#2e7d32', // Dark Green
 };
 
 export default function CourseDashboard({ courses }) {
