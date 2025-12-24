@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, ArrowUp, ArrowDown } from 'lucide-react';
+import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, RefreshCw } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 export default function ParticipantList({ courses, refreshCourses }) {
@@ -11,15 +11,14 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [editingStudent, setEditingStudent] = useState(null); 
   const [viewMode, setViewMode] = useState('list'); 
   
-  // Sorting State for Main List
+  // Sorting State
   const [sortConfig, setSortConfig] = useState({ key: 'full_name', direction: 'asc' });
-
-  // ✅ NEW: Sorting State for Sub-Views
   const [diningSort, setDiningSort] = useState({ key: 'dining_seat_no', direction: 'asc' });
   const [pagodaSort, setPagodaSort] = useState({ key: 'pagoda_cell_no', direction: 'asc' });
   
   // Logic State
   const [selectedSeat, setSelectedSeat] = useState(null);
+  const [isAssigning, setIsAssigning] = useState(false);
   
   // Print & Config State
   const [printReceiptData, setPrintReceiptData] = useState(null);
@@ -43,7 +42,8 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
   // --- HELPERS ---
   const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
-  
+  const getCategoryRank = (conf) => { const cat = getCategory(conf); return cat === 'OLD' ? 1 : 2; }; // 1=High Priority (Front)
+
   const getStudentStats = (p) => {
       if (!p) return { cat: '', s: 0, l: 0, age: '' };
       const conf = (p.conf_no || '').toUpperCase();
@@ -86,11 +86,115 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const generateColLabels = (count) => { const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return letters.slice(0, count).reverse(); };
   const generateChowkyLabels = (count) => { const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); return letters.slice(0, count).reverse().map(l => `CW-${l}`); };
 
+  // --- 🛠️ FIXED AUTO-ASSIGN LOGIC ---
+  const handleAutoAssign = async () => {
+      if (!window.confirm("⚠️ This will overwrite unlocked seats. Continue?")) return;
+      setIsAssigning(true);
+      setShowAutoAssignModal(false);
+
+      try {
+          // 1. Get Fresh Data
+          const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
+          const allP = await res.json();
+          
+          // 2. Filter Active Students (Exclude Servers SM/SF)
+          const active = allP.filter(p => p.status === 'Attending' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre)));
+          const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
+          const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
+
+          // 3. Generate Seat Maps (e.g., A1, A2... or CW-A1...)
+          const genSeats = (cols, rows) => {
+              let s = [];
+              for(let r=1; r<=rows; r++) {
+                  // Standard seats: A1, B1...
+                  cols.forEach(c => s.push(c + r));
+              }
+              return s;
+          };
+
+          const mRegSeats = genSeats(generateColLabels(seatingConfig.mCols), seatingConfig.mRows);
+          const mSpecSeats = genSeats(generateChowkyLabels(seatingConfig.mChowky), seatingConfig.mRows); // Chowky seats
+
+          const fRegSeats = genSeats(generateColLabels(seatingConfig.fCols), seatingConfig.fRows);
+          const fSpecSeats = genSeats(generateChowkyLabels(seatingConfig.fChowky), seatingConfig.fRows);
+
+          // 4. Assignment Function
+          const assignGroup = (students, regSeats, specSeats) => {
+              const updates = [];
+              const lockedSeats = new Set();
+              
+              // Identify Locked Seats
+              students.forEach(p => {
+                  if (p.is_seat_locked && p.dhamma_hall_seat_no) lockedSeats.add(p.dhamma_hall_seat_no);
+              });
+
+              // Filter Available Seats
+              const availReg = regSeats.filter(s => !lockedSeats.has(s));
+              const availSpec = specSeats.filter(s => !lockedSeats.has(s));
+
+              // Sort Students: Old Students (Rank 1) first, then by Age descending
+              const toAssign = students.filter(p => !p.is_seat_locked).sort((a,b) => {
+                  const rA = getCategoryRank(a.conf_no);
+                  const rB = getCategoryRank(b.conf_no);
+                  if (rA !== rB) return rA - rB; // Lower rank = Old Student = Priority
+                  return (parseInt(b.age)||0) - (parseInt(a.age)||0); // Elder first
+              });
+
+              // Separate Special Needs
+              const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating));
+              const normalGroup = toAssign.filter(p => !specGroup.includes(p));
+
+              // Assign Special Seats First
+              specGroup.forEach(p => {
+                  if (availSpec.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availSpec.shift() });
+                  else if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); // Fallback
+              });
+
+              // Assign Normal Seats
+              normalGroup.forEach(p => {
+                  if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() });
+              });
+
+              return updates;
+          };
+
+          // 5. Calculate Updates
+          const mUpdates = assignGroup(males, mRegSeats, mSpecSeats);
+          const fUpdates = assignGroup(females, fRegSeats, fSpecSeats);
+          const allUpdates = [...mUpdates, ...fUpdates];
+
+          if (allUpdates.length === 0) {
+              alert("✅ No new assignments needed (all locked or no students).");
+              setIsAssigning(false);
+              return;
+          }
+
+          // 6. Push to Server (Batching to prevent timeouts)
+          const BATCH_SIZE = 5;
+          for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) {
+              await Promise.all(allUpdates.slice(i, i + BATCH_SIZE).map(p => 
+                  fetch(`${API_URL}/participants/${p.participant_id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(p)
+                  })
+              ));
+          }
+
+          // 7. Refresh
+          alert(`✅ Successfully assigned seats to ${allUpdates.length} students!`);
+          const finalRes = await fetch(`${API_URL}/courses/${courseId}/participants`);
+          setParticipants(await finalRes.json());
+
+      } catch (err) {
+          console.error(err);
+          alert("❌ Error during auto-assign.");
+      }
+      setIsAssigning(false);
+  };
+
   // --- ACTIONS ---
   const saveLayoutConfig = () => { localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig)); alert("✅ Layout Configuration Saved!"); };
-
-  const handleAutoAssign = async () => { setShowAutoAssignModal(false); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); const allP = await res.json(); const active = allP.filter(p => p.status === 'Attending' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre))); const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m')); const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f')); const genSeats = (cols, rows) => { let s=[]; for(let r=1; r<=rows; r++) cols.forEach(c=>s.push(c+r)); return s; }; const mReg = genSeats(generateColLabels(seatingConfig.mCols), seatingConfig.mRows); const mSpec = genSeats(generateChowkyLabels(seatingConfig.mChowky), seatingConfig.mRows); const fReg = genSeats(generateColLabels(seatingConfig.fCols), seatingConfig.fRows); const fSpec = genSeats(generateChowkyLabels(seatingConfig.fChowky), seatingConfig.fRows); const assign = (list, regSeats, specSeats) => { const updates = []; const locked = new Set(); list.forEach(p => { if(p.is_seat_locked && p.dhamma_hall_seat_no) locked.add(p.dhamma_hall_seat_no); }); const availReg = regSeats.filter(s => !locked.has(s)); const availSpec = specSeats.filter(s => !locked.has(s)); const toAssign = list.filter(p => !p.is_seat_locked).sort((a,b) => { const rA = getCategoryRank(a.conf_no), rB = getCategoryRank(b.conf_no); if (rA !== rB) return rA - rB; return (parseInt(b.age)||0) - (parseInt(a.age)||0); }); const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating)); const regGroup = toAssign.filter(p => !specGroup.includes(p)); specGroup.forEach(p => { if(availSpec.length) updates.push({...p, dhamma_hall_seat_no: availSpec.shift()}); else regGroup.unshift(p); }); regGroup.forEach(p => { if(availReg.length) updates.push({...p, dhamma_hall_seat_no: availReg.shift()}); }); return updates; }; const updates = [...assign(males, mReg, mSpec), ...assign(females, fReg, fSpec)]; if(updates.length === 0) { return alert("No assignments needed."); } const BATCH = 5; for(let i=0; i<updates.length; i+=BATCH) await Promise.all(updates.slice(i, i+BATCH).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(p) }))); alert("Done!"); const resFinal = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await resFinal.json()); };
-
   const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(editingStudent) }); setEditingStudent(null); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); };
   const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
   const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
@@ -98,7 +202,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); };
   const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
 
-  // --- PRINT ENGINE ---
+  // --- PRINT ENGINE (Token Slips) ---
   const printDirectly = (tokens) => {
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
@@ -138,13 +242,11 @@ export default function ParticipantList({ courses, refreshCourses }) {
       setTimeout(() => window.print(), 500); 
   };
 
-  // --- EXPORTS (✅ UPDATED: Cross Referencing) ---
+  // --- EXPORTS ---
   const handleExport = () => { if (participants.length === 0) return alert("No data"); const headers = ["Name", "Conf No", "Courses Info", "Age", "Gender", "Room", "Dining Seat", "Pagoda", "Dhamma Seat", "Status", "Mobile Locker", "Valuables Locker", "Laundry Token", "Language"]; const rows = participants.map(p => [`"${p.full_name || ''}"`, p.conf_no || '', `"${p.courses_info || ''}"`, p.age || '', p.gender || '', p.room_no || '', p.dining_seat_no || '', p.pagoda_cell_no || '', p.dhamma_hall_seat_no || '', p.status || '', p.mobile_locker_no || '', p.valuables_locker_no || '', p.laundry_token_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `master_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   
-  // ✅ UPDATED DINING EXPORT: Added Pagoda Cell
   const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Pagoda Cell", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.pagoda_cell_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `dining_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   
-  // ✅ UPDATED PAGODA EXPORT: Added Dining Seat
   const handlePagodaExport = () => {
       const assigned = participants.filter(p => p.status === 'Attending' && p.pagoda_cell_no);
       if (assigned.length === 0) return alert("No pagoda assignments found.");
@@ -174,7 +276,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
       document.head.appendChild(style); window.print(); document.head.removeChild(style); 
   };
 
-  // ✅ NEW: Professional A4 List Printer Function
+  // ✅ FIXED: A4 LIST PRINT STYLING
   const printA4List = (sectionId) => {
       const style = document.createElement('style');
       style.innerHTML = `
@@ -183,11 +285,11 @@ export default function ParticipantList({ courses, refreshCourses }) {
               html, body { margin: 0; padding: 0; background: white; }
               body * { visibility: hidden; }
               #${sectionId}, #${sectionId} * { visibility: visible; }
-              #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; }
+              #${sectionId} { position: absolute; left: 0; top: 0; width: 99%; }
               .no-print { display: none !important; }
-              table { width: 100%; border-collapse: collapse; font-family: 'Helvetica', sans-serif; font-size: 11pt; }
-              th { background-color: #f2f2f2 !important; font-weight: bold; border: 1px solid #000; padding: 8px; text-transform: uppercase; }
-              td { border: 1px solid #000; padding: 6px 8px; }
+              table { width: 100%; border-collapse: collapse; font-family: 'Helvetica', sans-serif; font-size: 10pt; }
+              th, td { border: 1px solid black !important; padding: 6px; }
+              th { background-color: #f2f2f2 !important; font-weight: bold; text-transform: uppercase; }
               h2, h3 { text-align: center; color: black !important; margin: 5px 0; }
           }
       `;
@@ -228,18 +330,12 @@ export default function ParticipantList({ courses, refreshCourses }) {
       return ( <div style={styles.card}> <div className="no-print"><button onClick={() => setShowSummaryReport(false)} style={styles.btn(false)}>← Back</button><button onClick={() => window.print()} style={{...styles.toolBtn('#007bff'), marginLeft:'10px'}}>Print PDF</button></div> <div className="print-area" id="print-summary" style={{padding:'20px'}}> <h2 style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px'}}>COURSE SUMMARY REPORT</h2> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><div><strong>Centre Name:</strong> Dhamma Nagajjuna 2</div><div><strong>Course Date:</strong> {courses.find(c=>c.course_id==courseId)?.start_date}</div></div> <h3 style={{background:'#eee', padding:'5px'}}>COURSE DETAILS</h3> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', marginBottom:'20px'}}><thead><tr style={{background:'#f0f0f0'}}><th rowSpan="2" style={styles.th}>Category</th><th colSpan="2" style={styles.th}>INDIAN</th><th colSpan="2" style={styles.th}>FOREIGNER</th><th rowSpan="2" style={styles.th}>TOTAL</th></tr><tr style={{background:'#f0f0f0'}}><th style={styles.th}>OLD</th><th style={styles.th}>NEW</th><th style={styles.th}>OLD</th><th style={styles.th}>NEW</th></tr></thead><tbody><tr><td style={styles.td}>MALE</td><td style={styles.td}>{getCount('m', 'OLD')}</td><td style={styles.td}>{getCount('m', 'NEW')}</td><td style={styles.td}>0</td><td style={styles.td}>0</td><td style={styles.td}><strong>{getCount('m', 'OLD') + getCount('m', 'NEW')}</strong></td></tr><tr><td style={styles.td}>FEMALE</td><td style={styles.td}>{getCount('f', 'OLD')}</td><td style={styles.td}>{getCount('f', 'NEW')}</td><td style={styles.td}>0</td><td style={styles.td}>0</td><td style={styles.td}><strong>{getCount('f', 'OLD') + getCount('f', 'NEW')}</strong></td></tr><tr style={{background:'#f0f0f0', fontWeight:'bold'}}><td style={styles.td}>TOTAL</td><td style={styles.td}>{getCount('m', 'OLD') + getCount('f', 'OLD')}</td><td style={styles.td}>{getCount('m', 'NEW') + getCount('f', 'NEW')}</td><td style={styles.td}>0</td><td style={styles.td}>0</td><td style={styles.td}>{arrived.length}</td></tr></tbody></table> </div> </div> );
   }
 
-  // ✅ VIEW: DINING (With Sorting & Pagoda Cell)
+  // ✅ VIEW: DINING
   if (viewMode === 'dining') { 
       const arrived = participants.filter(p => p.status==='Attending'); 
-      
       const renderDiningTable = (list, title, color, sectionId) => {
-        // Sort the list based on state
         const sortedList = sortParticipants(list, diningSort.key, diningSort.direction);
-
-        const handleSortClick = (key) => {
-            const dir = (diningSort.key === key && diningSort.direction === 'asc') ? 'desc' : 'asc';
-            setDiningSort({ key, direction: dir });
-        };
+        const handleSortClick = (key) => { const dir = (diningSort.key === key && diningSort.direction === 'asc') ? 'desc' : 'asc'; setDiningSort({ key, direction: dir }); };
 
         return (
             <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}>
@@ -253,13 +349,9 @@ export default function ParticipantList({ courses, refreshCourses }) {
                     <thead>
                         <tr style={{background:'#f0f0f0'}}>
                             <th style={styles.th}>S.N.</th>
-                            <th style={{...styles.th, cursor:'pointer'}} onClick={()=>handleSortClick('dining_seat_no')}>
-                                SEAT {diningSort.key==='dining_seat_no' && (diningSort.direction==='asc' ? '▲' : '▼')}
-                            </th>
+                            <th style={{...styles.th, cursor:'pointer'}} onClick={()=>handleSortClick('dining_seat_no')}>SEAT {diningSort.key==='dining_seat_no' && (diningSort.direction==='asc' ? '▲' : '▼')}</th>
                             <th style={styles.th}>Name</th>
-                            <th style={{...styles.th, cursor:'pointer'}} onClick={()=>handleSortClick('category')}>
-                                CAT {diningSort.key==='category' && (diningSort.direction==='asc' ? '▲' : '▼')}
-                            </th>
+                            <th style={{...styles.th, cursor:'pointer'}} onClick={()=>handleSortClick('category')}>CAT {diningSort.key==='category' && (diningSort.direction==='asc' ? '▲' : '▼')}</th>
                             <th style={styles.th}>Room</th>
                             <th style={styles.th}>Pagoda</th>
                         </tr>
@@ -293,17 +385,12 @@ export default function ParticipantList({ courses, refreshCourses }) {
       ); 
   }
   
-  // ✅ VIEW: PAGODA (Renamed Seat->Cell, Added Dining, Added Sorting)
+  // ✅ VIEW: PAGODA
   if (viewMode === 'pagoda') { 
       const assigned = participants.filter(p => p.status==='Attending' && p.pagoda_cell_no); 
-      
       const renderPagodaTable = (list, title, color, sectionId) => {
         const sortedList = sortParticipants(list, pagodaSort.key, pagodaSort.direction);
-
-        const handleSortClick = (key) => {
-            const dir = (pagodaSort.key === key && pagodaSort.direction === 'asc') ? 'desc' : 'asc';
-            setPagodaSort({ key, direction: dir });
-        };
+        const handleSortClick = (key) => { const dir = (pagodaSort.key === key && pagodaSort.direction === 'asc') ? 'desc' : 'asc'; setPagodaSort({ key, direction: dir }); };
 
         return (
             <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}>
@@ -317,9 +404,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
                     <thead>
                         <tr style={{background:'#f0f0f0'}}>
                             <th style={styles.th}>S.N.</th>
-                            <th style={{...styles.th, cursor:'pointer'}} onClick={()=>handleSortClick('pagoda_cell_no')}>
-                                CELL {pagodaSort.key==='pagoda_cell_no' && (pagodaSort.direction==='asc' ? '▲' : '▼')}
-                            </th>
+                            <th style={{...styles.th, cursor:'pointer'}} onClick={()=>handleSortClick('pagoda_cell_no')}>CELL {pagodaSort.key==='pagoda_cell_no' && (pagodaSort.direction==='asc' ? '▲' : '▼')}</th>
                             <th style={styles.th}>Name</th>
                             <th style={styles.th}>Cat</th>
                             <th style={styles.th}>Room</th>
@@ -399,7 +484,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
               </div> 
               
               {showPrintSettings && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:3000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'300px'}}><h3>🖨️ Print Settings</h3><div style={{marginBottom:'15px'}}><label style={styles.label}>Paper Size</label><select style={styles.input} value={printConfig.paper} onChange={e=>setPrintConfig({...printConfig, paper:e.target.value})}><option>A4</option><option>A3</option><option>Letter</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Orientation</label><select style={styles.input} value={printConfig.orientation} onChange={e=>setPrintConfig({...printConfig, orientation:e.target.value})}><option>landscape</option><option>portrait</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Scale (Zoom)</label><input type="range" min="0.5" max="1.5" step="0.1" value={printConfig.scale} onChange={e=>setPrintConfig({...printConfig, scale:e.target.value})} style={{width:'100%'}}/><div style={{textAlign:'center', fontSize:'12px'}}>{Math.round(printConfig.scale*100)}%</div></div><div style={{textAlign:'right'}}><button onClick={()=>setShowPrintSettings(false)} style={styles.btn(true)}>Done</button></div></div></div>)}
-              {showAutoAssignModal && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'600px', maxHeight:'90vh', overflowY:'auto'}}><h3>🛠️ Auto-Assign Configuration</h3><div style={{background:'#f0f8ff', padding:'15px', borderRadius:'8px', marginBottom:'20px', border:'1px solid #cce5ff'}}><h4 style={{margin:'0 0 10px 0', fontSize:'14px', color:'#0056b3'}}>Student Breakdown (Arrived)</h4><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}><div><div style={{fontWeight:'bold', color:'#007bff'}}>MALE: {males.length}</div></div><div><div style={{fontWeight:'bold', color:'#e91e63'}}>FEMALE: {females.length}</div></div></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}><div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#007bff'}}>Male Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.mCols} onChange={e=>setSeatingConfig({...seatingConfig, mCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.mChowky} onChange={e=>setSeatingConfig({...seatingConfig, mChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.mRows} onChange={e=>setSeatingConfig({...seatingConfig, mRows: parseInt(e.target.value)||0})} /></div><div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#e91e63'}}>Female Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.fCols} onChange={e=>setSeatingConfig({...seatingConfig, fCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.fChowky} onChange={e=>setSeatingConfig({...seatingConfig, fChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.fRows} onChange={e=>setSeatingConfig({...seatingConfig, fRows: parseInt(e.target.value)||0})} /></div></div><div style={{display:'flex', gap:'10px', justifyContent:'flex-end'}}><button onClick={()=>setShowAutoAssignModal(false)} style={styles.btn(false)}>Cancel</button><button onClick={handleAutoAssign} style={{...styles.btn(true), background:'#28a745', color:'white'}}>RUN ASSIGNMENT</button></div></div></div>)}
+              {showAutoAssignModal && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'600px', maxHeight:'90vh', overflowY:'auto'}}><h3>🛠️ Auto-Assign Configuration</h3><div style={{background:'#f0f8ff', padding:'15px', borderRadius:'8px', marginBottom:'20px', border:'1px solid #cce5ff'}}><h4 style={{margin:'0 0 10px 0', fontSize:'14px', color:'#0056b3'}}>Student Breakdown (Arrived)</h4><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}><div><div style={{fontWeight:'bold', color:'#007bff'}}>MALE: {males.length}</div></div><div><div style={{fontWeight:'bold', color:'#e91e63'}}>FEMALE: {females.length}</div></div></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}><div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#007bff'}}>Male Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.mCols} onChange={e=>setSeatingConfig({...seatingConfig, mCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.mChowky} onChange={e=>setSeatingConfig({...seatingConfig, mChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.mRows} onChange={e=>setSeatingConfig({...seatingConfig, mRows: parseInt(e.target.value)||0})} /></div><div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#e91e63'}}>Female Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.fCols} onChange={e=>setSeatingConfig({...seatingConfig, fCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.fChowky} onChange={e=>setSeatingConfig({...seatingConfig, fChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.fRows} onChange={e=>setSeatingConfig({...seatingConfig, fRows: parseInt(e.target.value)||0})} /></div></div><div style={{display:'flex', gap:'10px', justifyContent:'flex-end'}}><button onClick={()=>setShowAutoAssignModal(false)} style={styles.btn(false)}>Cancel</button><button onClick={handleAutoAssign} style={isAssigning ? styles.btn(false) : {...styles.btn(true), background:'#28a745', color:'white'}} disabled={isAssigning}>{isAssigning ? 'Processing...' : 'RUN ASSIGNMENT'}</button></div></div></div>)}
           </div>
       ); 
   }
