@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, BedDouble, UserPlus, Users, ShoppingBag, Settings, LogOut, Shield, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, BedDouble, UserPlus, Users, ShoppingBag, Settings, LogOut, Shield, GraduationCap, Heart } from 'lucide-react';
 import { API_URL } from './config';
 
 // --- COMPONENT IMPORTS ---
 import Login from './components/Login';
 
 // Admin Modules
-import CourseDashboard from './components/Dashboard'; // ✅ Using the NEW Zero-Day Dashboard
+import CourseDashboard from './components/Dashboard'; 
 import GlobalAccommodationManager from './components/GlobalAccommodationManager';
 import StudentForm from './components/StudentForm';
 import ParticipantList from './components/ParticipantList';
 import ExpenseTracker from './components/ExpenseTracker';
 import CourseAdmin from './components/CourseAdmin';
+import SevaBoard from './components/SevaBoard'; // ✅ NEW IMPORT
 
-// Restricted Modules (Preserved from your original file)
+// Restricted Modules
 import GatekeeperPanel from './components/GatekeeperPanel';
 import ATPanel from './components/ATPanel';
 
@@ -21,7 +22,7 @@ export default function App() {
   const [authLevel, setAuthLevel] = useState('none'); // 'none', 'admin', 'gatekeeper', 'teacher'
   const [activeModule, setActiveModule] = useState('dashboard');
   const [courses, setCourses] = useState([]);
-  const [preSelectedRoom, setPreSelectedRoom] = useState(''); // Logic Preserved
+  const [preSelectedRoom, setPreSelectedRoom] = useState(''); 
 
   // --- INITIAL LOAD ---
   useEffect(() => {
@@ -40,7 +41,7 @@ export default function App() {
   const handleLogin = (level) => {
     setAuthLevel(level);
     localStorage.setItem('auth_level', level);
-    setActiveModule('dashboard'); // Reset view on login
+    setActiveModule('dashboard'); 
   };
 
   const handleLogout = () => {
@@ -49,7 +50,6 @@ export default function App() {
     setPreSelectedRoom('');
   };
 
-  // Logic: Clicking a room in Map -> Goes to Onboarding with that room
   const handleRoomClick = (roomNo) => {
     setPreSelectedRoom(roomNo);
     setActiveModule('onboarding');
@@ -60,7 +60,7 @@ export default function App() {
     return <Login onLogin={handleLogin} />;
   }
 
-  // --- 2. RESTRICTED ROLES (Simplified UI) ---
+  // --- 2. RESTRICTED ROLES ---
   if (authLevel === 'gatekeeper') {
     return (
       <div style={{minHeight:'100vh', background:'#e3f2fd', fontFamily:"'Segoe UI', sans-serif"}}>
@@ -96,6 +96,7 @@ export default function App() {
       { id: 'onboarding', label: 'Onboarding', icon: <UserPlus size={18} /> },
       { id: 'students', label: 'Students', icon: <Users size={18} /> },
       { id: 'store', label: 'Store', icon: <ShoppingBag size={18} /> },
+      { id: 'seva', label: 'Seva Board', icon: <Heart size={18} /> }, // ✅ NEW ITEM
       { id: 'admin', label: 'Admin', icon: <Settings size={18} /> },
   ];
 
@@ -184,6 +185,8 @@ export default function App() {
               {activeModule === 'students' && <ParticipantList courses={courses} refreshCourses={refreshCourses}/>}
               
               {activeModule === 'store' && <ExpenseTracker courses={courses} />}
+
+              {activeModule === 'seva' && <SevaBoard courses={courses} />} {/* ✅ NEW RENDER */}
               
               {activeModule === 'admin' && <CourseAdmin courses={courses} refreshCourses={refreshCourses} />}
               
