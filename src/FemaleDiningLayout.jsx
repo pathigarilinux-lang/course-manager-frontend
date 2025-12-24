@@ -9,35 +9,56 @@ export default function FemaleDiningLayout({ occupied, occupiedData, selected, o
   const renderCell = (num, type) => {
     const sNum = String(num); 
     const isOcc = occupied.has(sNum); 
-    const occupantCat = occupiedData ? occupiedData[sNum] : null; // 'O' or 'N'
+    const occupantCat = occupiedData ? occupiedData[sNum] : null; 
     const isSel = String(selected) === sNum;
     
-    // Style Logic
     let bg = 'white';
     let border = '1px solid #ccc';
     let color = '#333';
+    let badgeBg = null;
 
     if (isSel) {
         bg = '#e91e63'; color = 'white'; border = '1px solid #c2185b';
     } else if (isOcc) {
-        if (occupantCat === 'O') { bg = '#e3f2fd'; border = '1px solid #90caf9'; color = '#0d47a1'; }
-        else if (occupantCat === 'N') { bg = '#fff3cd'; border = '1px solid #ffeeba'; color = '#856404'; }
-        else { bg = '#ffebee'; color = '#aaa'; } 
+        bg = '#f0f0f0'; color = '#aaa'; 
+        if (occupantCat === 'O') badgeBg = '#007bff'; // Blue badge
+        else if (occupantCat === 'N') badgeBg = '#ffc107'; // Yellow badge
     } else if (type === 'Floor') {
         bg = '#fff9c4';
     }
 
-    return (<button key={num} onClick={() => !isOcc && onSelect(sNum, type)} disabled={isOcc} style={{ width: '100%', height: '35px', margin: '2px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg, border: border, borderRadius: '4px', cursor: isOcc ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '13px', color }}>{isOcc && occupantCat ? occupantCat : num}</button>);
+    return (
+        <button key={num} onClick={() => !isOcc && onSelect(sNum, type)} disabled={isOcc} 
+            style={{ 
+                width: '100%', height: '35px', margin: '2px 0', 
+                display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                background: bg, border: border, borderRadius: '4px', 
+                cursor: isOcc ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '13px', color,
+                position: 'relative' 
+            }}>
+            {num}
+            {isOcc && badgeBg && (
+                <div style={{
+                    position: 'absolute', top: '-4px', right: '-4px',
+                    width: '14px', height: '14px', borderRadius: '50%',
+                    background: badgeBg, color: badgeBg==='#ffc107'?'black':'white',
+                    fontSize: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '1px solid white', zIndex: 10
+                }}>
+                    {occupantCat}
+                </div>
+            )}
+        </button>
+    );
   };
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 2000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
       <div style={{ background: 'white', padding: '15px', borderRadius: '8px', width: '95%', maxWidth: '1100px', maxHeight: '95vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}><h2 style={{ margin: 0, color: '#e91e63' }}>FEMALE DINING SEAT LAYOUT</h2><button onClick={onClose} style={{ background: '#333', color: 'white', padding: '8px 16px', borderRadius: '4px', border: 'none', cursor:'pointer' }}>Close</button></div>
-        {/* LEGEND */}
         <div style={{ display: 'flex', gap: '15px', fontSize: '12px', marginBottom: '15px', justifyContent:'center', background:'#f8f9fa', padding:'10px', borderRadius:'6px' }}>
-          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'15px', height:'15px', background:'#e3f2fd', border:'1px solid #90caf9', color:'#0d47a1', fontSize:'10px', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold'}}>O</div> Old</div>
-          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'15px', height:'15px', background:'#fff3cd', border:'1px solid #ffeeba', color:'#856404', fontSize:'10px', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold'}}>N</div> New</div>
+          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'14px', height:'14px', borderRadius:'50%', background:'#007bff'}}></div> Old (O)</div>
+          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'14px', height:'14px', borderRadius:'50%', background:'#ffc107'}}></div> New (N)</div>
           <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'15px', height:'15px', background:'#fff9c4', border:'1px solid #ccc'}}></div> Floor</div>
         </div>
         <div style={{ background: '#f06292', color: 'white', textAlign: 'center', padding: '10px', fontWeight: 'bold', borderRadius: '4px', marginBottom: '15px' }}>SERVING TABLE</div>
