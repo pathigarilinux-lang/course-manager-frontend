@@ -2,14 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ShoppingCart, Trash2, LogOut, FileText, DollarSign, Edit, CheckCircle, ArrowLeft, Clock, Tag, PenTool } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
-// --- CONFIGURATION ---
+// --- CONFIGURATION: SIMPLE POS (No Preset Prices) ---
 const PRODUCTS = [
-  { id: 'laundry', name: 'Laundry Token', price:  icon: '🧺', type: 'Service' },
-  { id: 'soap', name: 'Soap Bar', price:  icon: '🧼', type: 'Item' },
-  { id: 'paste', name: 'Toothpaste', price:  icon: '🪥', type: 'Item' },
-  { id: 'brush', name: 'Toothbrush', price:  icon: '🦷', type: 'Item' },
-  { id: 'mosquito', name: 'Mosquito Coil', price:  icon: '🦟', type: 'Item' },
+  { id: 'laundry', name: 'Laundry Token', price: 0, icon: '🧺', type: 'Service' },
+  { id: 'soap', name: 'Soap Bar', price: 0, icon: '🧼', type: 'Item' },
+  { id: 'paste', name: 'Toothpaste', price: 0, icon: '🪥', type: 'Item' },
+  { id: 'brush', name: 'Toothbrush', price: 0, icon: '🦷', type: 'Item' },
+  { id: 'mosquito', name: 'Mosquito Coil', price: 0, icon: '🦟', type: 'Item' },
   { id: 'med', name: 'Medicine', price: 0, icon: '💊', type: 'Medical' }, 
+  { id: 'misc', name: 'Misc Item', price: 0, icon: '📦', type: 'General' }, 
  ];
 
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
@@ -24,8 +25,6 @@ export default function ExpenseTracker({ courses }) {
   
   // Cart & UI State
   const [cart, setCart] = useState([]);
-  const [customPrice, setCustomPrice] = useState('');
-  const [customItemName, setCustomItemName] = useState('');
   const [activeTab, setActiveTab] = useState('pos'); 
   const [reportMode, setReportMode] = useState(''); 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -56,16 +55,25 @@ export default function ExpenseTracker({ courses }) {
   }, [financialData, history]);
 
   // --- ACTIONS ---
+  
+  // ✅ SIMPLIFIED ADD TO CART (Always asks for Price)
   const addToCart = (product) => {
-      if (product.price === 0) {
-          const price = prompt(`Enter amount for ${product.name}:`);
-          if (!price) return;
-          setCart([...cart, { ...product, price: parseFloat(price), uid: Date.now() }]);
-      } else {
-          let name = product.name;
-          if (product.id === 'laundry' && studentToken) name = `Laundry Token ${studentToken}`;
-          setCart([...cart, { ...product, name, uid: Date.now() }]);
+      // Prompt for Price
+      const priceStr = prompt(`Enter Price for ${product.name}:`);
+      if (priceStr === null) return; // Cancelled
+      const price = parseFloat(priceStr);
+      
+      if (isNaN(price) || price <= 0) return alert("Please enter a valid amount.");
+
+      // Check for Custom Name (if needed)
+      let name = product.name;
+      if (product.id === 'laundry' && studentToken) name = `Laundry Token ${studentToken}`;
+      if (product.id === 'misc') {
+          const customName = prompt("Enter Item Name:", "Misc Item");
+          if (customName) name = customName;
       }
+
+      setCart([...cart, { ...product, name, price, uid: Date.now() }]);
   };
 
   const removeFromCart = (uid) => setCart(cart.filter(item => item.uid !== uid));
@@ -171,7 +179,6 @@ export default function ExpenseTracker({ courses }) {
   const loadPaidReport = () => {
       if (!courseId) return;
       fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => {
-          // Users who have spending but balance is 0 or less
           const paidUsers = (Array.isArray(data) ? data : []).filter(p => parseFloat(p.total_due) <= 0 && parseFloat(p.total_bill || 0) > 0);
           setFinancialData(paidUsers);
           setReportMode('paid');
@@ -314,9 +321,41 @@ export default function ExpenseTracker({ courses }) {
       );
   }
 
-  if (reportMode === 'invoice' && currentStudent) { return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> <button onClick={() => window.print()} style={{...styles.btn(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button> </div> <div className="print-area">{renderInvoice()}</div> </div> ); }
+  if (reportMode === 'invoice' && currentStudent) { 
+      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> <button onClick={() => window.print()} style={{...styles.btn(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button> </div> <div className="print-area">{renderInvoice()}</div> </div> ); 
+  }
   
-  if (reportMode === 'summary') { return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> <button onClick={() => window.print()} style={{...styles.btn(true), background:'#28a745', color:'white'}}>🖨️ Print Report</button> </div> <div className="print-area"> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Expenses Summary Report</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Total Due (₹)</th></tr></thead><tbody>{financialData.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding:'10px'}}>{i+1}</td><td style={{padding: '10px'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td><td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_due}</td></tr>))} <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px'}}><td colSpan={4} style={{padding:'15px', textAlign:'right'}}>GRAND TOTAL:</td><td style={{padding:'15px', textAlign:'right'}}>₹{financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0)}</td></tr> </tbody></table> </div> </div> ); }
+  if (reportMode === 'summary') { 
+      return ( 
+          <div style={styles.card}> 
+              <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> 
+                  <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> 
+                  <button onClick={() => window.print()} style={{...styles.btn(true), background:'#28a745', color:'white'}}>🖨️ Print Report</button> 
+              </div> 
+              <div className="print-area"> 
+                  <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Expenses Summary Report</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> 
+                  <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}>
+                      <thead><tr style={{borderBottom: '2px solid black'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Total Due (₹)</th></tr></thead>
+                      <tbody>
+                          {financialData.map((p, i) => (
+                              <tr key={i} style={{borderBottom: '1px solid #ddd'}}>
+                                  <td style={{padding:'10px'}}>{i+1}</td>
+                                  <td style={{padding: '10px'}}>{p.full_name}</td>
+                                  <td style={{padding: '10px'}}>{p.room_no}</td>
+                                  <td style={{padding: '10px'}}>{p.dining_seat_no}</td>
+                                  <td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_due}</td>
+                              </tr>
+                          ))} 
+                          <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px'}}>
+                              <td colSpan={4} style={{padding:'15px', textAlign:'right'}}>GRAND TOTAL:</td>
+                              <td style={{padding:'15px', textAlign:'right'}}>₹{financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0)}</td>
+                          </tr> 
+                      </tbody>
+                  </table> 
+              </div> 
+          </div> 
+      ); 
+  }
 
   if (activeTab === 'checkout') {
       return (
@@ -397,23 +436,15 @@ export default function ExpenseTracker({ courses }) {
       {activeTab === 'pos' && (
           <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'20px'}}>
               <div>
-                  <h4 style={{marginTop:0, color:'#555'}}>Quick Add Items</h4>
+                  <h4 style={{marginTop:0, color:'#555'}}>Quick Add Items (Price Prompt)</h4>
                   <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(120px, 1fr))', gap:'10px'}}>
                       {PRODUCTS.map(p => (
                           <button key={p.id} onClick={() => addToCart(p)} disabled={!selectedStudentId} style={{padding:'15px', border:'1px solid #ddd', borderRadius:'8px', background:'white', cursor: !selectedStudentId ? 'not-allowed' : 'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'5px', transition:'all 0.2s', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}>
                               <div style={{fontSize:'24px'}}>{p.icon}</div>
                               <div style={{fontWeight:'bold', fontSize:'13px'}}>{p.name}</div>
-                              <div style={{fontSize:'12px', color:'#666'}}>{p.price > 0 ? `₹${p.price}` : 'Custom'}</div>
+                              <div style={{fontSize:'12px', color:'#666'}}>Tap to Add</div>
                           </button>
                       ))}
-                  </div>
-                  <div style={{marginTop:'20px', padding:'15px', background:'#f9f9f9', borderRadius:'8px'}}>
-                      <div style={{fontSize:'12px', fontWeight:'bold', marginBottom:'10px', color:'#555'}}>MANUAL ENTRY</div>
-                      <div style={{display:'flex', gap:'10px'}}>
-                          <input placeholder="Item Name" style={styles.input} value={customItemName} onChange={e=>setCustomItemName(e.target.value)} />
-                          <input type="number" placeholder="₹" style={{...styles.input, width:'80px'}} value={customPrice} onChange={e=>setCustomPrice(e.target.value)} />
-                          <button onClick={()=>{ if(customItemName && customPrice) { addToCart({name:customItemName, price:parseFloat(customPrice), icon:'🖊️'}); setCustomItemName(''); setCustomPrice(''); }}} disabled={!selectedStudentId} style={styles.toolBtn('#6c757d')}>Add</button>
-                      </div>
                   </div>
               </div>
               <div style={{background:'#f8f9fa', padding:'15px', borderRadius:'12px', border:'1px solid #ddd', display:'flex', flexDirection:'column'}}>
