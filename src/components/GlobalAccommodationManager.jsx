@@ -57,10 +57,10 @@ export default function GlobalAccommodationManager() {
 
   // --- DASHBOARD CALCULATION (With Gender Split) ---
   const calculateDashboard = (rList, oList, courseMap) => {
-      // 1. Calculate Total Capacity
+      // 1. Calculate Total Capacity (Default to 1 bed per room if capacity column missing)
       let mCap = 0, fCap = 0;
       rList.forEach(r => {
-          const cap = parseInt(r.capacity) || 1; 
+          const cap = r.capacity ? parseInt(r.capacity) : 1; 
           const gender = (r.gender_type || '').toLowerCase();
           if (gender.startsWith('m')) mCap += cap;
           else if (gender.startsWith('f')) fCap += cap;
