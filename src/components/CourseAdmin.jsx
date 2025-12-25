@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Upload, Database, Save, FileText, Download, Trash2, Calendar, Search, PlusCircle, Archive, Check, ArrowRight, Edit, XCircle } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
-// Print styles for the preview table
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
 
 export default function CourseAdmin({ courses, refreshCourses }) {
@@ -35,7 +34,12 @@ export default function CourseAdmin({ courses, refreshCourses }) {
 
   // ✅ START EDIT MODE
   const handleEditClick = (c) => {
-      // Extract short name safely
+      // Safety Check: Ensure ID exists
+      if (!c.course_id) {
+          alert("Error: This course is missing a valid ID and cannot be edited.");
+          return;
+      }
+
       const shortName = c.course_name ? c.course_name.split('/')[0].trim() : 'Unknown';
       
       setNewCourseData({
@@ -45,8 +49,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
           endDate: c.end_date ? c.end_date.split('T')[0] : ''
       });
       setEditingId(c.course_id);
-      
-      // Scroll to top
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -56,23 +58,28 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       setNewCourseData({ name: '', teacher: '', startDate: '', endDate: '' });
   };
 
-  // ✅ UPDATE COURSE (With Better Error Handling)
+  // ✅ UPDATE COURSE (DETECTIVE MODE 🕵️‍♂️)
   const handleUpdateCourse = async (e) => {
       e.preventDefault();
       if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
       
+      // Safety Check
+      if (!editingId) return alert("❌ Error: Course ID is missing. Please refresh and try again.");
+
       const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
       
+      const payload = {
+          courseName: courseName,
+          teacherName: newCourseData.teacher,
+          startDate: newCourseData.startDate,
+          endDate: newCourseData.endDate
+      };
+
+      // 🔍 DEBUG LOG: Check your browser console to see this!
+      console.log(`📡 Attempting UPDATE to: ${API_URL}/courses/${editingId}`);
+      console.log("📦 Payload:", payload);
+
       try {
-          const payload = {
-              courseName: courseName,
-              teacherName: newCourseData.teacher,
-              startDate: newCourseData.startDate,
-              endDate: newCourseData.endDate
-          };
-
-          console.log("Sending Update Payload:", payload); // Debug Log
-
           const res = await fetch(`${API_URL}/courses/${editingId}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
@@ -84,14 +91,14 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               refreshCourses(); 
               handleCancelEdit(); 
           } else {
-              // Try to parse error, fallback to status text
-              const errData = await res.json().catch(() => ({}));
-              const msg = errData.message || res.statusText || "Unknown Server Error";
-              alert(`❌ Update Failed: ${msg}`);
+              // ❌ ERROR HANDLING: Shows specific status code (404, 500, etc.)
+              const text = await res.text(); // Get raw response
+              console.error("Server Response:", text);
+              alert(`❌ Update Failed (Status ${res.status}): ${res.statusText}\n\nServer Message: ${text.substring(0, 100)}`);
           }
       } catch (err) { 
-          console.error("Update Error:", err);
-          alert(`⚠️ Network Error: The server could not be reached.\n\nPossible reasons:\n1. Backend is not running.\n2. Backend does not allow 'PUT' requests (CORS).\n3. Internet connection lost.`); 
+          console.error("Network Exception:", err);
+          alert(`⚠️ NETWORK ERROR: Could not reach server.\n\nCheck console for details.`); 
       }
   };
 
@@ -380,6 +387,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       {/* --- IMPORT TAB --- */}
       {activeTab === 'import' && (
         <div style={{maxWidth:'900px', margin:'0 auto', animation:'fadeIn 0.3s ease'}}>
+          {/* ... (Existing Import Code) ... */}
           <div style={{marginBottom:'30px', background:'#e3f2fd', padding:'20px', borderRadius:'12px', border:'1px solid #bbdefb', display:'flex', alignItems:'center', gap:'20px'}}>
             <div style={{background:'white', width:'40px', height:'40px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', color:'#007bff', fontWeight:'bold'}}>1</div>
             <div style={{flex:1}}>
