@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle } from 'lucide-react'; // Added icon for Medical
+import { AlertCircle } from 'lucide-react'; 
 
 // --- CONFIGURATION: Indian Commode Rooms (Female) ---
 const INDIAN_COMMODES = new Set([
@@ -23,11 +23,14 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
         const roomGroups = {};
         rooms.forEach(r => {
             let key = r.room_no;
-            const digitMatch = r.room_no.match(/(\d{3})/);
-            const frcMatch = r.room_no.match(/(?:FRC|F)[-\s]?(\d+)/i);
-
-            if (digitMatch) key = parseInt(digitMatch[1]);
-            else if (frcMatch) key = `FRC-${frcMatch[1]}`;
+            // Normalize Key: Integers for standard rooms, String for others (FRC)
+            const digitMatch = String(r.room_no).match(/^(\d{3})[A-Za-z]*$/); // Match 201, 201A
+            
+            if (digitMatch) {
+                // Keep strictly numeric keys as numbers for sorting, others as is
+                const num = parseInt(digitMatch[1]);
+                key = isNaN(num) ? r.room_no : num;
+            }
 
             if (!roomGroups[key]) roomGroups[key] = { baseNum: key, beds: [], toilet: getToiletInfo(r.room_no) };
             
@@ -66,12 +69,11 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
         const sortedBeds = group.beds.sort((a,b) => a.room_no.localeCompare(b.room_no));
         const wrongGender = group.beds.some(b => (b.gender_type || 'Female') === 'Male');
         
-        // ✅ MEDICAL LOGIC: Check if it's Block F (starts with FRC)
+        // Medical Logic: Check if it's Block F (starts with FRC)
         const isMedical = String(group.baseNum).startsWith('FRC');
 
-        // Style overrides for Medical Rooms
         let boxBorder = wrongGender ? '2px solid red' : '1px solid #999';
-        if (isMedical) boxBorder = '2px solid #ffcc80'; // Orange border for medical
+        if (isMedical) boxBorder = '2px solid #ffcc80'; 
 
         return (
             <div 
@@ -79,32 +81,23 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                 style={{
                     border: boxBorder, 
                     borderRadius: '4px', overflow:'hidden', 
-                    background: isMedical ? '#fff8e1' : 'white', // Light yellow bg for medical 
+                    background: isMedical ? '#fff8e1' : 'white', 
                     height:'100%', display:'flex', flexDirection:'column'
                 }}>
                 
-                {/* Header */}
                 <div style={{background: isMedical ? '#ffe0b2' : '#eee', padding:'2px 4px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #ccc', fontSize:'10px'}}>
                     <div style={{display:'flex', alignItems:'center', gap:'2px'}}>
                         <span style={{fontWeight:'900', color: isMedical ? '#e65100' : '#333'}}>{group.baseNum} {wrongGender && '⚠️'}</span>
-                        {/* ✅ ICON TAG */}
                         {isMedical && <AlertCircle size={10} color="#e65100" />}
                     </div>
                     <span style={{fontSize:'8px', background: group.toilet.color, color:'white', padding:'0 2px', borderRadius:'2px'}}>{group.toilet.label}</span>
                 </div>
 
-                {/* Beds Grid */}
                 <div style={{display:'grid', gridTemplateColumns: isDouble ? '1fr 1fr' : '1fr', flex:1, gap:'1px', background:'#ccc'}}> 
                     {sortedBeds.map((bed, i) => {
                         const p = bed.occupant;
-                        
-                        // Default Female Colors
                         let bg = i === 0 ? '#fce4ec' : '#f3e5f5'; 
-                        
-                        // Occupied Colors (Old/New)
                         if (p) bg = (p.conf_no||'').startsWith('O') ? '#ce93d8' : '#a5d6a7'; 
-                        
-                        // Medical Empty State Color
                         if (!p && isMedical) bg = '#fff3e0'; 
 
                         return (
@@ -120,15 +113,8 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                     })}
                 </div>
 
-                {/* ✅ TEXT LABEL FOR MEDICAL */}
                 {isMedical && (
-                    <div style={{
-                        fontSize:'8px', color:'#e65100', 
-                        textAlign:'center', fontWeight:'bold', 
-                        background:'#fff3e0', padding:'1px'
-                    }}>
-                        MED/SR
-                    </div>
+                    <div style={{fontSize:'8px', color:'#e65100', textAlign:'center', fontWeight:'bold', background:'#fff3e0', padding:'1px'}}>MED/SR</div>
                 )}
             </div>
         );
@@ -163,12 +149,19 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     const blockA = [201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212];
     const blockB = [213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224];
     const blockC = [225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242];
-    const blockF = ["FRC-1", "FRC-2", "FRC-3", "FRC-4", "FRC-5", "FRC-6"];
     const blockD = [243, 244, 245, 246, 247, 248];
+
+    // ✅ DYNAMIC FRC BLOCK: Find ANY room starting with "FRC"
+    // This allows you to add "FRC-01" or "FRC-1A" if "FRC-1" is stuck.
+    const dynamicFRC = Object.keys(allRooms)
+        .filter(key => String(key).startsWith('FRC'))
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+    // Fallback if empty (to maintain layout shape)
+    const blockF = dynamicFRC.length > 0 ? dynamicFRC : ["FRC-1", "FRC-2", "FRC-3", "FRC-4", "FRC-5", "FRC-6"];
 
     return (
         <div style={{display:'flex', flexDirection:'column', gap:'20px', overflowX:'auto'}}>
-            {/* ROW 1 */}
             <div style={{display:'flex', gap:'20px'}}>
                 <BlockContainer title="BLOCK A" roomsInBlock={blockA}>
                     <Column rooms={blockA.slice(0,6)} />
@@ -191,34 +184,19 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                 </BlockContainer>
             </div>
 
-            {/* ROW 2 */}
             <div style={{display:'flex', gap:'20px', justifyContent:'flex-end'}}>
                 <BlockContainer title="BLOCK F (Medical)" roomsInBlock={blockF}>
-                    <div style={{display:'grid', gridTemplateRows:'repeat(3, 60px)', gap:'8px', width:'90px'}}>
-                        <RoomBox num="FRC-1" />
-                        <RoomBox num="FRC-2" />
-                        <RoomBox num="FRC-3" />
-                    </div>
-                    <Pathway />
-                    <div style={{display:'grid', gridTemplateRows:'repeat(3, 60px)', gap:'8px', width:'90px'}}>
-                        <RoomBox num="FRC-6" />
-                        <RoomBox num="FRC-5" />
-                        <RoomBox num="FRC-4" />
+                    {/* Dynamic Grid Layout for FRC */}
+                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
+                        <Column rooms={blockF.slice(0, Math.ceil(blockF.length / 2))} />
+                        <Column rooms={blockF.slice(Math.ceil(blockF.length / 2))} />
                     </div>
                 </BlockContainer>
 
                 <BlockContainer title="BLOCK D" roomsInBlock={blockD}>
-                    <div style={{display:'grid', gridTemplateRows:'repeat(3, 60px)', gap:'8px', width:'90px'}}>
-                        <RoomBox num={243} />
-                        <RoomBox num={244} />
-                        <RoomBox num={245} />
-                    </div>
+                    <Column rooms={blockD.slice(0,3)} />
                     <Pathway />
-                    <div style={{display:'grid', gridTemplateRows:'repeat(3, 60px)', gap:'8px', width:'90px'}}>
-                        <RoomBox num={246} />
-                        <RoomBox num={247} />
-                        <RoomBox num={248} />
-                    </div>
+                    <Column rooms={blockD.slice(3,6)} />
                 </BlockContainer>
             </div>
 
