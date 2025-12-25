@@ -15,7 +15,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
   
   // Course Form State
   const [newCourseData, setNewCourseData] = useState({ name: '', teacher: '', startDate: '', endDate: '' });
-  const [editingId, setEditingId] = useState(null); // ✅ NEW: Track which course is being edited
+  const [editingId, setEditingId] = useState(null); 
 
   // Manual Entry State
   const [manualStudent, setManualStudent] = useState({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
@@ -33,10 +33,10 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       return { label: 'Upcoming', color: '#007bff', bg: '#cce5ff' };
   };
 
-  // ✅ NEW: Start Edit Mode
+  // ✅ START EDIT MODE
   const handleEditClick = (c) => {
-      // Extract short name from "10-Day / 2023..." string
-      const shortName = c.course_name.split('/')[0].trim();
+      // Extract short name safely
+      const shortName = c.course_name ? c.course_name.split('/')[0].trim() : 'Unknown';
       
       setNewCourseData({
           name: shortName,
@@ -46,22 +46,21 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       });
       setEditingId(c.course_id);
       
-      // Scroll to top to show the form
+      // Scroll to top
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ✅ NEW: Cancel Edit Mode
+  // ✅ CANCEL EDIT
   const handleCancelEdit = () => {
       setEditingId(null);
       setNewCourseData({ name: '', teacher: '', startDate: '', endDate: '' });
   };
 
-  // ✅ NEW: Update Course Function
+  // ✅ UPDATE COURSE (With Better Error Handling)
   const handleUpdateCourse = async (e) => {
       e.preventDefault();
       if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
       
-      // Reconstruct the standardized Name String
       const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
       
       try {
@@ -72,6 +71,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               endDate: newCourseData.endDate
           };
 
+          console.log("Sending Update Payload:", payload); // Debug Log
+
           const res = await fetch(`${API_URL}/courses/${editingId}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
@@ -79,14 +80,19 @@ export default function CourseAdmin({ courses, refreshCourses }) {
           });
           
           if (res.ok) {
-              alert(`✅ Course Updated: ${courseName}`);
+              alert(`✅ Course Updated Successfully!`);
               refreshCourses(); 
-              handleCancelEdit(); // Reset form
+              handleCancelEdit(); 
           } else {
-              const err = await res.json();
-              alert(`Error: ${err.message || 'Update failed'}`);
+              // Try to parse error, fallback to status text
+              const errData = await res.json().catch(() => ({}));
+              const msg = errData.message || res.statusText || "Unknown Server Error";
+              alert(`❌ Update Failed: ${msg}`);
           }
-      } catch (err) { console.error(err); alert("Network Error"); }
+      } catch (err) { 
+          console.error("Update Error:", err);
+          alert(`⚠️ Network Error: The server could not be reached.\n\nPossible reasons:\n1. Backend is not running.\n2. Backend does not allow 'PUT' requests (CORS).\n3. Internet connection lost.`); 
+      }
   };
 
   const handleCreateCourse = async (e) => {
@@ -304,7 +310,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                     {editingId ? 'Edit Course' : 'Create Course'}
                 </h3>
                 
-                {/* Switch Submit Handler based on Mode */}
                 <form onSubmit={editingId ? handleUpdateCourse : handleCreateCourse} style={{display:'flex', flexDirection:'column', gap:'15px'}}>
                     <div><label style={styles.label}>Name</label><input style={styles.input} placeholder="e.g. 10-Day" value={newCourseData.name} onChange={e=>setNewCourseData({...newCourseData, name:e.target.value})} /></div>
                     <div><label style={styles.label}>Teacher</label><input style={styles.input} placeholder="e.g. Goenka Ji" value={newCourseData.teacher || ''} onChange={e=>setNewCourseData({...newCourseData, teacher:e.target.value})} /></div>
@@ -313,14 +318,12 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                         <div><label style={styles.label}>End</label><input type="date" style={styles.input} value={newCourseData.endDate} onChange={e=>setNewCourseData({...newCourseData, endDate:e.target.value})} /></div>
                     </div>
                     
-                    {/* Buttons: Update or Create */}
                     <button type="submit" style={{...styles.btn(true), background: editingId ? '#e65100' : '#28a745', color:'white', justifyContent:'center', padding:'12px', marginTop:'10px'}}>
                         {editingId ? 'Update Course' : 'Create New Course'}
                     </button>
                     
-                    {/* Cancel Button (Only in Edit Mode) */}
                     {editingId && (
-                        <button type="button" onClick={handleCancelEdit} style={{...styles.btn(false), justifyContent:'center', padding:'8px', color:'#666'}}>
+                        <button type="button" onClick={handleCancelEdit} style={{...styles.btn(false), justifyContent:'center', padding:'8px', color:'#666', border:'1px solid #ccc'}}>
                             Cancel Edit
                         </button>
                     )}
@@ -356,11 +359,9 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                                         </td>
                                         <td style={{padding:'15px', textAlign:'right'}}>
                                             <div style={{display:'flex', gap:'8px', justifyContent:'flex-end'}}>
-                                                {/* ✅ Edit Button */}
                                                 <button onClick={()=>handleEditClick(c)} style={{padding:'8px', background:'white', color:'#e65100', border:'1px solid #ffe0b2', borderRadius:'6px', cursor:'pointer'}} title="Edit Course">
                                                     <Edit size={16}/>
                                                 </button>
-                                                {/* Delete Button */}
                                                 <button onClick={()=>handleDeleteCourse(c.course_id, c.course_name)} style={{padding:'8px', background:'white', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer'}} title="Delete Course">
                                                     <Trash2 size={16}/>
                                                 </button>
@@ -376,9 +377,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         </div>
       )}
 
-      {/* ... (Import, Backup, Search Tabs remain unchanged) ... */}
-      
-      {/* --- TAB 2: IMPORT DATA --- */}
+      {/* --- IMPORT TAB --- */}
       {activeTab === 'import' && (
         <div style={{maxWidth:'900px', margin:'0 auto', animation:'fadeIn 0.3s ease'}}>
           <div style={{marginBottom:'30px', background:'#e3f2fd', padding:'20px', borderRadius:'12px', border:'1px solid #bbdefb', display:'flex', alignItems:'center', gap:'20px'}}>
@@ -393,7 +392,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
           </div>
 
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px'}}>
-              {/* CSV Upload */}
               <div style={{border:'2px dashed #ccc', borderRadius:'12px', padding:'40px', textAlign:'center', background:'#f9f9f9', position:'relative', transition:'all 0.2s', ':hover':{borderColor:'#007bff'}}}>
                 <h4 style={{margin:'0 0 10px 0', color:'#555'}}>Option A: Bulk Upload</h4>
                 <input type="file" accept=".csv" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
@@ -411,7 +409,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                 </div>
               </div>
 
-              {/* Manual Entry */}
               <div style={{border:'1px solid #eee', borderRadius:'12px', padding:'25px', background:'white', boxShadow:'0 2px 10px rgba(0,0,0,0.02)'}}>
                   <h4 style={{margin:'0 0 20px 0', color:'#555'}}>Option B: Manual Entry</h4>
                   <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
@@ -451,7 +448,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         </div>
       )}
 
-      {/* --- TAB 3: BACKUP --- */}
+      {/* --- BACKUP & SEARCH TABS (Unchanged) --- */}
       {activeTab === 'backup' && (
           <div style={{textAlign:'center', padding:'60px 40px', animation:'fadeIn 0.3s ease'}}>
               <div style={{width:'80px', height:'80px', background:'#f8f9fa', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px auto'}}>
@@ -467,7 +464,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
           </div>
       )}
 
-      {/* --- TAB 4: GLOBAL SEARCH --- */}
       {activeTab === 'search' && (
           <div style={{maxWidth:'900px', margin:'0 auto', animation:'fadeIn 0.3s ease'}}>
               <div style={{display:'flex', gap:'15px', marginBottom:'30px'}}>
