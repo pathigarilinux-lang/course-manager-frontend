@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, BedDouble, UserPlus, Users, ShoppingBag, Settings, LogOut, Shield, GraduationCap, Heart } from 'lucide-react';
+import { LayoutDashboard, BedDouble, UserPlus, Users, ShoppingBag, Settings, LogOut, Shield, GraduationCap, Heart, UserCheck } from 'lucide-react';
 import { API_URL } from './config';
 
 // --- COMPONENT IMPORTS ---
@@ -12,7 +12,8 @@ import StudentForm from './components/StudentForm';
 import ParticipantList from './components/ParticipantList';
 import ExpenseTracker from './components/ExpenseTracker';
 import CourseAdmin from './components/CourseAdmin';
-import SevaBoard from './components/SevaBoard'; // ✅ NEW IMPORT
+import SevaBoard from './components/SevaBoard'; 
+import GateReception from './components/GateReception'; // ✅ NEW IMPORT
 
 // Restricted Modules
 import GatekeeperPanel from './components/GatekeeperPanel';
@@ -92,11 +93,12 @@ export default function App() {
   // --- 3. ADMIN DASHBOARD (RICH UI) ---
   const MENU_ITEMS = [
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+      { id: 'gate', label: 'Reception', icon: <UserCheck size={18} /> }, // ✅ NEW ITEM
       { id: 'room', label: 'Room Map', icon: <BedDouble size={18} /> },
       { id: 'onboarding', label: 'Onboarding', icon: <UserPlus size={18} /> },
       { id: 'students', label: 'Students', icon: <Users size={18} /> },
       { id: 'store', label: 'Store', icon: <ShoppingBag size={18} /> },
-      { id: 'seva', label: 'Seva Board', icon: <Heart size={18} /> }, // ✅ NEW ITEM
+      { id: 'seva', label: 'Seva Board', icon: <Heart size={18} /> }, 
       { id: 'admin', label: 'Admin', icon: <Settings size={18} /> },
   ];
 
@@ -172,6 +174,8 @@ export default function App() {
               
               {activeModule === 'dashboard' && <CourseDashboard courses={courses} />}
               
+              {activeModule === 'gate' && <GateReception courses={courses} />} {/* ✅ NEW RECEPTION */}
+
               {activeModule === 'room' && <GlobalAccommodationManager courses={courses} onRoomClick={handleRoomClick} />}
               
               {activeModule === 'onboarding' && (
@@ -186,7 +190,7 @@ export default function App() {
               
               {activeModule === 'store' && <ExpenseTracker courses={courses} />}
 
-              {activeModule === 'seva' && <SevaBoard courses={courses} />} {/* ✅ NEW RENDER */}
+              {activeModule === 'seva' && <SevaBoard courses={courses} />}
               
               {activeModule === 'admin' && <CourseAdmin courses={courses} refreshCourses={refreshCourses} />}
               
