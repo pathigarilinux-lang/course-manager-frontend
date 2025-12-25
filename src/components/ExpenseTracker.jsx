@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ShoppingCart, Trash2, LogOut, FileText, DollarSign, Edit, CheckCircle, ArrowLeft, Clock, Tag, PenTool } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
-// --- CONFIGURATION: SIMPLE POS (No Preset Prices) ---
+// --- CONFIGURATION: SIMPLE POS (Prices set to 0 for manual entry) ---
 const PRODUCTS = [
   { id: 'laundry', name: 'Laundry Token', price: 0, icon: '🧺', type: 'Service' },
   { id: 'soap', name: 'Soap Bar', price: 0, icon: '🧼', type: 'Item' },
@@ -40,7 +40,8 @@ export default function ExpenseTracker({ courses }) {
   useEffect(() => { 
       if (selectedStudentId) { 
           const student = participants.find(p => p.participant_id == selectedStudentId); 
-          setStudentToken(student ? student.laundry_token_no : ''); 
+          // Auto-fetch Laundry Token from student data
+          setStudentToken(student && student.laundry_token_no ? student.laundry_token_no : ''); 
           fetch(`${API_URL}/participants/${selectedStudentId}/expenses`).then(res => res.json()).then(setHistory); 
       } else { 
           setHistory([]); setStudentToken(''); 
@@ -56,24 +57,37 @@ export default function ExpenseTracker({ courses }) {
 
   // --- ACTIONS ---
   
-  // ✅ SIMPLIFIED ADD TO CART (Always asks for Price)
+  // ✅ ADD TO CART (Auto-Laundry Name & Price Prompt)
   const addToCart = (product) => {
-      // Prompt for Price
-      const priceStr = prompt(`Enter Price for ${product.name}:`);
+      if (!selectedStudentId) return alert("Please select a student first.");
+
+      let finalName = product.name;
+
+      // 1. Logic for Laundry Token Auto-Naming
+      if (product.id === 'laundry') {
+          if (studentToken) {
+              finalName = `Laundry Token ${studentToken}`;
+          } else {
+              // Not found? Ask manually
+              const manualToken = prompt("No assigned token found. Enter Token Number:");
+              if (manualToken) finalName = `Laundry Token ${manualToken}`;
+              else return; // Cancel if no token provided
+          }
+      } 
+      // Logic for Misc Items
+      else if (product.id === 'misc') {
+          const custom = prompt("Enter Item Name:", "Misc Item");
+          if (custom) finalName = custom;
+      }
+
+      // 2. Prompt for Price (Always)
+      const priceStr = prompt(`Enter Price for ${finalName}:`);
       if (priceStr === null) return; // Cancelled
       const price = parseFloat(priceStr);
       
       if (isNaN(price) || price <= 0) return alert("Please enter a valid amount.");
 
-      // Check for Custom Name (if needed)
-      let name = product.name;
-      if (product.id === 'laundry' && studentToken) name = `Laundry Token ${studentToken}`;
-      if (product.id === 'misc') {
-          const customName = prompt("Enter Item Name:", "Misc Item");
-          if (customName) name = customName;
-      }
-
-      setCart([...cart, { ...product, name, price, uid: Date.now() }]);
+      setCart([...cart, { ...product, name: finalName, price, uid: Date.now() }]);
   };
 
   const removeFromCart = (uid) => setCart(cart.filter(item => item.uid !== uid));
@@ -176,10 +190,16 @@ export default function ExpenseTracker({ courses }) {
       });
   };
 
+  // ✅ PAID REPORT LOADER (Refined Logic)
   const loadPaidReport = () => {
       if (!courseId) return;
       fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => {
-          const paidUsers = (Array.isArray(data) ? data : []).filter(p => parseFloat(p.total_due) <= 0 && parseFloat(p.total_bill || 0) > 0);
+          // Filter: Balance is approx 0 AND they spent money (Bill > 0)
+          const paidUsers = (Array.isArray(data) ? data : []).filter(p => {
+              const due = parseFloat(p.total_due || 0);
+              const bill = parseFloat(p.total_bill || 0);
+              return due <= 0.5 && bill > 0; // Tolerance for small float errors
+          });
           setFinancialData(paidUsers);
           setReportMode('paid');
       });
@@ -299,7 +319,7 @@ export default function ExpenseTracker({ courses }) {
                               <th style={thPrint}>S.N.</th>
                               <th style={thPrint}>Name</th>
                               <th style={thPrint}>Room</th>
-                              <th style={{...thPrint, textAlign:'right'}}>Amount</th>
+                              <th style={{...thPrint, textAlign:'right'}}>Paid Amount</th>
                               <th style={{...thPrint, textAlign:'center'}}>Status</th>
                           </tr>
                       </thead>
@@ -310,12 +330,12 @@ export default function ExpenseTracker({ courses }) {
                                   <td style={{padding: '10px', fontWeight:'bold'}}>{p.full_name}</td>
                                   <td style={{padding: '10px'}}>{p.room_no}</td>
                                   <td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_bill || 0}</td>
-                                  <td style={{padding: '10px', textAlign:'center', color:'green', fontWeight:'bold'}}>Paid</td>
+                                  <td style={{padding: '10px', textAlign:'center', color:'green', fontWeight:'bold'}}>PAID</td>
                               </tr>
                           ))}
                       </tbody>
                   </table>
-                  {financialData.length === 0 && <div style={{textAlign:'center', padding:'20px', color:'#999'}}>No paid records found. (Ensure Backend Query is Updated)</div>}
+                  {financialData.length === 0 && <div style={{textAlign:'center', padding:'20px', color:'#999'}}>No paid records found. (Ensure Backend Server was Restarted)</div>}
               </div>
           </div>
       );
