@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Search, RefreshCw, Users, BedDouble, Calendar, Settings, Plus, Trash2, X, Lock } from 'lucide-react';
+import { Home, Search, RefreshCw, Users, BedDouble, Calendar, Settings, Plus, Trash2, X, Lock, AlertTriangle } from 'lucide-react';
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout';     
 import FemaleBlockLayout from './FemaleBlockLayout'; 
@@ -14,15 +14,14 @@ export default function GlobalAccommodationManager() {
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({ mOcc: 0, mTot: 0, fOcc: 0, fTot: 0, total: 0, breakdown: {} });
 
-  // ✅ NEW: Room Manager State
+  // ROOM MANAGER STATE
   const [showRoomManager, setShowRoomManager] = useState(false); 
-  const [newRoom, setNewRoom] = useState({ room_no: '', gender_type: 'Male', capacity: 1 });
+  const [newRoom, setNewRoom] = useState({ room_no: '', gender_type: 'Male', capacity: 1, block_name: 'Temporary' }); // ✅ Added Block Name
   const [managerSearch, setManagerSearch] = useState(''); 
 
   // --- LOADING ---
   const loadData = async () => { 
     try {
-        // Cache Busting (?t=...) forces the server to give fresh data, helping find "lost" rooms
         const t = Date.now();
         const [roomsRes, occRes, coursesRes] = await Promise.all([
             fetch(`${API_URL}/rooms?t=${t}`),
@@ -77,49 +76,76 @@ export default function GlobalAccommodationManager() {
       });
   };
 
-  // --- ✅ ROOM MANAGEMENT LOGIC ---
+  // --- ✅ FIXED: ADD ROOM LOGIC ---
   const handleAddRoom = async (e) => {
       e.preventDefault();
       const rNo = newRoom.room_no.trim();
       if (!rNo) return alert("Room Number is required");
       
-      // 1. Check Local List
+      // 1. Local Check
       const exists = rooms.some(r => r.room_no.toLowerCase() === rNo.toLowerCase());
       if (exists) {
-          alert(`⚠️ Room "${rNo}" is already in the list below.`);
+          alert(`⚠️ Room "${rNo}" already exists.`);
           return;
       }
 
-      // 2. Try Server Create
+      // 2. Prepare Payload (Include Block Name to satisfy DB constraints)
+      const payload = { 
+          room_no: rNo,
+          gender_type: newRoom.gender_type,
+          capacity: parseInt(newRoom.capacity),
+          block_name: newRoom.block_name || 'Temporary' // ✅ Critical Fix
+      };
+
       try {
           const res = await fetch(`${API_URL}/rooms`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...newRoom, room_no: rNo })
+              body: JSON.stringify(payload)
           });
           
           if (res.ok) {
               alert(`Success: Room ${rNo} added.`);
-              setNewRoom({ room_no: '', gender_type: 'Male', capacity: 1 });
+              setNewRoom({ room_no: '', gender_type: 'Male', capacity: 1, block_name: 'Temporary' });
               loadData(); 
           } else {
-              // 3. Handle Zombie Record Error
-              alert(`⚠️ ERROR: Could not create Room "${rNo}".\n\nIt is likely "stuck" in the database history.\n\n👉 SOLUTION: Try adding it as "${rNo}A" or "${rNo}-New" instead.`);
+              // 3. Show REAL Error
+              const errData = await res.json().catch(() => ({}));
+              const serverMsg = errData.message || res.statusText;
+              
+              // 4. Offer Local Fallback if Server Fails
+              if (window.confirm(`⚠️ Server Error: "${serverMsg}"\n\nDo you want to force-add "${rNo}" locally for this session so you can use it immediately?`)) {
+                  setRooms(prev => [...prev, { ...payload, room_id: `temp-${Date.now()}` }]);
+                  setNewRoom({ room_no: '', gender_type: 'Male', capacity: 1, block_name: 'Temporary' });
+              }
           }
-      } catch (err) { console.error(err); alert("Network Error."); }
+      } catch (err) { 
+          console.error(err);
+          // Network Error Fallback
+          if (window.confirm(`⚠️ Network Error. Force-add "${rNo}" locally?`)) {
+              setRooms(prev => [...prev, { ...payload, room_id: `temp-${Date.now()}` }]);
+          }
+      }
   };
 
   const handleDeleteRoom = async (roomNo) => {
-      if (!window.confirm(`⚠️ Are you sure you want to remove TEMPORARY room "${roomNo}"?`)) return;
+      if (!window.confirm(`⚠️ Remove TEMPORARY room "${roomNo}"?`)) return;
       try {
           const target = rooms.find(r => r.room_no === roomNo);
           if (!target) return;
+          
+          // If it's a local temp room, just remove from state
+          if (String(target.room_id).startsWith('temp-')) {
+              setRooms(prev => prev.filter(r => r.room_no !== roomNo));
+              return;
+          }
+
           await fetch(`${API_URL}/rooms/${target.room_id}`, { method: 'DELETE' });
           loadData();
       } catch (err) { console.error(err); }
   };
 
-  // Protect rooms 101-400 and FRC blocks from accidental deletion
+  // Protect rooms 101-400 and FRC blocks
   const isPermanentRoom = (roomNo) => {
       const num = parseInt(roomNo);
       if (!isNaN(num) && num >= 101 && num <= 400) return true;
@@ -212,12 +238,7 @@ export default function GlobalAccommodationManager() {
                   )}
 
                   <div style={{position:'relative'}}>
-                      <div style={{
-                          display:'flex', alignItems:'center', 
-                          background:'white', border:'1px solid #e0e0e0', 
-                          borderRadius:'30px', padding:'8px 15px', 
-                          boxShadow:'0 2px 5px rgba(0,0,0,0.02)', width:'220px', transition:'all 0.2s'
-                      }}>
+                      <div style={{display:'flex', alignItems:'center', background:'white', border:'1px solid #e0e0e0', borderRadius:'30px', padding:'8px 15px', boxShadow:'0 2px 5px rgba(0,0,0,0.02)', width:'220px', transition:'all 0.2s'}}>
                           <Search size={16} color="#aaa"/>
                           <input placeholder="Find Student..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} style={{border:'none', outline:'none', marginLeft:'10px', fontSize:'13px', width:'100%'}} />
                       </div>
@@ -236,26 +257,17 @@ export default function GlobalAccommodationManager() {
                       )}
                   </div>
 
-                  {/* ✅ MANAGE ROOMS BUTTON */}
-                  <button onClick={() => setShowRoomManager(true)} style={{
-                      background:'white', border:'1px solid #ddd', borderRadius:'8px', 
-                      padding:'8px 12px', display:'flex', alignItems:'center', gap:'5px',
-                      cursor:'pointer', color:'#555', fontWeight:'bold', fontSize:'13px'
-                  }}>
+                  <button onClick={() => setShowRoomManager(true)} style={{background:'white', border:'1px solid #ddd', borderRadius:'8px', padding:'8px 12px', display:'flex', alignItems:'center', gap:'5px', cursor:'pointer', color:'#555', fontWeight:'bold', fontSize:'13px'}}>
                       <Settings size={16}/> Manage Rooms
                   </button>
-
-                  <button onClick={loadData} style={{
-                      background:'#f1f3f5', border:'none', borderRadius:'50%', 
-                      width:'35px', height:'35px', display:'flex', alignItems:'center', justifyContent:'center', 
-                      cursor:'pointer', transition:'0.2s', color:'#555'
-                  }} title="Refresh Data">
+                  <button onClick={loadData} style={{background:'#f1f3f5', border:'none', borderRadius:'50%', width:'35px', height:'35px', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'0.2s', color:'#555'}} title="Refresh Data">
                       <RefreshCw size={16}/>
                   </button>
               </div>
           </div>
       </div>
 
+      {/* 2. TAB CONTROLS */}
       <div style={{background:'#f8f9fa', padding:'0 30px', borderBottom:'1px solid #e0e0e0', display:'flex', gap:'30px'}}>
           {['Male', 'Female'].map(gender => {
               const isActive = activeTab === gender;
@@ -269,15 +281,7 @@ export default function GlobalAccommodationManager() {
       </div>
 
       <div style={{padding:'30px', background:'white', minHeight:'600px', overflowX:'auto'}}>
-          {activeTab === 'Male' ? (
-              <div style={{animation:'fadeIn 0.3s ease-in'}}>
-                  <MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} />
-              </div>
-          ) : (
-              <div style={{animation:'fadeIn 0.3s ease-in'}}>
-                  <FemaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} />
-              </div>
-          )}
+          {activeTab === 'Male' ? <MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} /> : <FemaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} />}
       </div>
 
       {/* ✅ ROOM MANAGER MODAL */}
@@ -289,21 +293,35 @@ export default function GlobalAccommodationManager() {
                       <button onClick={()=>setShowRoomManager(false)} style={{background:'none', border:'none', cursor:'pointer'}}><X size={20}/></button>
                   </div>
                   
-                  {/* Add Room Form */}
                   <form onSubmit={handleAddRoom} style={{background:'#f8f9fa', padding:'15px', borderRadius:'8px', marginBottom:'20px'}}>
                       <h4 style={{marginTop:0, marginBottom:'10px', fontSize:'14px'}}>Add New / Temporary Room</h4>
                       <div style={{display:'flex', gap:'10px', marginBottom:'10px'}}>
-                          <input style={styles.input} placeholder="Room No (e.g. FRC-01, Tent-2)" value={newRoom.room_no} onChange={e=>setNewRoom({...newRoom, room_no:e.target.value})} required />
+                          {/* Room Number */}
+                          <input style={styles.input} placeholder="Room No (e.g. 2000A)" value={newRoom.room_no} onChange={e=>setNewRoom({...newRoom, room_no:e.target.value})} required />
+                          {/* Gender */}
                           <select style={styles.input} value={newRoom.gender_type} onChange={e=>setNewRoom({...newRoom, gender_type:e.target.value})}>
                               <option>Male</option><option>Female</option>
                           </select>
                       </div>
-                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                      
+                      {/* ✅ ADDED: BLOCK NAME & CAPACITY */}
+                      <div style={{display:'flex', gap:'10px', marginBottom:'10px'}}>
+                           <select style={styles.input} value={newRoom.block_name} onChange={e=>setNewRoom({...newRoom, block_name:e.target.value})}>
+                              <option value="Temporary">Temporary</option>
+                              <option value="Block A">Block A</option>
+                              <option value="Block B">Block B</option>
+                              <option value="Block C">Block C</option>
+                              <option value="Block F">Block F</option>
+                              <option value="Block D">Block D</option>
+                          </select>
                           <div style={{display:'flex', alignItems:'center', gap:'5px'}}>
-                              <label style={{fontSize:'12px'}}>Capacity:</label>
-                              <input type="number" style={{...styles.input, width:'60px'}} value={newRoom.capacity} onChange={e=>setNewRoom({...newRoom, capacity:e.target.value})} min="1" />
+                              <label style={{fontSize:'12px'}}>Cap:</label>
+                              <input type="number" style={{...styles.input, width:'50px'}} value={newRoom.capacity} onChange={e=>setNewRoom({...newRoom, capacity:e.target.value})} min="1" />
                           </div>
-                          <button type="submit" style={{...styles.btn(true), background:'#28a745', color:'white'}}><Plus size={16}/> Add Room</button>
+                      </div>
+
+                      <div style={{textAlign:'right'}}>
+                          <button type="submit" style={{...styles.btn(true), background:'#28a745', color:'white', width:'100%'}}><Plus size={16}/> Create Room</button>
                       </div>
                   </form>
 
@@ -312,7 +330,6 @@ export default function GlobalAccommodationManager() {
                       <input placeholder="Search rooms below..." value={managerSearch} onChange={e=>setManagerSearch(e.target.value)} style={{...styles.input, width:'100%', fontSize:'12px'}} />
                   </div>
                   
-                  {/* Room List */}
                   <div style={{flex:1, overflowY:'auto', borderTop:'1px solid #eee', paddingTop:'10px'}}>
                       <h4 style={{marginTop:0, fontSize:'14px', color:'#666'}}>All Rooms ({filteredRooms.length})</h4>
                       <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}>
@@ -329,7 +346,7 @@ export default function GlobalAccommodationManager() {
                                           <td style={{padding:'8px'}}>{r.capacity}</td>
                                           <td style={{padding:'8px', textAlign:'center'}}>
                                               {isLocked ? (
-                                                  <span title="Protected Room" style={{color:'#ccc'}}><Lock size={14}/></span>
+                                                  <span title="Permanent Room (Protected)" style={{color:'#ccc'}}><Lock size={14}/></span>
                                               ) : (
                                                   <button onClick={() => handleDeleteRoom(r.room_no)} style={{background:'none', border:'none', cursor:'pointer', color:'#dc3545'}} title="Delete Temporary Room">
                                                       <Trash2 size={14}/>
