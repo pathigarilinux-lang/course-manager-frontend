@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, RefreshCw, Users, BedDouble, Calendar, Plus } from 'lucide-react';
+import { Home, Search, RefreshCw, Users, ArrowRight, BedDouble, Calendar } from 'lucide-react';
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout';     
 import FemaleBlockLayout from './FemaleBlockLayout'; 
@@ -14,16 +14,12 @@ export default function GlobalAccommodationManager() {
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({ mOcc: 0, mTot: 0, fOcc: 0, fTot: 0, total: 0, breakdown: {} });
 
-  // ✅ SIMPLE STATE FOR ADD ROOM
-  const [newRoom, setNewRoom] = useState({ room_no: '', gender_type: 'Male' });
-
   // --- LOADING ---
   const loadData = async () => { 
     try {
-        const t = Date.now(); // Cache busting
         const [roomsRes, occRes, coursesRes] = await Promise.all([
-            fetch(`${API_URL}/rooms?t=${t}`),
-            fetch(`${API_URL}/rooms/occupancy?t=${t}`),
+            fetch(`${API_URL}/rooms`),
+            fetch(`${API_URL}/rooms/occupancy`),
             fetch(`${API_URL}/courses`) 
         ]);
 
@@ -74,38 +70,6 @@ export default function GlobalAccommodationManager() {
       });
   };
 
-  // --- ✅ 1. ADD ROOM (Simple Logic) ---
-  const handleAddRoom = async () => { 
-      if (!newRoom.room_no) return alert("Enter Room Number"); 
-      try {
-          const res = await fetch(`${API_URL}/rooms`, { 
-              method: 'POST', 
-              headers: { 'Content-Type': 'application/json' }, 
-              body: JSON.stringify(newRoom) 
-          });
-          
-          if(res.ok) {
-              setNewRoom({ ...newRoom, room_no: '' }); 
-              loadData(); 
-              alert("Room Added!");
-          } else {
-              const err = await res.json();
-              alert(`Error: ${err.message || err.error || "Failed to add room"}`);
-          }
-      } catch(err) { console.error(err); alert("Network Error"); }
-  };
-
-  // --- ✅ 2. DELETE ROOM (Protection + Logic) ---
-  const PROTECTED_ROOMS = new Set(['201','202','301','302']); // Example protected list
-  
-  const handleDeleteRoom = async (id, name) => { 
-      if (PROTECTED_ROOMS.has(name)) { alert(`🚫 Room ${name} is protected.`); return; }
-      if(window.confirm(`Delete room ${name}?`)) { 
-          await fetch(`${API_URL}/rooms/${id}`, { method: 'DELETE' }); 
-          loadData(); 
-      } 
-  };
-
   // --- ACTIONS (Move / Swap) ---
   const handleRoomInteraction = async (targetRoomData) => {
       const targetRoomNo = targetRoomData.room_no;
@@ -118,7 +82,9 @@ export default function GlobalAccommodationManager() {
           return;
       }
 
+      // EXECUTE MOVE
       const { student, sourceRoom } = moveMode;
+      
       const studentGender = (student.gender || '').toLowerCase();
       const roomGender = (targetRoomData.gender_type || '').toLowerCase();
       
@@ -128,13 +94,16 @@ export default function GlobalAccommodationManager() {
 
       if (targetOccupant) {
           if (!window.confirm(`Swap ${student.full_name} <-> ${targetOccupant.full_name}?`)) return;
+          // Swap logic
           await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: 'TEMP_SWAP' }) });
           await fetch(`${API_URL}/participants/${targetOccupant.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...targetOccupant, room_no: sourceRoom }) });
           await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: targetRoomNo }) });
       } else {
           if (!window.confirm(`Move ${student.full_name} to ${targetRoomNo}?`)) return;
+          // Move logic
           await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: targetRoomNo }) });
       }
+      
       setMoveMode(null);
       loadData();
   };
@@ -163,7 +132,7 @@ export default function GlobalAccommodationManager() {
                       <span style={{color:'#e91e63'}}>Female: <b>{stats.fOcc}</b></span>
                   </div>
 
-                  {/* COURSE TAGS */}
+                  {/* COURSE BREAKDOWN TAGS */}
                   <div style={{marginTop:'10px', display:'flex', gap:'10px', flexWrap:'wrap'}}>
                       {Object.keys(stats.breakdown).length > 0 && Object.entries(stats.breakdown).map(([name, count]) => (
                           <div key={name} style={{
@@ -194,27 +163,6 @@ export default function GlobalAccommodationManager() {
                           <button onClick={()=>setMoveMode(null)} style={{border:'none', background:'transparent', cursor:'pointer', fontWeight:'bold', fontSize:'14px', color:'#856404'}}>✕</button>
                       </div>
                   )}
-
-                  {/* ✅ NEW: SIMPLE INLINE ADD ROOM */}
-                  <div style={{display:'flex', gap:'5px', background:'white', padding:'5px', borderRadius:'8px', border:'1px solid #ddd', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}>
-                      <input 
-                        placeholder="Room No" 
-                        value={newRoom.room_no} 
-                        onChange={e => setNewRoom({...newRoom, room_no: e.target.value})}
-                        style={{border:'1px solid #ccc', borderRadius:'4px', padding:'6px', width:'80px', fontSize:'13px'}}
-                      />
-                      <select 
-                        value={newRoom.gender_type} 
-                        onChange={e => setNewRoom({...newRoom, gender_type: e.target.value})}
-                        style={{border:'1px solid #ccc', borderRadius:'4px', padding:'6px', fontSize:'13px', background:'#f9f9f9'}}
-                      >
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                      </select>
-                      <button onClick={handleAddRoom} style={{background:'#007bff', color:'white', border:'none', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontWeight:'bold', fontSize:'13px', display:'flex', alignItems:'center', gap:'4px'}}>
-                        <Plus size={14}/> Add
-                      </button>
-                  </div>
 
                   {/* SEARCH */}
                   <div style={{position:'relative'}}>
@@ -292,11 +240,11 @@ export default function GlobalAccommodationManager() {
       <div style={{padding:'30px', background:'white', minHeight:'600px', overflowX:'auto'}}>
           {activeTab === 'Male' ? (
               <div style={{animation:'fadeIn 0.3s ease-in'}}>
-                  <MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} onDeleteRoom={handleDeleteRoom} />
+                  <MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} />
               </div>
           ) : (
               <div style={{animation:'fadeIn 0.3s ease-in'}}>
-                  <FemaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} onDeleteRoom={handleDeleteRoom} />
+                  <FemaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} />
               </div>
           )}
       </div>
