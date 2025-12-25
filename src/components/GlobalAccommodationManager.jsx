@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Search, RefreshCw, Users, ArrowRight, BedDouble, Calendar, Settings, Plus, Trash2, X } from 'lucide-react';
+import { Home, Search, RefreshCw, Users, ArrowRight, BedDouble, Calendar } from 'lucide-react';
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout';     
 import FemaleBlockLayout from './FemaleBlockLayout'; 
@@ -13,16 +13,15 @@ export default function GlobalAccommodationManager() {
   // Stats & Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({ mOcc: 0, mTot: 0, fOcc: 0, fTot: 0, total: 0, breakdown: {} });
-  const [showRoomManager, setShowRoomManager] = useState(false); // ✅ Toggle for Modal
-  const [newRoom, setNewRoom] = useState({ room_no: '', gender_type: 'Male', capacity: 1 }); // ✅ New Room Form
 
   // --- LOADING ---
   const loadData = async () => { 
     try {
+        // Fetch all necessary data in parallel
         const [roomsRes, occRes, coursesRes] = await Promise.all([
             fetch(`${API_URL}/rooms`),
             fetch(`${API_URL}/rooms/occupancy`),
-            fetch(`${API_URL}/courses`) 
+            fetch(`${API_URL}/courses`) // Fetch courses to get names
         ]);
 
         const rList = await roomsRes.json();
@@ -32,9 +31,11 @@ export default function GlobalAccommodationManager() {
         setRooms(Array.isArray(rList) ? rList : []);
         setOccupancy(Array.isArray(oList) ? oList : []);
         
+        // Create a Map for Course IDs -> Names
         const courseMap = {};
         if (Array.isArray(cList)) {
             cList.forEach(c => {
+                // Shorten name: "10-Day / 25 Dec" -> "10-Day"
                 const shortName = c.course_name.split('/')[0].trim();
                 courseMap[c.course_id] = shortName;
             });
@@ -49,17 +50,19 @@ export default function GlobalAccommodationManager() {
   
   useEffect(() => { loadData(); }, []);
 
-  // --- STATS ENGINE ---
+  // --- STATS ENGINE (Updated with Course Breakdown) ---
   const calculateStats = (rList, oList, courseMap) => {
       const mOccCount = oList.filter(p => (p.gender || '').toLowerCase().startsWith('m')).length;
       const fOccCount = oList.filter(p => (p.gender || '').toLowerCase().startsWith('f')).length;
       
+      // Calculate Course-wise Counts
       const breakdown = {};
       oList.forEach(p => {
           if (p.course_id && courseMap[p.course_id]) {
               const name = courseMap[p.course_id];
               breakdown[name] = (breakdown[name] || 0) + 1;
           } else if (p.course_id) {
+              // Fallback if course name not found
               breakdown['Other'] = (breakdown['Other'] || 0) + 1;
           }
       });
@@ -68,45 +71,11 @@ export default function GlobalAccommodationManager() {
           mOcc: mOccCount,
           fOcc: fOccCount,
           total: mOccCount + fOccCount,
-          breakdown: breakdown 
+          breakdown: breakdown // { "10-Day": 15, "30-Day": 5 }
       });
   };
 
-  // --- ROOM MANAGEMENT ACTIONS ---
-  const handleAddRoom = async (e) => {
-      e.preventDefault();
-      if (!newRoom.room_no) return alert("Room Number is required");
-      
-      try {
-          const res = await fetch(`${API_URL}/rooms`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(newRoom)
-          });
-          if (res.ok) {
-              alert(`Room ${newRoom.room_no} created.`);
-              setNewRoom({ room_no: '', gender_type: 'Male', capacity: 1 });
-              loadData();
-          } else {
-              alert("Failed to create room. It might already exist.");
-          }
-      } catch (err) { console.error(err); }
-  };
-
-  const handleDeleteRoom = async (roomNo) => {
-      if (!window.confirm(`⚠️ DANGER: Delete Room ${roomNo}?\nThis cannot be undone.`)) return;
-      try {
-          // Note: Backend usually requires ID, but if your API supports deletion by room_no, this works.
-          // Ideally, pass the room ID. Here assuming we delete by ID found in local state.
-          const target = rooms.find(r => r.room_no === roomNo);
-          if (!target) return;
-
-          await fetch(`${API_URL}/rooms/${target.room_id}`, { method: 'DELETE' });
-          loadData();
-      } catch (err) { console.error(err); }
-  };
-
-  // --- ROOM INTERACTION (Move/Swap) ---
+  // --- ACTIONS ---
   const handleRoomInteraction = async (targetRoomData) => {
       const targetRoomNo = targetRoomData.room_no;
       const targetOccupant = occupancy.find(p => p.room_no === targetRoomNo);
@@ -120,6 +89,7 @@ export default function GlobalAccommodationManager() {
 
       // EXECUTE MOVE
       const { student, sourceRoom } = moveMode;
+      
       const studentGender = (student.gender || '').toLowerCase();
       const roomGender = (targetRoomData.gender_type || '').toLowerCase();
       
@@ -129,13 +99,16 @@ export default function GlobalAccommodationManager() {
 
       if (targetOccupant) {
           if (!window.confirm(`Swap ${student.full_name} <-> ${targetOccupant.full_name}?`)) return;
+          // Swap
           await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: 'TEMP_SWAP' }) });
           await fetch(`${API_URL}/participants/${targetOccupant.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...targetOccupant, room_no: sourceRoom }) });
           await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: targetRoomNo }) });
       } else {
           if (!window.confirm(`Move ${student.full_name} to ${targetRoomNo}?`)) return;
+          // Move
           await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: targetRoomNo }) });
       }
+      
       setMoveMode(null);
       loadData();
   };
@@ -164,7 +137,7 @@ export default function GlobalAccommodationManager() {
                       <span style={{color:'#e91e63'}}>Female: <b>{stats.fOcc}</b></span>
                   </div>
 
-                  {/* COURSE BREAKDOWN TAGS */}
+                  {/* ✅ NEW: COURSE BREAKDOWN TAGS */}
                   <div style={{marginTop:'10px', display:'flex', gap:'10px', flexWrap:'wrap'}}>
                       {Object.keys(stats.breakdown).length > 0 && Object.entries(stats.breakdown).map(([name, count]) => (
                           <div key={name} style={{
@@ -181,7 +154,7 @@ export default function GlobalAccommodationManager() {
               </div>
 
               {/* CONTROLS */}
-              <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+              <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
                   
                   {moveMode && (
                       <div style={{
@@ -235,15 +208,6 @@ export default function GlobalAccommodationManager() {
                       )}
                   </div>
 
-                  {/* ✅ MANAGE ROOMS BUTTON */}
-                  <button onClick={() => setShowRoomManager(true)} style={{
-                      background:'white', border:'1px solid #ddd', borderRadius:'8px', 
-                      padding:'8px 12px', display:'flex', alignItems:'center', gap:'5px',
-                      cursor:'pointer', color:'#555', fontWeight:'bold', fontSize:'13px'
-                  }}>
-                      <Settings size={16}/> Manage Rooms
-                  </button>
-
                   <button onClick={loadData} style={{
                       background:'#f1f3f5', border:'none', borderRadius:'50%', 
                       width:'35px', height:'35px', display:'flex', alignItems:'center', justifyContent:'center', 
@@ -289,60 +253,6 @@ export default function GlobalAccommodationManager() {
               </div>
           )}
       </div>
-
-      {/* ✅ 4. ROOM MANAGER MODAL */}
-      {showRoomManager && (
-          <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'center'}}>
-              <div style={{background:'white', padding:'25px', borderRadius:'12px', width:'500px', maxHeight:'80vh', display:'flex', flexDirection:'column'}}>
-                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-                      <h3 style={{margin:0}}>Manage Rooms</h3>
-                      <button onClick={()=>setShowRoomManager(false)} style={{background:'none', border:'none', cursor:'pointer'}}><X size={20}/></button>
-                  </div>
-                  
-                  {/* ADD FORM */}
-                  <form onSubmit={handleAddRoom} style={{background:'#f8f9fa', padding:'15px', borderRadius:'8px', marginBottom:'20px'}}>
-                      <h4 style={{marginTop:0, marginBottom:'10px', fontSize:'14px'}}>Add New / Temporary Room</h4>
-                      <div style={{display:'flex', gap:'10px', marginBottom:'10px'}}>
-                          <input style={styles.input} placeholder="Room No (e.g. Tent-1)" value={newRoom.room_no} onChange={e=>setNewRoom({...newRoom, room_no:e.target.value})} required />
-                          <select style={styles.input} value={newRoom.gender_type} onChange={e=>setNewRoom({...newRoom, gender_type:e.target.value})}>
-                              <option>Male</option><option>Female</option>
-                          </select>
-                      </div>
-                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                          <div style={{display:'flex', alignItems:'center', gap:'5px'}}>
-                              <label style={{fontSize:'12px'}}>Capacity:</label>
-                              <input type="number" style={{...styles.input, width:'60px'}} value={newRoom.capacity} onChange={e=>setNewRoom({...newRoom, capacity:e.target.value})} min="1" />
-                          </div>
-                          <button type="submit" style={{...styles.btn(true), background:'#28a745', color:'white'}}><Plus size={16}/> Add Room</button>
-                      </div>
-                  </form>
-
-                  {/* ROOM LIST (For Deletion) */}
-                  <div style={{flex:1, overflowY:'auto', borderTop:'1px solid #eee', paddingTop:'10px'}}>
-                      <h4 style={{marginTop:0, fontSize:'14px', color:'#666'}}>All Rooms ({rooms.length})</h4>
-                      <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}>
-                          <thead>
-                              <tr style={{textAlign:'left', background:'#f1f1f1'}}><th style={{padding:'8px'}}>Room</th><th style={{padding:'8px'}}>Type</th><th style={{padding:'8px'}}>Cap</th><th style={{padding:'8px'}}>Action</th></tr>
-                          </thead>
-                          <tbody>
-                              {rooms.sort((a,b) => a.room_no.localeCompare(b.room_no)).map(r => (
-                                  <tr key={r.room_id} style={{borderBottom:'1px solid #eee'}}>
-                                      <td style={{padding:'8px', fontWeight:'bold'}}>{r.room_no}</td>
-                                      <td style={{padding:'8px', color: r.gender_type==='Male'?'#007bff':'#e91e63'}}>{r.gender_type}</td>
-                                      <td style={{padding:'8px'}}>{r.capacity}</td>
-                                      <td style={{padding:'8px'}}>
-                                          <button onClick={() => handleDeleteRoom(r.room_no)} style={{background:'none', border:'none', cursor:'pointer', color:'#dc3545'}} title="Delete">
-                                              <Trash2 size={14}/>
-                                          </button>
-                                      </td>
-                                  </tr>
-                              ))}
-                          </tbody>
-                      </table>
-                  </div>
-              </div>
-          </div>
-      )}
 
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
