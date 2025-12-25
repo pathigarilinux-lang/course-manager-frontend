@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShoppingCart, Trash2, Printer, LogOut, FileText, TrendingUp, DollarSign, Package, Clock } from 'lucide-react';
+import { ShoppingCart, Trash2, Printer, LogOut, FileText, TrendingUp, DollarSign, Package, Clock, Edit } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 // --- CONFIGURATION: PRE-DEFINED PRODUCTS ---
@@ -71,6 +71,23 @@ export default function ExpenseTracker({ courses }) {
 
   const removeFromCart = (uid) => setCart(cart.filter(item => item.uid !== uid));
 
+  // ✅ NEW: EDIT CART ITEM (Name & Price)
+  const editCartItem = (uid) => {
+      const item = cart.find(i => i.uid === uid);
+      if (!item) return;
+
+      const newName = prompt("Edit Item Name:", item.name);
+      if (newName === null) return; // Cancelled
+
+      const newPriceStr = prompt("Edit Price (₹):", item.price);
+      if (newPriceStr === null) return; // Cancelled
+      
+      const newPrice = parseFloat(newPriceStr);
+      if (isNaN(newPrice)) return alert("Invalid Price");
+
+      setCart(cart.map(i => i.uid === uid ? { ...i, name: newName || i.name, price: newPrice } : i));
+  };
+
   const handleCheckout = async () => {
       if (cart.length === 0) return alert("Cart is empty!");
       if (!selectedStudentId) return alert("Select a student first.");
@@ -100,6 +117,39 @@ export default function ExpenseTracker({ courses }) {
       fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(setFinancialData);
   };
 
+  // ✅ NEW: SETTLE PAYMENT (Clears Dues)
+  const handleSettlePayment = async () => {
+      if (!selectedStudentId) return;
+      if (stats.studentTotal <= 0) return alert("No dues to settle!");
+      
+      const amountToPay = stats.studentTotal;
+      if(!window.confirm(`💰 Confirm Payment Collection?\n\nAmount: ₹${amountToPay}\n\nThis will record a payment and clear the balance.`)) return;
+
+      try {
+          // Record a NEGATIVE expense to balance the account
+          await fetch(`${API_URL}/expenses`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  courseId,
+                  participantId: selectedStudentId,
+                  type: '✅ Payment Received', // Special label
+                  amount: -amountToPay // Negative amount subtracts from total
+              })
+          });
+
+          // Refresh Data
+          const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); 
+          setHistory(await histRes.json());
+          fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(setFinancialData);
+          alert("✅ Payment Recorded! Balance is now 0.");
+          setActiveTab('pos'); // Go back to main screen
+      } catch (err) {
+          console.error(err);
+          alert("Failed to record payment.");
+      }
+  };
+
   // --- REPORT LOADERS ---
   const loadFinancialReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => setFinancialData(Array.isArray(data) ? data : [])); setReportMode('summary'); };
   
@@ -112,11 +162,9 @@ export default function ExpenseTracker({ courses }) {
       }); 
   };
 
-  // PENDING DUES REPORT
   const loadPendingReport = () => {
       if (!courseId) return;
       fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => {
-          // Filter students with Due Amount > 0
           const pendingUsers = (Array.isArray(data) ? data : []).filter(p => parseFloat(p.total_due) > 0);
           setFinancialData(pendingUsers);
           setReportMode('pending');
@@ -137,10 +185,10 @@ export default function ExpenseTracker({ courses }) {
               <thead><tr style={{background: '#f9f9f9', borderBottom: '2px solid #333'}}><th style={{textAlign: 'left', padding: '10px'}}>Description</th><th style={{textAlign: 'left', padding: '10px'}}>Date</th><th style={{textAlign: 'right', padding: '10px'}}>Amount</th></tr></thead>
               <tbody>
                   {history.map(ex => (
-                      <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}>
+                      <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee', color: ex.amount < 0 ? 'green' : 'black'}}>
                           <td style={{padding: '10px'}}>{ex.expense_type}</td>
                           <td style={{padding: '10px'}}>{new Date(ex.recorded_at).toLocaleDateString()}</td>
-                          <td style={{padding: '10px', textAlign: 'right'}}>₹{ex.amount}</td>
+                          <td style={{padding: '10px', textAlign: 'right'}}>{ex.amount < 0 ? '-' : ''}₹{Math.abs(ex.amount)}</td>
                       </tr>
                   ))}
               </tbody>
@@ -177,7 +225,6 @@ export default function ExpenseTracker({ courses }) {
       ); 
   }
 
-  // PENDING DUES REPORT VIEW
   if (reportMode === 'pending') {
       const totalPending = financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0);
       return (
@@ -243,7 +290,6 @@ export default function ExpenseTracker({ courses }) {
               <div style={{background:'#fff5f5', padding:'30px', borderRadius:'10px', border:'2px solid #ffcdd2', textAlign:'center'}}>
                   <h3 style={{color:'#d32f2f', marginTop:0}}>🔐 Return Valuables & Checkout</h3>
                   <div style={{maxWidth:'500px', margin:'0 auto 20px auto'}}>
-                      {/* ✅ UPDATED DROPDOWN (Includes Conf No) */}
                       <select style={styles.input} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} value={selectedStudentId}>
                           <option value="">-- Select Student --</option>
                           {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no})</option>)}
@@ -256,11 +302,23 @@ export default function ExpenseTracker({ courses }) {
                           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px', marginBottom:'30px'}}>
                               <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>MOBILE LOCKER</div><div style={{fontSize:'32px', fontWeight:'bold', color:'#007bff'}}>{currentStudent.mobile_locker_no || '-'}</div></div>
                               <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>VALUABLES LOCKER</div><div style={{fontSize:'32px', fontWeight:'bold', color:'#e91e63'}}>{currentStudent.valuables_locker_no || '-'}</div></div>
-                              <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>TOTAL DUE</div><div style={{fontSize:'32px', fontWeight:'bold', color:'green'}}>₹{stats.studentTotal}</div></div>
+                              <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>TOTAL DUE</div><div style={{fontSize:'32px', fontWeight:'bold', color: stats.studentTotal > 0 ? 'red' : 'green'}}>₹{stats.studentTotal}</div></div>
                           </div>
+                          
                           <div style={{display:'flex', justifyContent:'center', gap:'20px'}}>
-                              <button onClick={()=>window.print()} style={{...styles.toolBtn('#6c757d'), padding:'15px 30px', fontSize:'16px'}}>🖨️ Print Final Invoice</button>
-                              <button onClick={()=>{alert("Items Returned. Ensure payment is collected."); setActiveTab('pos');}} style={{...styles.toolBtn('#28a745'), padding:'15px 30px', fontSize:'16px'}}>✅ Confirm Returned</button>
+                              {stats.studentTotal > 0 ? (
+                                  <button onClick={handleSettlePayment} style={{...styles.toolBtn('#28a745'), padding:'15px 30px', fontSize:'16px', display:'flex', alignItems:'center', gap:'10px'}}>
+                                      <DollarSign size={20}/> Collect ₹{stats.studentTotal} & Clear Due
+                                  </button>
+                              ) : (
+                                  <div style={{color:'green', fontWeight:'bold', fontSize:'18px', padding:'10px', background:'#e8f5e9', borderRadius:'8px', width:'100%'}}>
+                                      ✅ No Dues Pending
+                                  </div>
+                              )}
+                              
+                              <button onClick={()=>window.print()} style={{...styles.toolBtn('#6c757d'), padding:'15px 30px', fontSize:'16px'}}>
+                                  🖨️ Print Final Invoice
+                              </button>
                           </div>
                           <div className="print-only">{renderInvoice()}</div>
                           <style>{`@media screen { .print-only { display: none; } } @media print { body * { visibility: hidden; } .print-only, .print-only * { visibility: visible; } .print-only { position: absolute; left: 0; top: 0; width: 100%; } }`}</style>
@@ -288,7 +346,6 @@ export default function ExpenseTracker({ courses }) {
       {activeTab !== 'checkout' && (
           <div style={{marginBottom:'20px', display:'grid', gridTemplateColumns:'1fr 2fr', gap:'15px'}}>
               <select style={styles.input} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
-              {/* ✅ UPDATED DROPDOWN: Shows Name + Conf No + Room */}
               <select style={styles.input} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} value={selectedStudentId}>
                   <option value="">-- Select Student --</option>
                   {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no} | {p.room_no || 'No Room'})</option>)}
@@ -326,8 +383,15 @@ export default function ExpenseTracker({ courses }) {
                           <div style={{maxHeight:'200px', overflowY:'auto'}}>
                               {cart.map(item => (
                                   <div key={item.uid} style={{display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px dashed #eee', fontSize:'13px'}}>
-                                      <span>{item.icon} {item.name}</span>
-                                      <div style={{display:'flex', alignItems:'center', gap:'10px'}}><strong>₹{item.price}</strong><Trash2 size={14} color="red" style={{cursor:'pointer'}} onClick={()=>removeFromCart(item.uid)}/></div>
+                                      <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                                          <span>{item.icon} {item.name}</span>
+                                          {/* ✅ EDIT BUTTON IN CART */}
+                                          <Edit size={12} color="#007bff" style={{cursor:'pointer'}} onClick={() => editCartItem(item.uid)} />
+                                      </div>
+                                      <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                          <strong>₹{item.price}</strong>
+                                          <Trash2 size={14} color="red" style={{cursor:'pointer'}} onClick={()=>removeFromCart(item.uid)}/>
+                                      </div>
                                   </div>
                               ))}
                           </div>
@@ -340,16 +404,16 @@ export default function ExpenseTracker({ courses }) {
                       )}
                   </div>
                   <div style={{marginTop:'30px', paddingTop:'20px', borderTop:'2px solid #ccc'}}>
-                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}><h4 style={{margin:0}}>History ({history.length})</h4><span style={{fontSize:'12px', background:'#fff3cd', padding:'2px 6px', borderRadius:'4px'}}>Due: ₹{stats.studentTotal}</span></div>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}><h4 style={{margin:0}}>History ({history.length})</h4><span style={{fontSize:'12px', background: stats.studentTotal > 0 ? '#fff3cd' : '#e8f5e9', padding:'2px 6px', borderRadius:'4px', color: stats.studentTotal > 0 ? 'orange' : 'green'}}>Due: ₹{stats.studentTotal}</span></div>
                       <div style={{maxHeight:'150px', overflowY:'auto'}}>
-                          {history.map(h => (<div key={h.expense_id} style={{display:'flex', justifyContent:'space-between', fontSize:'12px', padding:'5px 0', borderBottom:'1px solid #eee'}}><span>{h.expense_type}</span><span>₹{h.amount} <span onClick={()=>handleDeleteExpense(h.expense_id)} style={{cursor:'pointer', color:'red', marginLeft:'5px'}}>×</span></span></div>))}
+                          {history.map(h => (<div key={h.expense_id} style={{display:'flex', justifyContent:'space-between', fontSize:'12px', padding:'5px 0', borderBottom:'1px solid #eee', color: h.amount < 0 ? 'green' : 'black'}}><span>{h.expense_type}</span><span>{h.amount < 0 ? '-' : ''}₹{Math.abs(h.amount)} <span onClick={()=>handleDeleteExpense(h.expense_id)} style={{cursor:'pointer', color:'red', marginLeft:'5px'}}>×</span></span></div>))}
                       </div>
                   </div>
               </div>
           </div>
       )}
 
-      {/* --- TAB 3: REPORTS --- */}
+      {/* --- TAB 3: REPORTS (Unchanged) --- */}
       {activeTab === 'reports' && (
           <div>
               <h3 style={{marginTop:0}}>Financial Reports</h3>
