@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Search, RefreshCw, Users, ArrowRight, BedDouble, Calendar, Plus } from 'lucide-react';
+import { Search, RefreshCw, Users, BedDouble, Calendar, Plus } from 'lucide-react';
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout';     
 import FemaleBlockLayout from './FemaleBlockLayout'; 
@@ -20,9 +20,10 @@ export default function GlobalAccommodationManager() {
   // --- LOADING ---
   const loadData = async () => { 
     try {
+        const t = Date.now(); // Cache busting
         const [roomsRes, occRes, coursesRes] = await Promise.all([
-            fetch(`${API_URL}/rooms`),
-            fetch(`${API_URL}/rooms/occupancy`),
+            fetch(`${API_URL}/rooms?t=${t}`),
+            fetch(`${API_URL}/rooms/occupancy?t=${t}`),
             fetch(`${API_URL}/courses`) 
         ]);
 
@@ -73,7 +74,7 @@ export default function GlobalAccommodationManager() {
       });
   };
 
-  // --- ✅ 1. ADD ROOM (Your Simple Logic) ---
+  // --- ✅ 1. ADD ROOM (Simple Logic) ---
   const handleAddRoom = async () => { 
       if (!newRoom.room_no) return alert("Enter Room Number"); 
       try {
@@ -94,8 +95,8 @@ export default function GlobalAccommodationManager() {
       } catch(err) { console.error(err); alert("Network Error"); }
   };
 
-  // --- ✅ 2. DELETE ROOM (Passed to children) ---
-  const PROTECTED_ROOMS = new Set(['201','202','301','302']); // Add critical rooms here if needed
+  // --- ✅ 2. DELETE ROOM (Protection + Logic) ---
+  const PROTECTED_ROOMS = new Set(['201','202','301','302']); // Example protected list
   
   const handleDeleteRoom = async (id, name) => { 
       if (PROTECTED_ROOMS.has(name)) { alert(`🚫 Room ${name} is protected.`); return; }
@@ -105,7 +106,7 @@ export default function GlobalAccommodationManager() {
       } 
   };
 
-  // --- ACTIONS ---
+  // --- ACTIONS (Move / Swap) ---
   const handleRoomInteraction = async (targetRoomData) => {
       const targetRoomNo = targetRoomData.room_no;
       const targetOccupant = occupancy.find(p => p.room_no === targetRoomNo);
@@ -155,12 +156,14 @@ export default function GlobalAccommodationManager() {
                       <BedDouble size={24} color="#007bff"/> Accommodation Manager
                   </h2>
                   
+                  {/* MAIN STATS */}
                   <div style={{fontSize:'13px', color:'#666', marginTop:'6px', display:'flex', gap:'20px', fontWeight:'500'}}>
                       <span style={{display:'flex', alignItems:'center', gap:'6px'}}><Users size={14}/> Total Occupied: <span style={{color:'#333', fontWeight:'bold'}}>{stats.total}</span></span>
                       <span style={{color:'#007bff'}}>Male: <b>{stats.mOcc}</b></span>
                       <span style={{color:'#e91e63'}}>Female: <b>{stats.fOcc}</b></span>
                   </div>
 
+                  {/* COURSE TAGS */}
                   <div style={{marginTop:'10px', display:'flex', gap:'10px', flexWrap:'wrap'}}>
                       {Object.keys(stats.breakdown).length > 0 && Object.entries(stats.breakdown).map(([name, count]) => (
                           <div key={name} style={{
@@ -192,7 +195,7 @@ export default function GlobalAccommodationManager() {
                       </div>
                   )}
 
-                  {/* ✅ SIMPLE ADD ROOM UI */}
+                  {/* ✅ NEW: SIMPLE INLINE ADD ROOM */}
                   <div style={{display:'flex', gap:'5px', background:'white', padding:'5px', borderRadius:'8px', border:'1px solid #ddd', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}>
                       <input 
                         placeholder="Room No" 
@@ -208,14 +211,7 @@ export default function GlobalAccommodationManager() {
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
                       </select>
-                      <button 
-                        onClick={handleAddRoom}
-                        style={{
-                            background:'#007bff', color:'white', border:'none', borderRadius:'4px', 
-                            padding:'6px 12px', cursor:'pointer', fontWeight:'bold', fontSize:'13px',
-                            display:'flex', alignItems:'center', gap:'4px'
-                        }}
-                      >
+                      <button onClick={handleAddRoom} style={{background:'#007bff', color:'white', border:'none', borderRadius:'4px', padding:'6px 12px', cursor:'pointer', fontWeight:'bold', fontSize:'13px', display:'flex', alignItems:'center', gap:'4px'}}>
                         <Plus size={14}/> Add
                       </button>
                   </div>
@@ -296,12 +292,10 @@ export default function GlobalAccommodationManager() {
       <div style={{padding:'30px', background:'white', minHeight:'600px', overflowX:'auto'}}>
           {activeTab === 'Male' ? (
               <div style={{animation:'fadeIn 0.3s ease-in'}}>
-                  {/* ✅ PASSED DELETE FUNCTION DOWN */}
                   <MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} onDeleteRoom={handleDeleteRoom} />
               </div>
           ) : (
               <div style={{animation:'fadeIn 0.3s ease-in'}}>
-                  {/* ✅ PASSED DELETE FUNCTION DOWN */}
                   <FemaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} onDeleteRoom={handleDeleteRoom} />
               </div>
           )}
