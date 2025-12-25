@@ -15,12 +15,12 @@ export default function GlobalAccommodationManager() {
   const [stats, setStats] = useState({ mOcc: 0, mTot: 0, fOcc: 0, fTot: 0, total: 0, breakdown: {} });
   const [showRoomManager, setShowRoomManager] = useState(false); 
   const [newRoom, setNewRoom] = useState({ room_no: '', gender_type: 'Male', capacity: 1 });
-  const [managerSearch, setManagerSearch] = useState(''); // ✅ Internal Search for Manager Modal
+  const [managerSearch, setManagerSearch] = useState(''); 
 
   // --- LOADING (With Cache Busting) ---
   const loadData = async () => { 
     try {
-        const t = Date.now(); // 🚀 Force fresh data
+        const t = Date.now(); // Force fresh data
         const [roomsRes, occRes, coursesRes] = await Promise.all([
             fetch(`${API_URL}/rooms?t=${t}`),
             fetch(`${API_URL}/rooms/occupancy?t=${t}`),
@@ -99,8 +99,10 @@ export default function GlobalAccommodationManager() {
               setNewRoom({ room_no: '', gender_type: 'Male', capacity: 1 });
               loadData(); 
           } else {
+              // ⚠️ ZOMBIE RECORD HANDLING
+              // This alerts the user to try a variation if the specific ID is stuck
               const errData = await res.json().catch(() => ({}));
-              alert(`Server Error: ${errData.message || 'Room might already exist in the database (Zombie Record). Try a slightly different name (e.g. FRC-01).'}`);
+              alert(`⚠️ Database Conflict: Room "${rNo}" was deleted previously but is stuck in the database history.\n\nSOLUTION: Try creating it as "${rNo}A", "${rNo}-New", or "${rNo}-01".`);
           }
       } catch (err) { console.error(err); alert("Network Error: Could not reach server."); }
   };
@@ -116,13 +118,18 @@ export default function GlobalAccommodationManager() {
       } catch (err) { console.error(err); }
   };
 
+  // ✅ HELPER: Protect Standard Rooms
+  // Updated Range: 101 to 400 (Covers your new 370 request)
   const isPermanentRoom = (roomNo) => {
       const num = parseInt(roomNo);
       if (!isNaN(num)) {
-          if (num >= 101 && num <= 365) return true;
+          // Standard numeric rooms 101-400 are protected from deletion
+          if (num >= 101 && num <= 400) return true;
       }
+      // FRC blocks are permanent
       if (String(roomNo).startsWith('FRC')) return true;
-      return false; 
+
+      return false; // Everything else (Tent-1, Hall-2) is deletable
   };
 
   const handleRoomInteraction = async (targetRoomData) => {
@@ -230,10 +237,20 @@ export default function GlobalAccommodationManager() {
                       )}
                   </div>
 
-                  <button onClick={() => setShowRoomManager(true)} style={{background:'white', border:'1px solid #ddd', borderRadius:'8px', padding:'8px 12px', display:'flex', alignItems:'center', gap:'5px', cursor:'pointer', color:'#555', fontWeight:'bold', fontSize:'13px'}}>
+                  {/* MANAGE ROOMS BUTTON */}
+                  <button onClick={() => setShowRoomManager(true)} style={{
+                      background:'white', border:'1px solid #ddd', borderRadius:'8px', 
+                      padding:'8px 12px', display:'flex', alignItems:'center', gap:'5px',
+                      cursor:'pointer', color:'#555', fontWeight:'bold', fontSize:'13px'
+                  }}>
                       <Settings size={16}/> Manage Rooms
                   </button>
-                  <button onClick={loadData} style={{background:'#f1f3f5', border:'none', borderRadius:'50%', width:'35px', height:'35px', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'0.2s', color:'#555'}} title="Refresh Data">
+
+                  <button onClick={loadData} style={{
+                      background:'#f1f3f5', border:'none', borderRadius:'50%', 
+                      width:'35px', height:'35px', display:'flex', alignItems:'center', justifyContent:'center', 
+                      cursor:'pointer', transition:'0.2s', color:'#555'
+                  }} title="Refresh Data">
                       <RefreshCw size={16}/>
                   </button>
               </div>
@@ -256,7 +273,7 @@ export default function GlobalAccommodationManager() {
           {activeTab === 'Male' ? <MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} /> : <FemaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} />}
       </div>
 
-      {/* ✅ ROOM MANAGER MODAL */}
+      {/* ROOM MANAGER MODAL */}
       {showRoomManager && (
           <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'center'}}>
               <div style={{background:'white', padding:'25px', borderRadius:'12px', width:'500px', maxHeight:'80vh', display:'flex', flexDirection:'column'}}>
@@ -268,7 +285,7 @@ export default function GlobalAccommodationManager() {
                   <form onSubmit={handleAddRoom} style={{background:'#f8f9fa', padding:'15px', borderRadius:'8px', marginBottom:'20px'}}>
                       <h4 style={{marginTop:0, marginBottom:'10px', fontSize:'14px'}}>Add New / Temporary Room</h4>
                       <div style={{display:'flex', gap:'10px', marginBottom:'10px'}}>
-                          <input style={styles.input} placeholder="Room No (e.g. 322B, FRC-01)" value={newRoom.room_no} onChange={e=>setNewRoom({...newRoom, room_no:e.target.value})} required />
+                          <input style={styles.input} placeholder="Room No (e.g. 370A, FRC-01)" value={newRoom.room_no} onChange={e=>setNewRoom({...newRoom, room_no:e.target.value})} required />
                           <select style={styles.input} value={newRoom.gender_type} onChange={e=>setNewRoom({...newRoom, gender_type:e.target.value})}>
                               <option>Male</option><option>Female</option>
                           </select>
@@ -284,7 +301,7 @@ export default function GlobalAccommodationManager() {
 
                   {/* ROOM SEARCH & LIST */}
                   <div style={{marginBottom:'10px'}}>
-                      <input placeholder="Search in list below (e.g. 322B)..." value={managerSearch} onChange={e=>setManagerSearch(e.target.value)} style={{...styles.input, width:'100%', fontSize:'12px'}} />
+                      <input placeholder="Search in list below (e.g. 370)..." value={managerSearch} onChange={e=>setManagerSearch(e.target.value)} style={{...styles.input, width:'100%', fontSize:'12px'}} />
                   </div>
                   
                   <div style={{flex:1, overflowY:'auto', borderTop:'1px solid #eee', paddingTop:'10px'}}>
