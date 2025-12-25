@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Search, RefreshCw, Users, ArrowRight, BedDouble, Calendar, Settings, Plus, Trash2, X } from 'lucide-react';
+import { Home, Search, RefreshCw, Users, ArrowRight, BedDouble, Calendar, Settings, Plus, Trash2, X, Lock } from 'lucide-react';
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout';     
 import FemaleBlockLayout from './FemaleBlockLayout'; 
@@ -13,8 +13,8 @@ export default function GlobalAccommodationManager() {
   // Stats & Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({ mOcc: 0, mTot: 0, fOcc: 0, fTot: 0, total: 0, breakdown: {} });
-  const [showRoomManager, setShowRoomManager] = useState(false); // ✅ Toggle for Modal
-  const [newRoom, setNewRoom] = useState({ room_no: '', gender_type: 'Male', capacity: 1 }); // ✅ New Room Form
+  const [showRoomManager, setShowRoomManager] = useState(false); 
+  const [newRoom, setNewRoom] = useState({ room_no: '', gender_type: 'Male', capacity: 1 }); 
 
   // --- LOADING ---
   const loadData = async () => { 
@@ -75,35 +75,60 @@ export default function GlobalAccommodationManager() {
   // --- ROOM MANAGEMENT ACTIONS ---
   const handleAddRoom = async (e) => {
       e.preventDefault();
-      if (!newRoom.room_no) return alert("Room Number is required");
+      const rNo = newRoom.room_no.trim();
+      if (!rNo) return alert("Room Number is required");
       
+      // ✅ 1. PRE-CHECK: Does it already exist locally?
+      const exists = rooms.some(r => r.room_no.toLowerCase() === rNo.toLowerCase());
+      if (exists) {
+          alert(`⚠️ Duplicate: Room "${rNo}" already exists in the list below.`);
+          return;
+      }
+
       try {
           const res = await fetch(`${API_URL}/rooms`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(newRoom)
+              body: JSON.stringify({ ...newRoom, room_no: rNo })
           });
+          
           if (res.ok) {
-              alert(`Room ${newRoom.room_no} created.`);
+              alert(`Success: Room ${rNo} added.`);
               setNewRoom({ room_no: '', gender_type: 'Male', capacity: 1 });
-              loadData();
+              loadData(); // Refresh list
           } else {
-              alert("Failed to create room. It might already exist.");
+              const errData = await res.json();
+              alert(`Server Error: ${errData.message || 'Failed to create room.'}`);
           }
-      } catch (err) { console.error(err); }
+      } catch (err) { console.error(err); alert("Network Error: Could not reach server."); }
   };
 
   const handleDeleteRoom = async (roomNo) => {
-      if (!window.confirm(`⚠️ DANGER: Delete Room ${roomNo}?\nThis cannot be undone.`)) return;
+      if (!window.confirm(`⚠️ CONFIRM REMOVAL\n\nAre you sure you want to remove TEMPORARY room "${roomNo}"?\n\nThis cannot be undone.`)) return;
       try {
-          // Note: Backend usually requires ID, but if your API supports deletion by room_no, this works.
-          // Ideally, pass the room ID. Here assuming we delete by ID found in local state.
           const target = rooms.find(r => r.room_no === roomNo);
           if (!target) return;
 
           await fetch(`${API_URL}/rooms/${target.room_id}`, { method: 'DELETE' });
           loadData();
       } catch (err) { console.error(err); }
+  };
+
+  // ✅ HELPER: Identify Permanent vs Temporary Rooms
+  const isPermanentRoom = (roomNo) => {
+      // Logic: If it is purely a number between 100-400, it is permanent.
+      // Or if it matches standard blocks like FRC-X.
+      // Anything with 'A', 'B', 'Tent', 'Hall' is considered Temporary/Extra.
+      
+      const num = parseInt(roomNo);
+      if (!isNaN(num)) {
+          // Standard numeric rooms (101 to 365) are protected
+          if (num >= 101 && num <= 365) return true;
+      }
+      // FRC blocks are permanent
+      if (String(roomNo).startsWith('FRC')) return true;
+
+      return false; // Everything else (322B, Tent-1, etc.) is deletable
   };
 
   // --- ROOM INTERACTION (Move/Swap) ---
@@ -303,7 +328,7 @@ export default function GlobalAccommodationManager() {
                   <form onSubmit={handleAddRoom} style={{background:'#f8f9fa', padding:'15px', borderRadius:'8px', marginBottom:'20px'}}>
                       <h4 style={{marginTop:0, marginBottom:'10px', fontSize:'14px'}}>Add New / Temporary Room</h4>
                       <div style={{display:'flex', gap:'10px', marginBottom:'10px'}}>
-                          <input style={styles.input} placeholder="Room No (e.g. Tent-1)" value={newRoom.room_no} onChange={e=>setNewRoom({...newRoom, room_no:e.target.value})} required />
+                          <input style={styles.input} placeholder="Room No (e.g. 322B, Tent-1)" value={newRoom.room_no} onChange={e=>setNewRoom({...newRoom, room_no:e.target.value})} required />
                           <select style={styles.input} value={newRoom.gender_type} onChange={e=>setNewRoom({...newRoom, gender_type:e.target.value})}>
                               <option>Male</option><option>Female</option>
                           </select>
@@ -317,26 +342,33 @@ export default function GlobalAccommodationManager() {
                       </div>
                   </form>
 
-                  {/* ROOM LIST (For Deletion) */}
+                  {/* ROOM LIST (Protected Deletion) */}
                   <div style={{flex:1, overflowY:'auto', borderTop:'1px solid #eee', paddingTop:'10px'}}>
                       <h4 style={{marginTop:0, fontSize:'14px', color:'#666'}}>All Rooms ({rooms.length})</h4>
                       <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}>
                           <thead>
-                              <tr style={{textAlign:'left', background:'#f1f1f1'}}><th style={{padding:'8px'}}>Room</th><th style={{padding:'8px'}}>Type</th><th style={{padding:'8px'}}>Cap</th><th style={{padding:'8px'}}>Action</th></tr>
+                              <tr style={{textAlign:'left', background:'#f1f1f1'}}><th style={{padding:'8px'}}>Room</th><th style={{padding:'8px'}}>Type</th><th style={{padding:'8px'}}>Cap</th><th style={{padding:'8px', textAlign:'center'}}>Action</th></tr>
                           </thead>
                           <tbody>
-                              {rooms.sort((a,b) => a.room_no.localeCompare(b.room_no)).map(r => (
-                                  <tr key={r.room_id} style={{borderBottom:'1px solid #eee'}}>
-                                      <td style={{padding:'8px', fontWeight:'bold'}}>{r.room_no}</td>
-                                      <td style={{padding:'8px', color: r.gender_type==='Male'?'#007bff':'#e91e63'}}>{r.gender_type}</td>
-                                      <td style={{padding:'8px'}}>{r.capacity}</td>
-                                      <td style={{padding:'8px'}}>
-                                          <button onClick={() => handleDeleteRoom(r.room_no)} style={{background:'none', border:'none', cursor:'pointer', color:'#dc3545'}} title="Delete">
-                                              <Trash2 size={14}/>
-                                          </button>
-                                      </td>
-                                  </tr>
-                              ))}
+                              {rooms.sort((a,b) => a.room_no.localeCompare(b.room_no)).map(r => {
+                                  const isLocked = isPermanentRoom(r.room_no);
+                                  return (
+                                      <tr key={r.room_id} style={{borderBottom:'1px solid #eee'}}>
+                                          <td style={{padding:'8px', fontWeight:'bold'}}>{r.room_no}</td>
+                                          <td style={{padding:'8px', color: r.gender_type==='Male'?'#007bff':'#e91e63'}}>{r.gender_type}</td>
+                                          <td style={{padding:'8px'}}>{r.capacity}</td>
+                                          <td style={{padding:'8px', textAlign:'center'}}>
+                                              {isLocked ? (
+                                                  <span title="Permanent Room (Protected)" style={{color:'#ccc'}}><Lock size={14}/></span>
+                                              ) : (
+                                                  <button onClick={() => handleDeleteRoom(r.room_no)} style={{background:'none', border:'none', cursor:'pointer', color:'#dc3545'}} title="Delete Temporary Room">
+                                                      <Trash2 size={14}/>
+                                                  </button>
+                                              )}
+                                          </td>
+                                      </tr>
+                                  );
+                              })}
                           </tbody>
                       </table>
                   </div>
