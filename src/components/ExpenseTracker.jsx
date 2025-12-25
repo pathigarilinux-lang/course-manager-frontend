@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShoppingCart, Trash2, LogOut, FileText, DollarSign, Edit, CheckCircle, ArrowLeft } from 'lucide-react';
+// ✅ ADDED MISSING IMPORT: Clock
+import { ShoppingCart, Trash2, LogOut, FileText, DollarSign, Edit, CheckCircle, ArrowLeft, Clock } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 // --- CONFIGURATION ---
@@ -70,7 +71,7 @@ export default function ExpenseTracker({ courses }) {
 
   const removeFromCart = (uid) => setCart(cart.filter(item => item.uid !== uid));
 
-  // ✅ FIXED: EDIT CART ITEM (Name & Price)
+  // ✅ EDIT CART ITEM (Name & Price)
   const editCartItem = (uid) => {
       const item = cart.find(i => i.uid === uid);
       if (!item) return;
@@ -166,7 +167,7 @@ export default function ExpenseTracker({ courses }) {
       });
   };
 
-  // ✅ NEW: PAID REPORT LOADER
+  // ✅ PAID REPORT LOADER
   const loadPaidReport = () => {
       if (!courseId) return;
       fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => {
@@ -180,7 +181,7 @@ export default function ExpenseTracker({ courses }) {
   const currentStudent = participants.find(p => p.participant_id == selectedStudentId);
   const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || '';
 
-  // ✅ UPDATED INVOICE: CATEGORIZED (Laundry vs Shop)
+  // ✅ INVOICE: CATEGORIZED
   const renderInvoice = () => {
       const laundryItems = history.filter(h => h.expense_type.toLowerCase().includes('laundry') && h.amount > 0);
       const shopItems = history.filter(h => !h.expense_type.toLowerCase().includes('laundry') && !h.expense_type.includes('Payment') && h.amount > 0);
@@ -259,9 +260,7 @@ export default function ExpenseTracker({ courses }) {
 
   // --- VIEWS ---
 
-  // LAUNDRY REPORT VIEW
   if (reportMode === 'laundry') { 
-      // ... (Unchanged from previous, just ensure symbol is ₹)
       const sortedList = financialData.sort((a,b) => (parseInt(a.laundry_token_no)||0) - (parseInt(b.laundry_token_no)||0));
       const maleCount = sortedList.filter(p => (p.gender||'').toLowerCase().startsWith('m')).length;
       const femaleCount = sortedList.filter(p => (p.gender||'').toLowerCase().startsWith('f')).length;
@@ -308,7 +307,7 @@ export default function ExpenseTracker({ courses }) {
       );
   }
 
-  // ✅ NEW: PAID LIST REPORT
+  // ✅ PAID LIST REPORT
   if (reportMode === 'paid') {
       return (
           <div style={styles.card}>
@@ -333,7 +332,6 @@ export default function ExpenseTracker({ courses }) {
       return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> <button onClick={() => window.print()} style={{...styles.btn(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button> </div> <div className="print-area">{renderInvoice()}</div> </div> ); 
   }
   
-  // COURSE SUMMARY REPORT (Total Due Column Only for now)
   if (reportMode === 'summary') { 
       return ( 
           <div style={styles.card}> 
@@ -366,11 +364,9 @@ export default function ExpenseTracker({ courses }) {
       ); 
   }
 
-  // ✅ CHECKOUT VIEW WITH BACK BUTTON
   if (activeTab === 'checkout') {
       return (
           <div style={styles.card}>
-              {/* ✅ BACK BUTTON */}
               <div className="no-print" style={{marginBottom:'20px'}}>
                   <button onClick={()=>setActiveTab('pos')} style={{display:'flex', alignItems:'center', gap:'5px', background:'transparent', border:'1px solid #ddd', padding:'8px 12px', borderRadius:'6px', cursor:'pointer', color:'#666'}}>
                       <ArrowLeft size={16}/> Back to Store
@@ -419,7 +415,6 @@ export default function ExpenseTracker({ courses }) {
       );
   }
 
-  // MAIN VIEW
   return (
     <div style={styles.card}>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'15px'}}>
@@ -434,7 +429,6 @@ export default function ExpenseTracker({ courses }) {
           </div>
       </div>
 
-      {/* Course & Student Selectors (Visible only in POS & Reports) */}
       {activeTab !== 'checkout' && (
           <div style={{marginBottom:'20px', display:'grid', gridTemplateColumns:'1fr 2fr', gap:'15px'}}>
               <select style={styles.input} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
@@ -477,7 +471,6 @@ export default function ExpenseTracker({ courses }) {
                                   <div key={item.uid} style={{display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px dashed #eee', fontSize:'13px'}}>
                                       <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
                                           <span>{item.icon} {item.name}</span>
-                                          {/* ✅ EDIT BUTTON */}
                                           <Edit size={12} color="#007bff" style={{cursor:'pointer'}} onClick={() => editCartItem(item.uid)} />
                                       </div>
                                       <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
@@ -514,7 +507,6 @@ export default function ExpenseTracker({ courses }) {
                   <button onClick={loadFinancialReport} disabled={!courseId} style={{...styles.quickBtn(!!courseId), background: courseId ? '#28a745' : '#e2e6ea', color: courseId ? 'white' : '#999', cursor: courseId ? 'pointer' : 'not-allowed'}}>💰 Course Summary</button>
                   <button onClick={loadLaundryReport} disabled={!courseId} style={{...styles.quickBtn(!!courseId), background: courseId ? '#007bff' : '#e2e6ea', color: courseId ? 'white' : '#999', cursor: courseId ? 'pointer' : 'not-allowed'}}>📋 Laundry List</button>
                   <button onClick={loadPendingReport} disabled={!courseId} style={{...styles.quickBtn(!!courseId), background: courseId ? '#d32f2f' : '#e2e6ea', color: courseId ? 'white' : '#999', cursor: courseId ? 'pointer' : 'not-allowed', display:'flex', alignItems:'center', gap:'5px'}}><Clock size={14}/> Pending Dues</button>
-                  {/* ✅ NEW PAID LIST BUTTON */}
                   <button onClick={loadPaidReport} disabled={!courseId} style={{...styles.quickBtn(!!courseId), background: courseId ? '#388e3c' : '#e2e6ea', color: courseId ? 'white' : '#999', cursor: courseId ? 'pointer' : 'not-allowed', display:'flex', alignItems:'center', gap:'5px'}}><CheckCircle size={14}/> Paid List</button>
               </div>
               <div style={{padding:'20px', background:'#f8f9fa', borderRadius:'8px', textAlign:'center', color:'#666'}}>Select a report type above to view details.</div>
