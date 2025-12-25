@@ -4,11 +4,11 @@ import { API_URL, styles } from '../config';
 
 // --- CONFIGURATION ---
 const PRODUCTS = [
-  { id: 'laundry', name: 'Laundry Token', price: 50, icon: '🧺', type: 'Service' },
-  { id: 'soap', name: 'Soap Bar', price: 30, icon: '🧼', type: 'Item' },
-  { id: 'paste', name: 'Toothpaste', price: 40, icon: '🪥', type: 'Item' },
-  { id: 'brush', name: 'Toothbrush', price: 20, icon: '🦷', type: 'Item' },
-  { id: 'mosquito', name: 'Mosquito Coil', price: 10, icon: '🦟', type: 'Item' },
+  { id: 'laundry', name: 'Laundry Token', price:  icon: '🧺', type: 'Service' },
+  { id: 'soap', name: 'Soap Bar', price:  icon: '🧼', type: 'Item' },
+  { id: 'paste', name: 'Toothpaste', price:  icon: '🪥', type: 'Item' },
+  { id: 'brush', name: 'Toothbrush', price:  icon: '🦷', type: 'Item' },
+  { id: 'mosquito', name: 'Mosquito Coil', price:  icon: '🦟', type: 'Item' },
   { id: 'med', name: 'Medicine', price: 0, icon: '💊', type: 'Medical' }, 
  ];
 
