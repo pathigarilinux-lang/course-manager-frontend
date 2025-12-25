@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, Database, Save, FileText, Download, Trash2, Calendar, Search, PlusCircle, Archive, Check, ArrowRight } from 'lucide-react';
+import { Upload, Database, Save, FileText, Download, Trash2, Calendar, Search, PlusCircle, Archive, Check, ArrowRight, Edit, XCircle } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 // Print styles for the preview table
@@ -12,7 +12,12 @@ export default function CourseAdmin({ courses, refreshCourses }) {
   const [students, setStudents] = useState([]);
   const [uploadStatus, setUploadStatus] = useState(null);
   const [selectedCourseForUpload, setSelectedCourseForUpload] = useState('');
+  
+  // Course Form State
   const [newCourseData, setNewCourseData] = useState({ name: '', teacher: '', startDate: '', endDate: '' });
+  const [editingId, setEditingId] = useState(null); // ✅ NEW: Track which course is being edited
+
+  // Manual Entry State
   const [manualStudent, setManualStudent] = useState({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalResults, setGlobalResults] = useState([]);
@@ -26,6 +31,62 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       if (now > end) return { label: 'Completed', color: '#6c757d', bg: '#e2e3e5' };
       if (now >= start && now <= end) return { label: 'Active', color: '#28a745', bg: '#d4edda' };
       return { label: 'Upcoming', color: '#007bff', bg: '#cce5ff' };
+  };
+
+  // ✅ NEW: Start Edit Mode
+  const handleEditClick = (c) => {
+      // Extract short name from "10-Day / 2023..." string
+      const shortName = c.course_name.split('/')[0].trim();
+      
+      setNewCourseData({
+          name: shortName,
+          teacher: c.teacher_name || '',
+          startDate: c.start_date ? c.start_date.split('T')[0] : '',
+          endDate: c.end_date ? c.end_date.split('T')[0] : ''
+      });
+      setEditingId(c.course_id);
+      
+      // Scroll to top to show the form
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ✅ NEW: Cancel Edit Mode
+  const handleCancelEdit = () => {
+      setEditingId(null);
+      setNewCourseData({ name: '', teacher: '', startDate: '', endDate: '' });
+  };
+
+  // ✅ NEW: Update Course Function
+  const handleUpdateCourse = async (e) => {
+      e.preventDefault();
+      if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
+      
+      // Reconstruct the standardized Name String
+      const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
+      
+      try {
+          const payload = {
+              courseName: courseName,
+              teacherName: newCourseData.teacher,
+              startDate: newCourseData.startDate,
+              endDate: newCourseData.endDate
+          };
+
+          const res = await fetch(`${API_URL}/courses/${editingId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+          });
+          
+          if (res.ok) {
+              alert(`✅ Course Updated: ${courseName}`);
+              refreshCourses(); 
+              handleCancelEdit(); // Reset form
+          } else {
+              const err = await res.json();
+              alert(`Error: ${err.message || 'Update failed'}`);
+          }
+      } catch (err) { console.error(err); alert("Network Error"); }
   };
 
   const handleCreateCourse = async (e) => {
@@ -235,17 +296,34 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       {/* --- TAB 1: COURSES MANAGER --- */}
       {activeTab === 'courses' && (
         <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'30px', animation:'fadeIn 0.3s ease'}}>
-            {/* Create Form */}
+            
+            {/* Create / Edit Form */}
             <div style={{background:'linear-gradient(to bottom right, #ffffff, #f8f9fa)', padding:'25px', borderRadius:'12px', border:'1px solid #eee', height:'fit-content', boxShadow:'0 4px 12px rgba(0,0,0,0.03)'}}>
-                <h3 style={{marginTop:0, display:'flex', alignItems:'center', gap:'10px', color:'#007bff'}}><PlusCircle size={20}/> Create Course</h3>
-                <form onSubmit={handleCreateCourse} style={{display:'flex', flexDirection:'column', gap:'15px'}}>
+                <h3 style={{marginTop:0, display:'flex', alignItems:'center', gap:'10px', color: editingId ? '#e65100' : '#007bff'}}>
+                    {editingId ? <Edit size={20}/> : <PlusCircle size={20}/>}
+                    {editingId ? 'Edit Course' : 'Create Course'}
+                </h3>
+                
+                {/* Switch Submit Handler based on Mode */}
+                <form onSubmit={editingId ? handleUpdateCourse : handleCreateCourse} style={{display:'flex', flexDirection:'column', gap:'15px'}}>
                     <div><label style={styles.label}>Name</label><input style={styles.input} placeholder="e.g. 10-Day" value={newCourseData.name} onChange={e=>setNewCourseData({...newCourseData, name:e.target.value})} /></div>
                     <div><label style={styles.label}>Teacher</label><input style={styles.input} placeholder="e.g. Goenka Ji" value={newCourseData.teacher || ''} onChange={e=>setNewCourseData({...newCourseData, teacher:e.target.value})} /></div>
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
                         <div><label style={styles.label}>Start</label><input type="date" style={styles.input} value={newCourseData.startDate} onChange={e=>setNewCourseData({...newCourseData, startDate:e.target.value})} /></div>
                         <div><label style={styles.label}>End</label><input type="date" style={styles.input} value={newCourseData.endDate} onChange={e=>setNewCourseData({...newCourseData, endDate:e.target.value})} /></div>
                     </div>
-                    <button type="submit" style={{...styles.btn(true), background:'#28a745', color:'white', justifyContent:'center', padding:'12px', marginTop:'10px'}}>Create New Course</button>
+                    
+                    {/* Buttons: Update or Create */}
+                    <button type="submit" style={{...styles.btn(true), background: editingId ? '#e65100' : '#28a745', color:'white', justifyContent:'center', padding:'12px', marginTop:'10px'}}>
+                        {editingId ? 'Update Course' : 'Create New Course'}
+                    </button>
+                    
+                    {/* Cancel Button (Only in Edit Mode) */}
+                    {editingId && (
+                        <button type="button" onClick={handleCancelEdit} style={{...styles.btn(false), justifyContent:'center', padding:'8px', color:'#666'}}>
+                            Cancel Edit
+                        </button>
+                    )}
                 </form>
             </div>
 
@@ -265,8 +343,9 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                         <tbody>
                             {courses.slice().reverse().map(c => {
                                 const status = getCourseStatus(c);
+                                const isEditing = editingId === c.course_id;
                                 return (
-                                    <tr key={c.course_id} style={{borderBottom:'1px solid #f0f0f0'}}>
+                                    <tr key={c.course_id} style={{borderBottom:'1px solid #f0f0f0', background: isEditing ? '#fff3e0' : 'transparent'}}>
                                         <td style={{padding:'15px'}}>
                                             <div style={{fontWeight:'bold', color:'#333'}}>{c.course_name.split('/')[0]}</div>
                                             <div style={{fontSize:'12px', color:'#888', marginTop:'4px'}}>{new Date(c.start_date).toLocaleDateString()} - {new Date(c.end_date).toLocaleDateString()}</div>
@@ -276,9 +355,16 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                                             <span style={{background: status.bg, color: status.color, padding:'4px 10px', borderRadius:'20px', fontSize:'11px', fontWeight:'bold', display:'inline-block', minWidth:'80px', textAlign:'center'}}>{status.label}</span>
                                         </td>
                                         <td style={{padding:'15px', textAlign:'right'}}>
-                                            <button onClick={()=>handleDeleteCourse(c.course_id, c.course_name)} style={{padding:'8px', background:'white', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer', transition:'all 0.2s'}} title="Delete Course">
-                                                <Trash2 size={16}/>
-                                            </button>
+                                            <div style={{display:'flex', gap:'8px', justifyContent:'flex-end'}}>
+                                                {/* ✅ Edit Button */}
+                                                <button onClick={()=>handleEditClick(c)} style={{padding:'8px', background:'white', color:'#e65100', border:'1px solid #ffe0b2', borderRadius:'6px', cursor:'pointer'}} title="Edit Course">
+                                                    <Edit size={16}/>
+                                                </button>
+                                                {/* Delete Button */}
+                                                <button onClick={()=>handleDeleteCourse(c.course_id, c.course_name)} style={{padding:'8px', background:'white', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer'}} title="Delete Course">
+                                                    <Trash2 size={16}/>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -290,6 +376,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         </div>
       )}
 
+      {/* ... (Import, Backup, Search Tabs remain unchanged) ... */}
+      
       {/* --- TAB 2: IMPORT DATA --- */}
       {activeTab === 'import' && (
         <div style={{maxWidth:'900px', margin:'0 auto', animation:'fadeIn 0.3s ease'}}>
