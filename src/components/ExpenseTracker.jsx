@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShoppingCart, Trash2, LogOut, FileText, DollarSign, Edit, CheckCircle, ArrowLeft, Clock, Tag, PenTool } from 'lucide-react';
+import { ShoppingCart, Trash2, LogOut, FileText, DollarSign, Edit, CheckCircle, ArrowLeft, Clock, PenTool, Tag } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
-// --- CONFIGURATION: SIMPLE POS (Prices set to 0 for manual entry) ---
+// --- CONFIGURATION: SIMPLE POS ---
 const PRODUCTS = [
   { id: 'laundry', name: 'Laundry Token', price: 0, icon: '🧺', type: 'Service' },
   { id: 'soap', name: 'Soap Bar', price: 0, icon: '🧼', type: 'Item' },
@@ -40,7 +40,6 @@ export default function ExpenseTracker({ courses }) {
   useEffect(() => { 
       if (selectedStudentId) { 
           const student = participants.find(p => p.participant_id == selectedStudentId); 
-          // Auto-fetch Laundry Token from student data
           setStudentToken(student && student.laundry_token_no ? student.laundry_token_no : ''); 
           fetch(`${API_URL}/participants/${selectedStudentId}/expenses`).then(res => res.json()).then(setHistory); 
       } else { 
@@ -48,7 +47,7 @@ export default function ExpenseTracker({ courses }) {
       } 
   }, [selectedStudentId]);
 
-  // --- STATS CALCULATION ---
+  // --- STATS ---
   const stats = useMemo(() => {
       const totalCollected = financialData.reduce((sum, p) => sum + parseFloat(p.total_due || 0), 0);
       const studentTotal = history.reduce((sum, h) => sum + parseFloat(h.amount), 0);
@@ -57,32 +56,25 @@ export default function ExpenseTracker({ courses }) {
 
   // --- ACTIONS ---
   
-  // ✅ ADD TO CART (Auto-Laundry Name & Price Prompt)
+  // ADD TO CART (Auto Laundry / Price Prompt)
   const addToCart = (product) => {
       if (!selectedStudentId) return alert("Please select a student first.");
 
       let finalName = product.name;
-
-      // 1. Logic for Laundry Token Auto-Naming
       if (product.id === 'laundry') {
-          if (studentToken) {
-              finalName = `Laundry Token ${studentToken}`;
-          } else {
-              // Not found? Ask manually
+          if (studentToken) finalName = `Laundry Token ${studentToken}`;
+          else {
               const manualToken = prompt("No assigned token found. Enter Token Number:");
               if (manualToken) finalName = `Laundry Token ${manualToken}`;
-              else return; // Cancel if no token provided
+              else return; 
           }
-      } 
-      // Logic for Misc Items
-      else if (product.id === 'misc') {
+      } else if (product.id === 'misc') {
           const custom = prompt("Enter Item Name:", "Misc Item");
           if (custom) finalName = custom;
       }
 
-      // 2. Prompt for Price (Always)
       const priceStr = prompt(`Enter Price for ${finalName}:`);
-      if (priceStr === null) return; // Cancelled
+      if (priceStr === null) return; 
       const price = parseFloat(priceStr);
       
       if (isNaN(price) || price <= 0) return alert("Please enter a valid amount.");
@@ -92,7 +84,7 @@ export default function ExpenseTracker({ courses }) {
 
   const removeFromCart = (uid) => setCart(cart.filter(item => item.uid !== uid));
 
-  // ✅ EDIT CART: NAME ONLY
+  // ✅ EDIT CART: NAME
   const editCartName = (uid) => {
       const item = cart.find(i => i.uid === uid);
       if (!item) return;
@@ -100,7 +92,7 @@ export default function ExpenseTracker({ courses }) {
       if (newName) setCart(cart.map(i => i.uid === uid ? { ...i, name: newName } : i));
   };
 
-  // ✅ EDIT CART: PRICE ONLY
+  // ✅ EDIT CART: PRICE
   const editCartPrice = (uid) => {
       const item = cart.find(i => i.uid === uid);
       if (!item) return;
@@ -118,11 +110,7 @@ export default function ExpenseTracker({ courses }) {
       setIsProcessing(true);
       try {
           for (let item of cart) {
-              await fetch(`${API_URL}/expenses`, { 
-                  method: 'POST', 
-                  headers: {'Content-Type':'application/json'}, 
-                  body: JSON.stringify({ courseId, participantId: selectedStudentId, type: item.name, amount: item.price }) 
-              });
+              await fetch(`${API_URL}/expenses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ courseId, participantId: selectedStudentId, type: item.name, amount: item.price }) });
           }
           const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); 
           setHistory(await histRes.json());
@@ -141,26 +129,17 @@ export default function ExpenseTracker({ courses }) {
       fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(setFinancialData);
   };
 
-  // ✅ SETTLE PAYMENT
   const handleSettlePayment = async () => {
       if (!selectedStudentId) return;
       if (stats.studentTotal <= 0) return alert("No dues to settle!");
-      
       const amountToPay = stats.studentTotal;
       if(!window.confirm(`💰 Confirm Payment Collection?\n\nAmount: ₹${amountToPay}\n\nThis will record a payment and clear the balance.`)) return;
 
       try {
           await fetch(`${API_URL}/expenses`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                  courseId,
-                  participantId: selectedStudentId,
-                  type: '✅ Payment Received', 
-                  amount: -amountToPay 
-              })
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ courseId, participantId: selectedStudentId, type: '✅ Payment Received', amount: -amountToPay })
           });
-
           const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); 
           setHistory(await histRes.json());
           fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(setFinancialData);
@@ -171,34 +150,17 @@ export default function ExpenseTracker({ courses }) {
 
   // --- REPORT LOADERS ---
   const loadFinancialReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => setFinancialData(Array.isArray(data) ? data : [])); setReportMode('summary'); };
+  const loadLaundryReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/participants`).then(res=>res.json()).then(data=>{ const laundryUsers = data.filter(p => p.status === 'Attending' && p.laundry_token_no && p.laundry_token_no.trim() !== ''); setFinancialData(laundryUsers); setReportMode('laundry'); }); };
+  const loadPendingReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => { const pendingUsers = (Array.isArray(data) ? data : []).filter(p => parseFloat(p.total_due) > 0); setFinancialData(pendingUsers); setReportMode('pending'); }); };
   
-  const loadLaundryReport = () => { 
-      if (!courseId) return; 
-      fetch(`${API_URL}/courses/${courseId}/participants`).then(res=>res.json()).then(data=>{ 
-          const laundryUsers = data.filter(p => p.status === 'Attending' && p.laundry_token_no && p.laundry_token_no.trim() !== '');
-          setFinancialData(laundryUsers); 
-          setReportMode('laundry'); 
-      }); 
-  };
-
-  const loadPendingReport = () => {
-      if (!courseId) return;
-      fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => {
-          const pendingUsers = (Array.isArray(data) ? data : []).filter(p => parseFloat(p.total_due) > 0);
-          setFinancialData(pendingUsers);
-          setReportMode('pending');
-      });
-  };
-
-  // ✅ PAID REPORT LOADER (Refined Logic)
   const loadPaidReport = () => {
       if (!courseId) return;
       fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => {
-          // Filter: Balance is approx 0 AND they spent money (Bill > 0)
+          // Logic: Paid if Due is 0 AND they spent something (Total Bill > 0)
           const paidUsers = (Array.isArray(data) ? data : []).filter(p => {
               const due = parseFloat(p.total_due || 0);
               const bill = parseFloat(p.total_bill || 0);
-              return due <= 0.5 && bill > 0; // Tolerance for small float errors
+              return due <= 0.5 && bill > 0; 
           });
           setFinancialData(paidUsers);
           setReportMode('paid');
@@ -213,7 +175,6 @@ export default function ExpenseTracker({ courses }) {
       const laundryItems = history.filter(h => h.expense_type.toLowerCase().includes('laundry') && h.amount > 0);
       const shopItems = history.filter(h => !h.expense_type.toLowerCase().includes('laundry') && !h.expense_type.includes('Payment') && h.amount > 0);
       const payments = history.filter(h => h.amount < 0);
-
       const laundryTotal = laundryItems.reduce((sum, h) => sum + parseFloat(h.amount), 0);
       const shopTotal = shopItems.reduce((sum, h) => sum + parseFloat(h.amount), 0);
       const totalPaid = Math.abs(payments.reduce((sum, h) => sum + parseFloat(h.amount), 0));
@@ -224,86 +185,30 @@ export default function ExpenseTracker({ courses }) {
                 <div><h1 style={{margin: 0}}>INVOICE</h1><p style={{color: '#666'}}>Date: {new Date().toLocaleDateString()}</p></div>
                 <div style={{textAlign: 'right'}}><h3>{currentStudent?.full_name}</h3><p>Conf: {currentStudent?.conf_no}</p><p>Room: {currentStudent?.room_no}</p><p>{selectedCourseName}</p></div>
             </div>
-
-            {laundryItems.length > 0 && (
-                <div style={{marginBottom:'20px'}}>
-                    <div style={{background:'#e3f2fd', padding:'5px 10px', fontWeight:'bold', color:'#0d47a1', borderBottom:'1px solid #90caf9'}}>🧺 LAUNDRY SERVICES</div>
-                    <table style={{width: '100%', borderCollapse: 'collapse'}}>
-                        <tbody>
-                            {laundryItems.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}><td style={{padding: '8px'}}>{ex.expense_type}</td><td style={{padding: '8px', textAlign: 'right'}}>₹{ex.amount}</td></tr> ))}
-                            <tr style={{fontWeight:'bold', background:'#f5f5f5'}}><td style={{padding:'8px', textAlign:'right'}}>Laundry Total:</td><td style={{padding:'8px', textAlign:'right'}}>₹{laundryTotal}</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            )}
-
-            {shopItems.length > 0 && (
-                <div style={{marginBottom:'20px'}}>
-                    <div style={{background:'#fff3e0', padding:'5px 10px', fontWeight:'bold', color:'#e65100', borderBottom:'1px solid #ffcc80'}}>🛒 SHOP ITEMS</div>
-                    <table style={{width: '100%', borderCollapse: 'collapse'}}>
-                        <tbody>
-                            {shopItems.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}><td style={{padding: '8px'}}>{ex.expense_type}</td><td style={{padding: '8px', textAlign: 'right'}}>₹{ex.amount}</td></tr> ))}
-                            <tr style={{fontWeight:'bold', background:'#f5f5f5'}}><td style={{padding:'8px', textAlign:'right'}}>Shop Total:</td><td style={{padding:'8px', textAlign:'right'}}>₹{shopTotal}</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            )}
-
-            {payments.length > 0 && (
-                <div style={{marginTop:'20px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}>
-                    {payments.map(p => (
-                        <div key={p.expense_id} style={{display:'flex', justifyContent:'space-between', color:'green', fontSize:'13px'}}>
-                            <span>{p.expense_type} ({new Date(p.recorded_at).toLocaleDateString()})</span>
-                            <span>- ₹{Math.abs(p.amount)}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
-
+            {laundryItems.length > 0 && (<div style={{marginBottom:'20px'}}><div style={{background:'#e3f2fd', padding:'5px 10px', fontWeight:'bold', color:'#0d47a1', borderBottom:'1px solid #90caf9'}}>🧺 LAUNDRY SERVICES</div><table style={{width: '100%', borderCollapse: 'collapse'}}><tbody>{laundryItems.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}><td style={{padding: '8px'}}>{ex.expense_type}</td><td style={{padding: '8px', textAlign: 'right'}}>₹{ex.amount}</td></tr> ))} <tr style={{fontWeight:'bold', background:'#f5f5f5'}}><td style={{padding:'8px', textAlign:'right'}}>Laundry Total:</td><td style={{padding:'8px', textAlign:'right'}}>₹{laundryTotal}</td></tr></tbody></table></div>)}
+            {shopItems.length > 0 && (<div style={{marginBottom:'20px'}}><div style={{background:'#fff3e0', padding:'5px 10px', fontWeight:'bold', color:'#e65100', borderBottom:'1px solid #ffcc80'}}>🛒 SHOP ITEMS</div><table style={{width: '100%', borderCollapse: 'collapse'}}><tbody>{shopItems.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}><td style={{padding: '8px'}}>{ex.expense_type}</td><td style={{padding: '8px', textAlign: 'right'}}>₹{ex.amount}</td></tr> ))} <tr style={{fontWeight:'bold', background:'#f5f5f5'}}><td style={{padding:'8px', textAlign:'right'}}>Shop Total:</td><td style={{padding:'8px', textAlign:'right'}}>₹{shopTotal}</td></tr></tbody></table></div>)}
+            {payments.length > 0 && (<div style={{marginTop:'20px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}>{payments.map(p => (<div key={p.expense_id} style={{display:'flex', justifyContent:'space-between', color:'green', fontSize:'13px'}}><span>{p.expense_type} ({new Date(p.recorded_at).toLocaleDateString()})</span><span>- ₹{Math.abs(p.amount)}</span></div>))}</div>)}
             <div style={{textAlign: 'right', marginTop: '30px', borderTop:'2px solid black', paddingTop:'10px'}}>
-                <div style={{fontSize:'14px', color:'#666'}}>Total Laundry: ₹{laundryTotal}</div>
-                <div style={{fontSize:'14px', color:'#666'}}>Total Shop: ₹{shopTotal}</div>
-                <div style={{fontSize:'14px', color:'green'}}>Total Paid: -₹{totalPaid}</div>
-                <h2 style={{margin:'10px 0'}}>Net Payable: ₹{stats.studentTotal}</h2>
+                <div style={{fontSize:'14px', color:'#666'}}>Total Laundry: ₹{laundryTotal}</div><div style={{fontSize:'14px', color:'#666'}}>Total Shop: ₹{shopTotal}</div><div style={{fontSize:'14px', color:'green'}}>Total Paid: -₹{totalPaid}</div><h2 style={{margin:'10px 0'}}>Net Payable: ₹{stats.studentTotal}</h2>
             </div>
             <div style={{marginTop: '60px', borderTop: '1px solid #000', width: '200px', textAlign: 'center', paddingTop: '5px'}}>Signature</div>
         </div>
       );
   };
 
-  // --- VIEWS ---
+  // --- REPORT VIEWS ---
 
   if (reportMode === 'laundry') { 
       const sortedList = financialData.sort((a,b) => (parseInt(a.laundry_token_no)||0) - (parseInt(b.laundry_token_no)||0));
-      const maleCount = sortedList.filter(p => (p.gender||'').toLowerCase().startsWith('m')).length;
-      const femaleCount = sortedList.filter(p => (p.gender||'').toLowerCase().startsWith('f')).length;
       return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> <button onClick={() => window.print()} style={{...styles.toolBtn('#007bff')}}>🖨️ Print List</button> </div> <div className="print-area"> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Laundry Service List</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black', background:'#f9f9f9'}}><th style={{...thPrint, textAlign:'center'}}>Token #</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Gender</th><th style={thPrint}>Dining Seat</th></tr></thead><tbody>{sortedList.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '10px', fontWeight:'bold', fontSize:'18px', textAlign:'center', borderRight:'1px solid #eee'}}>{p.laundry_token_no}</td><td style={{padding: '10px'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.gender}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td></tr>))}</tbody></table> </div> </div> ); 
   }
 
   if (reportMode === 'pending') {
       const totalPending = financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0);
-      return (
-          <div style={styles.card}>
-              <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
-                  <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button>
-                  <button onClick={() => window.print()} style={{...styles.toolBtn('#d32f2f'), color:'white'}}>🖨️ Print Pending List</button>
-              </div>
-              <div className="print-area">
-                  <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0, color:'#d32f2f'}}>Pending Dues List</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div>
-                  <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}>
-                      <thead><tr style={{borderBottom: '2px solid black', background:'#fff5f5'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Amount Due</th></tr></thead>
-                      <tbody>
-                          {financialData.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding:'10px'}}>{i+1}</td><td style={{padding: '10px', fontWeight:'bold'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td><td style={{padding: '10px', textAlign:'right', fontWeight:'bold', color:'#d32f2f'}}>₹{p.total_due}</td></tr>))}
-                          <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px', background:'#fbe9e7'}}><td colSpan={4} style={{padding:'15px', textAlign:'right'}}>TOTAL PENDING:</td><td style={{padding:'15px', textAlign:'right', color:'#d32f2f'}}>₹{totalPending}</td></tr>
-                      </tbody>
-                  </table>
-                  {financialData.length === 0 && <p style={{textAlign:'center', color:'#28a745', padding:'20px', fontWeight:'bold'}}>🎉 Amazing! No pending dues.</p>}
-              </div>
-          </div>
-      );
+      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> <button onClick={() => window.print()} style={{...styles.toolBtn('#d32f2f'), color:'white'}}>🖨️ Print Pending List</button> </div> <div className="print-area"> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0, color:'#d32f2f'}}>Pending Dues List</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black', background:'#fff5f5'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Amount Due</th></tr></thead><tbody>{financialData.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding:'10px'}}>{i+1}</td><td style={{padding: '10px', fontWeight:'bold'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td><td style={{padding: '10px', textAlign:'right', fontWeight:'bold', color:'#d32f2f'}}>₹{p.total_due}</td></tr>))} <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px', background:'#fbe9e7'}}><td colSpan={4} style={{padding:'15px', textAlign:'right'}}>TOTAL PENDING:</td><td style={{padding:'15px', textAlign:'right', color:'#d32f2f'}}>₹{totalPending}</td></tr></tbody></table> {financialData.length === 0 && <p style={{textAlign:'center', color:'#28a745', padding:'20px', fontWeight:'bold'}}>🎉 Amazing! No pending dues.</p>} </div> </div> ); 
   }
 
-  // ✅ PAID LIST REPORT
+  // ✅ PAID REPORT (Backend Fix Required)
   if (reportMode === 'paid') {
       return (
           <div style={styles.card}>
@@ -314,25 +219,9 @@ export default function ExpenseTracker({ courses }) {
               <div className="print-area">
                   <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0, color:'#2e7d32'}}>✅ Paid / Cleared List</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div>
                   <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}>
-                      <thead>
-                          <tr style={{borderBottom: '2px solid black', background:'#e8f5e9'}}>
-                              <th style={thPrint}>S.N.</th>
-                              <th style={thPrint}>Name</th>
-                              <th style={thPrint}>Room</th>
-                              <th style={{...thPrint, textAlign:'right'}}>Paid Amount</th>
-                              <th style={{...thPrint, textAlign:'center'}}>Status</th>
-                          </tr>
-                      </thead>
+                      <thead><tr style={{borderBottom: '2px solid black', background:'#e8f5e9'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={{...thPrint, textAlign:'right'}}>Amount</th><th style={{...thPrint, textAlign:'center'}}>Status</th></tr></thead>
                       <tbody>
-                          {financialData.map((p, i) => (
-                              <tr key={i} style={{borderBottom: '1px solid #ddd'}}>
-                                  <td style={{padding:'10px'}}>{i+1}</td>
-                                  <td style={{padding: '10px', fontWeight:'bold'}}>{p.full_name}</td>
-                                  <td style={{padding: '10px'}}>{p.room_no}</td>
-                                  <td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_bill || 0}</td>
-                                  <td style={{padding: '10px', textAlign:'center', color:'green', fontWeight:'bold'}}>PAID</td>
-                              </tr>
-                          ))}
+                          {financialData.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding:'10px'}}>{i+1}</td><td style={{padding: '10px', fontWeight:'bold'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_bill || 0}</td><td style={{padding: '10px', textAlign:'center', color:'green', fontWeight:'bold'}}>Paid</td></tr>))}
                       </tbody>
                   </table>
                   {financialData.length === 0 && <div style={{textAlign:'center', padding:'20px', color:'#999'}}>No paid records found. (Ensure Backend Server was Restarted)</div>}
@@ -341,10 +230,9 @@ export default function ExpenseTracker({ courses }) {
       );
   }
 
-  if (reportMode === 'invoice' && currentStudent) { 
-      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> <button onClick={() => window.print()} style={{...styles.btn(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button> </div> <div className="print-area">{renderInvoice()}</div> </div> ); 
-  }
+  if (reportMode === 'invoice' && currentStudent) { return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}> <button onClick={() => setReportMode('')} style={styles.btn(false)}>← Back</button> <button onClick={() => window.print()} style={{...styles.btn(true), background:'#28a745', color:'white'}}>🖨️ Print Invoice</button> </div> <div className="print-area">{renderInvoice()}</div> </div> ); }
   
+  // ✅ DETAILED COURSE SUMMARY REPORT
   if (reportMode === 'summary') { 
       return ( 
           <div style={styles.card}> 
@@ -354,22 +242,30 @@ export default function ExpenseTracker({ courses }) {
               </div> 
               <div className="print-area"> 
                   <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Expenses Summary Report</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> 
-                  <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}>
-                      <thead><tr style={{borderBottom: '2px solid black'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Total Due (₹)</th></tr></thead>
+                  <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '12px'}}>
+                      <thead>
+                          <tr style={{borderBottom: '2px solid black', background:'#f0f0f0'}}>
+                              <th style={thPrint}>S.N.</th>
+                              <th style={thPrint}>Name</th>
+                              <th style={thPrint}>Room</th>
+                              <th style={thPrint}>Seat</th>
+                              <th style={{...thPrint, textAlign:'right', background:'#e3f2fd'}}>Laundry</th>
+                              <th style={{...thPrint, textAlign:'right', background:'#fff3e0'}}>Shop</th>
+                              <th style={{...thPrint, textAlign:'right', borderLeft:'2px solid #ccc'}}>Total</th>
+                          </tr>
+                      </thead>
                       <tbody>
                           {financialData.map((p, i) => (
                               <tr key={i} style={{borderBottom: '1px solid #ddd'}}>
-                                  <td style={{padding:'10px'}}>{i+1}</td>
-                                  <td style={{padding: '10px'}}>{p.full_name}</td>
-                                  <td style={{padding: '10px'}}>{p.room_no}</td>
-                                  <td style={{padding: '10px'}}>{p.dining_seat_no}</td>
-                                  <td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_due}</td>
+                                  <td style={{padding:'8px'}}>{i+1}</td>
+                                  <td style={{padding:'8px'}}>{p.full_name}</td>
+                                  <td style={{padding:'8px'}}>{p.room_no}</td>
+                                  <td style={{padding:'8px'}}>{p.dining_seat_no}</td>
+                                  <td style={{padding:'8px', textAlign:'right', color:'#0d47a1', background:'#f1f8e9'}}>₹{p.laundry_total || 0}</td>
+                                  <td style={{padding:'8px', textAlign:'right', color:'#e65100', background:'#fff8e1'}}>₹{p.shop_total || 0}</td>
+                                  <td style={{padding:'8px', textAlign:'right', fontWeight:'bold', borderLeft:'2px solid #ccc'}}>₹{p.total_due}</td>
                               </tr>
                           ))} 
-                          <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px'}}>
-                              <td colSpan={4} style={{padding:'15px', textAlign:'right'}}>GRAND TOTAL:</td>
-                              <td style={{padding:'15px', textAlign:'right'}}>₹{financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0)}</td>
-                          </tr> 
                       </tbody>
                   </table> 
               </div> 
@@ -381,11 +277,8 @@ export default function ExpenseTracker({ courses }) {
       return (
           <div style={styles.card}>
               <div className="no-print" style={{marginBottom:'20px'}}>
-                  <button onClick={()=>setActiveTab('pos')} style={{display:'flex', alignItems:'center', gap:'5px', background:'transparent', border:'1px solid #ddd', padding:'8px 12px', borderRadius:'6px', cursor:'pointer', color:'#666'}}>
-                      <ArrowLeft size={16}/> Back to Store
-                  </button>
+                  <button onClick={()=>setActiveTab('pos')} style={{display:'flex', alignItems:'center', gap:'5px', background:'transparent', border:'1px solid #ddd', padding:'8px 12px', borderRadius:'6px', cursor:'pointer', color:'#666'}}><ArrowLeft size={16}/> Back to Store</button>
               </div>
-
               <div style={{background:'#fff5f5', padding:'30px', borderRadius:'10px', border:'2px solid #ffcdd2', textAlign:'center'}}>
                   <h3 style={{color:'#d32f2f', marginTop:0}}>🔐 Return Valuables & Checkout</h3>
                   <div style={{maxWidth:'500px', margin:'0 auto 20px auto'}}>
@@ -394,7 +287,6 @@ export default function ExpenseTracker({ courses }) {
                           {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no})</option>)}
                       </select>
                   </div>
-                  
                   {currentStudent ? (
                       <>
                           <div style={{fontSize:'20px', fontWeight:'bold', marginBottom:'20px'}}>{currentStudent.full_name}</div>
@@ -403,21 +295,13 @@ export default function ExpenseTracker({ courses }) {
                               <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>VALUABLES LOCKER</div><div style={{fontSize:'32px', fontWeight:'bold', color:'#e91e63'}}>{currentStudent.valuables_locker_no || '-'}</div></div>
                               <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>TOTAL DUE</div><div style={{fontSize:'32px', fontWeight:'bold', color: stats.studentTotal > 0 ? 'red' : 'green'}}>₹{stats.studentTotal}</div></div>
                           </div>
-                          
                           <div style={{display:'flex', justifyContent:'center', gap:'20px'}}>
                               {stats.studentTotal > 0 ? (
-                                  <button onClick={handleSettlePayment} style={{...styles.toolBtn('#28a745'), padding:'15px 30px', fontSize:'16px', display:'flex', alignItems:'center', gap:'10px'}}>
-                                      <DollarSign size={20}/> Collect ₹{stats.studentTotal} & Clear Due
-                                  </button>
+                                  <button onClick={handleSettlePayment} style={{...styles.toolBtn('#28a745'), padding:'15px 30px', fontSize:'16px', display:'flex', alignItems:'center', gap:'10px'}}><DollarSign size={20}/> Collect ₹{stats.studentTotal} & Clear Due</button>
                               ) : (
-                                  <div style={{color:'green', fontWeight:'bold', fontSize:'18px', padding:'10px', background:'#e8f5e9', borderRadius:'8px', width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:'10px'}}>
-                                      <CheckCircle size={24}/> Account Cleared
-                                  </div>
+                                  <div style={{color:'green', fontWeight:'bold', fontSize:'18px', padding:'10px', background:'#e8f5e9', borderRadius:'8px', width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:'10px'}}><CheckCircle size={24}/> Account Cleared</div>
                               )}
-                              
-                              <button onClick={()=>window.print()} style={{...styles.toolBtn('#6c757d'), padding:'15px 30px', fontSize:'16px'}}>
-                                  🖨️ Print Final Invoice
-                              </button>
+                              <button onClick={()=>window.print()} style={{...styles.toolBtn('#6c757d'), padding:'15px 30px', fontSize:'16px'}}>🖨️ Print Final Invoice</button>
                           </div>
                           <div className="print-only">{renderInvoice()}</div>
                           <style>{`@media screen { .print-only { display: none; } } @media print { body * { visibility: hidden; } .print-only, .print-only * { visibility: visible; } .print-only { position: absolute; left: 0; top: 0; width: 100%; } }`}</style>
@@ -475,12 +359,9 @@ export default function ExpenseTracker({ courses }) {
                               {cart.map(item => (
                                   <div key={item.uid} style={{display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px dashed #eee', fontSize:'13px'}}>
                                       <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-                                          <span>{item.icon} {item.name}</span>
-                                          {/* ✅ SEPARATE EDIT BUTTONS */}
-                                          <div style={{display:'flex', gap:'4px'}}>
-                                              <PenTool size={12} color="#007bff" style={{cursor:'pointer'}} onClick={() => editCartName(item.uid)} title="Edit Name"/>
-                                              <Tag size={12} color="#e65100" style={{cursor:'pointer'}} onClick={() => editCartPrice(item.uid)} title="Edit Price"/>
-                                          </div>
+                                          {/* ✅ SEPARATE EDIT BUTTONS FOR NAME & PRICE */}
+                                          <button onClick={() => editCartName(item.uid)} title="Edit Name" style={{background:'#e3f2fd', border:'1px solid #bbdefb', borderRadius:'4px', padding:'2px 6px', display:'flex', alignItems:'center', gap:'4px', cursor:'pointer', fontSize:'11px', color:'#0d47a1'}}><PenTool size={10}/> {item.name}</button>
+                                          <button onClick={() => editCartPrice(item.uid)} title="Edit Price" style={{background:'#fff3e0', border:'1px solid #ffe0b2', borderRadius:'4px', padding:'2px 6px', display:'flex', alignItems:'center', gap:'4px', cursor:'pointer', fontSize:'11px', color:'#e65100'}}><Tag size={10}/> Price</button>
                                       </div>
                                       <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                                           <strong>₹{item.price}</strong>
