@@ -13,11 +13,10 @@ export default function Login({ onLogin }) {
     
     // Simulate processing delay for smoothness
     setTimeout(() => {
-        // AUTHENTICATION LOGIC
-        if (passcode === '11111') onLogin('admin');
-        else if (passcode === '00000') onLogin('gatekeeper'); // Old Gate List
-        else if (passcode === '22222') onLogin('teacher');
-        else if (passcode === '55555') onLogin('reception'); // ✅ NEW: Reception Console
+        if (passcode === '11111') onLogin('admin');       // Full Access
+        else if (passcode === '00000') onLogin('gatekeeper'); // Old Simple Gate
+        else if (passcode === '22222') onLogin('teacher');    // AT Panel
+        else if (passcode === '55555') onLogin('reception');  // ✅ NEW: Reception Console (Isolated)
         else {
             setError('❌ Invalid Passcode');
             setLoading(false);
