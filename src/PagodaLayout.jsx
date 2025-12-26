@@ -13,8 +13,9 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
     { name: 'Circle E', range: [89, 100] },
     { name: 'Circle D', range: [49, 64] },
     { name: 'Circle C', range: [31, 40] },
-    { name: 'Circle B', range: [9, 11, 12, 13,[21, 30] },
-    { name: 'Circle A', manual: [1, 2, 6, 7, 8] }
+    { name: 'Circle B', range: [9, 11, 12, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30] },
+    { name: 'Circle A', manual: [6, 7, 8] }
+    { name: 'Circle TEACHER CELLS', manual: [1, 2] }
   ];
 
   const FEMALE_CIRCLES = [
@@ -23,7 +24,7 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
     { name: 'Circle D', range: [77, 88] },
     { name: 'Circle C', range: [41, 48] },
     { name: 'Circle B', range: [13, 20] },
-    { name: 'Circle A', manual: [3, 5] }
+    { name: 'Circle TEACHER CELLS', manual: [3, 5] }
   ];
 
   const currentConfig = isFemale ? FEMALE_CIRCLES : MALE_CIRCLES;
