@@ -13,14 +13,14 @@ import ParticipantList from './components/ParticipantList';
 import ExpenseTracker from './components/ExpenseTracker';
 import CourseAdmin from './components/CourseAdmin';
 import SevaBoard from './components/SevaBoard'; 
-import GateReception from './components/GateReception'; // ✅ NEW IMPORT
+import GateReception from './components/GateReception';
 
 // Restricted Modules
 import GatekeeperPanel from './components/GatekeeperPanel';
 import ATPanel from './components/ATPanel';
 
 export default function App() {
-  const [authLevel, setAuthLevel] = useState('none'); // 'none', 'admin', 'gatekeeper', 'teacher', 'reception'
+  const [authLevel, setAuthLevel] = useState('none'); 
   const [activeModule, setActiveModule] = useState('dashboard');
   const [courses, setCourses] = useState([]);
   const [preSelectedRoom, setPreSelectedRoom] = useState(''); 
@@ -61,9 +61,8 @@ export default function App() {
     return <Login onLogin={handleLogin} />;
   }
 
-  // --- 2. RESTRICTED ROLES ---
+  // --- 2. RESTRICTED ROLES (Keep these as isolated full-screen views) ---
   
-  // ROLE: GATEKEEPER (Old Simple List) - Passcode 00000
   if (authLevel === 'gatekeeper') {
     return (
       <div style={{minHeight:'100vh', background:'#e3f2fd', fontFamily:"'Segoe UI', sans-serif"}}>
@@ -78,24 +77,20 @@ export default function App() {
     );
   }
 
-  // ✅ ROLE: RECEPTION (New Advanced Console) - Passcode 55555
   if (authLevel === 'reception') {
     return (
       <div style={{minHeight:'100vh', background:'#f0fdf4', fontFamily:"'Segoe UI', sans-serif"}}>
-        {/* Isolated Header - No Navigation Tabs */}
         <div className="no-print" style={{background:'white', padding:'15px 30px', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:'0 2px 10px rgba(0,0,0,0.05)', borderBottom:'3px solid #2e7d32'}}>
             <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px', color:'#1b5e20'}}><UserCheck size={28}/> Reception Console</h2>
             <button onClick={handleLogout} style={{padding:'8px 16px', background:'#fff5f5', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Logout</button>
         </div>
         <div style={{padding:'30px'}}>
-            {/* ✅ SYNC ENABLED: refreshCourses passed here */}
             <GateReception courses={courses} refreshCourses={refreshCourses} />
         </div>
       </div>
     );
   }
 
-  // ROLE: TEACHER - Passcode 22222
   if (authLevel === 'teacher') {
     return (
       <div style={{minHeight:'100vh', background:'#fff3e0', fontFamily:"'Segoe UI', sans-serif"}}>
@@ -110,47 +105,48 @@ export default function App() {
     );
   }
 
-  // --- 3. ADMIN DASHBOARD (FULL ACCESS) - Passcode 11111 ---
+  // --- 3. ADMIN DASHBOARD (NEW VERTICAL LAYOUT) ---
   const MENU_ITEMS = [
-      { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-      { id: 'gate', label: 'Reception', icon: <UserCheck size={18} /> }, // Available to Admin too
-      { id: 'room', label: 'Room Map', icon: <BedDouble size={18} /> },
-      { id: 'onboarding', label: 'Onboarding', icon: <UserPlus size={18} /> },
-      { id: 'students', label: 'Students', icon: <Users size={18} /> },
-      { id: 'store', label: 'Store', icon: <ShoppingBag size={18} /> },
-      { id: 'seva', label: 'Seva Board', icon: <Heart size={18} /> }, 
-      { id: 'admin', label: 'Admin', icon: <Settings size={18} /> },
+      { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
+      { id: 'gate', label: 'Reception', icon: <UserCheck size={20} /> },
+      { id: 'room', label: 'Room', icon: <BedDouble size={20} /> }, // Renamed
+      { id: 'onboarding', label: 'Onboarding', icon: <UserPlus size={20} /> },
+      { id: 'students', label: 'Manage Students', icon: <Users size={20} /> }, // Renamed
+      { id: 'store', label: 'Store', icon: <ShoppingBag size={20} /> },
+      { id: 'seva', label: 'Seva Board', icon: <Heart size={20} /> },
+      { id: 'admin', label: 'Course Admin', icon: <Settings size={20} /> }, // Renamed
   ];
 
   return (
     <div style={{
+        display: 'flex', // Flex container for Sidebar + Content
         minHeight: '100vh', 
         background: '#f4f6f8', 
         fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
     }}>
       
-      {/* TOP NAVIGATION (Only visible to Admin) */}
+      {/* LEFT SIDEBAR */}
       <div className="no-print" style={{
-          background: 'white',
-          padding: '0 30px',
-          height: '70px',
+          width: '260px',
+          background: '#ffffff',
+          borderRight: '1px solid #e0e0e0',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
-          position: 'sticky', top: 0, zIndex: 1000
+          flexDirection: 'column',
+          position: 'fixed', // Sticky Sidebar
+          height: '100vh',
+          zIndex: 1000
       }}>
           {/* BRAND */}
-          <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
-              <div style={{width:'40px', height:'40px', background:'linear-gradient(45deg, #007bff, #00d2ff)', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontSize:'20px'}}>☸️</div>
-              <div>
-                  <div style={{fontWeight: '900', fontSize: '18px', color: '#2c3e50', letterSpacing: '-0.5px'}}>DHAMMA NAGAJJUNA 2</div>
-                  <div style={{fontSize: '11px', color: '#999', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '1px'}}>Admin Console</div>
+          <div style={{padding: '30px 25px 40px 25px'}}>
+              <div style={{display:'flex', alignItems:'center', gap:'12px', marginBottom:'10px'}}>
+                  <div style={{width:'36px', height:'36px', background:'linear-gradient(45deg, #007bff, #00d2ff)', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontSize:'18px'}}>☸️</div>
+                  <div style={{fontWeight:'900', fontSize:'16px', color:'#2c3e50', letterSpacing:'-0.5px'}}>DHAMMA<br/>NAGAJJUNA 2</div>
               </div>
+              <div style={{fontSize:'11px', color:'#999', fontWeight:'bold', letterSpacing:'1px', textTransform:'uppercase'}}>Admin Console</div>
           </div>
 
-          {/* MENU */}
-          <div style={{display: 'flex', gap: '8px', overflowX:'auto'}}>
+          {/* MENU ITEMS */}
+          <div style={{flex: 1, padding: '0 15px', display:'flex', flexDirection:'column', gap:'5px', overflowY:'auto'}}>
               {MENU_ITEMS.map(item => {
                   const isActive = activeModule === item.id;
                   return (
@@ -158,50 +154,71 @@ export default function App() {
                           key={item.id}
                           onClick={() => setActiveModule(item.id)}
                           style={{
-                              display: 'flex', alignItems: 'center', gap: '8px',
-                              padding: '10px 16px',
-                              border: 'none', borderRadius: '30px',
+                              display: 'flex', alignItems: 'center', gap: '12px',
+                              padding: '12px 20px',
+                              border: 'none', borderRadius: '12px',
                               background: isActive ? '#e3f2fd' : 'transparent',
-                              color: isActive ? '#007bff' : '#666',
+                              color: isActive ? '#007bff' : '#555',
                               fontWeight: isActive ? '700' : '500',
-                              fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s ease', outline: 'none'
+                              fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s ease', 
+                              textAlign: 'left', width: '100%'
                           }}
                       >
                           {item.icon}
-                          <span style={{whiteSpace:'nowrap'}}>{item.label}</span>
+                          <span>{item.label}</span>
                       </button>
                   );
               })}
           </div>
 
           {/* LOGOUT */}
-          <button 
-              onClick={handleLogout} 
-              style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                  padding: '8px 16px', borderRadius: '6px',
-                  border: '1px solid #ffcdd2', background: '#fff5f5',
-                  color: '#d32f2f', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer'
-              }}
-          >
-              <LogOut size={16}/> Logout
-          </button>
+          <div style={{padding: '20px', borderTop: '1px solid #eee'}}>
+              <button 
+                  onClick={handleLogout} 
+                  style={{
+                      display: 'flex', alignItems: 'center', gap: '10px',
+                      padding: '12px', borderRadius: '8px', width: '100%',
+                      border: '1px solid #ffcdd2', background: '#fff5f5',
+                      color: '#d32f2f', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer',
+                      justifyContent: 'center'
+                  }}
+              >
+                  <LogOut size={18}/> Logout
+              </button>
+          </div>
       </div>
 
-      {/* MAIN CONTENT */}
-      <div style={{maxWidth: '1600px', margin: '30px auto', padding: '0 20px'}}>
-          <div style={{animation: 'fadeIn 0.4s ease-in-out'}}>
+      {/* MAIN CONTENT AREA */}
+      <div style={{
+          flex: 1, 
+          marginLeft: '260px', // Offset for Sidebar
+          padding: '40px',
+          overflowY: 'auto'
+      }}>
+          <div style={{maxWidth: '1200px', margin: '0 auto', animation: 'fadeIn 0.3s ease-in-out'}}>
+              
               {activeModule === 'dashboard' && <CourseDashboard courses={courses} />}
               
-              {/* ✅ SYNC ENABLED: refreshCourses passed here too */}
               {activeModule === 'gate' && <GateReception courses={courses} refreshCourses={refreshCourses} />}
-              
+
               {activeModule === 'room' && <GlobalAccommodationManager courses={courses} onRoomClick={handleRoomClick} />}
-              {activeModule === 'onboarding' && <StudentForm courses={courses} preSelectedRoom={preSelectedRoom} clearRoom={() => setPreSelectedRoom('')} />}
+              
+              {activeModule === 'onboarding' && (
+                  <StudentForm 
+                      courses={courses} 
+                      preSelectedRoom={preSelectedRoom} 
+                      clearRoom={() => setPreSelectedRoom('')} 
+                  />
+              )}
+              
               {activeModule === 'students' && <ParticipantList courses={courses} refreshCourses={refreshCourses}/>}
+              
               {activeModule === 'store' && <ExpenseTracker courses={courses} />}
+
               {activeModule === 'seva' && <SevaBoard courses={courses} />}
+              
               {activeModule === 'admin' && <CourseAdmin courses={courses} refreshCourses={refreshCourses} />}
+              
           </div>
       </div>
 
@@ -213,6 +230,12 @@ export default function App() {
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #ccc; borderRadius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #aaa; }
+        
+        /* Print Fixes for Sidebar */
+        @media print {
+            .no-print { display: none !important; }
+            div[style*="marginLeft: '260px'"] { margin-left: 0 !important; padding: 0 !important; }
+        }
       `}</style>
     </div>
   );
