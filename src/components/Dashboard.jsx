@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Home, Utensils, BookOpen, AlertCircle, CheckCircle, Clock, Activity, TrendingUp, UserCheck, Shield, Armchair } from 'lucide-react';
+import { Users, Home, Utensils, BookOpen, AlertCircle, CheckCircle, Clock, Activity, TrendingUp, UserCheck, Shield, Armchair, Headphones } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
 
@@ -11,6 +11,7 @@ export default function Dashboard({ courses }) {
   const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // --- DATA LOADING ---
   useEffect(() => {
       if (courses.length > 0 && !courseId) {
           const active = courses.find(c => new Date(c.end_date) >= new Date());
@@ -28,6 +29,7 @@ export default function Dashboard({ courses }) {
       }
   }, [courseId]);
 
+  // --- STATISTICS PROCESSING ---
   const stats = useMemo(() => {
       if (!participants.length) return null;
       
@@ -39,7 +41,7 @@ export default function Dashboard({ courses }) {
       const expectedMale = valid.filter(p => (p.gender || '').toLowerCase().startsWith('m')).length;
       const expectedFemale = valid.filter(p => (p.gender || '').toLowerCase().startsWith('f')).length;
       
-      // ✅ 2. Detailed Breakdown for Checked-In (OM, NM, SM, OF, NF, SF)
+      // ✅ HELPER: Breakdown by Category (OM, NM, SM...)
       const getDetailedBreakdown = (list) => {
           const b = { om: 0, nm: 0, sm: 0, of: 0, nf: 0, sf: 0, total: list.length };
           list.forEach(p => {
@@ -74,12 +76,11 @@ export default function Dashboard({ courses }) {
       });
       const ageData = Object.keys(ageGroups).map(key => ({ name: key, Male: ageGroups[key].m, Female: ageGroups[key].f }));
 
-      // --- STUDENT MIX (FOR PIE CHART) ---
+      // --- STUDENT MIX (PIE CHART ORDER) ---
       const mixCounts = { OM:0, NM:0, SM:0, OF:0, NF:0, SF:0 };
       valid.forEach(p => {
           const conf = (p.conf_no || '').toUpperCase();
           const isMale = (p.gender || '').toLowerCase().startsWith('m');
-          
           if (isMale) {
               if (conf.startsWith('SM')) mixCounts.SM++;
               else if (conf.startsWith('O') || conf.startsWith('S')) mixCounts.OM++;
@@ -91,7 +92,7 @@ export default function Dashboard({ courses }) {
           }
       });
 
-      // ✅ 1. Ordered Data for Pie Chart: OM -> NM -> SM -> OF -> NF -> SF
+      // ✅ STRICT ORDER: OM -> NM -> SM -> OF -> NF -> SF
       const catData = [
           { name: 'Old Male', value: mixCounts.OM, code: 'OM', color: MIX_COLORS.OM },
           { name: 'New Male', value: mixCounts.NM, code: 'NM', color: MIX_COLORS.NM },
@@ -110,7 +111,7 @@ export default function Dashboard({ courses }) {
       const langMap = {}; 
       fullyCheckedIn.forEach(p => {
           const conf = (p.conf_no || '').toUpperCase();
-          // ✅ 3. EXCLUDE SERVERS from Discourse Count
+          // ✅ EXCLUDE SERVERS
           if(conf.startsWith('SM') || conf.startsWith('SF')) return; 
 
           const lang = p.discourse_language || 'Unknown';
@@ -139,7 +140,7 @@ export default function Dashboard({ courses }) {
   const selectedCourse = courses.find(c => c.course_id == courseId);
   const tickerDuration = stats ? Math.max(30, stats.criticalPendingList.length * 8) + 's' : '30s';
 
-  // ✅ UPDATED BREAKDOWN GRID: Shows SM/SF separately
+  // ✅ NEW GRID DISPLAY FOR STATS CARD
   const BreakdownGrid = ({ data }) => (
       <div style={{marginTop:'10px', fontSize:'10px', background:'rgba(255,255,255,0.6)', borderRadius:'6px', padding:'5px', lineHeight:'1.4'}}>
           <div style={{display:'flex', justifyContent:'space-between', borderBottom:'1px dashed #ccc', paddingBottom:'2px', marginBottom:'2px'}}>
