@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, UserCheck, UserX, Users, UserPlus, RefreshCw, CheckCircle, Clock, Wifi, WifiOff } from 'lucide-react';
+import { Search, UserCheck, UserX, Users, UserPlus, RefreshCw, CheckCircle, Clock, Wifi } from 'lucide-react';
 import { API_URL, styles } from '../config';
-import { queueOfflineRequest, syncOfflineRequests, cacheData, getCachedData } from '../utils/offlineSync';
 
 export default function GateReception({ courses, refreshCourses }) {
   const [selectedCourseId, setSelectedCourseId] = useState('');
@@ -9,24 +8,12 @@ export default function GateReception({ courses, refreshCourses }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All'); 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   // Walk-in State
   const [showWalkIn, setShowWalkIn] = useState(false);
   const [newStudent, setNewStudent] = useState({ fullName: '', gender: 'Male', phone: '' });
 
-  // --- 1. NETWORK & DATA LOADING ---
-  useEffect(() => {
-      const handleOnline = () => { setIsOnline(true); syncOfflineRequests(API_URL); };
-      const handleOffline = () => setIsOnline(false);
-      window.addEventListener('online', handleOnline);
-      window.addEventListener('offline', handleOffline);
-      return () => {
-          window.removeEventListener('online', handleOnline);
-          window.removeEventListener('offline', handleOffline);
-      };
-  }, []);
-
+  // --- 1. DATA LOADING ---
   const loadParticipants = async () => {
     if (!selectedCourseId) return;
     setIsRefreshing(true);
@@ -35,16 +22,9 @@ export default function GateReception({ courses, refreshCourses }) {
         if (res.ok) {
             const data = await res.json();
             setParticipants(Array.isArray(data) ? data : []);
-            cacheData(`participants_${selectedCourseId}`, data);
             if(refreshCourses) refreshCourses();
-        } else {
-            throw new Error("API Error");
         }
-    } catch (err) {
-        console.warn("Offline Mode: Loading from Cache");
-        const cached = getCachedData(`participants_${selectedCourseId}`);
-        if (cached) setParticipants(cached);
-    }
+    } catch (err) { console.error(err); }
     setIsRefreshing(false);
   };
 
@@ -56,25 +36,16 @@ export default function GateReception({ courses, refreshCourses }) {
 
   // --- 2. ACTIONS ---
   const handleGateCheckIn = async (student) => {
+      // Optimistic Update
       setParticipants(prev => prev.map(p => p.participant_id === student.participant_id ? { ...p, status: 'Gate Check-In' } : p));
-      
-      const payload = { participantId: student.participant_id };
-      
-      if (!navigator.onLine) {
-          queueOfflineRequest('/gate-checkin', 'POST', payload);
-          return;
-      }
-
       try {
           const res = await fetch(`${API_URL}/gate-checkin`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
+              body: JSON.stringify({ participantId: student.participant_id })
           });
           if (!res.ok) throw new Error("Failed");
           if(refreshCourses) refreshCourses();
-      } catch (err) {
-          queueOfflineRequest('/gate-checkin', 'POST', payload);
-      }
+      } catch (err) { alert("Sync Error - Check Internet"); loadParticipants(); }
   };
 
   const handleCancelStudent = async (student) => {
@@ -83,42 +54,26 @@ export default function GateReception({ courses, refreshCourses }) {
       // Optimistic Update
       setParticipants(prev => prev.map(p => p.participant_id === student.participant_id ? { ...p, status: 'Cancelled' } : p));
 
-      const payload = { participantId: student.participant_id };
-
-      if (!navigator.onLine) {
-          queueOfflineRequest('/gate-cancel', 'POST', payload);
-          return;
-      }
-
       try {
           const res = await fetch(`${API_URL}/gate-cancel`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
+              body: JSON.stringify({ participantId: student.participant_id })
           });
           if (res.ok) { 
               loadParticipants(); 
               if(refreshCourses) refreshCourses(); 
           }
-      } catch (err) {
-          queueOfflineRequest('/gate-cancel', 'POST', payload);
-      }
+      } catch (err) { console.error(err); }
   };
 
   const handleWalkIn = async (e) => {
       e.preventDefault();
       if(!newStudent.fullName) return alert("Name is required");
-      
-      const payload = {
-          courseId: selectedCourseId, fullName: newStudent.fullName, gender: newStudent.gender,
-          email: '', age: '', confNo: `WALK-${Date.now().toString().slice(-4)}`, coursesInfo: 'Walk-In'
-      };
-
-      if (!navigator.onLine) {
-          alert("⚠️ Offline: Cannot create new Walk-In records. Please use paper log until online.");
-          return;
-      }
-
       try {
+          const payload = {
+              courseId: selectedCourseId, fullName: newStudent.fullName, gender: newStudent.gender,
+              email: '', age: '', confNo: `WALK-${Date.now().toString().slice(-4)}`, coursesInfo: 'Walk-In'
+          };
           const res = await fetch(`${API_URL}/participants`, {
               method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
           });
@@ -138,7 +93,7 @@ export default function GateReception({ courses, refreshCourses }) {
           if (activeFilter === 'Pending') return p.status === 'No Response' || p.status === 'Pending';
           if (activeFilter === 'CheckedIn') return p.status === 'Gate Check-In' || p.status === 'Attending';
           if (activeFilter === 'Cancelled') return p.status === 'Cancelled';
-          return p.status !== 'Cancelled'; // Default 'All' hides cancelled unless searched/filtered explicitly? Actually usually 'All' shows valid. Let's make 'All' show pending+arrived.
+          return p.status !== 'Cancelled'; 
       });
   }, [participants, searchQuery, activeFilter]);
 
@@ -162,16 +117,6 @@ export default function GateReception({ courses, refreshCourses }) {
               </h2>
           </div>
           <div style={{display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap'}}>
-              {/* Network Indicator */}
-              <div style={{marginRight:'10px'}}>
-                  {isOnline ? 
-                      <span style={{color:'green', display:'flex', alignItems:'center', gap:'5px', fontSize:'12px', fontWeight:'bold', background:'#e8f5e9', padding:'4px 8px', borderRadius:'12px'}}><Wifi size={14}/> Online</span> : 
-                      <button onClick={() => syncOfflineRequests(API_URL)} style={{background:'#dc3545', color:'white', border:'none', borderRadius:'20px', padding:'5px 10px', display:'flex', alignItems:'center', gap:'5px', cursor:'pointer', animation:'pulse 2s infinite', fontSize:'12px'}}>
-                          <WifiOff size={14}/> Offline (Tap to Sync)
-                      </button>
-                  }
-              </div>
-
               <select 
                   style={{padding:'8px', borderRadius:'8px', border:'2px solid #007bff', fontSize:'14px', fontWeight:'bold', color:'#007bff', outline:'none', maxWidth:'200px'}}
                   value={selectedCourseId}
@@ -270,8 +215,7 @@ export default function GateReception({ courses, refreshCourses }) {
                                           {!isCheckedIn && !isCancelled && (
                                               <div style={{display:'flex', gap:'8px', justifyContent:'flex-end'}}>
                                                   <button onClick={() => handleGateCheckIn(p)} style={{background:'#28a745', color:'white', border:'none', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold', fontSize:'12px'}}>CHECK IN</button>
-                                                  {/* ✅ CANCEL BUTTON RESTORED */}
-                                                  <button onClick={() => handleCancelStudent(p)} style={{background:'#fff5f5', color:'#d32f2f', border:'1px solid #ffcdd2', padding:'6px 8px', borderRadius:'6px', cursor:'pointer', title:'Cancel / No Show'}}>
+                                                  <button onClick={() => handleCancelStudent(p)} style={{background:'#fff5f5', color:'#d32f2f', border:'1px solid #ffcdd2', padding:'6px 8px', borderRadius:'6px', cursor:'pointer'}} title="Cancel">
                                                       <UserX size={16}/>
                                                   </button>
                                               </div>
@@ -295,7 +239,6 @@ export default function GateReception({ courses, refreshCourses }) {
         @media (max-width: 768px) {
             .stats-grid { grid-template-columns: 1fr 1fr; }
         }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
       `}</style>
       
       {showWalkIn && (
