@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShoppingCart, Trash2, LogOut, FileText, DollarSign, Edit, CheckCircle, ArrowLeft, Clock, PenTool, Tag, Calendar, Activity, TrendingUp } from 'lucide-react';
+import { ShoppingCart, Trash2, LogOut, FileText, DollarSign, Edit, CheckCircle, ArrowLeft, Clock, PenTool, Tag, Calendar, Activity, TrendingUp, Printer } from 'lucide-react';
 import { API_URL, styles } from '../config';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -61,27 +61,17 @@ export default function ExpenseTracker({ courses }) {
       if (!financialData.length) return null;
       
       let laundryCount = 0, laundryM = 0, laundryF = 0;
-      let shopCount = 0;
-      let totalRev = 0;
-
-      // We need to iterate through ALL expenses to get item counts, but financialData is summarized.
-      // Ideally backend would provide item stats. For now, we estimate based on financialData columns if available
-      // OR we fetch full expenses for the course. 
-      // Let's rely on the summary data we have:
-      
       const totalPending = financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0);
       const totalPaid = financialData.reduce((sum, p) => sum + (parseFloat(p.total_bill || 0) - parseFloat(p.total_due || 0)), 0);
       
-      // Gender split on pending
       let pendingM = 0, pendingF = 0;
       financialData.forEach(p => {
-          // We need gender here. We can find it from participants list.
           const part = participants.find(x => x.participant_id === p.participant_id);
           const isMale = (part?.gender || '').toLowerCase().startsWith('m');
           if(isMale) pendingM += parseFloat(p.total_due); else pendingF += parseFloat(p.total_due);
           
           if(parseFloat(p.laundry_total) > 0) {
-              laundryCount++; // Just counting users using laundry for now
+              laundryCount++; 
               if(isMale) laundryM++; else laundryF++;
           }
       });
@@ -208,7 +198,7 @@ export default function ExpenseTracker({ courses }) {
       );
   };
 
-  // --- REPORT VIEWS (Reports are now in a Modal-like overlay or full tab) ---
+  // --- REPORT VIEWS ---
   const renderReport = () => {
       if (reportMode === 'laundry') { 
           const sortedList = financialData.sort((a,b) => (parseInt(a.laundry_token_no)||0) - (parseInt(b.laundry_token_no)||0));
@@ -239,46 +229,6 @@ export default function ExpenseTracker({ courses }) {
                   <button onClick={() => window.print()} style={{...styles.toolBtn('#007bff')}}>🖨️ Print</button>
               </div>
               {renderReport()}
-          </div>
-      );
-  }
-
-  // --- CHECKOUT VIEW ---
-  if (activeTab === 'checkout') {
-      return (
-          <div style={styles.card}>
-              <div className="no-print" style={{marginBottom:'20px'}}>
-                  <button onClick={()=>setActiveTab('pos')} style={{display:'flex', alignItems:'center', gap:'5px', background:'transparent', border:'1px solid #ddd', padding:'8px 12px', borderRadius:'6px', cursor:'pointer', color:'#666'}}><ArrowLeft size={16}/> Back to Store</button>
-              </div>
-              <div style={{background:'#fff5f5', padding:'30px', borderRadius:'10px', border:'2px solid #ffcdd2', textAlign:'center'}}>
-                  <h3 style={{color:'#d32f2f', marginTop:0}}>🔐 Return Valuables & Checkout</h3>
-                  <div style={{maxWidth:'500px', margin:'0 auto 20px auto'}}>
-                      <select style={styles.input} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} value={selectedStudentId}>
-                          <option value="">-- Select Student --</option>
-                          {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no})</option>)}
-                      </select>
-                  </div>
-                  {currentStudent ? (
-                      <>
-                          <div style={{fontSize:'20px', fontWeight:'bold', marginBottom:'20px'}}>{currentStudent.full_name}</div>
-                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px', marginBottom:'30px'}}>
-                              <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>MOBILE LOCKER</div><div style={{fontSize:'32px', fontWeight:'bold', color:'#007bff'}}>{currentStudent.mobile_locker_no || '-'}</div></div>
-                              <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>VALUABLES LOCKER</div><div style={{fontSize:'32px', fontWeight:'bold', color:'#e91e63'}}>{currentStudent.valuables_locker_no || '-'}</div></div>
-                              <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>TOTAL DUE</div><div style={{fontSize:'32px', fontWeight:'bold', color: stats.studentTotal > 0 ? 'red' : 'green'}}>₹{stats.studentTotal}</div></div>
-                          </div>
-                          <div style={{display:'flex', justifyContent:'center', gap:'20px'}}>
-                              {stats.studentTotal > 0 ? (
-                                  <button onClick={handleSettlePayment} style={{...styles.toolBtn('#28a745'), padding:'15px 30px', fontSize:'16px', display:'flex', alignItems:'center', gap:'10px'}}><DollarSign size={20}/> Collect ₹{stats.studentTotal} & Clear Due</button>
-                              ) : (
-                                  <div style={{color:'green', fontWeight:'bold', fontSize:'18px', padding:'10px', background:'#e8f5e9', borderRadius:'8px', width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:'10px'}}><CheckCircle size={24}/> Account Cleared</div>
-                              )}
-                              <button onClick={()=>window.print()} style={{...styles.toolBtn('#6c757d'), padding:'15px 30px', fontSize:'16px'}}>🖨️ Print Final Invoice</button>
-                          </div>
-                          <div className="print-only">{renderInvoice()}</div>
-                          <style>{`@media screen { .print-only { display: none; } } @media print { body * { visibility: hidden; } .print-only, .print-only * { visibility: visible; } .print-only { position: absolute; left: 0; top: 0; width: 100%; } }`}</style>
-                      </>
-                  ) : <div style={{color:'#666'}}>Please select a student above to begin checkout.</div>}
-              </div>
           </div>
       );
   }
@@ -352,7 +302,13 @@ export default function ExpenseTracker({ courses }) {
                       )}
                   </div>
                   <div style={{marginTop:'30px', paddingTop:'20px', borderTop:'2px solid #ccc'}}>
-                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}><h4 style={{margin:0}}>History ({history.length})</h4><span style={{fontSize:'12px', background: stats.studentTotal > 0 ? '#fff3cd' : '#e8f5e9', padding:'2px 6px', borderRadius:'4px', color: stats.studentTotal > 0 ? 'orange' : 'green'}}>Due: ₹{stats.studentTotal}</span></div>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
+                          <h4 style={{margin:0}}>History ({history.length})</h4>
+                          <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                              <span style={{fontSize:'12px', background: stats.studentTotal > 0 ? '#fff3cd' : '#e8f5e9', padding:'2px 6px', borderRadius:'4px', color: stats.studentTotal > 0 ? 'orange' : 'green'}}>Due: ₹{stats.studentTotal}</span>
+                              <button onClick={() => setReportMode('invoice')} disabled={!selectedStudentId} title="Print Individual Invoice" style={{background:'#eee', border:'1px solid #ccc', borderRadius:'4px', padding:'4px', cursor:'pointer', display:'flex', alignItems:'center'}}><Printer size={14}/></button>
+                          </div>
+                      </div>
                       <div style={{maxHeight:'150px', overflowY:'auto'}}>
                           {history.map(h => (
                               <div key={h.expense_id} style={{display:'flex', justifyContent:'space-between', fontSize:'12px', padding:'5px 0', borderBottom:'1px solid #eee', color: h.amount < 0 ? 'green' : 'black'}}>
@@ -392,12 +348,47 @@ export default function ExpenseTracker({ courses }) {
               <div style={{background:'white', padding:'25px', borderRadius:'12px', border:'1px solid #eee'}}>
                   <h3 style={{marginTop:0, marginBottom:'20px'}}>Generate Reports</h3>
                   <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:'15px'}}>
+                      <button onClick={() => setReportMode('invoice')} disabled={!selectedStudentId} style={{...styles.quickBtn(!!selectedStudentId), justifyContent:'center', padding:'15px', background: !selectedStudentId ? '#eee' : '#e3f2fd', color: !selectedStudentId ? '#999' : '#0d47a1', border:'1px solid #ddd'}}><FileText size={20}/> Individual Invoice</button>
                       <button onClick={loadFinancialReport} style={{...styles.quickBtn(true), justifyContent:'center', padding:'15px', background:'#f8f9fa', color:'#333', border:'1px solid #ddd'}}><DollarSign size={20} color="#28a745"/> Course Summary</button>
                       <button onClick={loadLaundryReport} style={{...styles.quickBtn(true), justifyContent:'center', padding:'15px', background:'#f8f9fa', color:'#333', border:'1px solid #ddd'}}><Tag size={20} color="#007bff"/> Laundry List</button>
                       <button onClick={loadPendingReport} style={{...styles.quickBtn(true), justifyContent:'center', padding:'15px', background:'#f8f9fa', color:'#333', border:'1px solid #ddd'}}><Clock size={20} color="#d32f2f"/> Pending Dues</button>
                       <button onClick={loadPaidReport} style={{...styles.quickBtn(true), justifyContent:'center', padding:'15px', background:'#f8f9fa', color:'#333', border:'1px solid #ddd'}}><CheckCircle size={20} color="#28a745"/> Paid List</button>
                   </div>
+                  {!selectedStudentId && <div style={{marginTop:'15px', color:'#999', fontSize:'12px', textAlign:'center'}}>* To print an Individual Invoice, please select a student in the POS tab first.</div>}
               </div>
+          </div>
+      )}
+
+      {/* CHECKOUT VIEW (Repeated for consistency) */}
+      {activeTab === 'checkout' && (
+          <div style={{background:'#fff5f5', padding:'30px', borderRadius:'10px', border:'2px solid #ffcdd2', textAlign:'center'}}>
+              <h3 style={{color:'#d32f2f', marginTop:0}}>🔐 Return Valuables & Checkout</h3>
+              <div style={{maxWidth:'500px', margin:'0 auto 20px auto'}}>
+                  <select style={styles.input} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} value={selectedStudentId}>
+                      <option value="">-- Select Student --</option>
+                      {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no})</option>)}
+                  </select>
+              </div>
+              {currentStudent ? (
+                  <>
+                      <div style={{fontSize:'20px', fontWeight:'bold', marginBottom:'20px'}}>{currentStudent.full_name}</div>
+                      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px', marginBottom:'30px'}}>
+                          <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>MOBILE LOCKER</div><div style={{fontSize:'32px', fontWeight:'bold', color:'#007bff'}}>{currentStudent.mobile_locker_no || '-'}</div></div>
+                          <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>VALUABLES LOCKER</div><div style={{fontSize:'32px', fontWeight:'bold', color:'#e91e63'}}>{currentStudent.valuables_locker_no || '-'}</div></div>
+                          <div style={{background:'white', padding:'20px', borderRadius:'8px', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}><div style={{color:'#666', fontSize:'12px'}}>TOTAL DUE</div><div style={{fontSize:'32px', fontWeight:'bold', color: stats.studentTotal > 0 ? 'red' : 'green'}}>₹{stats.studentTotal}</div></div>
+                      </div>
+                      <div style={{display:'flex', justifyContent:'center', gap:'20px'}}>
+                          {stats.studentTotal > 0 ? (
+                              <button onClick={handleSettlePayment} style={{...styles.toolBtn('#28a745'), padding:'15px 30px', fontSize:'16px', display:'flex', alignItems:'center', gap:'10px'}}><DollarSign size={20}/> Collect ₹{stats.studentTotal} & Clear Due</button>
+                          ) : (
+                              <div style={{color:'green', fontWeight:'bold', fontSize:'18px', padding:'10px', background:'#e8f5e9', borderRadius:'8px', width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:'10px'}}><CheckCircle size={24}/> Account Cleared</div>
+                          )}
+                          <button onClick={()=>window.print()} style={{...styles.toolBtn('#6c757d'), padding:'15px 30px', fontSize:'16px'}}>🖨️ Print Final Invoice</button>
+                      </div>
+                      <div className="print-only">{renderInvoice()}</div>
+                      <style>{`@media screen { .print-only { display: none; } } @media print { body * { visibility: hidden; } .print-only, .print-only * { visibility: visible; } .print-only { position: absolute; left: 0; top: 0; width: 100%; } }`}</style>
+                  </>
+              ) : <div style={{color:'#666'}}>Please select a student above to begin checkout.</div>}
           </div>
       )}
     </div>
