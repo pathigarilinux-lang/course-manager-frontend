@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShoppingCart, Trash2, LogOut, FileText, DollarSign, Edit, CheckCircle, ArrowLeft, Clock, PenTool, Tag, Calendar, Activity, TrendingUp, Printer } from 'lucide-react';
+import { ShoppingCart, Trash2, LogOut, FileText, DollarSign, Edit, CheckCircle, ArrowLeft, Clock, PenTool, Tag, Calendar, Activity, TrendingUp, Printer, Download } from 'lucide-react';
 import { API_URL, styles } from '../config';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-// --- CONFIGURATION ---
 const PRODUCTS = [
   { id: 'laundry', name: 'Laundry Token', price: 0, icon: '🧺', type: 'Service' },
   { id: 'soap', name: 'Soap Bar', price: 0, icon: '🧼', type: 'Item' },
@@ -14,7 +13,6 @@ const PRODUCTS = [
   { id: 'misc', name: 'Misc Item', price: 0, icon: '📦', type: 'General' }, 
 ];
 
-const COLORS = { male: '#007bff', female: '#e91e63', total: '#28a745' };
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
 
 export default function ExpenseTracker({ courses }) {
@@ -25,14 +23,15 @@ export default function ExpenseTracker({ courses }) {
   const [history, setHistory] = useState([]); 
   const [financialData, setFinancialData] = useState([]); 
   
-  // Cart & UI State
   const [cart, setCart] = useState([]);
-  const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]); // ✅ Default to Today
+  const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]); 
   const [activeTab, setActiveTab] = useState('pos'); 
   const [reportMode, setReportMode] = useState(''); 
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // ✅ NEW: Gender Filter for Reports
+  const [reportGenderFilter, setReportGenderFilter] = useState('All'); // 'All', 'Male', 'Female'
 
-  // --- INITIAL DATA LOADING ---
   useEffect(() => { 
       if (courseId) {
           fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data)?data:[])).catch(err => console.error(err));
@@ -50,14 +49,12 @@ export default function ExpenseTracker({ courses }) {
       } 
   }, [selectedStudentId]);
 
-  // --- STATS CALCULATION ---
   const stats = useMemo(() => {
       const totalCollected = financialData.reduce((sum, p) => sum + parseFloat(p.total_due || 0), 0);
       const studentTotal = history.reduce((sum, h) => sum + parseFloat(h.amount), 0);
       return { totalCollected, studentTotal };
   }, [financialData, history]);
 
-  // --- DASHBOARD METRICS ---
   const dashboardStats = useMemo(() => {
       if (!financialData.length) return null;
       let laundryCount = 0, laundryM = 0, laundryF = 0;
@@ -65,16 +62,13 @@ export default function ExpenseTracker({ courses }) {
       const totalPaid = financialData.reduce((sum, p) => sum + (parseFloat(p.total_bill || 0) - parseFloat(p.total_due || 0)), 0);
       let pendingM = 0, pendingF = 0;
       financialData.forEach(p => {
-          const part = participants.find(x => x.participant_id === p.participant_id);
-          const isMale = (part?.gender || '').toLowerCase().startsWith('m');
+          const isMale = (p.gender || '').toLowerCase().startsWith('m');
           if(isMale) pendingM += parseFloat(p.total_due); else pendingF += parseFloat(p.total_due);
           if(parseFloat(p.laundry_total) > 0) { laundryCount++; if(isMale) laundryM++; else laundryF++; }
       });
       return { totalPending, totalPaid, pendingM, pendingF, laundryCount, laundryM, laundryF };
-  }, [financialData, participants]);
+  }, [financialData]);
 
-  // --- ACTIONS ---
-  
   const addToCart = (product) => {
       if (!selectedStudentId) return alert("Please select a student first.");
       let finalName = product.name;
@@ -92,7 +86,6 @@ export default function ExpenseTracker({ courses }) {
       if (priceStr === null) return; 
       const price = parseFloat(priceStr);
       if (isNaN(price) || price <= 0) return alert("Please enter a valid amount.");
-      
       setCart([...cart, { ...product, name: finalName, price, date: entryDate, uid: Date.now() }]);
   };
 
@@ -121,17 +114,7 @@ export default function ExpenseTracker({ courses }) {
       setIsProcessing(true);
       try {
           for (let item of cart) {
-              await fetch(`${API_URL}/expenses`, { 
-                  method: 'POST', 
-                  headers: {'Content-Type':'application/json'}, 
-                  body: JSON.stringify({ 
-                      courseId, 
-                      participantId: selectedStudentId, 
-                      type: item.name, 
-                      amount: item.price,
-                      date: item.date 
-                  }) 
-              });
+              await fetch(`${API_URL}/expenses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ courseId, participantId: selectedStudentId, type: item.name, amount: item.price, date: item.date }) });
           }
           const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); 
           setHistory(await histRes.json());
@@ -156,10 +139,7 @@ export default function ExpenseTracker({ courses }) {
       const amountToPay = stats.studentTotal;
       if(!window.confirm(`💰 Confirm Payment Collection?\n\nAmount: ₹${amountToPay}\n\nThis will record a payment and clear the balance.`)) return;
       try {
-          await fetch(`${API_URL}/expenses`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ courseId, participantId: selectedStudentId, type: '✅ Payment Received', amount: -amountToPay })
-          });
+          await fetch(`${API_URL}/expenses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ courseId, participantId: selectedStudentId, type: '✅ Payment Received', amount: -amountToPay }) });
           const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); 
           setHistory(await histRes.json());
           fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(setFinancialData);
@@ -168,10 +148,24 @@ export default function ExpenseTracker({ courses }) {
       } catch (err) { console.error(err); alert("Failed to record payment."); }
   };
 
-  const loadFinancialReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => setFinancialData(Array.isArray(data) ? data : [])); setReportMode('summary'); };
-  const loadLaundryReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/participants`).then(res=>res.json()).then(data=>{ const laundryUsers = data.filter(p => p.status === 'Attending' && p.laundry_token_no && p.laundry_token_no.trim() !== ''); setFinancialData(laundryUsers); setReportMode('laundry'); }); };
-  const loadPendingReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => { const pendingUsers = (Array.isArray(data) ? data : []).filter(p => parseFloat(p.total_due) > 0); setFinancialData(pendingUsers); setReportMode('pending'); }); };
-  const loadPaidReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => { const paidUsers = (Array.isArray(data) ? data : []).filter(p => { const due = parseFloat(p.total_due || 0); const bill = parseFloat(p.total_bill || 0); return due < 1.0 && bill > 0; }); setFinancialData(paidUsers); setReportMode('paid'); }); };
+  const loadFinancialReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => setFinancialData(Array.isArray(data) ? data : [])); setReportMode('summary'); setReportGenderFilter('All'); };
+  const loadLaundryReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res=>res.json()).then(data=>{ const laundryUsers = data.filter(p => parseFloat(p.laundry_total) > 0 || (p.laundry_token_no && p.laundry_token_no !== '')); setFinancialData(laundryUsers); setReportMode('laundry'); setReportGenderFilter('All'); }); };
+  const loadPendingReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => { const pendingUsers = (Array.isArray(data) ? data : []).filter(p => parseFloat(p.total_due) > 0); setFinancialData(pendingUsers); setReportMode('pending'); setReportGenderFilter('All'); }); };
+  const loadPaidReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => { const paidUsers = (Array.isArray(data) ? data : []).filter(p => { const due = parseFloat(p.total_due || 0); const bill = parseFloat(p.total_bill || 0); return due < 1.0 && bill > 0; }); setFinancialData(paidUsers); setReportMode('paid'); setReportGenderFilter('All'); }); };
+
+  // ✅ EXPORT FUNCTION
+  const handleExportCSV = (data, filename) => {
+      if(!data || !data.length) return alert("No data to export");
+      const headers = Object.keys(data[0]).join(",");
+      const rows = data.map(obj => Object.values(obj).map(v => `"${v}"`).join(",")).join("\n");
+      const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + rows;
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `${filename}_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+  };
 
   const currentStudent = participants.find(p => p.participant_id == selectedStudentId);
   const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || '';
@@ -202,23 +196,43 @@ export default function ExpenseTracker({ courses }) {
   };
 
   const renderReport = () => {
+      // ✅ FILTER LOGIC
+      const filteredData = financialData.filter(p => {
+          if (reportGenderFilter === 'All') return true;
+          const gender = (p.gender || '').toLowerCase();
+          return reportGenderFilter === 'Male' ? gender.startsWith('m') : gender.startsWith('f');
+      });
+
+      const ReportControls = () => (
+          <div className="no-print" style={{display:'flex', gap:'10px', alignItems:'center', background:'#f8f9fa', padding:'10px', marginBottom:'15px', borderRadius:'8px', border:'1px solid #ddd'}}>
+              <span style={{fontWeight:'bold', fontSize:'13px'}}>Filter:</span>
+              <div style={{display:'flex', gap:'5px'}}>
+                  {['All', 'Male', 'Female'].map(g => (
+                      <button key={g} onClick={() => setReportGenderFilter(g)} style={{padding:'5px 12px', borderRadius:'15px', border: reportGenderFilter===g ? 'none' : '1px solid #ccc', background: reportGenderFilter===g ? '#333' : 'white', color: reportGenderFilter===g ? 'white' : '#333', cursor:'pointer', fontSize:'12px'}}>{g}</button>
+                  ))}
+              </div>
+              <div style={{flex:1}}></div>
+              <button onClick={() => handleExportCSV(filteredData, reportMode)} style={{display:'flex', alignItems:'center', gap:'5px', background:'#28a745', color:'white', border:'none', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontSize:'12px'}}><Download size={14}/> Export CSV</button>
+          </div>
+      );
+
       if (reportMode === 'laundry') { 
-          const sortedList = financialData.sort((a,b) => (parseInt(a.laundry_token_no)||0) - (parseInt(b.laundry_token_no)||0));
-          return ( <div className="print-area"> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Laundry Service List</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black', background:'#f9f9f9'}}><th style={{...thPrint, textAlign:'center'}}>Token #</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Gender</th><th style={thPrint}>Dining Seat</th></tr></thead><tbody>{sortedList.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '10px', fontWeight:'bold', fontSize:'18px', textAlign:'center', borderRight:'1px solid #eee'}}>{p.laundry_token_no}</td><td style={{padding: '10px'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.gender}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td></tr>))}</tbody></table> </div> ); 
+          const sortedList = filteredData.sort((a,b) => (parseInt(a.laundry_token_no)||0) - (parseInt(b.laundry_token_no)||0));
+          return ( <div className="print-area"> <ReportControls/> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Laundry Service List {reportGenderFilter !== 'All' && `(${reportGenderFilter})`}</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black', background:'#f9f9f9'}}><th style={{...thPrint, textAlign:'center'}}>Token #</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Gender</th><th style={thPrint}>Dining Seat</th></tr></thead><tbody>{sortedList.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding: '10px', fontWeight:'bold', fontSize:'18px', textAlign:'center', borderRight:'1px solid #eee'}}>{p.laundry_token_no}</td><td style={{padding: '10px'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.gender}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td></tr>))}</tbody></table> </div> ); 
       }
       if (reportMode === 'pending') {
-          const totalPending = financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0);
-          return ( <div className="print-area"> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0, color:'#d32f2f'}}>Pending Dues List</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black', background:'#fff5f5'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Amount Due</th></tr></thead><tbody>{financialData.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding:'10px'}}>{i+1}</td><td style={{padding: '10px', fontWeight:'bold'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td><td style={{padding: '10px', textAlign:'right', fontWeight:'bold', color:'#d32f2f'}}>₹{p.total_due}</td></tr>))} <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px', background:'#fbe9e7'}}><td colSpan={4} style={{padding:'15px', textAlign:'right'}}>TOTAL PENDING:</td><td style={{padding:'15px', textAlign:'right', color:'#d32f2f'}}>₹{totalPending}</td></tr></tbody></table> {financialData.length === 0 && <p style={{textAlign:'center', color:'#28a745', padding:'20px', fontWeight:'bold'}}>🎉 Amazing! No pending dues.</p>} </div> ); 
+          const totalPending = filteredData.reduce((sum, p) => sum + parseFloat(p.total_due), 0);
+          return ( <div className="print-area"> <ReportControls/> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0, color:'#d32f2f'}}>Pending Dues List {reportGenderFilter !== 'All' && `(${reportGenderFilter})`}</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead><tr style={{borderBottom: '2px solid black', background:'#fff5f5'}}><th style={thPrint}>S.N.</th><th style={thPrint}>Name</th><th style={thPrint}>Room</th><th style={thPrint}>Seat</th><th style={{...thPrint, textAlign:'right'}}>Amount Due</th></tr></thead><tbody>{filteredData.map((p, i) => (<tr key={i} style={{borderBottom: '1px solid #ddd'}}><td style={{padding:'10px'}}>{i+1}</td><td style={{padding: '10px', fontWeight:'bold'}}>{p.full_name}</td><td style={{padding: '10px'}}>{p.room_no}</td><td style={{padding: '10px'}}>{p.dining_seat_no}</td><td style={{padding: '10px', textAlign:'right', fontWeight:'bold', color:'#d32f2f'}}>₹{p.total_due}</td></tr>))} <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'16px', background:'#fbe9e7'}}><td colSpan={4} style={{padding:'15px', textAlign:'right'}}>TOTAL PENDING:</td><td style={{padding:'15px', textAlign:'right', color:'#d32f2f'}}>₹{totalPending}</td></tr></tbody></table> {filteredData.length === 0 && <p style={{textAlign:'center', color:'#28a745', padding:'20px', fontWeight:'bold'}}>🎉 Amazing! No pending dues.</p>} </div> ); 
       }
       if (reportMode === 'paid') {
-          return ( <div className="print-area"> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0, color:'#2e7d32'}}>✅ Paid / Cleared List</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead> <tr style={{borderBottom: '2px solid black', background:'#e8f5e9'}}> <th style={thPrint}>S.N.</th> <th style={thPrint}>Name</th> <th style={thPrint}>Room</th> <th style={{...thPrint, textAlign:'right'}}>Paid Amount</th> <th style={{...thPrint, textAlign:'center'}}>Status</th> </tr> </thead> <tbody> {financialData.map((p, i) => ( <tr key={i} style={{borderBottom: '1px solid #ddd'}}> <td style={{padding:'10px'}}>{i+1}</td> <td style={{padding: '10px', fontWeight:'bold'}}>{p.full_name}</td> <td style={{padding: '10px'}}>{p.room_no}</td> <td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_bill || 0}</td> <td style={{padding: '10px', textAlign:'center', color:'green', fontWeight:'bold'}}>Paid</td> </tr> ))} </tbody> </table> {financialData.length === 0 && <div style={{textAlign:'center', padding:'20px', color:'#999'}}>No paid records found.</div>} </div> ); 
+          return ( <div className="print-area"> <ReportControls/> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0, color:'#2e7d32'}}>✅ Paid List {reportGenderFilter !== 'All' && `(${reportGenderFilter})`}</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '14px'}}><thead> <tr style={{borderBottom: '2px solid black', background:'#e8f5e9'}}> <th style={thPrint}>S.N.</th> <th style={thPrint}>Name</th> <th style={thPrint}>Room</th> <th style={{...thPrint, textAlign:'right'}}>Paid Amount</th> <th style={{...thPrint, textAlign:'center'}}>Status</th> </tr> </thead> <tbody> {filteredData.map((p, i) => ( <tr key={i} style={{borderBottom: '1px solid #ddd'}}> <td style={{padding:'10px'}}>{i+1}</td> <td style={{padding: '10px', fontWeight:'bold'}}>{p.full_name}</td> <td style={{padding: '10px'}}>{p.room_no}</td> <td style={{padding: '10px', textAlign:'right', fontWeight:'bold'}}>₹{p.total_bill || 0}</td> <td style={{padding: '10px', textAlign:'center', color:'green', fontWeight:'bold'}}>Paid</td> </tr> ))} </tbody> </table> {filteredData.length === 0 && <div style={{textAlign:'center', padding:'20px', color:'#999'}}>No paid records found.</div>} </div> ); 
       }
       if (reportMode === 'invoice' && currentStudent) return renderInvoice();
       if (reportMode === 'summary') { 
-          const sumLaundry = financialData.reduce((sum, p) => sum + parseFloat(p.laundry_total || 0), 0);
-          const sumShop = financialData.reduce((sum, p) => sum + parseFloat(p.shop_total || 0), 0);
-          const sumGrand = financialData.reduce((sum, p) => sum + parseFloat(p.total_due || 0), 0);
-          return ( <div className="print-area"> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Expenses Summary Report</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '12px'}}> <thead> <tr style={{borderBottom: '2px solid black', background:'#f0f0f0'}}> <th style={thPrint}>S.N.</th> <th style={thPrint}>Name</th> <th style={thPrint}>Room</th> <th style={thPrint}>Seat</th> <th style={{...thPrint, textAlign:'right', background:'#e3f2fd'}}>Laundry</th> <th style={{...thPrint, textAlign:'right', background:'#fff3e0'}}>Shop</th> <th style={{...thPrint, textAlign:'right', borderLeft:'2px solid #ccc'}}>Total</th> </tr> </thead> <tbody> {financialData.map((p, i) => ( <tr key={i} style={{borderBottom: '1px solid #ddd'}}> <td style={{padding:'8px'}}>{i+1}</td> <td style={{padding:'8px'}}>{p.full_name}</td> <td style={{padding:'8px'}}>{p.room_no}</td> <td style={{padding:'8px'}}>{p.dining_seat_no}</td> <td style={{padding:'8px', textAlign:'right', color:'#0d47a1', background:'#f1f8e9'}}>₹{p.laundry_total || 0}</td> <td style={{padding:'8px', textAlign:'right', color:'#e65100', background:'#fff8e1'}}>₹{p.shop_total || 0}</td> <td style={{padding:'8px', textAlign:'right', fontWeight:'bold', borderLeft:'2px solid #ccc'}}>₹{p.total_due}</td> </tr> ))} <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'14px', background:'#fafafa'}}> <td colSpan={4} style={{padding:'10px', textAlign:'right'}}>CATEGORY TOTALS:</td> <td style={{padding:'10px', textAlign:'right', color:'#0d47a1'}}>₹{sumLaundry}</td> <td style={{padding:'10px', textAlign:'right', color:'#e65100'}}>₹{sumShop}</td> <td style={{padding:'10px', textAlign:'right', color:'black', borderLeft:'2px solid #ccc'}}>GRAND TOTAL: ₹{sumGrand}</td> </tr> </tbody> </table> </div> ); 
+          const sumLaundry = filteredData.reduce((sum, p) => sum + parseFloat(p.laundry_total || 0), 0);
+          const sumShop = filteredData.reduce((sum, p) => sum + parseFloat(p.shop_total || 0), 0);
+          const sumGrand = filteredData.reduce((sum, p) => sum + parseFloat(p.total_due || 0), 0);
+          return ( <div className="print-area"> <ReportControls/> <div style={{textAlign: 'center', marginBottom: '20px'}}><h1 style={{margin: 0}}>Expenses Summary {reportGenderFilter !== 'All' && `(${reportGenderFilter})`}</h1><h3 style={{margin: '5px 0', color: '#555'}}>{selectedCourseName}</h3></div> <table style={{width: '100%', borderCollapse: 'collapse', fontSize: '12px'}}> <thead> <tr style={{borderBottom: '2px solid black', background:'#f0f0f0'}}> <th style={thPrint}>S.N.</th> <th style={thPrint}>Name</th> <th style={thPrint}>Room</th> <th style={thPrint}>Seat</th> <th style={{...thPrint, textAlign:'right', background:'#e3f2fd'}}>Laundry</th> <th style={{...thPrint, textAlign:'right', background:'#fff3e0'}}>Shop</th> <th style={{...thPrint, textAlign:'right', borderLeft:'2px solid #ccc'}}>Total</th> </tr> </thead> <tbody> {filteredData.map((p, i) => ( <tr key={i} style={{borderBottom: '1px solid #ddd'}}> <td style={{padding:'8px'}}>{i+1}</td> <td style={{padding:'8px'}}>{p.full_name}</td> <td style={{padding:'8px'}}>{p.room_no}</td> <td style={{padding:'8px'}}>{p.dining_seat_no}</td> <td style={{padding:'8px', textAlign:'right', color:'#0d47a1', background:'#f1f8e9'}}>₹{p.laundry_total || 0}</td> <td style={{padding:'8px', textAlign:'right', color:'#e65100', background:'#fff8e1'}}>₹{p.shop_total || 0}</td> <td style={{padding:'8px', textAlign:'right', fontWeight:'bold', borderLeft:'2px solid #ccc'}}>₹{p.total_due}</td> </tr> ))} <tr style={{borderTop:'2px solid black', fontWeight:'bold', fontSize:'14px', background:'#fafafa'}}> <td colSpan={4} style={{padding:'10px', textAlign:'right'}}>CATEGORY TOTALS:</td> <td style={{padding:'10px', textAlign:'right', color:'#0d47a1'}}>₹{sumLaundry}</td> <td style={{padding:'10px', textAlign:'right', color:'#e65100'}}>₹{sumShop}</td> <td style={{padding:'10px', textAlign:'right', color:'black', borderLeft:'2px solid #ccc'}}>GRAND TOTAL: ₹{sumGrand}</td> </tr> </tbody> </table> </div> ); 
       }
       return null;
   };
