@@ -20,7 +20,7 @@ import GatekeeperPanel from './components/GatekeeperPanel';
 import ATPanel from './components/ATPanel';
 
 export default function App() {
-  const [authLevel, setAuthLevel] = useState('none'); // 'none', 'admin', 'gatekeeper', 'teacher'
+  const [authLevel, setAuthLevel] = useState('none'); // 'none', 'admin', 'gatekeeper', 'teacher', 'reception'
   const [activeModule, setActiveModule] = useState('dashboard');
   const [courses, setCourses] = useState([]);
   const [preSelectedRoom, setPreSelectedRoom] = useState(''); 
@@ -62,6 +62,8 @@ export default function App() {
   }
 
   // --- 2. RESTRICTED ROLES ---
+  
+  // ROLE: GATEKEEPER (Old Simple List) - Passcode 00000
   if (authLevel === 'gatekeeper') {
     return (
       <div style={{minHeight:'100vh', background:'#e3f2fd', fontFamily:"'Segoe UI', sans-serif"}}>
@@ -76,6 +78,23 @@ export default function App() {
     );
   }
 
+  // ✅ ROLE: RECEPTION (New Advanced Console) - Passcode 55555
+  if (authLevel === 'reception') {
+    return (
+      <div style={{minHeight:'100vh', background:'#f0fdf4', fontFamily:"'Segoe UI', sans-serif"}}>
+        {/* Isolated Header - No Navigation Tabs */}
+        <div className="no-print" style={{background:'white', padding:'15px 30px', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:'0 2px 10px rgba(0,0,0,0.05)', borderBottom:'3px solid #2e7d32'}}>
+            <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px', color:'#1b5e20'}}><UserCheck size={28}/> Reception Console</h2>
+            <button onClick={handleLogout} style={{padding:'8px 16px', background:'#fff5f5', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Logout</button>
+        </div>
+        <div style={{padding:'30px'}}>
+            <GateReception courses={courses} />
+        </div>
+      </div>
+    );
+  }
+
+  // ROLE: TEACHER - Passcode 22222
   if (authLevel === 'teacher') {
     return (
       <div style={{minHeight:'100vh', background:'#fff3e0', fontFamily:"'Segoe UI', sans-serif"}}>
@@ -90,10 +109,10 @@ export default function App() {
     );
   }
 
-  // --- 3. ADMIN DASHBOARD (RICH UI) ---
+  // --- 3. ADMIN DASHBOARD (FULL ACCESS) - Passcode 11111 ---
   const MENU_ITEMS = [
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-      { id: 'gate', label: 'Reception', icon: <UserCheck size={18} /> }, // ✅ NEW ITEM
+      { id: 'gate', label: 'Reception', icon: <UserCheck size={18} /> }, // Available to Admin too
       { id: 'room', label: 'Room Map', icon: <BedDouble size={18} /> },
       { id: 'onboarding', label: 'Onboarding', icon: <UserPlus size={18} /> },
       { id: 'students', label: 'Students', icon: <Users size={18} /> },
@@ -109,7 +128,7 @@ export default function App() {
         fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
     }}>
       
-      {/* TOP NAVIGATION */}
+      {/* TOP NAVIGATION (Only visible to Admin) */}
       <div className="no-print" style={{
           background: 'white',
           padding: '0 30px',
@@ -171,29 +190,14 @@ export default function App() {
       {/* MAIN CONTENT */}
       <div style={{maxWidth: '1600px', margin: '30px auto', padding: '0 20px'}}>
           <div style={{animation: 'fadeIn 0.4s ease-in-out'}}>
-              
               {activeModule === 'dashboard' && <CourseDashboard courses={courses} />}
-              
-              {activeModule === 'gate' && <GateReception courses={courses} />} {/* ✅ NEW RECEPTION */}
-
+              {activeModule === 'gate' && <GateReception courses={courses} />}
               {activeModule === 'room' && <GlobalAccommodationManager courses={courses} onRoomClick={handleRoomClick} />}
-              
-              {activeModule === 'onboarding' && (
-                  <StudentForm 
-                      courses={courses} 
-                      preSelectedRoom={preSelectedRoom} 
-                      clearRoom={() => setPreSelectedRoom('')} 
-                  />
-              )}
-              
+              {activeModule === 'onboarding' && <StudentForm courses={courses} preSelectedRoom={preSelectedRoom} clearRoom={() => setPreSelectedRoom('')} />}
               {activeModule === 'students' && <ParticipantList courses={courses} refreshCourses={refreshCourses}/>}
-              
               {activeModule === 'store' && <ExpenseTracker courses={courses} />}
-
               {activeModule === 'seva' && <SevaBoard courses={courses} />}
-              
               {activeModule === 'admin' && <CourseAdmin courses={courses} refreshCourses={refreshCourses} />}
-              
           </div>
       </div>
 
