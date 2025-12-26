@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function MaleDiningLayout({ occupied, occupiedData, selected, onSelect, onClose }) {
+export default function MaleDiningLayout({ occupiedMap, selected, onSelect, onClose }) {
   // LEFT WING (Chair Block-2)
   const leftChairRows = [
     [12, 11, 10], [24, 23, 22], [36, 35, 34], [48, 47, 46], 
@@ -31,22 +31,32 @@ export default function MaleDiningLayout({ occupied, occupiedData, selected, onS
   const renderCell = (num, type) => {
     if (num === 'Gap') return <div style={{ height: '35px' }}></div>;
     const sNum = String(num); 
-    const isOcc = occupied.has(sNum); 
-    const occupantCat = occupiedData ? occupiedData[sNum] : null; 
+    
+    // ✅ CHECK MAP INSTEAD OF SET
+    const occupiedData = occupiedMap.get(sNum);
+    const isOcc = !!occupiedData;
     const isSel = String(selected) === sNum;
     
-    // Style Logic
     let bg = 'white';
     let border = '1px solid #ccc';
     let color = '#333';
     let badgeBg = null;
+    let tagLabel = '';
 
     if (isSel) {
         bg = '#007bff'; color = 'white'; border = '1px solid #0056b3';
     } else if (isOcc) {
-        bg = '#f0f0f0'; color = '#aaa'; // Dimmed background
-        if (occupantCat === 'O') badgeBg = '#007bff'; // Blue badge
-        else if (occupantCat === 'N') badgeBg = '#ffc107'; // Yellow badge
+        bg = '#f0f0f0'; color = '#aaa'; 
+        tagLabel = occupiedData.tag; // e.g. "30d", "45d", "O", "N"
+        
+        // Color coding for local vs global
+        if (occupiedData.type === 'Global') {
+            badgeBg = '#d32f2f'; // Red for conflict/global
+        } else if (tagLabel === 'O') {
+            badgeBg = '#007bff'; 
+        } else {
+            badgeBg = '#ffc107'; 
+        }
     } else if (type === 'Floor') {
         bg = '#fff9c4';
     }
@@ -58,20 +68,21 @@ export default function MaleDiningLayout({ occupied, occupiedData, selected, onS
             display: 'flex', alignItems: 'center', justifyContent: 'center', 
             background: bg, border: border, borderRadius: '4px', 
             cursor: isOcc ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '13px', color,
-            position: 'relative' // Needed for badge
+            position: 'relative' 
         }}>
         {num}
         
-        {/* THE CORNER BADGE */}
-        {isOcc && badgeBg && (
+        {/* ✅ SHOW TAG BADGE */}
+        {isOcc && tagLabel && (
             <div style={{
-                position: 'absolute', top: '-4px', right: '-4px',
-                width: '14px', height: '14px', borderRadius: '50%',
+                position: 'absolute', top: '-6px', right: '-6px',
+                padding: '2px 4px', borderRadius: '4px',
                 background: badgeBg, color: badgeBg==='#ffc107'?'black':'white',
-                fontSize: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: '1px solid white', zIndex: 10
+                fontSize: '8px', fontWeight:'bold', lineHeight:'1',
+                border: '1px solid white', zIndex: 10,
+                minWidth: '14px', textAlign: 'center'
             }}>
-                {occupantCat}
+                {tagLabel}
             </div>
         )}
       </button>
@@ -82,11 +93,10 @@ export default function MaleDiningLayout({ occupied, occupiedData, selected, onS
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 2000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
       <div style={{ background: 'white', padding: '15px', borderRadius: '8px', width: '95%', maxWidth: '1100px', maxHeight: '95vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}><h2 style={{ margin: 0, color: '#007bff' }}>MALE DINING SEAT LAYOUT</h2><button onClick={onClose} style={{ background: '#333', color: 'white', padding: '8px 16px', borderRadius: '4px', border: 'none', cursor:'pointer' }}>Close</button></div>
-        {/* LEGEND */}
         <div style={{ display: 'flex', gap: '15px', fontSize: '12px', marginBottom: '15px', justifyContent:'center', background:'#f8f9fa', padding:'10px', borderRadius:'6px' }}>
-          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'14px', height:'14px', borderRadius:'50%', background:'#007bff'}}></div> Old (O)</div>
-          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'14px', height:'14px', borderRadius:'50%', background:'#ffc107'}}></div> New (N)</div>
-          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'15px', height:'15px', background:'#fff9c4', border:'1px solid #ccc'}}></div> Floor</div>
+          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'14px', height:'14px', borderRadius:'4px', background:'#d32f2f'}}></div> Other Course</div>
+          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'14px', height:'14px', borderRadius:'4px', background:'#007bff'}}></div> Old (O)</div>
+          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'14px', height:'14px', borderRadius:'4px', background:'#ffc107'}}></div> New (N)</div>
         </div>
         <div style={{ background: '#4a90e2', color: 'white', textAlign: 'center', padding: '10px', fontWeight: 'bold', borderRadius: '4px', marginBottom: '15px' }}>SERVING TABLE</div>
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
