@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, MapPin, Coffee, Lock, Key, AlertTriangle, CheckCircle, Search, X, Printer, ArrowRight } from 'lucide-react';
-import DiningLayout from '../DiningLayout';
+import DiningLayout from '../DiningLayout'; // Wrapper that loads Male/Female
 import PagodaLayout from '../PagodaLayout';
 import MaleBlockLayout from './MaleBlockLayout'; 
 import FemaleBlockLayout from './FemaleBlockLayout'; 
@@ -18,7 +18,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [isSearching, setIsSearching] = useState(false);
   const searchInputRef = useRef(null);
 
-  // ✅ GLOBAL CONFLICT STATE
+  // ✅ GLOBAL CONFLICT STATE (Now stores objects with tags)
   const [globalOccupied, setGlobalOccupied] = useState({ dining: [], pagoda: [] });
 
   const [formData, setFormData] = useState({ 
@@ -45,13 +45,11 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       } 
   }, [preSelectedRoom, courses]);
 
-  // ✅ UPDATED: Fetch Participants AND Global Conflicts when Course Changes
+  // ✅ FETCH GLOBAL CONFLICTS
   useEffect(() => { 
       if (formData.courseId) {
-          // 1. Fetch Students of THIS course
           fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants);
           
-          // 2. Fetch Occupied Seats from OTHER Overlapping Courses
           fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`)
             .then(res => res.json())
             .then(data => setGlobalOccupied(data))
@@ -70,38 +68,37 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : 'Male');
   const themeColor = isMale ? '#007bff' : (isFemale ? '#e91e63' : '#6c757d');
 
-  const occupiedRoomsSet = new Set(occupancy.map(p => p.room_no ? normalize(p.room_no) : ''));
-  
-  // ✅ MERGE LOCAL AND GLOBAL OCCUPANCY
-  const usedDining = new Set(globalOccupied.dining); // Start with global blocks
-  const usedPagoda = new Set(globalOccupied.pagoda); // Start with global blocks
-  
-  const occupiedDiningData = {}; 
-  const occupiedPagodaData = {}; 
+  // ✅ PREPARE MAPS FOR LAYOUTS (Seat -> { blocked: true, tag: '30d' })
+  // 1. Load Global Blocks First
+  const diningMap = new Map();
+  const pagodaMap = new Map();
+
+  globalOccupied.dining.forEach(item => diningMap.set(item.seat, { blocked: true, tag: item.tag, type: 'Global' }));
+  globalOccupied.pagoda.forEach(item => pagodaMap.set(item.cell, { blocked: true, tag: item.tag, type: 'Global' }));
+
   const usedMobiles = new Set();
   const usedValuables = new Set();
 
+  // 2. Add Local Course Blocks
   participants.forEach(p => {
-      if (String(p.participant_id) === String(formData.participantId)) return;
+      if (String(p.participant_id) === String(formData.participantId)) return; // Ignore self
       if (p.status === 'Cancelled') return;
       if (p.mobile_locker_no) usedMobiles.add(cleanNum(p.mobile_locker_no));
       if (p.valuables_locker_no) usedValuables.add(cleanNum(p.valuables_locker_no));
       
       const pGender = (p.gender || '').toLowerCase();
-      // Only block seats if gender matches (Dining is usually gender segregated anyway)
       if ((isMale && pGender.startsWith('m')) || (isFemale && pGender.startsWith('f'))) {
           const conf = (p.conf_no || '').toUpperCase();
           const cat = (conf.startsWith('O') || conf.startsWith('S')) ? 'O' : 'N';
 
           if (p.dining_seat_no) {
               const seat = cleanNum(p.dining_seat_no);
-              usedDining.add(seat);
-              occupiedDiningData[seat] = cat; // Add visual badge
+              // Local overwrites Global for display (shows "Old/New" instead of "30d" if conflict exists locally)
+              diningMap.set(seat, { blocked: true, tag: cat, type: 'Local' });
           }
           if (p.pagoda_cell_no) {
               const cell = cleanNum(p.pagoda_cell_no);
-              usedPagoda.add(cell);
-              occupiedPagodaData[cell] = cat; // Add visual badge
+              pagodaMap.set(cell, { blocked: true, tag: cat, type: 'Local' });
           }
       }
   });
@@ -294,12 +291,13 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
               </div>
           </div>
 
-          {/* VISUAL MODALS */}
-          {showVisualDining && <DiningLayout gender={currentGenderLabel} occupied={usedDining} occupiedData={occupiedDiningData} selected={formData.seatNo} onSelect={handleDiningSeatChange} onClose={()=>setShowVisualDining(false)} />}
-          {showVisualPagoda && <PagodaLayout gender={currentGenderLabel} occupied={usedPagoda} occupiedData={occupiedPagodaData} selected={formData.pagodaCell} onSelect={handlePagodaSelect} onClose={()=>setShowVisualPagoda(false)} />}
+          {/* VISUAL MODALS (Passing the Map instead of Set/Obj) */}
+          {showVisualDining && <DiningLayout gender={currentGenderLabel} occupiedMap={diningMap} selected={formData.seatNo} onSelect={handleDiningSeatChange} onClose={()=>setShowVisualDining(false)} />}
+          {showVisualPagoda && <PagodaLayout gender={currentGenderLabel} occupiedMap={pagodaMap} selected={formData.pagodaCell} onSelect={handlePagodaSelect} onClose={()=>setShowVisualPagoda(false)} />}
+          
           {showVisualRoom && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:2000, display:'flex', flexDirection:'column', padding:'20px'}}><div style={{background:'white', borderRadius:'8px', flex:1, display:'flex', flexDirection:'column', overflow:'hidden', maxWidth:'1200px', margin:'0 auto', width:'100%'}}><div style={{padding:'15px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}><h3 style={{margin:0}}>📍 Select Bed for {selectedStudent ? selectedStudent.full_name : 'Student'} ({isFemale ? 'Female' : 'Male'})</h3><button onClick={()=>setShowVisualRoom(false)} style={{background:'red', color:'white', border:'none', borderRadius:'4px', padding:'5px 15px', cursor:'pointer'}}>Close</button></div><div style={{flex:1, overflowY:'auto', padding:'20px', background:'#f0f2f5'}}>{isFemale ? (<FemaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomSelect} />) : (<MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomSelect} />)}</div></div></div>)}
           
-          {/* PRINT AREA */}
+          {/* PRINT (Kept Same) */}
           {printReceiptData && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}><button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button><div id="receipt-print-area" style={{padding:'5px', border:'3px solid black', borderRadius:'8px', fontFamily:'Helvetica, Arial, sans-serif', color:'black', width:'70mm', margin:'0 auto', boxSizing:'border-box'}}><div style={{textAlign:'center', fontWeight:'bold', marginBottom:'5px'}}><div style={{fontSize:'16px'}}>VIPASSANA</div><div style={{fontSize:'10px'}}>International Meditation Center</div><div style={{fontSize:'12px'}}>Dhamma Nagajjuna 2</div></div><div style={{borderBottom:'2px solid black', margin:'5px 0'}}></div><table style={{width:'100%', fontSize:'11px', marginBottom:'5px', lineHeight:'1.3'}}><tbody><tr><td style={{fontWeight:'bold', width:'50px', verticalAlign:'top'}}>Course:</td><td>{printReceiptData.courseName}</td></tr><tr><td style={{fontWeight:'bold', width:'50px', verticalAlign:'top'}}>Teacher:</td><td>{printReceiptData.teacherName}</td></tr><tr><td style={{fontWeight:'bold', width:'50px', verticalAlign:'top'}}>Date:</td><td>{printReceiptData.from} to {printReceiptData.to}</td></tr></tbody></table><div style={{borderBottom:'2px solid black', margin:'5px 0'}}></div><div style={{textAlign:'center'}}><div style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', margin:'5px 0'}}>CHECK-IN PASS</div><div style={{fontSize:'45px', fontWeight:'900', lineHeight:'1', margin:'5px 0'}}>{printReceiptData.roomNo || '-'}</div><div style={{fontSize:'14px', fontWeight:'bold', margin:'5px 0', wordWrap:'break-word', lineHeight:'1.2'}}>{printReceiptData.studentName}</div><div style={{fontSize:'12px', fontWeight:'bold'}}>{printReceiptData.confNo}</div></div><table style={{width:'100%', borderCollapse:'collapse', marginTop:'10px', border:'2px solid black'}}><tbody><tr><td style={{border:'1px solid black', padding:'4px', width:'50%', fontSize:'11px'}}>Dining: <strong>{printReceiptData.seatNo || '-'}</strong></td><td style={{border:'1px solid black', padding:'4px', width:'50%', fontSize:'11px'}}>Mobile: <strong>{printReceiptData.mobile}</strong></td></tr><tr><td style={{border:'1px solid black', padding:'4px', fontSize:'11px'}}>Valuables: <strong>{printReceiptData.valuables}</strong></td><td style={{border:'1px solid black', padding:'4px', fontSize:'11px'}}>Lang: <strong>{printReceiptData.language}</strong></td></tr>{(printReceiptData.laundry || printReceiptData.pagoda) && (<tr><td colSpan="2" style={{border:'1px solid black', padding:'4px', fontSize:'11px', fontWeight:'bold', textAlign:'center', background:'#f0f0f0'}}>{printReceiptData.laundry && <span style={{marginRight:'10px'}}>Laundry: {printReceiptData.laundry}</span>}{printReceiptData.pagoda && <span>Pagoda: {printReceiptData.pagoda}</span>}</td></tr>)}</tbody></table><div style={{textAlign:'center', fontSize:'9px', fontStyle:'italic', marginTop:'5px'}}>*** Student Copy ***</div></div><div className="no-print" style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={() => window.print()} style={{flex:1, padding:'12px', background:'#007bff', color:'white', border:'none', borderRadius:'6px'}}>PRINT</button></div></div><style>{`@media print { @page { size: 72mm auto; margin: 0; } html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; } body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none; page-break-after: avoid; } }`}</style></div>)}
           <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }`}</style>
       </div> 
