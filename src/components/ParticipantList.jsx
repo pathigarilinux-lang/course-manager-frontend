@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, RefreshCw, ArrowUp, ArrowDown, Download, CheckCircle, XCircle, Grid, List as ListIcon, MoreHorizontal } from 'lucide-react';
+import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, RefreshCw, ArrowUp, ArrowDown, Download, CheckCircle, XCircle, Grid, List as ListIcon, MoreHorizontal, Tag } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 export default function ParticipantList({ courses, refreshCourses }) {
@@ -180,8 +180,9 @@ export default function ParticipantList({ courses, refreshCourses }) {
       printDirectly(tokens);
   };
 
+  // ✅ INDIVIDUAL TOKEN HANDLER
   const handleSingleToken = (student) => {
-      if (!student.dhamma_hall_seat_no) return alert("No seat assigned.");
+      if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first.");
       printDirectly([{ seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no || '-', room: student.room_no || '-', raw: student }]);
   };
 
@@ -255,7 +256,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
              <button onClick={()=>setViewMode('dining')} disabled={!courseId} style={styles.toolBtn('#007bff')}>🍽️ Dining List</button>
              <button onClick={()=>setViewMode('seating')} disabled={!courseId} style={styles.toolBtn('#6610f2')}>🧘 Seating Plan</button>
              <button onClick={()=>setViewMode('pagoda')} disabled={!courseId} style={styles.toolBtn('#e91e63')}>🛖 Pagoda List</button>
-             <button onClick={()=>setShowBulkModal(true)} disabled={!courseId} style={styles.toolBtn('#17a2b8')}>🎫 Print Tokens</button>
+             <button onClick={()=>setShowBulkModal(true)} disabled={!courseId} style={styles.toolBtn('#17a2b8')}>🎫 Bulk Tokens</button>
              <button onClick={() => setShowSummaryReport(true)} disabled={!courseId} style={styles.toolBtn('#28a745')}>📈 Summary</button>
          </div>
       </div>
@@ -312,6 +313,10 @@ export default function ParticipantList({ courses, refreshCourses }) {
                     <td style={{padding:'15px'}}>
                        <div style={{display:'flex', gap:'8px'}}>
                           <button onClick={() => setEditingStudent(p)} title="Edit" style={{padding:'6px', background:'white', border:'1px solid #ddd', borderRadius:'6px', cursor:'pointer', color:'#555'}}><Edit size={14}/></button>
+                          
+                          {/* ✅ NEW: Individual Seat Token Button */}
+                          <button onClick={() => handleSingleToken(p)} title="Print Seat Token" style={{padding:'6px', background:'white', border:'1px solid #ddd', borderRadius:'6px', cursor:'pointer', color:'#e65100'}}><Tag size={14}/></button>
+                          
                           <button onClick={() => prepareReceipt(p)} title="Print Pass" style={{padding:'6px', background:'white', border:'1px solid #ddd', borderRadius:'6px', cursor:'pointer', color:'#007bff'}}><Printer size={14}/></button>
                           <button onClick={() => handleDelete(p.participant_id)} title="Delete" style={{padding:'6px', background:'white', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer', color:'#d32f2f'}}><Trash2 size={14}/></button>
                        </div>
