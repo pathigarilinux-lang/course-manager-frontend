@@ -11,13 +11,15 @@ export default function DhammaHallLayout({
 }) {
   const [hoveredSeat, setHoveredSeat] = useState(null);
 
-  // --- DATA PREPARATION ---
-  const seatMap = {};
-  participants.forEach(p => {
-    if (p.status === 'Attending' && p.dhamma_hall_seat_no) {
-      seatMap[p.dhamma_hall_seat_no] = p;
-    }
-  });
+  // ✅ FIXED LOGIC: Find specific student for Seat ID + Gender Side
+  // This allows "A1" to exist for both Male and Female simultaneously without overwriting.
+  const getStudentAtSeat = (seatId, sideGender) => {
+    return participants.find(p => 
+      p.status === 'Attending' && 
+      p.dhamma_hall_seat_no === seatId && 
+      (p.gender || '').toLowerCase().startsWith(sideGender.toLowerCase().charAt(0))
+    );
+  };
 
   const getCategory = (conf) => {
     if (!conf) return 'N';
@@ -25,16 +27,12 @@ export default function DhammaHallLayout({
     return (s.startsWith('O') || s.startsWith('S')) ? 'O' : 'N';
   };
 
-  // --- RENDER A SINGLE SEAT ---
   const Seat = ({ id, sideGender }) => {
-    const student = seatMap[id];
+    // 🔍 Look up the correct student for this specific side
+    const student = getStudentAtSeat(id, sideGender);
+    const isOccupied = !!student;
     
-    // 🛡️ GENDER GUARD: Only show student if their gender matches this side of the hall
-    // This prevents "Male A1" from showing up on "Female A1" spot.
-    const isOccupied = !!student && (student.gender || '').toLowerCase().startsWith(sideGender.toLowerCase().charAt(0));
-    
-    const displayStudent = isOccupied ? student : null;
-    const category = displayStudent ? getCategory(displayStudent.conf_no) : null;
+    const category = student ? getCategory(student.conf_no) : null;
     const isTeacher = id === 'TEACHER';
 
     let bg = 'white';
@@ -55,8 +53,8 @@ export default function DhammaHallLayout({
 
     return (
       <div 
-        onClick={() => !isTeacher && onSeatClick(id, displayStudent, sideGender)} // Pass gender context
-        onMouseEnter={() => setHoveredSeat(displayStudent)}
+        onClick={() => !isTeacher && onSeatClick(id, student, sideGender)}
+        onMouseEnter={() => setHoveredSeat(student)}
         onMouseLeave={() => setHoveredSeat(null)}
         style={{
           width: isTeacher ? '200px' : '40px',
@@ -91,10 +89,8 @@ export default function DhammaHallLayout({
     );
   };
 
-  // --- RENDER A GRID BLOCK ---
   const SeatGrid = ({ title, cols, rowsCount, color, gender }) => {
     const gridRows = [];
-    // Render Row 10 (Back) down to Row 1 (Front/Teacher)
     for (let r = rowsCount; r >= 1; r--) {
       const rowSeats = cols.map((c, idx) => {
           if(c === 'GAP') return <div key={`gap-${r}-${idx}`} style={{width:'30px', writingMode:'vertical-rl', fontSize:'9px', color:'#ccc', display:'flex', alignItems:'center', justifyContent:'center'}}>{r===Math.ceil(rowsCount/2) && "PATHWAY"}</div>;
@@ -119,7 +115,6 @@ export default function DhammaHallLayout({
       position: 'fixed', inset: 0, background: 'rgba(240,242,245,0.95)', zIndex: 2000, 
       display: 'flex', flexDirection: 'column', overflow: 'hidden'
     }}>
-      {/* HEADER */}
       <div style={{ background: 'white', padding: '15px 30px', borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
         <div>
           <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', color: '#2c3e50' }}>
@@ -134,28 +129,26 @@ export default function DhammaHallLayout({
         <button onClick={onClose} style={{ background: '#f8f9fa', border: '1px solid #ccc', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={20} color="#333" /></button>
       </div>
 
-      {/* MAIN CONTENT */}
       <div style={{ flex: 1, overflow: 'auto', padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         
-        {/* ENTRANCE (AT THE TOP NOW) */}
+        {/* ENTRANCE AT TOP */}
         <div style={{ display: 'flex', gap: '100px', marginBottom: '20px', fontWeight: 'bold', fontSize: '12px', color: '#999', textTransform:'uppercase' }}>
            <div>← Female Entrance</div>
            <div>Male Entrance →</div>
         </div>
 
-        {/* HALL SPLIT */}
         <div style={{ display: 'flex', gap: '60px', alignItems: 'flex-end' }}>
-          {/* FEMALE SIDE (LEFT) */}
+          {/* FEMALE SIDE */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <SeatGrid title="Female Side" cols={femaleCols} rowsCount={rows} color="#e91e63" gender="Female" />
           </div>
-          {/* MALE SIDE (RIGHT) */}
+          {/* MALE SIDE */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <SeatGrid title="Male Side" cols={maleCols} rowsCount={rows} color="#007bff" gender="Male" />
           </div>
         </div>
 
-        {/* TEACHER SEAT (AT THE BOTTOM NOW) */}
+        {/* TEACHER AT BOTTOM */}
         <div style={{ marginTop: '50px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div style={{ fontSize: '10px', color: '#999', marginBottom: '5px', textTransform: 'uppercase' }}>Dhamma Seat Platform</div>
           <div style={{ width: '400px', height: '6px', background: '#ccc', marginBottom: '15px', borderRadius: '3px' }}></div>
@@ -164,7 +157,7 @@ export default function DhammaHallLayout({
 
       </div>
 
-      {/* FOOTER */}
+      {/* FOOTER DETAILS */}
       <div style={{ background: 'white', borderTop: '1px solid #ddd', padding: '15px 30px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {hoveredSeat ? (
           <div style={{ display: 'flex', gap: '30px', alignItems: 'center', animation: 'slideUp 0.2s' }}>
