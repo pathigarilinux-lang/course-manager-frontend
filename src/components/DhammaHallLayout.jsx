@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { X, User, Armchair, Info } from 'lucide-react';
+import { X, Armchair, Info } from 'lucide-react';
 
 export default function DhammaHallLayout({ 
   participants, 
-  maleCols,   // ✅ Array of column labels (e.g. ["A", "B", ... "CW-K"])
-  femaleCols, // ✅ Array of column labels (e.g. ["CW-I", ... "H", "G" ... "A"])
+  maleCols,   
+  femaleCols, 
   rows = 10,
   onSeatClick, 
   onClose 
@@ -26,10 +26,15 @@ export default function DhammaHallLayout({
   };
 
   // --- RENDER A SINGLE SEAT ---
-  const Seat = ({ id }) => {
+  const Seat = ({ id, sideGender }) => {
     const student = seatMap[id];
-    const isOccupied = !!student;
-    const category = student ? getCategory(student.conf_no) : null;
+    
+    // 🛡️ GENDER GUARD: Only show student if their gender matches this side of the hall
+    // This prevents "Male A1" from showing up on "Female A1" spot.
+    const isOccupied = !!student && (student.gender || '').toLowerCase().startsWith(sideGender.toLowerCase().charAt(0));
+    
+    const displayStudent = isOccupied ? student : null;
+    const category = displayStudent ? getCategory(displayStudent.conf_no) : null;
     const isTeacher = id === 'TEACHER';
 
     let bg = 'white';
@@ -50,11 +55,11 @@ export default function DhammaHallLayout({
 
     return (
       <div 
-        onClick={() => !isTeacher && onSeatClick(id, student)}
-        onMouseEnter={() => setHoveredSeat(student)}
+        onClick={() => !isTeacher && onSeatClick(id, displayStudent, sideGender)} // Pass gender context
+        onMouseEnter={() => setHoveredSeat(displayStudent)}
         onMouseLeave={() => setHoveredSeat(null)}
         style={{
-          width: isTeacher ? '120px' : '40px',
+          width: isTeacher ? '200px' : '40px',
           height: isTeacher ? '60px' : '40px',
           margin: '3px',
           background: bg,
@@ -72,7 +77,7 @@ export default function DhammaHallLayout({
         onMouseOver={(e) => { if(!isTeacher) e.currentTarget.style.transform = 'scale(1.1)'; }}
         onMouseOut={(e) => { if(!isTeacher) e.currentTarget.style.transform = 'scale(1)'; }}
       >
-        <div style={{ fontSize: '10px', fontWeight: 'bold', color: labelColor }}>
+        <div style={{ fontSize: isTeacher ? '14px' : '10px', fontWeight: 'bold', color: labelColor }}>
           {isTeacher ? 'TEACHER' : id}
         </div>
         {isOccupied && !isTeacher && (
@@ -87,13 +92,13 @@ export default function DhammaHallLayout({
   };
 
   // --- RENDER A GRID BLOCK ---
-  const SeatGrid = ({ title, cols, rowsCount, color }) => {
+  const SeatGrid = ({ title, cols, rowsCount, color, gender }) => {
     const gridRows = [];
+    // Render Row 10 (Back) down to Row 1 (Front/Teacher)
     for (let r = rowsCount; r >= 1; r--) {
-      // ✅ Insert Gap Logic: If we see a GAP marker in columns, render a gap
       const rowSeats = cols.map((c, idx) => {
           if(c === 'GAP') return <div key={`gap-${r}-${idx}`} style={{width:'30px', writingMode:'vertical-rl', fontSize:'9px', color:'#ccc', display:'flex', alignItems:'center', justifyContent:'center'}}>{r===Math.ceil(rowsCount/2) && "PATHWAY"}</div>;
-          return <Seat key={`${c}${r}`} id={`${c}${r}`} />;
+          return <Seat key={`${c}${r}`} id={`${c}${r}`} sideGender={gender} />;
       });
       gridRows.push(
         <div key={r} style={{ display: 'flex', justifyContent: 'center' }}>
@@ -132,26 +137,31 @@ export default function DhammaHallLayout({
       {/* MAIN CONTENT */}
       <div style={{ flex: 1, overflow: 'auto', padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         
-        {/* TEACHER SEAT */}
-        <div style={{ marginBottom: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Seat id="TEACHER" />
-          <div style={{ width: '300px', height: '4px', background: '#ddd', marginTop: '20px', borderRadius: '2px' }}></div>
-          <div style={{ fontSize: '10px', color: '#999', marginTop: '5px', textTransform: 'uppercase' }}>Dhamma Seat Platform</div>
+        {/* ENTRANCE (AT THE TOP NOW) */}
+        <div style={{ display: 'flex', gap: '100px', marginBottom: '20px', fontWeight: 'bold', fontSize: '12px', color: '#999', textTransform:'uppercase' }}>
+           <div>← Female Entrance</div>
+           <div>Male Entrance →</div>
         </div>
 
         {/* HALL SPLIT */}
-        <div style={{ display: 'flex', gap: '60px', alignItems: 'flex-start' }}>
-          {/* FEMALE SIDE (LEFT) - Mirrored Layout passed from parent */}
+        <div style={{ display: 'flex', gap: '60px', alignItems: 'flex-end' }}>
+          {/* FEMALE SIDE (LEFT) */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <SeatGrid title="Female Side" cols={femaleCols} rowsCount={rows} color="#e91e63" />
-            <div style={{ marginTop: '10px', fontWeight: 'bold', color: '#e91e63', fontSize: '12px' }}>ENTRANCE →</div>
+            <SeatGrid title="Female Side" cols={femaleCols} rowsCount={rows} color="#e91e63" gender="Female" />
           </div>
           {/* MALE SIDE (RIGHT) */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <SeatGrid title="Male Side" cols={maleCols} rowsCount={rows} color="#007bff" />
-            <div style={{ marginTop: '10px', fontWeight: 'bold', color: '#007bff', fontSize: '12px' }}>← ENTRANCE</div>
+            <SeatGrid title="Male Side" cols={maleCols} rowsCount={rows} color="#007bff" gender="Male" />
           </div>
         </div>
+
+        {/* TEACHER SEAT (AT THE BOTTOM NOW) */}
+        <div style={{ marginTop: '50px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ fontSize: '10px', color: '#999', marginBottom: '5px', textTransform: 'uppercase' }}>Dhamma Seat Platform</div>
+          <div style={{ width: '400px', height: '6px', background: '#ccc', marginBottom: '15px', borderRadius: '3px' }}></div>
+          <Seat id="TEACHER" />
+        </div>
+
       </div>
 
       {/* FOOTER */}
