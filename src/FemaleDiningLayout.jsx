@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function FemaleDiningLayout({ occupied, occupiedData, selected, onSelect, onClose }) {
+export default function FemaleDiningLayout({ occupiedMap, selected, onSelect, onClose }) {
   const leftChairRows = [[12, 11, 10], [24, 23, 22], [36, 35, 34], [48, 47, 46], [60, 59, 58], [72, 71, 70], [84, 83, 82], [96, 95, 94]];
   const centerFloorLeftRows = [[9, 8], [21, 20], [33, 32], [45, 44], [57, 56], [69, 68], [81, 80], [93, 92]];
   const centerFloorRightRows = [[7, 6, 5, 4], [19, 18, 17, 16], [31, 30, 29, 28], [43, 42, 41, 40], [55, 54, 53, 52], [67, 66, 65, 64], [79, 78, 77, 76], [91, 90, 89, 88]];
@@ -8,21 +8,29 @@ export default function FemaleDiningLayout({ occupied, occupiedData, selected, o
 
   const renderCell = (num, type) => {
     const sNum = String(num); 
-    const isOcc = occupied.has(sNum); 
-    const occupantCat = occupiedData ? occupiedData[sNum] : null; 
+    const occupiedData = occupiedMap.get(sNum);
+    const isOcc = !!occupiedData;
     const isSel = String(selected) === sNum;
     
     let bg = 'white';
     let border = '1px solid #ccc';
     let color = '#333';
     let badgeBg = null;
+    let tagLabel = '';
 
     if (isSel) {
         bg = '#e91e63'; color = 'white'; border = '1px solid #c2185b';
     } else if (isOcc) {
         bg = '#f0f0f0'; color = '#aaa'; 
-        if (occupantCat === 'O') badgeBg = '#007bff'; // Blue badge
-        else if (occupantCat === 'N') badgeBg = '#ffc107'; // Yellow badge
+        tagLabel = occupiedData.tag;
+        
+        if (occupiedData.type === 'Global') {
+            badgeBg = '#d32f2f'; 
+        } else if (tagLabel === 'O') {
+            badgeBg = '#007bff'; 
+        } else {
+            badgeBg = '#ffc107'; 
+        }
     } else if (type === 'Floor') {
         bg = '#fff9c4';
     }
@@ -37,15 +45,16 @@ export default function FemaleDiningLayout({ occupied, occupiedData, selected, o
                 position: 'relative' 
             }}>
             {num}
-            {isOcc && badgeBg && (
+            {isOcc && tagLabel && (
                 <div style={{
-                    position: 'absolute', top: '-4px', right: '-4px',
-                    width: '14px', height: '14px', borderRadius: '50%',
+                    position: 'absolute', top: '-6px', right: '-6px',
+                    padding: '2px 4px', borderRadius: '4px',
                     background: badgeBg, color: badgeBg==='#ffc107'?'black':'white',
-                    fontSize: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    border: '1px solid white', zIndex: 10
+                    fontSize: '8px', fontWeight:'bold', lineHeight:'1',
+                    border: '1px solid white', zIndex: 10,
+                    minWidth: '14px', textAlign: 'center'
                 }}>
-                    {occupantCat}
+                    {tagLabel}
                 </div>
             )}
         </button>
@@ -57,9 +66,9 @@ export default function FemaleDiningLayout({ occupied, occupiedData, selected, o
       <div style={{ background: 'white', padding: '15px', borderRadius: '8px', width: '95%', maxWidth: '1100px', maxHeight: '95vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}><h2 style={{ margin: 0, color: '#e91e63' }}>FEMALE DINING SEAT LAYOUT</h2><button onClick={onClose} style={{ background: '#333', color: 'white', padding: '8px 16px', borderRadius: '4px', border: 'none', cursor:'pointer' }}>Close</button></div>
         <div style={{ display: 'flex', gap: '15px', fontSize: '12px', marginBottom: '15px', justifyContent:'center', background:'#f8f9fa', padding:'10px', borderRadius:'6px' }}>
-          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'14px', height:'14px', borderRadius:'50%', background:'#007bff'}}></div> Old (O)</div>
-          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'14px', height:'14px', borderRadius:'50%', background:'#ffc107'}}></div> New (N)</div>
-          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'15px', height:'15px', background:'#fff9c4', border:'1px solid #ccc'}}></div> Floor</div>
+          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'14px', height:'14px', borderRadius:'4px', background:'#d32f2f'}}></div> Other Course</div>
+          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'14px', height:'14px', borderRadius:'4px', background:'#007bff'}}></div> Old (O)</div>
+          <div style={{display:'flex', alignItems:'center', gap:'5px'}}><div style={{width:'14px', height:'14px', borderRadius:'4px', background:'#ffc107'}}></div> New (N)</div>
         </div>
         <div style={{ background: '#f06292', color: 'white', textAlign: 'center', padding: '10px', fontWeight: 'bold', borderRadius: '4px', marginBottom: '15px' }}>SERVING TABLE</div>
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
