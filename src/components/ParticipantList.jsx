@@ -4,6 +4,7 @@ import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
 
 export default function ParticipantList({ courses, refreshCourses }) {
+  // --- STATE ---
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
   const [search, setSearch] = useState(''); 
@@ -29,6 +30,14 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const defaultConfig = { mCols: 10, mRows: 10, mChowky: 2, fCols: 7, fRows: 10, fChowky: 2 };
   const [seatingConfig, setSeatingConfig] = useState(defaultConfig);
   const [printConfig, setPrintConfig] = useState({ scale: 0.9, orientation: 'landscape', paper: 'A3' });
+
+  // ✅ HELPER: getStatusColor (MOVED TO TOP SCOPE)
+  const getStatusColor = (s) => { 
+      if (s === 'Attending') return '#28a745'; 
+      if (s === 'Gate Check-In') return '#ffc107'; 
+      if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; 
+      return '#6c757d'; 
+  };
 
   // ✅ SAFE LOAD: Merges saved data with defaults to prevent crash
   useEffect(() => { 
