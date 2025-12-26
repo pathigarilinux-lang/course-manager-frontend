@@ -4,7 +4,6 @@ import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
 
 export default function ParticipantList({ courses, refreshCourses }) {
-  // --- STATE ---
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
   const [search, setSearch] = useState(''); 
@@ -15,7 +14,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [sortConfig, setSortConfig] = useState({ key: 'full_name', direction: 'asc' });
   const [diningSort, setDiningSort] = useState({ key: 'dining_seat_no', direction: 'asc' });
   const [pagodaSort, setPagodaSort] = useState({ key: 'pagoda_cell_no', direction: 'asc' });
-  
   const [selectedSeat, setSelectedSeat] = useState(null);
   const [isAssigning, setIsAssigning] = useState(false);
   
@@ -26,12 +24,13 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [showPrintSettings, setShowPrintSettings] = useState(false);
   const [showVisualHall, setShowVisualHall] = useState(false); 
   
-  // ✅ DEFAULT CONFIG (Safe Fallback)
   const defaultConfig = { mCols: 10, mRows: 10, mChowky: 2, fCols: 7, fRows: 10, fChowky: 2 };
   const [seatingConfig, setSeatingConfig] = useState(defaultConfig);
   const [printConfig, setPrintConfig] = useState({ scale: 0.9, orientation: 'landscape', paper: 'A3' });
 
-  // ✅ HELPER: getStatusColor (MOVED TO TOP SCOPE)
+  // ✅ 1. MOVE HELPERS TO TOP SCOPE
+  const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
+  
   const getStatusColor = (s) => { 
       if (s === 'Attending') return '#28a745'; 
       if (s === 'Gate Check-In') return '#ffc107'; 
@@ -39,36 +38,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
       return '#6c757d'; 
   };
 
-  // ✅ SAFE LOAD: Merges saved data with defaults to prevent crash
-  useEffect(() => { 
-      if (courseId) {
-          fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : []));
-          
-          try {
-              const savedLayout = localStorage.getItem(`layout_${courseId}`);
-              if(savedLayout) {
-                  const parsed = JSON.parse(savedLayout);
-                  // Force convert all values to Integers to prevent "10" + "2" = "102" string errors
-                  setSeatingConfig({
-                      mCols: parseInt(parsed.mCols || defaultConfig.mCols),
-                      mRows: parseInt(parsed.mRows || defaultConfig.mRows),
-                      mChowky: parseInt(parsed.mChowky || defaultConfig.mChowky),
-                      fCols: parseInt(parsed.fCols || defaultConfig.fCols),
-                      fRows: parseInt(parsed.fRows || defaultConfig.fRows),
-                      fChowky: parseInt(parsed.fChowky || defaultConfig.fChowky),
-                  });
-              } else {
-                  setSeatingConfig(defaultConfig);
-              }
-          } catch(e) {
-              console.error("Config Load Error", e);
-              setSeatingConfig(defaultConfig);
-          }
-      } 
-  }, [courseId]);
-
-  // --- HELPERS ---
-  const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
   const getStudentStats = (p) => {
       if (!p) return { cat: '', s: 0, l: 0, age: '' };
       const conf = (p.conf_no || '').toUpperCase();
@@ -81,44 +50,61 @@ export default function ParticipantList({ courses, refreshCourses }) {
       return { cat, s, l, age: p.age || '?' };
   };
 
-  const calculatePriorityScore = (p) => {
-      const stats = getStudentStats(p);
-      let score = 0;
-      if (stats.cat === '(O)') score += 10000;
-      score += (parseInt(stats.s) * 100);
-      score += (parseInt(stats.l) * 500);
-      score += parseInt(stats.age);
-      return score;
+  // ✅ 2. MOVE PRINT FUNCTION TO TOP LEVEL
+  const printChart = (sectionId) => { 
+      const style = document.createElement('style'); 
+      style.innerHTML = `
+          @media print { 
+              @page { size: ${printConfig.paper} ${printConfig.orientation}; margin: 5mm; } 
+              html, body { height: 100%; margin: 0; padding: 0; } 
+              body * { visibility: hidden; } 
+              #${sectionId}, #${sectionId} * { visibility: visible; } 
+              #${sectionId} { 
+                  position: fixed; left: 0; top: 0; width: 100%; height: 100%; 
+                  display: flex; flex-direction: column; align-items: center; 
+                  transform: scale(${printConfig.scale}); transform-origin: center top; 
+              } 
+              .no-print { display: none !important; } 
+              .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } 
+              .seat-box { border-right: 2px solid black; border-bottom: 2px solid black; }
+          }
+      `; 
+      document.head.appendChild(style); 
+      window.print(); 
+      document.head.removeChild(style); 
   };
 
-  const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
-  
-  const processedList = useMemo(() => { 
-      let items = [...participants]; 
-      if (filterType !== 'ALL') {
-          items = items.filter(p => {
-              const cat = getCategory(p.conf_no);
-              if (filterType === 'OLD') return cat === 'OLD';
-              if (filterType === 'NEW') return cat === 'NEW';
-              if (filterType === 'MED') return (p.medical_info && p.medical_info.trim() !== '');
-              if (filterType === 'MALE') return (p.gender||'').toLowerCase().startsWith('m');
-              if (filterType === 'FEMALE') return (p.gender||'').toLowerCase().startsWith('f');
-              return true;
-          });
-      }
-      if (search) items = items.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase()) || (p.conf_no || '').toLowerCase().includes(search.toLowerCase()));
-      if (sortConfig.key) { 
-          items.sort((a, b) => { 
-              let valA = a[sortConfig.key] || '', valB = b[sortConfig.key] || '';
-              if (['age', 'dining_seat_no', 'pagoda_cell_no', 'laundry_token_no'].includes(sortConfig.key)) { valA = parseInt(valA) || 0; valB = parseInt(valB) || 0; } 
-              else { valA = valA.toString().toLowerCase(); valB = valB.toString().toLowerCase(); }
-              if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0;
-          }); 
-      } 
-      return items;
-  }, [participants, sortConfig, search, filterType]);
+  const printA4List = (sectionId) => { 
+      const style = document.createElement('style'); 
+      style.innerHTML = `@media print { @page { size: A4 portrait; margin: 10mm; } html, body { margin: 0; padding: 0; background: white; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; box-sizing: border-box; border: 2px solid black !important; padding: 10px !important; margin: 0; } .no-print { display: none !important; } table { width: 100%; border-collapse: collapse; font-family: 'Helvetica', sans-serif; font-size: 10pt; margin-top: 10px; table-layout: fixed; } th, td { border: 1px solid black !important; padding: 6px; text-align: left; word-wrap: break-word; } th { background-color: #f0f0f0 !important; font-weight: bold; text-transform: uppercase; -webkit-print-color-adjust: exact; } h2, h3 { text-align: center; color: black !important; margin: 5px 0; } }`; 
+      document.head.appendChild(style); 
+      window.print(); 
+      document.head.removeChild(style); 
+  };
 
-  // ✅ GENERATORS (Safe integers)
+  useEffect(() => { 
+      if (courseId) {
+          fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : []));
+          try {
+              const savedLayout = localStorage.getItem(`layout_${courseId}`);
+              if(savedLayout) {
+                  const parsed = JSON.parse(savedLayout);
+                  setSeatingConfig({
+                      mCols: parseInt(parsed.mCols || defaultConfig.mCols),
+                      mRows: parseInt(parsed.mRows || defaultConfig.mRows),
+                      mChowky: parseInt(parsed.mChowky || defaultConfig.mChowky),
+                      fCols: parseInt(parsed.fCols || defaultConfig.fCols),
+                      fRows: parseInt(parsed.fRows || defaultConfig.fRows),
+                      fChowky: parseInt(parsed.fChowky || defaultConfig.fChowky),
+                  });
+              } else { setSeatingConfig(defaultConfig); }
+          } catch(e) { setSeatingConfig(defaultConfig); }
+      } 
+  }, [courseId]);
+
+  const calculatePriorityScore = (p) => { const stats = getStudentStats(p); let score = 0; if (stats.cat === '(O)') score += 10000; score += (parseInt(stats.s) * 100); score += (parseInt(stats.l) * 500); score += parseInt(stats.age); return score; };
+  const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
+  const processedList = useMemo(() => { let items = [...participants]; if (filterType !== 'ALL') { items = items.filter(p => { const cat = getCategory(p.conf_no); if (filterType === 'OLD') return cat === 'OLD'; if (filterType === 'NEW') return cat === 'NEW'; if (filterType === 'MED') return (p.medical_info && p.medical_info.trim() !== ''); if (filterType === 'MALE') return (p.gender||'').toLowerCase().startsWith('m'); if (filterType === 'FEMALE') return (p.gender||'').toLowerCase().startsWith('f'); return true; }); } if (search) items = items.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase()) || (p.conf_no || '').toLowerCase().includes(search.toLowerCase())); if (sortConfig.key) { items.sort((a, b) => { let valA = a[sortConfig.key] || '', valB = b[sortConfig.key] || ''; if (['age', 'dining_seat_no', 'pagoda_cell_no', 'laundry_token_no'].includes(sortConfig.key)) { valA = parseInt(valA) || 0; valB = parseInt(valB) || 0; } else { valA = valA.toString().toLowerCase(); valB = valB.toString().toLowerCase(); } if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } return items; }, [participants, sortConfig, search, filterType]);
   const getAlphabetRange = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count);
   const generateChowkyLabels = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count).map(l => `CW-${l}`);
 
@@ -184,7 +170,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
 
           const genSeats = (cols, rows) => { let s = []; for(let r=1; r<=rows; r++) { cols.forEach(c => s.push(c + r)); } return s; };
           
-          // ✅ SAFE GENERATION (using integers from state)
           const mRegSeats = genSeats(getAlphabetRange(0, seatingConfig.mCols), seatingConfig.mRows);
           const mSpecSeats = genSeats(generateChowkyLabels(seatingConfig.mCols, seatingConfig.mChowky), seatingConfig.mRows);
           
@@ -219,34 +204,41 @@ export default function ParticipantList({ courses, refreshCourses }) {
       setIsAssigning(false);
   };
 
-  // --- SAFE COLUMN CALCULATION FOR RENDERS ---
   const mReg = getAlphabetRange(0, seatingConfig.mCols);
   const mSpec = generateChowkyLabels(seatingConfig.mCols, seatingConfig.mChowky);
   const mOrdered = [...mReg, 'GAP', ...mSpec];
 
   const fReg = getAlphabetRange(0, seatingConfig.fCols);
   const fSpec = generateChowkyLabels(seatingConfig.fCols, seatingConfig.fChowky);
-  const fOrdered = [...fSpec.reverse(), 'GAP', ...fReg.reverse()]; // Chowky - Gap - Standard
+  const fOrdered = [...fSpec.reverse(), 'GAP', ...fReg.reverse()];
 
-  // --- GRID RENDERERS ---
+  // ✅ 3. RENDER CELL WITH GENDER CHECK FOR PRINT
   const renderCell = (id, p, gender) => {
-      const stats = getStudentStats(p); 
+      // 🛡️ GENDER GUARD: Don't show student if gender doesn't match the sheet (Fixes duplicate visual bug)
+      const shouldShow = p && (p.gender||'').toLowerCase().startsWith(gender.toLowerCase().charAt(0));
+      const displayP = shouldShow ? p : null;
+      
+      const stats = getStudentStats(displayP); 
       const isSel = selectedSeat?.label === id;
       return (
-          <div key={id} onClick={()=>handleSeatClick(id, p, gender)} style={{ border: '2px solid black', background: p ? (isSel ? '#ffeb3b' : 'white') : 'white', width: '130px', height: '95px', fontSize: '10px', overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', margin: '1px', position: 'relative', boxSizing: 'border-box' }}>
-              <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px', background: isSel?'#fdd835':'#f8f9fa', borderBottom:'1px solid #eee'}}>
-                  <span>{id}</span><span style={{fontSize:'12px'}}>{p?.room_no || ''}</span>
+          <div key={id} onClick={()=>handleSeatClick(id, displayP, gender)} className="seat-box" style={{ border: '2px solid black', background: displayP ? (isSel ? '#ffeb3b' : 'white') : 'white', width: '130px', height: '95px', fontSize: '10px', overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', boxSizing: 'border-box' }}>
+              <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px', background: isSel?'#fdd835':'white', borderBottom:'1px solid black'}}>
+                  <span>{id}</span><span style={{fontSize:'12px'}}>{displayP?.room_no || ''}</span>
               </div>
-              <div style={{textAlign:'center', fontWeight:'bold', fontSize:'13px', lineHeight:'1.2', flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px'}}>
-                  {p ? p.full_name : ''}
-              </div>
-              {p && (
-                  <div style={{fontSize:'11px', padding:'3px 5px', fontWeight:'bold', whiteSpace:'nowrap', display:'flex', justifyContent:'space-between', background:'#f8f9fa', borderTop:'1px solid #eee'}}>
-                      <span>{stats.cat}</span><span>S:{stats.s} L:{stats.l}</span><span>Age:({stats.age})</span>
+              {displayP && (
+                  <div style={{textAlign:'center', padding:'0 2px'}}>
+                      <div style={{fontSize:'10px', fontWeight:'bold', textAlign:'right', marginBottom:'2px', color:'#0d47a1'}}>P:{displayP.pagoda_cell_no || '-'}</div>
+                      <div style={{fontWeight:'900', fontSize:'12px', lineHeight:'1.1', textTransform:'uppercase'}}>{displayP.full_name}</div>
                   </div>
               )}
-              {p && p.pagoda_cell_no && <div style={{position:'absolute', top:'25px', right:'2px', fontSize:'9px', background:'#e3f2fd', border:'1px solid blue', borderRadius:'3px', padding:'0 2px'}}>P:{p.pagoda_cell_no}</div>}
-              {p && p.is_seat_locked && <div style={{position:'absolute', bottom:'25px', left:'2px', fontSize:'10px'}}>🔒</div>}
+              {displayP ? (
+                  <div style={{fontSize:'10px', padding:'2px 5px', fontWeight:'bold', whiteSpace:'nowrap', display:'flex', justifyContent:'space-between', borderTop:'1px solid black', background:'white'}}>
+                      <span>{stats.cat}</span><span>S:{stats.s} L:{stats.l}</span><span>Age:({stats.age})</span>
+                  </div>
+              ) : (
+                  <div style={{flex:1}}></div>
+              )}
+              {displayP && displayP.is_seat_locked && <div style={{position:'absolute', bottom:'25px', left:'2px', fontSize:'10px'}}>🔒</div>}
           </div>
       );
   };
@@ -263,31 +255,50 @@ export default function ParticipantList({ courses, refreshCourses }) {
       return g; 
   };
 
-  const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, setSpecCols, gender }) => ( 
-      <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto'}}> 
-          <div className="no-print" style={{textAlign:'right', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8f9fa', padding:'10px', borderRadius:'8px'}}> 
-              <div style={{display:'flex', gap:'5px', alignItems:'center'}}> 
-                  <button onClick={()=>setRows(rows+1)} style={styles.quickBtn(false)}><Plus size={12}/> Row</button>
-                  <button onClick={()=>setRows(Math.max(1, rows-1))} style={styles.quickBtn(false)}><Minus size={12}/> Row</button>
-                  <span style={{margin:'0 10px', color:'#ccc'}}>|</span>
-                  <span style={{fontSize:'12px', fontWeight:'bold'}}>Std:</span>
-                  <button onClick={()=>setRegCols(gender==='Male'?seatingConfig.mCols+1:seatingConfig.fCols+1)} style={styles.quickBtn(false)}><Plus size={12}/></button>
-                  <button onClick={()=>setRegCols(Math.max(1, gender==='Male'?seatingConfig.mCols-1:seatingConfig.fCols-1))} style={styles.quickBtn(false)}><Minus size={12}/></button>
-                  <span style={{margin:'0 10px', color:'#ccc'}}>|</span>
-                  <span style={{fontSize:'12px', fontWeight:'bold'}}>Chowky:</span>
-                  <button onClick={()=>setSpecCols(gender==='Male'?seatingConfig.mChowky+1:seatingConfig.fChowky+1)} style={styles.quickBtn(false)}><Plus size={12}/></button>
-                  <button onClick={()=>setSpecCols(Math.max(1, gender==='Male'?seatingConfig.mChowky-1:seatingConfig.fChowky-1))} style={styles.quickBtn(false)}><Minus size={12}/></button>
+  const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, setSpecCols, gender }) => {
+      const courseObj = courses.find(c=>c.course_id==courseId);
+      const dateRange = courseObj ? `${new Date(courseObj.start_date).toLocaleDateString()} to ${new Date(courseObj.end_date).toLocaleDateString()}` : '';
+      
+      return (
+          <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto', fontFamily:'Arial, sans-serif'}}> 
+              <div className="no-print" style={{textAlign:'right', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8f9fa', padding:'10px', borderRadius:'8px'}}> 
+                  <div style={{display:'flex', gap:'5px', alignItems:'center'}}> 
+                      <button onClick={()=>setRows(rows+1)} style={styles.quickBtn(false)}><Plus size={12}/> Row</button>
+                      <button onClick={()=>setRows(Math.max(1, rows-1))} style={styles.quickBtn(false)}><Minus size={12}/> Row</button>
+                      <span style={{margin:'0 10px', color:'#ccc'}}>|</span>
+                      <span style={{fontSize:'12px', fontWeight:'bold'}}>Std:</span>
+                      <button onClick={()=>setRegCols(gender==='Male'?seatingConfig.mCols+1:seatingConfig.fCols+1)} style={styles.quickBtn(false)}><Plus size={12}/></button>
+                      <button onClick={()=>setRegCols(Math.max(1, gender==='Male'?seatingConfig.mCols-1:seatingConfig.fCols-1))} style={styles.quickBtn(false)}><Minus size={12}/></button>
+                      <span style={{margin:'0 10px', color:'#ccc'}}>|</span>
+                      <span style={{fontSize:'12px', fontWeight:'bold'}}>Chowky:</span>
+                      <button onClick={()=>setSpecCols(gender==='Male'?seatingConfig.mChowky+1:seatingConfig.fChowky+1)} style={styles.quickBtn(false)}><Plus size={12}/></button>
+                      <button onClick={()=>setSpecCols(Math.max(1, gender==='Male'?seatingConfig.mChowky-1:seatingConfig.fChowky-1))} style={styles.quickBtn(false)}><Minus size={12}/></button>
+                  </div> 
+                  <div style={{display:'flex', gap:'10px'}}> 
+                      <button onClick={()=>setShowPrintSettings(true)} style={styles.toolBtn('#6c757d')}><Settings size={14}/> Print Settings</button> 
+                      <button onClick={()=>printChart(id)} style={styles.quickBtn(true)}>🖨️ Print</button> 
+                  </div> 
               </div> 
-              <div style={{display:'flex', gap:'10px'}}> 
-                  <button onClick={()=>setShowPrintSettings(true)} style={styles.toolBtn('#6c757d')}><Settings size={14}/> Print Settings</button> 
-                  <button onClick={()=>printChart(id)} style={styles.quickBtn(true)}>🖨️ Print</button> 
+              
+              {/* ✅ HEADER MATCHING YOUR SCREENSHOT */}
+              <div style={{textAlign:'center', marginBottom:'20px'}}> 
+                  <h1 style={{margin:'0 0 5px 0', fontSize:'28px', fontWeight:'bold', textTransform:'uppercase'}}>SEATING PLAN - {title}</h1> 
+                  <h3 style={{margin:0, fontSize:'16px', fontWeight:'bold'}}>30-DAY / {dateRange}</h3> 
+              </div> 
+              
+              <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content', borderTop:'2px solid black', borderLeft:'2px solid black'}}> {renderGrid(map, orderedCols, rows, gender)} </div> </div> 
+              
+              {/* ✅ TEACHER BLOCK MATCHING YOUR SCREENSHOT */}
+              <div style={{display:'flex', justifyContent:'center', marginTop:'40px'}}> 
+                  <div style={{textAlign:'center', width:'100%'}}> 
+                      <div style={{border:'2px dashed black', padding:'15px', fontWeight:'900', fontSize:'32px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 auto', maxWidth:'600px', background:'white'}}>
+                          {gender.toUpperCase()} TEACHER
+                      </div>
+                  </div> 
               </div> 
           </div> 
-          <div style={{textAlign:'center', marginBottom:'20px'}}> <h1 style={{margin:0, fontSize:'24px', textTransform:'uppercase'}}>Seating Plan - {title}</h1> <h3 style={{margin:'5px 0', fontSize:'16px'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3> </div> 
-          <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content'}}> {renderGrid(map, orderedCols, rows, gender)} </div> </div> 
-          <div style={{display:'flex', justifyContent:'center', marginTop:'40px'}}> <div style={{textAlign:'center', width:'100%'}}> <div style={{border:'2px dashed black', padding:'15px', fontWeight:'900', fontSize:'28px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 auto', maxWidth:'600px'}}>{gender.toUpperCase()} TEACHER</div></div> </div> 
-      </div> 
-  );
+      );
+  };
 
   // --- RENDER MAIN ---
   if (viewMode === 'seating') { 
@@ -320,7 +331,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
                       gender="Female"
                   /> 
               </div> 
-              {/* MODALS RENDERED HERE TO AVOID CRASH */}
               {showPrintSettings && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:3000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'300px'}}><h3>🖨️ Print Settings</h3><div style={{marginBottom:'15px'}}><label style={styles.label}>Paper Size</label><select style={styles.input} value={printConfig.paper} onChange={e=>setPrintConfig({...printConfig, paper:e.target.value})}><option>A4</option><option>A3</option><option>Letter</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Orientation</label><select style={styles.input} value={printConfig.orientation} onChange={e=>setPrintConfig({...printConfig, orientation:e.target.value})}><option>landscape</option><option>portrait</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Scale (Zoom)</label><input type="range" min="0.5" max="1.5" step="0.1" value={printConfig.scale} onChange={e=>setPrintConfig({...printConfig, scale:e.target.value})} style={{width:'100%'}}/><div style={{textAlign:'center', fontSize:'12px'}}>{Math.round(printConfig.scale*100)}%</div></div><div style={{textAlign:'right'}}><button onClick={()=>setShowPrintSettings(false)} style={styles.btn(true)}>Done</button></div></div></div>)} 
               {showAutoAssignModal && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'600px', maxHeight:'90vh', overflowY:'auto'}}><h3>🛠️ Auto-Assign Configuration</h3><div style={{background:'#f0f8ff', padding:'15px', borderRadius:'8px', marginBottom:'20px', border:'1px solid #cce5ff'}}><h4 style={{margin:'0 0 10px 0', fontSize:'14px', color:'#0056b3'}}>Student Breakdown (Arrived)</h4><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}><div><div style={{fontWeight:'bold', color:'#007bff'}}>MALE: {males.length}</div></div><div><div style={{fontWeight:'bold', color:'#e91e63'}}>FEMALE: {females.length}</div></div></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}><div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#007bff'}}>Male Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.mCols} onChange={e=>setSeatingConfig({...seatingConfig, mCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.mChowky} onChange={e=>setSeatingConfig({...seatingConfig, mChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.mRows} onChange={e=>setSeatingConfig({...seatingConfig, mRows: parseInt(e.target.value)||0})} /></div><div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#e91e63'}}>Female Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.fCols} onChange={e=>setSeatingConfig({...seatingConfig, fCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.fChowky} onChange={e=>setSeatingConfig({...seatingConfig, fChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.fRows} onChange={e=>setSeatingConfig({...seatingConfig, fRows: parseInt(e.target.value)||0})} /></div></div><div style={{display:'flex', gap:'10px', justifyContent:'flex-end'}}><button onClick={()=>setShowAutoAssignModal(false)} style={styles.btn(false)}>Cancel</button><button onClick={handleAutoAssign} style={isAssigning ? styles.btn(false) : {...styles.btn(true), background:'#28a745', color:'white'}} disabled={isAssigning}>{isAssigning ? 'Processing...' : 'RUN ASSIGNMENT'}</button></div></div></div>)} 
           </div> 
