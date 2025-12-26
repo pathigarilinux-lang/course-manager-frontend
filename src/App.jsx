@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, BedDouble, UserPlus, Users, ShoppingBag, Settings, LogOut, Shield, GraduationCap, Heart, UserCheck } from 'lucide-react';
+import { LayoutDashboard, BedDouble, UserPlus, Users, ShoppingBag, Settings, LogOut, Shield, GraduationCap, Heart, UserCheck, Menu, X } from 'lucide-react';
 import { API_URL } from './config';
 
 // --- COMPONENT IMPORTS ---
@@ -24,6 +24,7 @@ export default function App() {
   const [activeModule, setActiveModule] = useState('dashboard');
   const [courses, setCourses] = useState([]);
   const [preSelectedRoom, setPreSelectedRoom] = useState(''); 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // ✅ NEW STATE FOR MOBILE
 
   // --- INITIAL LOAD ---
   useEffect(() => {
@@ -49,11 +50,13 @@ export default function App() {
     setAuthLevel('none');
     localStorage.removeItem('auth_level');
     setPreSelectedRoom('');
+    setMobileMenuOpen(false);
   };
 
   const handleRoomClick = (roomNo) => {
     setPreSelectedRoom(roomNo);
     setActiveModule('onboarding');
+    setMobileMenuOpen(false); // Close menu on mobile when navigating
   };
 
   // --- 1. LOGIN SCREEN ---
@@ -61,7 +64,7 @@ export default function App() {
     return <Login onLogin={handleLogin} />;
   }
 
-  // --- 2. RESTRICTED ROLES (Keep these as isolated full-screen views) ---
+  // --- 2. RESTRICTED ROLES (Full Screen Views) ---
   
   if (authLevel === 'gatekeeper') {
     return (
@@ -105,37 +108,65 @@ export default function App() {
     );
   }
 
-  // --- 3. ADMIN DASHBOARD (NEW VERTICAL LAYOUT) ---
+  // --- 3. ADMIN DASHBOARD (RESPONSIVE LAYOUT) ---
   const MENU_ITEMS = [
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
       { id: 'gate', label: 'Reception', icon: <UserCheck size={20} /> },
-      { id: 'room', label: 'Room', icon: <BedDouble size={20} /> }, // Renamed
+      { id: 'room', label: 'Room', icon: <BedDouble size={20} /> },
       { id: 'onboarding', label: 'Onboarding', icon: <UserPlus size={20} /> },
-      { id: 'students', label: 'Manage Students', icon: <Users size={20} /> }, // Renamed
+      { id: 'students', label: 'Manage Students', icon: <Users size={20} /> },
       { id: 'store', label: 'Store', icon: <ShoppingBag size={20} /> },
       { id: 'seva', label: 'Seva Board', icon: <Heart size={20} /> },
-      { id: 'admin', label: 'Course Admin', icon: <Settings size={20} /> }, // Renamed
+      { id: 'admin', label: 'Course Admin', icon: <Settings size={20} /> },
   ];
 
   return (
     <div style={{
-        display: 'flex', // Flex container for Sidebar + Content
+        display: 'flex', 
         minHeight: '100vh', 
         background: '#f4f6f8', 
         fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
     }}>
       
+      {/* ✅ MOBILE MENU BUTTON */}
+      <button 
+        className="menu-toggle no-print"
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        style={{
+            position: 'fixed', top: '15px', left: '15px', zIndex: 1100,
+            background: 'white', border: '1px solid #ccc', borderRadius: '8px',
+            padding: '8px', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+        }}
+      >
+        {mobileMenuOpen ? <X size={24} color="#333"/> : <Menu size={24} color="#333"/>}
+      </button>
+
+      {/* ✅ MOBILE OVERLAY (Dark background when menu is open) */}
+      {mobileMenuOpen && (
+        <div 
+            onClick={() => setMobileMenuOpen(false)}
+            style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999
+            }}
+        />
+      )}
+
       {/* LEFT SIDEBAR */}
-      <div className="no-print" style={{
-          width: '260px',
-          background: '#ffffff',
-          borderRight: '1px solid #e0e0e0',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'fixed', // Sticky Sidebar
-          height: '100vh',
-          zIndex: 1000
-      }}>
+      <div 
+          className={`sidebar ${mobileMenuOpen ? 'open' : ''} no-print`}
+          style={{
+              width: '260px',
+              background: '#ffffff',
+              borderRight: '1px solid #e0e0e0',
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'fixed',
+              height: '100vh',
+              zIndex: 1000,
+              transition: 'transform 0.3s ease-in-out', // Smooth slide effect
+              // Inline styles here are overridden by the CSS class logic below for mobile
+          }}
+      >
           {/* BRAND */}
           <div style={{padding: '30px 25px 40px 25px'}}>
               <div style={{display:'flex', alignItems:'center', gap:'12px', marginBottom:'10px'}}>
@@ -152,7 +183,7 @@ export default function App() {
                   return (
                       <button 
                           key={item.id}
-                          onClick={() => setActiveModule(item.id)}
+                          onClick={() => { setActiveModule(item.id); setMobileMenuOpen(false); }}
                           style={{
                               display: 'flex', alignItems: 'center', gap: '12px',
                               padding: '12px 20px',
@@ -189,40 +220,28 @@ export default function App() {
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <div style={{
+      <div className="main-content" style={{
           flex: 1, 
-          marginLeft: '260px', // Offset for Sidebar
+          // Margin is handled by CSS below for responsiveness
           padding: '40px',
           overflowY: 'auto'
       }}>
-          <div style={{maxWidth: '1200px', margin: '0 auto', animation: 'fadeIn 0.3s ease-in-out'}}>
+          {/* Add padding top on mobile so content isn't hidden behind menu button */}
+          <div className="content-wrapper" style={{maxWidth: '1200px', margin: '0 auto', animation: 'fadeIn 0.3s ease-in-out'}}>
               
               {activeModule === 'dashboard' && <CourseDashboard courses={courses} />}
-              
               {activeModule === 'gate' && <GateReception courses={courses} refreshCourses={refreshCourses} />}
-
               {activeModule === 'room' && <GlobalAccommodationManager courses={courses} onRoomClick={handleRoomClick} />}
-              
-              {activeModule === 'onboarding' && (
-                  <StudentForm 
-                      courses={courses} 
-                      preSelectedRoom={preSelectedRoom} 
-                      clearRoom={() => setPreSelectedRoom('')} 
-                  />
-              )}
-              
+              {activeModule === 'onboarding' && <StudentForm courses={courses} preSelectedRoom={preSelectedRoom} clearRoom={() => setPreSelectedRoom('')} />}
               {activeModule === 'students' && <ParticipantList courses={courses} refreshCourses={refreshCourses}/>}
-              
               {activeModule === 'store' && <ExpenseTracker courses={courses} />}
-
               {activeModule === 'seva' && <SevaBoard courses={courses} />}
-              
               {activeModule === 'admin' && <CourseAdmin courses={courses} refreshCourses={refreshCourses} />}
               
           </div>
       </div>
 
-      {/* ANIMATION STYLES */}
+      {/* ✅ RESPONSIVE CSS STYLES */}
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         body { margin: 0; background: #f4f6f8; }
@@ -231,10 +250,34 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background: #ccc; borderRadius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #aaa; }
         
-        /* Print Fixes for Sidebar */
+        /* DEFAULT DESKTOP STYLES */
+        .menu-toggle { display: none; }
+        .sidebar { left: 0; }
+        .main-content { margin-left: 260px; }
+
+        /* 📱 MOBILE STYLES (Screen < 768px) */
+        @media (max-width: 768px) {
+            .menu-toggle { display: block !important; }
+            
+            /* Hide sidebar by default, slide in when .open class is added */
+            .sidebar { 
+                transform: translateX(-100%); 
+                box-shadow: none;
+            }
+            .sidebar.open { 
+                transform: translateX(0); 
+                box-shadow: 5px 0 15px rgba(0,0,0,0.1);
+            }
+            
+            /* Remove margin so content takes full width */
+            .main-content { margin-left: 0 !important; padding: 20px !important; }
+            .content-wrapper { padding-top: 40px; } /* Space for menu button */
+        }
+
+        /* PRINT FIXES */
         @media print {
             .no-print { display: none !important; }
-            div[style*="marginLeft: '260px'"] { margin-left: 0 !important; padding: 0 !important; }
+            .main-content { margin-left: 0 !important; padding: 0 !important; }
         }
       `}</style>
     </div>
