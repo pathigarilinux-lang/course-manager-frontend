@@ -7,7 +7,6 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
 
   // --- CONFIGURATION ---
   
-  // ✅ FIXED: Removed 13-20 from Male Side
   const MALE_CIRCLES = [
     { name: 'Circle G (Outer)', range: [124, 128] },
     { name: 'Circle G (Outer)', range: [113, 123] },
@@ -17,7 +16,7 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
     { name: 'Circle C', range: [31, 40] },
     // Circle B: 9-12 AND 21-30 (Skipping 13-20)
     { name: 'Circle B', manual: [9, 10, 11, 12, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30] },
-    { name: 'Circle A', manual: [1, 2, 6, 7, 8] }
+    { name: 'Circle A', manual: [1, 2, 6, 7, 8] } // 1, 2 are Teachers
   ];
 
   const FEMALE_CIRCLES = [
@@ -25,11 +24,17 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
     { name: 'Circle E', range: [65, 76] },
     { name: 'Circle D', range: [77, 88] },
     { name: 'Circle C', range: [41, 48] },
-    { name: 'Circle B', range: [13, 20] }, // 13-20 Belong here
-    { name: 'Circle A', manual: [4, 3, 5] }
+    { name: 'Circle B', range: [13, 20] }, 
+    { name: 'Circle A', manual: [3, 4, 5] } // ✅ Added 4. (3, 4, 5 are Teachers)
   ];
 
   const currentConfig = isFemale ? FEMALE_CIRCLES : MALE_CIRCLES;
+
+  // ✅ TEACHER CELL LOGIC
+  const isTeacherCell = (num) => {
+      if (isFemale) return [3, 4, 5].includes(num);
+      return [1, 2].includes(num);
+  };
 
   const getNumbers = (config) => {
     if (config.manual) return config.manual;
@@ -55,6 +60,7 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '16px', height: '16px', borderRadius: '50%', border: '2px solid #ccc', background: 'white' }}></div> Available</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#bbdefb', border: '1px solid #90caf9', color: '#0d47a1', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px' }}>O</div> Old Student</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#fff9c4', border: '1px solid #ffe082', color: '#856404', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px' }}>N</div> New Student</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#f3e5f5', border: '1px solid #9c27b0', color: '#6a1b9a', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px' }}>T</div> Teacher</div>
         </div>
 
         {/* CELLS GRID */}
@@ -69,31 +75,37 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
                 {getNumbers(circle).map(num => {
                   const sNum = String(num);
                   const isOcc = occupied.has(sNum);
-                  const occupantCat = occupiedData ? occupiedData[sNum] : null; // 'O' or 'N'
+                  const occupantCat = occupiedData ? occupiedData[sNum] : null; 
                   const isSel = String(selected) === sNum;
+                  const isTeacher = isTeacherCell(num);
                   
                   // --- VISUAL LOGIC ---
                   let bg = 'white';
                   let border = '2px solid #e0e0e0';
                   let color = '#555';
-                  let shadow = 'inset 0 -3px 0 rgba(0,0,0,0.05)'; // 3D Dome effect
+                  let shadow = 'inset 0 -3px 0 rgba(0,0,0,0.05)'; 
                   let cursor = 'pointer';
                   let transform = 'none';
+
+                  // Teacher Override
+                  if (isTeacher) {
+                      bg = '#f3e5f5'; border = '2px solid #ab47bc'; color = '#6a1b9a';
+                  }
 
                   if (isSel) {
                       bg = 'white';
                       border = `3px solid ${themeColor}`;
                       color = themeColor;
-                      shadow = `0 0 0 4px ${themeColor}20`; // Glowing Ring
+                      shadow = `0 0 0 4px ${themeColor}20`; 
                       transform = 'scale(1.1)';
                   } else if (isOcc) {
                       cursor = 'not-allowed';
                       if (occupantCat === 'O') {
-                          bg = '#e3f2fd'; border = '2px solid #90caf9'; color = '#0d47a1'; // Blue for Old
+                          bg = '#e3f2fd'; border = '2px solid #90caf9'; color = '#0d47a1'; 
                       } else if (occupantCat === 'N') {
-                          bg = '#fff9c4'; border = '2px solid #ffe082'; color = '#f57f17'; // Yellow for New
+                          bg = '#fff9c4'; border = '2px solid #ffe082'; color = '#f57f17'; 
                       } else {
-                          bg = '#f5f5f5'; color = '#aaa'; // Unknown
+                          bg = '#f5f5f5'; color = '#aaa'; 
                       }
                   }
 
@@ -116,7 +128,10 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
                       onMouseLeave={(e) => !isOcc && !isSel ? e.currentTarget.style.transform = 'none' : null}
                     >
                       {num}
-                      {/* Tiny Category Label inside the cell */}
+                      {/* Teacher Badge */}
+                      {isTeacher && !isOcc && <span style={{fontSize:'8px', lineHeight:'1', marginTop:'-2px', fontWeight:'bold'}}>TCHR</span>}
+                      
+                      {/* Occupant Badge */}
                       {isOcc && occupantCat && <span style={{fontSize:'8px', lineHeight:'1', marginTop:'-2px', opacity:0.8}}>{occupantCat === 'O' ? 'OLD' : 'NEW'}</span>}
                     </button>
                   );
