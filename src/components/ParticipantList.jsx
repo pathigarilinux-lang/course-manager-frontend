@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, RefreshCw, ArrowUp, ArrowDown, Download, CheckCircle, XCircle, Grid, List as ListIcon, MoreHorizontal, Tag } from 'lucide-react';
+import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, RefreshCw, ArrowUp, ArrowDown, Download, CheckCircle, XCircle, Grid, List as ListIcon, MoreHorizontal, Tag, Armchair } from 'lucide-react';
 import { API_URL, styles } from '../config';
+import DhammaHallLayout from './DhammaHallLayout'; // ✅ IMPORTED NEW MODULE
 
 export default function ParticipantList({ courses, refreshCourses }) {
   // --- STATE ---
@@ -26,6 +27,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const [showAutoAssignModal, setShowAutoAssignModal] = useState(false);
   const [showSummaryReport, setShowSummaryReport] = useState(false);
   const [showPrintSettings, setShowPrintSettings] = useState(false);
+  const [showVisualHall, setShowVisualHall] = useState(false); // ✅ NEW STATE FOR VISUAL HALL
   
   // Advanced Settings
   const [seatingConfig, setSeatingConfig] = useState({ mCols: 10, mRows: 10, mChowky: 2, fCols: 8, fRows: 10, fChowky: 2 });
@@ -180,7 +182,6 @@ export default function ParticipantList({ courses, refreshCourses }) {
       printDirectly(tokens);
   };
 
-  // ✅ INDIVIDUAL TOKEN HANDLER
   const handleSingleToken = (student) => {
       if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first.");
       printDirectly([{ seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no || '-', room: student.room_no || '-', raw: student }]);
@@ -197,7 +198,46 @@ export default function ParticipantList({ courses, refreshCourses }) {
   const handlePagodaExport = () => { const assigned = participants.filter(p => p.status === 'Attending' && p.pagoda_cell_no); if (assigned.length === 0) return alert("No pagoda assignments found."); const headers = ["Cell", "Name", "Conf", "Gender", "Room", "Dining Seat"]; const rows = assigned.sort((a,b) => String(a.pagoda_cell_no).localeCompare(String(b.pagoda_cell_no), undefined, {numeric:true})).map(p => [p.pagoda_cell_no, `"${p.full_name || ''}"`, p.conf_no, p.gender, p.room_no, p.dining_seat_no || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `pagoda_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   const handleSeatingExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Name", "Conf", "Gender", "Pagoda", "Room"]; const rows = arrived.map(p => [p.dhamma_hall_seat_no || '', `"${p.full_name || ''}"`, p.conf_no || '', p.gender || '', p.pagoda_cell_no || '', p.room_no || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `seating_${courseId}.csv`); document.body.appendChild(link); link.click(); };
 
-  const handleSeatClick = async (seatLabel, student) => { if (!selectedSeat) { setSelectedSeat({ label: seatLabel, p: student }); return; } const source = selectedSeat; const target = { label: seatLabel, p: student }; setSelectedSeat(null); if (source.label === target.label) return; if (window.confirm(`Swap/Move?`)) { if (!target.p) { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } else { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP', is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
+  // --- INTERACTIVE SEAT SWAP (Shared by List & Visual Map) ---
+  const handleSeatClick = async (seatLabel, student) => { 
+      if (!selectedSeat) { 
+          // Step 1: Select Source
+          setSelectedSeat({ label: seatLabel, p: student }); 
+          alert(`Selected: ${student ? student.full_name : 'Empty Seat'} (${seatLabel})\n\nNow click another seat to SWAP.`);
+          return; 
+      } 
+      
+      // Step 2: Select Target & Swap
+      const source = selectedSeat; 
+      const target = { label: seatLabel, p: student }; 
+      setSelectedSeat(null); // Reset selection
+
+      if (source.label === target.label) return; // Clicked same seat
+
+      if (window.confirm(`Confirm Swap?\n\n${source.label} (${source.p?.full_name||'Empty'}) \n↔️\n${target.label} (${target.p?.full_name||'Empty'})`)) { 
+          
+          // Case 1: Moving student to empty seat
+          if (source.p && !target.p) { 
+              await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); 
+          } 
+          // Case 2: Moving student to empty seat (Reverse)
+          else if (!source.p && target.p) {
+              await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); 
+          }
+          // Case 3: Swapping two students
+          else if (source.p && target.p) { 
+              // Temp move source to prevent constraint error
+              await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP', is_seat_locked: true}) }); 
+              // Move target to source
+              await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); 
+              // Move source to target
+              await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); 
+          } 
+          
+          const res = await fetch(`${API_URL}/courses/${courseId}/participants`); 
+          setParticipants(await res.json()); 
+      } 
+  };
   
   const renderGrid = (map, cols, rows) => { let g=[]; for(let r=rows; r>=1; r--) { let cells=[]; cols.forEach(c => { const p = map[c+r]; const stats = getStudentStats(p); cells.push(<div key={c+r} onClick={()=>handleSeatClick(c+r, p)} style={{ border: '2px solid black', background: p ? (selectedSeat?.label === c+r ? '#ffeb3b' : 'white') : 'white', width: '130px', height: '95px', fontSize: '10px', overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', margin: '1px', position: 'relative', boxSizing: 'border-box' }}><div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px'}}><span>{c+r}</span><span style={{fontSize:'12px'}}>{p?.room_no || ''}</span></div><div style={{textAlign:'center', fontWeight:'bold', fontSize:'13px', lineHeight:'1.2', flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 3px'}}>{p ? p.full_name : ''}</div>{p && (<div style={{fontSize:'11px', padding:'3px 5px', fontWeight:'bold', whiteSpace:'nowrap', display:'flex', justifyContent:'space-between'}}><span>{stats.cat}</span><span>s:{stats.s} L:{stats.l}</span><span>Age:({stats.age})</span></div>)}{p && p.pagoda_cell_no && <div style={{position:'absolute', top:'25px', right:'2px', fontSize:'9px', background:'#e3f2fd', border:'1px solid blue', borderRadius:'3px', padding:'0 2px'}}>P:{p.pagoda_cell_no}</div>}{p && p.is_seat_locked && <div style={{position:'absolute', bottom:'20px', left:'2px', fontSize:'8px'}}>🔒</div>}</div>); }); g.push(<div key={r} style={{display:'flex'}}>{cells}</div>); } return g; };
   const printChart = (sectionId) => { const style = document.createElement('style'); style.innerHTML = `@media print { @page { size: ${printConfig.paper} ${printConfig.orientation}; margin: 5mm; } html, body { height: 100%; margin: 0; padding: 0; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: fixed; left: 0; top: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: scale(${printConfig.scale}); transform-origin: center top; } .no-print { display: none !important; } .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } h1 { font-size: 24px !important; margin: 0 0 10px 0; } }`; document.head.appendChild(style); window.print(); document.head.removeChild(style); };
@@ -253,6 +293,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
          </div>
          {/* QUICK ACTION TOOLBAR */}
          <div style={{display:'flex', gap:'8px', background:'#f8f9fa', padding:'5px', borderRadius:'10px', border:'1px solid #eee'}}>
+             <button onClick={()=>setShowVisualHall(true)} disabled={!courseId} style={{...styles.toolBtn('#6610f2'), background:'#5a32a3', color:'white'}}>🧘 Visual Hall</button> {/* ✅ VISUAL HALL BTN */}
              <button onClick={()=>setViewMode('dining')} disabled={!courseId} style={styles.toolBtn('#007bff')}>🍽️ Dining List</button>
              <button onClick={()=>setViewMode('seating')} disabled={!courseId} style={styles.toolBtn('#6610f2')}>🧘 Seating Plan</button>
              <button onClick={()=>setViewMode('pagoda')} disabled={!courseId} style={styles.toolBtn('#e91e63')}>🛖 Pagoda List</button>
@@ -314,7 +355,7 @@ export default function ParticipantList({ courses, refreshCourses }) {
                        <div style={{display:'flex', gap:'8px'}}>
                           <button onClick={() => setEditingStudent(p)} title="Edit" style={{padding:'6px', background:'white', border:'1px solid #ddd', borderRadius:'6px', cursor:'pointer', color:'#555'}}><Edit size={14}/></button>
                           
-                          {/* ✅ NEW: Individual Seat Token Button */}
+                          {/* ✅ INDIVIDUAL TOKEN BUTTON */}
                           <button onClick={() => handleSingleToken(p)} title="Print Seat Token" style={{padding:'6px', background:'white', border:'1px solid #ddd', borderRadius:'6px', cursor:'pointer', color:'#e65100'}}><Tag size={14}/></button>
                           
                           <button onClick={() => prepareReceipt(p)} title="Print Pass" style={{padding:'6px', background:'white', border:'1px solid #ddd', borderRadius:'6px', cursor:'pointer', color:'#007bff'}}><Printer size={14}/></button>
@@ -338,6 +379,16 @@ export default function ParticipantList({ courses, refreshCourses }) {
              <button onClick={handleResetCourse} style={{...styles.quickBtn(false), color:'#d32f2f', border:'1px solid #d32f2f', fontSize:'12px'}}>⚠️ Reset Student List</button>
              <button onClick={handleDeleteCourse} style={{...styles.quickBtn(false), background:'#d32f2f', color:'white', fontSize:'12px'}}>🗑️ Delete Course</button>
           </div>
+      )}
+
+      {/* VISUAL HALL MODAL */}
+      {showVisualHall && (
+          <DhammaHallLayout 
+              participants={participants}
+              config={seatingConfig}
+              onClose={() => setShowVisualHall(false)}
+              onSeatClick={handleSeatClick} // ✅ Shared Logic
+          />
       )}
 
       {/* MODALS (Kept same logic, just cleaner) */}
