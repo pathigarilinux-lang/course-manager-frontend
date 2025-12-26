@@ -27,7 +27,8 @@ export default function ExpenseTracker({ courses }) {
   
   // Cart & UI State
   const [cart, setCart] = useState([]);
-  const [activeTab, setActiveTab] = useState('pos'); // pos, dashboard, checkout, reports
+  const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]); // ✅ Default to Today
+  const [activeTab, setActiveTab] = useState('pos'); 
   const [reportMode, setReportMode] = useState(''); 
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -59,23 +60,16 @@ export default function ExpenseTracker({ courses }) {
   // --- DASHBOARD METRICS ---
   const dashboardStats = useMemo(() => {
       if (!financialData.length) return null;
-      
       let laundryCount = 0, laundryM = 0, laundryF = 0;
       const totalPending = financialData.reduce((sum, p) => sum + parseFloat(p.total_due), 0);
       const totalPaid = financialData.reduce((sum, p) => sum + (parseFloat(p.total_bill || 0) - parseFloat(p.total_due || 0)), 0);
-      
       let pendingM = 0, pendingF = 0;
       financialData.forEach(p => {
           const part = participants.find(x => x.participant_id === p.participant_id);
           const isMale = (part?.gender || '').toLowerCase().startsWith('m');
           if(isMale) pendingM += parseFloat(p.total_due); else pendingF += parseFloat(p.total_due);
-          
-          if(parseFloat(p.laundry_total) > 0) {
-              laundryCount++; 
-              if(isMale) laundryM++; else laundryF++;
-          }
+          if(parseFloat(p.laundry_total) > 0) { laundryCount++; if(isMale) laundryM++; else laundryF++; }
       });
-
       return { totalPending, totalPaid, pendingM, pendingF, laundryCount, laundryM, laundryF };
   }, [financialData, participants]);
 
@@ -98,7 +92,9 @@ export default function ExpenseTracker({ courses }) {
       if (priceStr === null) return; 
       const price = parseFloat(priceStr);
       if (isNaN(price) || price <= 0) return alert("Please enter a valid amount.");
-      setCart([...cart, { ...product, name: finalName, price, uid: Date.now() }]);
+      
+      // ✅ ADD TO CART WITH SELECTED DATE
+      setCart([...cart, { ...product, name: finalName, price, date: entryDate, uid: Date.now() }]);
   };
 
   const removeFromCart = (uid) => setCart(cart.filter(item => item.uid !== uid));
@@ -126,7 +122,18 @@ export default function ExpenseTracker({ courses }) {
       setIsProcessing(true);
       try {
           for (let item of cart) {
-              await fetch(`${API_URL}/expenses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ courseId, participantId: selectedStudentId, type: item.name, amount: item.price }) });
+              await fetch(`${API_URL}/expenses`, { 
+                  method: 'POST', 
+                  headers: {'Content-Type':'application/json'}, 
+                  // ✅ SEND DATE TO BACKEND
+                  body: JSON.stringify({ 
+                      courseId, 
+                      participantId: selectedStudentId, 
+                      type: item.name, 
+                      amount: item.price,
+                      date: item.date 
+                  }) 
+              });
           }
           const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); 
           setHistory(await histRes.json());
@@ -153,6 +160,7 @@ export default function ExpenseTracker({ courses }) {
       try {
           await fetch(`${API_URL}/expenses`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
+              // Payments are usually "Today", but we could use entryDate if needed. Defaulting to Today for payments.
               body: JSON.stringify({ courseId, participantId: selectedStudentId, type: '✅ Payment Received', amount: -amountToPay })
           });
           const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); 
@@ -187,8 +195,8 @@ export default function ExpenseTracker({ courses }) {
                 <div><h1 style={{margin: 0}}>INVOICE</h1><p style={{color: '#666'}}>Date: {new Date().toLocaleDateString()}</p></div>
                 <div style={{textAlign: 'right'}}><h3>{currentStudent?.full_name}</h3><p>Conf: {currentStudent?.conf_no}</p><p>Room: {currentStudent?.room_no}</p><p>{selectedCourseName}</p></div>
             </div>
-            {laundryItems.length > 0 && (<div style={{marginBottom:'20px'}}><div style={{background:'#e3f2fd', padding:'5px 10px', fontWeight:'bold', color:'#0d47a1', borderBottom:'1px solid #90caf9'}}>🧺 LAUNDRY SERVICES</div><table style={{width: '100%', borderCollapse: 'collapse'}}><tbody>{laundryItems.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}><td style={{padding: '8px'}}>{ex.expense_type}</td><td style={{padding: '8px', textAlign: 'right'}}>₹{ex.amount}</td></tr> ))} <tr style={{fontWeight:'bold', background:'#f5f5f5'}}><td style={{padding:'8px', textAlign:'right'}}>Laundry Total:</td><td style={{padding:'8px', textAlign:'right'}}>₹{laundryTotal}</td></tr></tbody></table></div>)}
-            {shopItems.length > 0 && (<div style={{marginBottom:'20px'}}><div style={{background:'#fff3e0', padding:'5px 10px', fontWeight:'bold', color:'#e65100', borderBottom:'1px solid #ffcc80'}}>🛒 SHOP ITEMS</div><table style={{width: '100%', borderCollapse: 'collapse'}}><tbody>{shopItems.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}><td style={{padding: '8px'}}>{ex.expense_type}</td><td style={{padding: '8px', textAlign: 'right'}}>₹{ex.amount}</td></tr> ))} <tr style={{fontWeight:'bold', background:'#f5f5f5'}}><td style={{padding:'8px', textAlign:'right'}}>Shop Total:</td><td style={{padding:'8px', textAlign:'right'}}>₹{shopTotal}</td></tr></tbody></table></div>)}
+            {laundryItems.length > 0 && (<div style={{marginBottom:'20px'}}><div style={{background:'#e3f2fd', padding:'5px 10px', fontWeight:'bold', color:'#0d47a1', borderBottom:'1px solid #90caf9'}}>🧺 LAUNDRY SERVICES</div><table style={{width: '100%', borderCollapse: 'collapse'}}><tbody>{laundryItems.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}><td style={{padding: '8px'}}>{ex.expense_type} <span style={{fontSize:'10px', color:'#666'}}>({new Date(ex.recorded_at).toLocaleDateString()})</span></td><td style={{padding: '8px', textAlign: 'right'}}>₹{ex.amount}</td></tr> ))} <tr style={{fontWeight:'bold', background:'#f5f5f5'}}><td style={{padding:'8px', textAlign:'right'}}>Laundry Total:</td><td style={{padding:'8px', textAlign:'right'}}>₹{laundryTotal}</td></tr></tbody></table></div>)}
+            {shopItems.length > 0 && (<div style={{marginBottom:'20px'}}><div style={{background:'#fff3e0', padding:'5px 10px', fontWeight:'bold', color:'#e65100', borderBottom:'1px solid #ffcc80'}}>🛒 SHOP ITEMS</div><table style={{width: '100%', borderCollapse: 'collapse'}}><tbody>{shopItems.map(ex => ( <tr key={ex.expense_id} style={{borderBottom: '1px solid #eee'}}><td style={{padding: '8px'}}>{ex.expense_type} <span style={{fontSize:'10px', color:'#666'}}>({new Date(ex.recorded_at).toLocaleDateString()})</span></td><td style={{padding: '8px', textAlign: 'right'}}>₹{ex.amount}</td></tr> ))} <tr style={{fontWeight:'bold', background:'#f5f5f5'}}><td style={{padding:'8px', textAlign:'right'}}>Shop Total:</td><td style={{padding:'8px', textAlign:'right'}}>₹{shopTotal}</td></tr></tbody></table></div>)}
             {payments.length > 0 && (<div style={{marginTop:'20px', borderTop:'2px dashed #ccc', paddingTop:'10px'}}>{payments.map(p => (<div key={p.expense_id} style={{display:'flex', justifyContent:'space-between', color:'green', fontSize:'13px'}}><span>{p.expense_type} ({new Date(p.recorded_at).toLocaleDateString()})</span><span>- ₹{Math.abs(p.amount)}</span></div>))}</div>)}
             <div style={{textAlign: 'right', marginTop: '30px', borderTop:'2px solid black', paddingTop:'10px'}}>
                 <div style={{fontSize:'14px', color:'#666'}}>Total Laundry: ₹{laundryTotal}</div><div style={{fontSize:'14px', color:'#666'}}>Total Shop: ₹{shopTotal}</div><div style={{fontSize:'14px', color:'green'}}>Total Paid: -₹{totalPaid}</div><h2 style={{margin:'10px 0'}}>Net Payable: ₹{stats.studentTotal}</h2>
@@ -233,7 +241,6 @@ export default function ExpenseTracker({ courses }) {
       );
   }
 
-  // --- MAIN STORE LAYOUT ---
   return (
     <div style={styles.card}>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'15px'}}>
@@ -259,7 +266,17 @@ export default function ExpenseTracker({ courses }) {
           <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'20px'}}>
               {/* LEFT: PRODUCTS */}
               <div>
-                  <h4 style={{marginTop:0, color:'#555'}}>Quick Add Items (Price Prompt)</h4>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
+                      <h4 style={{margin:0, color:'#555'}}>Quick Add Items (Price Prompt)</h4>
+                      
+                      {/* ✅ ENTRY DATE PICKER */}
+                      <div style={{display:'flex', alignItems:'center', gap:'5px', background:'#f8f9fa', padding:'5px 10px', borderRadius:'6px', border:'1px solid #ddd'}}>
+                          <Calendar size={14} color="#666"/>
+                          <span style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>Date:</span>
+                          <input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} style={{border:'none', background:'transparent', fontSize:'13px', fontWeight:'bold', color:'#333', outline:'none'}} />
+                      </div>
+                  </div>
+
                   <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(120px, 1fr))', gap:'10px'}}>
                       {PRODUCTS.map(p => (
                           <button key={p.id} onClick={() => addToCart(p)} disabled={!selectedStudentId} style={{padding:'15px', border:'1px solid #ddd', borderRadius:'8px', background:'white', cursor: !selectedStudentId ? 'not-allowed' : 'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:'5px', transition:'all 0.2s', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}>
@@ -279,8 +296,11 @@ export default function ExpenseTracker({ courses }) {
                           <div style={{maxHeight:'200px', overflowY:'auto'}}>
                               {cart.map(item => (
                                   <div key={item.uid} style={{display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px dashed #eee', fontSize:'13px'}}>
-                                      <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-                                          <span>{item.icon} {item.name}</span>
+                                      <div style={{display:'flex', flexDirection:'column', gap:'2px'}}>
+                                          <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                                              <span>{item.icon} {item.name}</span>
+                                              <span style={{fontSize:'10px', color:'#888', background:'#eee', padding:'1px 4px', borderRadius:'4px'}}>{item.date}</span>
+                                          </div>
                                           <div style={{display:'flex', gap:'4px'}}>
                                               <button onClick={() => editCartName(item.uid)} title="Edit Name" style={{background:'#e3f2fd', border:'1px solid #bbdefb', borderRadius:'4px', padding:'2px 6px', display:'flex', alignItems:'center', gap:'4px', cursor:'pointer', fontSize:'11px', color:'#0d47a1'}}><PenTool size={10}/> Name</button>
                                               <button onClick={() => editCartPrice(item.uid)} title="Edit Price" style={{background:'#fff3e0', border:'1px solid #ffe0b2', borderRadius:'4px', padding:'2px 6px', display:'flex', alignItems:'center', gap:'4px', cursor:'pointer', fontSize:'11px', color:'#e65100'}}><Tag size={10}/> Price</button>
@@ -322,10 +342,8 @@ export default function ExpenseTracker({ courses }) {
           </div>
       )}
 
-      {/* --- TAB 2: DASHBOARD (Stats & Reports) --- */}
       {activeTab === 'dashboard' && dashboardStats && (
           <div style={{animation:'fadeIn 0.3s'}}>
-              {/* STATS CARDS */}
               <div style={{display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'20px', marginBottom:'30px'}}>
                   <div style={{background:'#e3f2fd', padding:'20px', borderRadius:'12px', borderLeft:'5px solid #007bff'}}>
                       <div style={{fontSize:'12px', fontWeight:'bold', color:'#0d47a1', textTransform:'uppercase'}}>Total Pending Dues</div>
@@ -343,8 +361,6 @@ export default function ExpenseTracker({ courses }) {
                       <div style={{fontSize:'11px', color:'#555'}}>M: {dashboardStats.laundryM} | F: {dashboardStats.laundryF}</div>
                   </div>
               </div>
-
-              {/* REPORTS SECTION */}
               <div style={{background:'white', padding:'25px', borderRadius:'12px', border:'1px solid #eee'}}>
                   <h3 style={{marginTop:0, marginBottom:'20px'}}>Generate Reports</h3>
                   <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:'15px'}}>
@@ -359,7 +375,6 @@ export default function ExpenseTracker({ courses }) {
           </div>
       )}
 
-      {/* CHECKOUT VIEW (Repeated for consistency) */}
       {activeTab === 'checkout' && (
           <div style={{background:'#fff5f5', padding:'30px', borderRadius:'10px', border:'2px solid #ffcdd2', textAlign:'center'}}>
               <h3 style={{color:'#d32f2f', marginTop:0}}>🔐 Return Valuables & Checkout</h3>
