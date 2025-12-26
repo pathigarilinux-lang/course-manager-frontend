@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Search, UserCheck, UserX, Users, UserPlus, RefreshCw, CheckCircle, Clock } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
-export default function GateReception({ courses }) {
+// ✅ Added refreshCourses prop
+export default function GateReception({ courses, refreshCourses }) {
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [participants, setParticipants] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,6 +22,9 @@ export default function GateReception({ courses }) {
         const res = await fetch(`${API_URL}/courses/${selectedCourseId}/participants`);
         const data = await res.json();
         setParticipants(Array.isArray(data) ? data : []);
+        
+        // ✅ SYNC: Also update the global course stats whenever we refresh this list
+        if(refreshCourses) refreshCourses();
     } catch (err) {
         console.error(err);
     }
@@ -29,14 +33,14 @@ export default function GateReception({ courses }) {
 
   useEffect(() => {
       loadParticipants();
-      // Optional: Auto-refresh every 30 seconds to keep stats live for multiple gatekeepers
+      // Auto-refresh every 30 seconds
       const interval = setInterval(loadParticipants, 30000);
       return () => clearInterval(interval);
   }, [selectedCourseId]);
 
   // --- 2. ACTIONS ---
   const handleGateCheckIn = async (student) => {
-      // Optimistic Update (Update UI immediately for speed)
+      // Optimistic Update
       setParticipants(prev => prev.map(p => p.participant_id === student.participant_id ? { ...p, status: 'Gate Check-In' } : p));
       
       try {
@@ -46,6 +50,10 @@ export default function GateReception({ courses }) {
               body: JSON.stringify({ participantId: student.participant_id })
           });
           if (!res.ok) throw new Error("Failed");
+          
+          // ✅ SYNC: Update global dashboard numbers immediately
+          if(refreshCourses) refreshCourses();
+          
       } catch (err) {
           alert("Sync Error: Could not check in student.");
           loadParticipants(); // Revert on error
@@ -61,7 +69,11 @@ export default function GateReception({ courses }) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ participantId: student.participant_id })
           });
-          if (res.ok) loadParticipants();
+          if (res.ok) {
+              loadParticipants();
+              // ✅ SYNC
+              if(refreshCourses) refreshCourses();
+          }
       } catch (err) { console.error(err); }
   };
 
@@ -74,9 +86,9 @@ export default function GateReception({ courses }) {
               courseId: selectedCourseId,
               fullName: newStudent.fullName,
               gender: newStudent.gender,
-              email: '', // Optional for gate
+              email: '', 
               age: '',
-              confNo: `WALK-${Date.now().toString().slice(-4)}`, // Generate temp ID
+              confNo: `WALK-${Date.now().toString().slice(-4)}`, 
               coursesInfo: 'Walk-In'
           };
 
@@ -91,6 +103,8 @@ export default function GateReception({ courses }) {
               setShowWalkIn(false);
               setNewStudent({ fullName: '', gender: 'Male', phone: '' });
               loadParticipants();
+              // ✅ SYNC
+              if(refreshCourses) refreshCourses();
           } else {
               const err = await res.json();
               alert(`Error: ${err.error}`);
@@ -114,6 +128,7 @@ export default function GateReception({ courses }) {
 
   const stats = useMemo(() => {
       const total = participants.length;
+      // Arrived logic matches backend now: Gate Check-In OR Attending
       const arrived = participants.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending').length;
       const pending = total - arrived;
       const maleArrived = participants.filter(p => (p.gender === 'Male') && (p.status === 'Gate Check-In' || p.status === 'Attending')).length;
