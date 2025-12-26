@@ -13,7 +13,7 @@ export default function PagodaLayout({ gender, occupied, occupiedData, selected,
     { name: 'Circle E', range: [89, 100] },
     { name: 'Circle D', range: [49, 64] },
     { name: 'Circle C', range: [31, 40] },
-    { name: 'Circle B', range: [9, 30] },
+    { name: 'Circle B', range: [9, 10, 11, 12] },
     { name: 'Circle A', manual: [1, 2, 6, 7, 8] }
   ];
 
