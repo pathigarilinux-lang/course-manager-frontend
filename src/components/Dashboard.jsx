@@ -118,6 +118,10 @@ export default function CourseDashboard({ courses }) {
 
   const selectedCourse = courses.find(c => c.course_id == courseId);
 
+  // ✅ DYNAMIC DURATION CALCULATION (Slows down based on item count)
+  // Base 30s + 8s per item ensure it's always readable
+  const tickerDuration = stats ? Math.max(30, stats.criticalPendingList.length * 8) + 's' : '30s';
+
   const BreakdownGrid = ({ data }) => (
       <div style={{marginTop:'10px', fontSize:'11px', background:'rgba(255,255,255,0.6)', borderRadius:'6px', padding:'5px'}}>
           <div style={{display:'flex', justifyContent:'space-between', marginBottom:'2px'}}>
@@ -158,10 +162,7 @@ export default function CourseDashboard({ courses }) {
 
               {/* ROW 2: DISCOURSE + SINGLE BOX SEATING PLAN */}
               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}>
-                  {/* Discourse Table */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)', maxHeight:'300px', overflowY:'auto'}}><h4 style={{marginTop:0, marginBottom:'15px', color:'#555', display:'flex', alignItems:'center', gap:'8px'}}><Headphones size={18}/> Live Discourse Req. (Checked-In)</h4><table style={{width:'100%', borderCollapse:'collapse', fontSize:'13px'}}><thead style={{background:'#f8f9fa', position:'sticky', top:0}}><tr><th style={{textAlign:'left', padding:'8px', borderBottom:'2px solid #ddd'}}>Lang</th><th style={{textAlign:'center', padding:'8px', borderBottom:'2px solid #ddd', color:COLORS.male}}>Male</th><th style={{textAlign:'center', padding:'8px', borderBottom:'2px solid #ddd', color:COLORS.female}}>Female</th><th style={{textAlign:'right', padding:'8px', borderBottom:'2px solid #ddd'}}>Total</th></tr></thead><tbody>{stats.discourseData.length > 0 ? stats.discourseData.map((row, i) => (<tr key={row.lang} style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px', fontWeight:'bold'}}>{row.lang}</td><td style={{padding:'8px', textAlign:'center'}}><span style={{color:COLORS.old, fontWeight:'bold'}}>{row.om} O</span> <span style={{color:'#ccc'}}>|</span> <span style={{color:COLORS.new, fontWeight:'bold'}}>{row.nm} N</span></td><td style={{padding:'8px', textAlign:'center'}}><span style={{color:COLORS.old, fontWeight:'bold'}}>{row.of} O</span> <span style={{color:'#ccc'}}>|</span> <span style={{color:COLORS.new, fontWeight:'bold'}}>{row.nf} N</span></td><td style={{padding:'8px', textAlign:'right', fontWeight:'bold'}}>{row.tot}</td></tr>)) : <tr><td colSpan="4" style={{padding:'20px', textAlign:'center', color:'#999'}}>No check-ins yet.</td></tr>}</tbody></table></div>
-                  
-                  {/* ✅ SINGLE BOX SEATING PLAN */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)', display:'flex', flexDirection:'column', justifyContent:'center'}}>
                       <h4 style={{marginTop:0, marginBottom:'20px', color:'#555', display:'flex', alignItems:'center', gap:'8px'}}><Armchair size={18}/> Seating Plan (Total)</h4>
                       <div style={{display:'flex', justifyContent:'space-around', alignItems:'center'}}>
@@ -176,18 +177,18 @@ export default function CourseDashboard({ courses }) {
                   </div>
               </div>
 
-              {/* ✅ BOTTOM CRITICAL TICKER */}
+              {/* ✅ BOTTOM CRITICAL TICKER (Smoother & Slower) */}
               <div style={{background:'#ffebee', borderTop:'2px solid #ef5350', padding:'10px 0', marginTop:'20px', overflow:'hidden', whiteSpace:'nowrap', display:'flex', alignItems:'center', position:'sticky', bottom:0}}>
                   <div style={{padding:'0 20px', borderRight:'2px solid #ef5350', color:'#c62828', fontWeight:'bold', display:'flex', alignItems:'center', gap:'8px', zIndex:10, background:'#ffebee'}}>
                       <AlertTriangle size={18}/> <span>Critical Pending: {stats.criticalStats.pending}</span>
                   </div>
                   <div className="ticker-wrapper" style={{flex:1, overflow:'hidden', position:'relative'}}>
-                      <div className="ticker-content" style={{display:'inline-block', paddingLeft:'100%', animation: 'ticker 20s linear infinite'}}>
+                      <div className="ticker-content" style={{display:'inline-block', paddingLeft:'100%', animation: `ticker ${tickerDuration} linear infinite`}}>
                           {stats.criticalPendingList.length > 0 ? stats.criticalPendingList.map((p, i) => (
-                              <span key={p.participant_id} style={{display:'inline-block', marginRight:'40px', color:'#333', fontSize:'14px'}}>
-                                  <strong style={{color:'#c62828'}}>{p.full_name}</strong> ({p.age} Yrs) - <span style={{color:'#d32f2f', fontWeight:'bold'}}>{p.medical_info || 'Elderly'}</span>
+                              <span key={p.participant_id} style={{display:'inline-block', marginRight:'50px', color:'#333', fontSize:'15px'}}>
+                                  <strong style={{color:'#c62828'}}>{p.full_name}</strong> ({p.age} Yrs) <span style={{margin:'0 5px'}}>•</span> <span style={{color:'#d32f2f', fontWeight:'bold', background:'white', padding:'2px 6px', borderRadius:'4px', border:'1px solid #ffcdd2'}}>{p.medical_info || 'Elderly'}</span>
                               </span>
-                          )) : <span style={{color:'#2e7d32', fontWeight:'bold'}}>✅ All critical cases cleared!</span>}
+                          )) : <span style={{color:'#2e7d32', fontWeight:'bold', display:'flex', alignItems:'center', gap:'10px'}}><CheckCircle size={16}/> All critical cases cleared!</span>}
                       </div>
                   </div>
               </div>
