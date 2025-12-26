@@ -88,7 +88,8 @@ export default function App() {
             <button onClick={handleLogout} style={{padding:'8px 16px', background:'#fff5f5', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer', fontWeight:'bold'}}>Logout</button>
         </div>
         <div style={{padding:'30px'}}>
-            <GateReception courses={courses} />
+            {/* ✅ SYNC ENABLED: refreshCourses passed here */}
+            <GateReception courses={courses} refreshCourses={refreshCourses} />
         </div>
       </div>
     );
@@ -191,7 +192,10 @@ export default function App() {
       <div style={{maxWidth: '1600px', margin: '30px auto', padding: '0 20px'}}>
           <div style={{animation: 'fadeIn 0.4s ease-in-out'}}>
               {activeModule === 'dashboard' && <CourseDashboard courses={courses} />}
-              {activeModule === 'gate' && <GateReception courses={courses} />}
+              
+              {/* ✅ SYNC ENABLED: refreshCourses passed here too */}
+              {activeModule === 'gate' && <GateReception courses={courses} refreshCourses={refreshCourses} />}
+              
               {activeModule === 'room' && <GlobalAccommodationManager courses={courses} onRoomClick={handleRoomClick} />}
               {activeModule === 'onboarding' && <StudentForm courses={courses} preSelectedRoom={preSelectedRoom} clearRoom={() => setPreSelectedRoom('')} />}
               {activeModule === 'students' && <ParticipantList courses={courses} refreshCourses={refreshCourses}/>}
