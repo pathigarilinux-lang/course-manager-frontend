@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Home, Utensils, BookOpen, AlertCircle, CheckCircle, Clock, Activity, TrendingUp, UserCheck, Shield, Armchair, Headphones } from 'lucide-react';
+import { Users, Home, Utensils, BookOpen, AlertCircle, CheckCircle, Clock, Activity, TrendingUp, UserCheck, Shield, Armchair, Headphones, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
 
@@ -41,7 +41,6 @@ export default function Dashboard({ courses }) {
       const expectedMale = valid.filter(p => (p.gender || '').toLowerCase().startsWith('m')).length;
       const expectedFemale = valid.filter(p => (p.gender || '').toLowerCase().startsWith('f')).length;
       
-      // ✅ HELPER: Breakdown by Category (OM, NM, SM...)
       const getDetailedBreakdown = (list) => {
           const b = { om: 0, nm: 0, sm: 0, of: 0, nf: 0, sf: 0, total: list.length };
           list.forEach(p => {
@@ -65,7 +64,7 @@ export default function Dashboard({ courses }) {
       const gateStats = getDetailedBreakdown(atGate);
       const pendingStats = getDetailedBreakdown(pendingArrival);
 
-      // --- AGE DISTRIBUTION ---
+      // Age Stats
       const ageGroups = { '18-29': {m:0, f:0}, '30-49': {m:0, f:0}, '50-64': {m:0, f:0}, '65+': {m:0, f:0} };
       valid.forEach(p => {
           const age = parseInt(p.age) || 0;
@@ -76,7 +75,7 @@ export default function Dashboard({ courses }) {
       });
       const ageData = Object.keys(ageGroups).map(key => ({ name: key, Male: ageGroups[key].m, Female: ageGroups[key].f }));
 
-      // --- STUDENT MIX (PIE CHART ORDER) ---
+      // Mix Stats
       const mixCounts = { OM:0, NM:0, SM:0, OF:0, NF:0, SF:0 };
       valid.forEach(p => {
           const conf = (p.conf_no || '').toUpperCase();
@@ -92,7 +91,6 @@ export default function Dashboard({ courses }) {
           }
       });
 
-      // ✅ STRICT ORDER: OM -> NM -> SM -> OF -> NF -> SF
       const catData = [
           { name: 'Old Male', value: mixCounts.OM, code: 'OM', color: MIX_COLORS.OM },
           { name: 'New Male', value: mixCounts.NM, code: 'NM', color: MIX_COLORS.NM },
@@ -102,18 +100,16 @@ export default function Dashboard({ courses }) {
           { name: 'Server F', value: mixCounts.SF, code: 'SF', color: MIX_COLORS.SF }
       ].filter(item => item.value > 0);
 
-      // --- CRITICAL PENDING ---
+      // Critical Stats
       const allCritical = valid.filter(p => (parseInt(p.age) >= 65) || (p.medical_info && p.medical_info.length > 2));
       const criticalPendingList = allCritical.filter(p => p.status !== 'Attending'); 
       const criticalStats = { total: allCritical.length, pending: criticalPendingList.length, done: allCritical.length - criticalPendingList.length };
 
-      // --- DISCOURSE LOGIC (Exclude SM/SF) ---
+      // Discourse
       const langMap = {}; 
       fullyCheckedIn.forEach(p => {
           const conf = (p.conf_no || '').toUpperCase();
-          // ✅ EXCLUDE SERVERS
           if(conf.startsWith('SM') || conf.startsWith('SF')) return; 
-
           const lang = p.discourse_language || 'Unknown';
           if (!langMap[lang]) langMap[lang] = { om:0, nm:0, of:0, nf:0, tot:0 };
           const isMale = (p.gender || '').toLowerCase().startsWith('m');
@@ -123,7 +119,7 @@ export default function Dashboard({ courses }) {
       });
       const discourseData = Object.entries(langMap).map(([lang, counts]) => ({ lang, ...counts })).sort((a,b) => b.tot - a.tot);
 
-      // --- SEATING STATS ---
+      // Seating
       const seatingStats = { Chowky: {t:0,m:0,f:0}, Chair: {t:0,m:0,f:0}, BackRest: {t:0,m:0,f:0}, Floor: {t:0,m:0,f:0} };
       valid.forEach(p => {
           const type = p.special_seating || 'None';
@@ -140,7 +136,6 @@ export default function Dashboard({ courses }) {
   const selectedCourse = courses.find(c => c.course_id == courseId);
   const tickerDuration = stats ? Math.max(30, stats.criticalPendingList.length * 8) + 's' : '30s';
 
-  // ✅ NEW GRID DISPLAY FOR STATS CARD
   const BreakdownGrid = ({ data }) => (
       <div style={{marginTop:'10px', fontSize:'10px', background:'rgba(255,255,255,0.6)', borderRadius:'6px', padding:'5px', lineHeight:'1.4'}}>
           <div style={{display:'flex', justifyContent:'space-between', borderBottom:'1px dashed #ccc', paddingBottom:'2px', marginBottom:'2px'}}>
@@ -173,7 +168,6 @@ export default function Dashboard({ courses }) {
 
       {stats && !loading && (
           <>
-              {/* TOP KPI CARDS */}
               <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'20px', marginBottom:'30px'}}>
                   <div style={{background:'#e3f2fd', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.male}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#0d47a1', textTransform:'uppercase'}}>Expected Total</div><div style={{fontSize:'32px', fontWeight:'900', color:'#333', display:'flex', alignItems:'baseline', gap:'10px'}}>{stats.total}<span style={{fontSize:'14px', fontWeight:'normal', color:'#555'}}>(M: <span style={{color: COLORS.male, fontWeight:'bold'}}>{stats.expectedMale}</span> | F: <span style={{color: COLORS.female, fontWeight:'bold'}}>{stats.expectedFemale}</span>)</span></div><div style={{fontSize:'11px', color:'#666'}}>Valid Registrations</div></div>
                   <div style={{background:'#fff3e0', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.gate}`}}><div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#e65100', textTransform:'uppercase'}}>At Gate</div><Shield size={16} color="#ef6c00"/></div><div style={{fontSize:'32px', fontWeight:'900', color:'#333'}}>{stats.gateStats.total}</div><BreakdownGrid data={stats.gateStats} /></div>
@@ -181,13 +175,11 @@ export default function Dashboard({ courses }) {
                   <div style={{background:'#fce4ec', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.female}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#880e4f', textTransform:'uppercase'}}>Pending Arrival</div><div style={{fontSize:'32px', fontWeight:'900', color:'#c2185b'}}>{stats.pendingStats.total}</div><BreakdownGrid data={stats.pendingStats} /></div>
               </div>
 
-              {/* ROW 1: AGE DISTRIBUTION + STUDENT MIX */}
               <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'20px', marginBottom:'30px'}}>
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}><h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}><Users size={18}/> Expected Age Distribution</h4><div style={{height:'250px', width:'100%'}}><ResponsiveContainer><BarChart data={stats.ageData} margin={{top: 20, right: 30, left: 0, bottom: 5}}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><Tooltip cursor={{fill: 'transparent'}} /><Legend /><Bar dataKey="Male" fill={COLORS.male} radius={[4, 4, 0, 0]} /><Bar dataKey="Female" fill={COLORS.female} radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></div>
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}><h4 style={{marginTop:0, color:'#555'}}>Student Mix</h4><div style={{height:'200px', width:'100%'}}><ResponsiveContainer><PieChart><Pie data={stats.catData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={2} dataKey="value">{stats.catData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}</Pie><Tooltip /></PieChart></ResponsiveContainer></div><div style={{display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'8px', marginTop:'5px'}}>{stats.catData.map(d => (<div key={d.name} style={{fontSize:'10px', display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'8px', height:'8px', borderRadius:'50%', background:d.color}}></div><span style={{color:'#555', fontWeight:'bold'}}>{d.code}: {d.value}</span></div>))}</div></div>
               </div>
 
-              {/* ROW 2: DISCOURSE + SINGLE BOX SEATING PLAN */}
               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}>
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)', maxHeight:'300px', overflowY:'auto'}}><h4 style={{marginTop:0, marginBottom:'15px', color:'#555', display:'flex', alignItems:'center', gap:'8px'}}><Headphones size={18}/> Live Discourse Req. (Checked-In)</h4><table style={{width:'100%', borderCollapse:'collapse', fontSize:'13px'}}><thead style={{background:'#f8f9fa', position:'sticky', top:0}}><tr><th style={{textAlign:'left', padding:'8px', borderBottom:'2px solid #ddd'}}>Lang</th><th style={{textAlign:'center', padding:'8px', borderBottom:'2px solid #ddd', color:COLORS.male}}>Male</th><th style={{textAlign:'center', padding:'8px', borderBottom:'2px solid #ddd', color:COLORS.female}}>Female</th><th style={{textAlign:'right', padding:'8px', borderBottom:'2px solid #ddd'}}>Total</th></tr></thead><tbody>{stats.discourseData.length > 0 ? stats.discourseData.map((row, i) => (<tr key={row.lang} style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px', fontWeight:'bold'}}>{row.lang}</td><td style={{padding:'8px', textAlign:'center'}}><span style={{color:COLORS.old, fontWeight:'bold'}}>{row.om} O</span> <span style={{color:'#ccc'}}>|</span> <span style={{color:COLORS.new, fontWeight:'bold'}}>{row.nm} N</span></td><td style={{padding:'8px', textAlign:'center'}}><span style={{color:COLORS.old, fontWeight:'bold'}}>{row.of} O</span> <span style={{color:'#ccc'}}>|</span> <span style={{color:COLORS.new, fontWeight:'bold'}}>{row.nf} N</span></td><td style={{padding:'8px', textAlign:'right', fontWeight:'bold'}}>{row.tot}</td></tr>)) : <tr><td colSpan="4" style={{padding:'20px', textAlign:'center', color:'#999'}}>No check-ins yet.</td></tr>}</tbody></table><div style={{fontSize:'10px', color:'#999', marginTop:'5px', textAlign:'center'}}>* Excludes Servers (SM/SF)</div></div>
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)', display:'flex', flexDirection:'column', justifyContent:'center'}}>
@@ -204,7 +196,6 @@ export default function Dashboard({ courses }) {
                   </div>
               </div>
 
-              {/* BOTTOM CRITICAL TICKER */}
               <div style={{background:'#ffebee', borderTop:'2px solid #ef5350', padding:'10px 0', marginTop:'20px', overflow:'hidden', whiteSpace:'nowrap', display:'flex', alignItems:'center', position:'sticky', bottom:0}}>
                   <div style={{padding:'0 20px', borderRight:'2px solid #ef5350', color:'#c62828', fontWeight:'bold', display:'flex', alignItems:'center', gap:'8px', zIndex:10, background:'#ffebee'}}>
                       <AlertTriangle size={18}/> <span>Critical Pending: {stats.criticalStats.pending}</span>
