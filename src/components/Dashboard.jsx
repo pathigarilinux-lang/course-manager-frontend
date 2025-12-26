@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Home, Utensils, BookOpen, AlertCircle, CheckCircle, Clock, Activity, TrendingUp, UserCheck, Shield, Armchair, Headphones, AlertTriangle } from 'lucide-react';
+import { Users, Home, Utensils, BookOpen, AlertCircle, CheckCircle, Clock, Activity, TrendingUp, UserCheck, Shield, Armchair, Headphones, AlertTriangle, Download, Database } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
 
@@ -28,6 +28,24 @@ export default function Dashboard({ courses }) {
           return () => clearInterval(interval);
       }
   }, [courseId]);
+
+  // --- BACKUP FUNCTION ---
+  const handleDownloadBackup = async () => {
+      if(!window.confirm("📦 Download Full Database Backup?")) return;
+      try {
+          const res = await fetch(`${API_URL}/backup`);
+          const data = await res.json();
+          const jsonString = JSON.stringify(data, null, 2);
+          const blob = new Blob([jsonString], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `DhammaNaga_Backup_${new Date().toISOString().slice(0,10)}.json`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+      } catch(err) { alert("Backup Failed: " + err.message); }
+  };
 
   // --- STATISTICS PROCESSING ---
   const stats = useMemo(() => {
@@ -161,13 +179,26 @@ export default function Dashboard({ courses }) {
     <div style={styles.card}>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'15px'}}>
           <div><h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px', color:'#2c3e50'}}><Activity size={28} color="#e91e63"/> Zero-Day-Dashboard</h2><div style={{color:'#666', marginTop:'5px', fontSize:'14px'}}>Real-time Operational Metrics • {selectedCourse?.course_name || 'Select Course'}</div></div>
-          <select style={{...styles.input, padding:'10px', fontSize:'14px'}} value={courseId} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+          <div style={{display:'flex', gap:'10px'}}>
+              <select style={{...styles.input, padding:'10px', fontSize:'14px'}} value={courseId} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+              {/* ✅ BACKUP BUTTON */}
+              <button onClick={handleDownloadBackup} style={{...styles.toolBtn('#17a2b8'), background:'#17a2b8', color:'white', display:'flex', alignItems:'center', gap:'5px', fontSize:'13px'}}><Database size={16}/> Backup DB</button>
+          </div>
       </div>
 
       {loading && <div style={{textAlign:'center', padding:'50px'}}>Loading Data...</div>}
 
       {stats && !loading && (
           <>
+              {/* ✅ PROGRESS BAR (Visualizing Arrival) */}
+              <div style={{background:'#e9ecef', height:'8px', borderRadius:'4px', marginBottom:'20px', overflow:'hidden', display:'flex'}}>
+                  <div style={{width:`${(stats.fullyCheckedIn / stats.total) * 100}%`, background:'#28a745', transition:'width 1s'}}></div>
+                  <div style={{width:`${(stats.gateStats.total / stats.total) * 100}%`, background:'#ff9800', transition:'width 1s'}}></div>
+              </div>
+              <div style={{textAlign:'right', fontSize:'11px', color:'#666', marginBottom:'20px'}}>
+                  Arrival Progress: <strong>{Math.round(((stats.fullyCheckedIn + stats.gateStats.total) / stats.total) * 100)}%</strong> (Green: Done, Orange: Gate)
+              </div>
+
               <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'20px', marginBottom:'30px'}}>
                   <div style={{background:'#e3f2fd', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.male}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#0d47a1', textTransform:'uppercase'}}>Expected Total</div><div style={{fontSize:'32px', fontWeight:'900', color:'#333', display:'flex', alignItems:'baseline', gap:'10px'}}>{stats.total}<span style={{fontSize:'14px', fontWeight:'normal', color:'#555'}}>(M: <span style={{color: COLORS.male, fontWeight:'bold'}}>{stats.expectedMale}</span> | F: <span style={{color: COLORS.female, fontWeight:'bold'}}>{stats.expectedFemale}</span>)</span></div><div style={{fontSize:'11px', color:'#666'}}>Valid Registrations</div></div>
                   <div style={{background:'#fff3e0', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.gate}`}}><div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#e65100', textTransform:'uppercase'}}>At Gate</div><Shield size={16} color="#ef6c00"/></div><div style={{fontSize:'32px', fontWeight:'900', color:'#333'}}>{stats.gateStats.total}</div><BreakdownGrid data={stats.gateStats} /></div>
