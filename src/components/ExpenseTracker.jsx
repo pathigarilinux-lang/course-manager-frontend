@@ -93,7 +93,6 @@ export default function ExpenseTracker({ courses }) {
       const price = parseFloat(priceStr);
       if (isNaN(price) || price <= 0) return alert("Please enter a valid amount.");
       
-      // ✅ ADD TO CART WITH SELECTED DATE
       setCart([...cart, { ...product, name: finalName, price, date: entryDate, uid: Date.now() }]);
   };
 
@@ -125,7 +124,6 @@ export default function ExpenseTracker({ courses }) {
               await fetch(`${API_URL}/expenses`, { 
                   method: 'POST', 
                   headers: {'Content-Type':'application/json'}, 
-                  // ✅ SEND DATE TO BACKEND
                   body: JSON.stringify({ 
                       courseId, 
                       participantId: selectedStudentId, 
@@ -160,7 +158,6 @@ export default function ExpenseTracker({ courses }) {
       try {
           await fetch(`${API_URL}/expenses`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              // Payments are usually "Today", but we could use entryDate if needed. Defaulting to Today for payments.
               body: JSON.stringify({ courseId, participantId: selectedStudentId, type: '✅ Payment Received', amount: -amountToPay })
           });
           const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); 
@@ -171,7 +168,6 @@ export default function ExpenseTracker({ courses }) {
       } catch (err) { console.error(err); alert("Failed to record payment."); }
   };
 
-  // --- REPORT LOADERS ---
   const loadFinancialReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => setFinancialData(Array.isArray(data) ? data : [])); setReportMode('summary'); };
   const loadLaundryReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/participants`).then(res=>res.json()).then(data=>{ const laundryUsers = data.filter(p => p.status === 'Attending' && p.laundry_token_no && p.laundry_token_no.trim() !== ''); setFinancialData(laundryUsers); setReportMode('laundry'); }); };
   const loadPendingReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => { const pendingUsers = (Array.isArray(data) ? data : []).filter(p => parseFloat(p.total_due) > 0); setFinancialData(pendingUsers); setReportMode('pending'); }); };
@@ -180,7 +176,6 @@ export default function ExpenseTracker({ courses }) {
   const currentStudent = participants.find(p => p.participant_id == selectedStudentId);
   const selectedCourseName = courses.find(c => c.course_id == courseId)?.course_name || '';
 
-  // INVOICE RENDER
   const renderInvoice = () => {
       const laundryItems = history.filter(h => h.expense_type.toLowerCase().includes('laundry') && h.amount > 0);
       const shopItems = history.filter(h => !h.expense_type.toLowerCase().includes('laundry') && !h.expense_type.includes('Payment') && h.amount > 0);
@@ -206,7 +201,6 @@ export default function ExpenseTracker({ courses }) {
       );
   };
 
-  // --- REPORT VIEWS ---
   const renderReport = () => {
       if (reportMode === 'laundry') { 
           const sortedList = financialData.sort((a,b) => (parseInt(a.laundry_token_no)||0) - (parseInt(b.laundry_token_no)||0));
@@ -258,7 +252,11 @@ export default function ExpenseTracker({ courses }) {
           <select style={styles.input} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
           <select style={styles.input} onChange={e => setSelectedStudentId(e.target.value)} disabled={!courseId} value={selectedStudentId}>
               <option value="">-- Select Student --</option>
-              {participants.map(p => <option key={p.participant_id} value={p.participant_id}>{p.full_name} ({p.conf_no} | {p.room_no || 'No Room'})</option>)}
+              {participants.map(p => (
+                  <option key={p.participant_id} value={p.participant_id}>
+                      {p.full_name} ({p.conf_no || '-'} | Rm:{p.room_no || '-'} | LT:{p.laundry_token_no || 'NA'})
+                  </option>
+              ))}
           </select>
       </div>
 
