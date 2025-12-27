@@ -113,14 +113,15 @@ export default function CourseAdmin({ courses, refreshCourses }) {
 
   const downloadTemplate = () => {
       const data = [
-          ["ConfNo", "Student", "Gender", "Age", "10d", "STP", "TSC", "20d", "30d", "45d", "60d"],
-          ["OM20", "Amit Kumar", "Male", 30, 8, 4, 0, 1, 1, 0, 0],
-          ["NF15", "Sarah Jones", "Female", 45, 0, 0, 0, 0, 0, 0, 0],
+          ["ConfNo", "Student", "Gender", "Age", "Courses", "10d", "STP", "TSC", "20d", "30d", "45d", "60d"],
+          ["OM20", "Long Course Student", "Male", 30, "", 8, 4, 0, 1, 1, 0, 0],
+          ["NM15", "10-Day Student", "Female", 45, "3", 0, 0, 0, 0, 0, 0, 0],
+          ["NM01", "New Student", "Male", 25, "0", 0, 0, 0, 0, 0, 0, 0],
       ];
       const ws = XLSX.utils.aoa_to_sheet(data);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Template");
-      XLSX.writeFile(wb, "Dhamma_ZeroDay_Template.xlsx");
+      XLSX.writeFile(wb, "Dhamma_Import_Template.xlsx");
   };
 
   const handleFileUpload = (event) => {
@@ -147,7 +148,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ SMART PROCESSOR v6: SMART AGGREGATION RESTORED
+  // ✅ SMART PROCESSOR v7: HYBRID COURSE LOGIC
   const processDataRows = (rows) => {
     if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
@@ -169,7 +170,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         return; 
     }
     
-    // 2. Map Columns (Looking for SPECIFIC course columns for aggregation)
+    // 2. Map Columns
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.toLowerCase() === k.toLowerCase() || h.toLowerCase().includes(k.toLowerCase())));
     
     const map = { 
@@ -177,7 +178,9 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         name: getIndex(['Student', 'Name', 'Sadhaka']), 
         age: getIndex(['Age']), 
         gender: getIndex(['Gender', 'Sex']), 
-        // ✅ Specific Columns for Aggregation
+        // Generic Column (Fallback)
+        generic: getIndex(['Courses', 'History', 'Old/New']), 
+        // Specific Columns (Priority)
         c10: getIndex(['10d']),
         cstp: getIndex(['STP', 'Satipatthana']),
         ctsc: getIndex(['TSC', 'Teen', 'Service']),
@@ -193,8 +196,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         name: map.name > -1 ? headers[map.name] : null,
         conf: map.conf > -1 ? headers[map.conf] : null,
         gender: map.gender > -1 ? headers[map.gender] : 'Auto-Detect from Sections',
-        // Confirming to user that we found course columns
-        courses: (map.c10 > -1 || map.c20 > -1) ? 'Smart Aggregation Active' : 'Not Found',
+        courses_specific: (map.c10 > -1 || map.c20 > -1) ? '✅ Found' : '❌ Not Found',
+        courses_generic: map.generic > -1 ? '✅ Found' : '❌ Not Found',
         missing: []
     };
     if (!report.name) report.missing.push("Student Name");
@@ -246,34 +249,35 @@ export default function CourseAdmin({ courses, refreshCourses }) {
             else if (gVal.startsWith('f')) pGender = 'Female';
         }
 
-        // ✅ D. RESTORED SMART AGGREGATION LOGIC
-        // It reads specific columns and combines them: "10D:5, STP:1"
-        let coursesParts = [];
-        
-        const addCourse = (colIndex, label) => {
-            if (colIndex > -1) {
-                const rawVal = row[colIndex];
-                // Robust check: ensure it's not null/undefined/empty string
-                if (rawVal != null && rawVal !== '') {
-                    const val = parseInt(String(rawVal).trim());
-                    // Only add if > 0
-                    if (!isNaN(val) && val > 0) {
-                        coursesParts.push(`${label}:${val}`);
-                    }
-                }
+        // ✅ D. HYBRID COURSE LOGIC
+        let coursesStr = "0"; // Default to New Student
+
+        let specificParts = [];
+        // Helper to grab number
+        const addSpec = (colIndex, label) => {
+            if (colIndex > -1 && row[colIndex] != null && row[colIndex] !== '') {
+                const val = parseInt(String(row[colIndex]).trim());
+                if (!isNaN(val) && val > 0) specificParts.push(`${label}:${val}`);
             }
         };
 
-        addCourse(map.c10, '10D');
-        addCourse(map.cstp, 'STP');
-        addCourse(map.ctsc, 'TSC');
-        addCourse(map.c20, '20D');
-        addCourse(map.c30, '30D');
-        addCourse(map.c45, '45D');
-        addCourse(map.c60, '60D');
-        
-        // If empty, set to "0" (Standard logic for New Student)
-        const coursesStr = coursesParts.length > 0 ? coursesParts.join(', ') : '0';
+        addSpec(map.c10, '10D');
+        addSpec(map.cstp, 'STP');
+        addSpec(map.ctsc, 'TSC');
+        addSpec(map.c20, '20D');
+        addSpec(map.c30, '30D');
+        addSpec(map.c45, '45D');
+        addSpec(map.c60, '60D');
+
+        // Priority 1: Specific Columns have data
+        if (specificParts.length > 0) {
+            coursesStr = specificParts.join(', ');
+        } 
+        // Priority 2: Generic Column has data
+        else if (map.generic > -1 && row[map.generic] != null && row[map.generic] !== '') {
+            coursesStr = String(row[map.generic]).trim();
+        }
+        // Priority 3: Fallback is already "0"
 
         parsedStudents.push({ 
             id: Date.now() + i, 
@@ -529,7 +533,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                       <div><strong>Name:</strong> {mappingReport.name || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Gender:</strong> {mappingReport.gender ? <span style={{color:'#007bff'}}>{mappingReport.gender}</span> : <span style={{color:'red'}}>Missing</span>}</div>
-                      <div><strong>Courses:</strong> {mappingReport.courses}</div>
+                      <div><strong>Courses Specific:</strong> {mappingReport.courses_specific}</div>
+                      <div><strong>Courses Generic:</strong> {mappingReport.courses_generic}</div>
                   </div>
               </div>
           )}
