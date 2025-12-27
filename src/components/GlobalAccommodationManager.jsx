@@ -138,7 +138,22 @@ export default function GlobalAccommodationManager() {
           else { const err = await res.json(); alert("❌ Error: " + err.error); }
       } catch (err) { alert("❌ Network Error"); }
   };
-
+<button 
+    onClick={() => setShowAutoTool(true)} 
+    disabled={!selectedCourse} // 👈 ADD THIS: Disable if no course selected
+    style={{
+        display:'flex', alignItems:'center', gap:'6px', 
+        background: selectedCourse ? 'linear-gradient(45deg, #6a11cb, #2575fc)' : '#ccc', // 👈 Change color if disabled
+        color:'white', border:'none', padding:'8px 15px', 
+        borderRadius:'20px', 
+        cursor: selectedCourse ? 'pointer' : 'not-allowed', // 👈 Change cursor
+        fontWeight:'bold',
+        boxShadow: selectedCourse ? '0 4px 10px rgba(106, 17, 203, 0.3)' : 'none',
+        opacity: selectedCourse ? 1 : 0.7
+    }}
+>
+    <Settings size={16}/> ✨ Auto-Allocate
+</button>
   // ✅ DELETE ROOM LOGIC
   const handleDeleteRoom = async () => {
       if (!deleteRoomNo.trim()) return;
