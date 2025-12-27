@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, Database, Save, Download, Trash2, Calendar, Search, PlusCircle, Edit, FileSpreadsheet, CheckCircle, AlertTriangle } from 'lucide-react';
-import * as XLSX from 'xlsx'; // ✅ REQUIRES: npm install xlsx
+import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
@@ -111,18 +111,17 @@ export default function CourseAdmin({ courses, refreshCourses }) {
 
   // --- ✅ EXCEL / IMPORT TOOLS ---
 
-  // 1. Download Excel Template (Corrected Codes)
+  // 1. Download Your Specific Template
   const downloadTemplate = () => {
       const data = [
-          ["Conf No", "Full Name", "Age", "Gender", "Old/New (Courses)", "Email", "Phone", "Remarks"],
-          ["OM20", "Amit Kumar", 30, "Male", "Old Student", "amit@example.com", "9999999999", "Medical: Back pain"],
-          ["NF15", "Sarah Jones", 45, "Female", "New Student", "sarah@example.com", "8888888888", "None"],
-          ["SM01", "Rahul Singh", 28, "Male", "Server", "rahul@example.com", "7777777777", "Kitchen"]
+          ["ConfNo", "Student", "Gender", "Age", "10d", "STP", "TSC", "20d", "30d", "45d", "60d"],
+          ["OM20", "Amit Kumar", "Male", 30, 1, 0, 0, 0, 0, 0, 0],
+          ["NF15", "Sarah Jones", "Female", 45, 3, 1, 0, 0, 0, 0, 0],
       ];
       const ws = XLSX.utils.aoa_to_sheet(data);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Template");
-      XLSX.writeFile(wb, "Dhamma_Student_Import_Template.xlsx");
+      XLSX.writeFile(wb, "Dhamma_ZeroDay_Template.xlsx");
   };
 
   const handleFileUpload = (event) => {
@@ -149,17 +148,17 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ SMART PROCESSOR WITH STRICT PATTERN MATCHING
+  // ✅ SMART PROCESSOR FOR SPECIFIC COLUMNS
   const processDataRows = (rows) => {
     if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
-    // 1. Find Header Row
+    // 1. Find Header Row (Look for "ConfNo" or "Student")
     let headerRowIndex = -1;
     let headers = [];
     
     for (let i = 0; i < Math.min(rows.length, 10); i++) {
         const rowStr = rows[i].map(c => String(c).toLowerCase()).join(' ');
-        if (rowStr.includes('name') && (rowStr.includes('gender') || rowStr.includes('age'))) {
+        if ((rowStr.includes('conf') && rowStr.includes('no')) || (rowStr.includes('student') && rowStr.includes('age'))) {
             headerRowIndex = i;
             headers = rows[i].map(h => String(h).trim()); 
             break;
@@ -167,57 +166,39 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     }
     
     if (headerRowIndex === -1) { 
-        setUploadStatus({ type: 'error', msg: '❌ Could not find headers (Name, Gender). Please check the file.' }); 
+        setUploadStatus({ type: 'error', msg: '❌ Could not find headers (ConfNo, Student). Please check the file.' }); 
         return; 
     }
     
-    // 2. Map Columns (Basic Keywords)
-    const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.toLowerCase().includes(k)));
+    // 2. Map Specific Columns
+    const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.toLowerCase() === k.toLowerCase() || h.toLowerCase().includes(k.toLowerCase())));
     
     const map = { 
-        name: getIndex(['name', 'student', 'given']), 
-        age: getIndex(['age']), 
-        gender: getIndex(['gender', 'sex']), 
-        courses: getIndex(['course', 'history', 'old', 'new']), 
-        email: getIndex(['email']), 
-        phone: getIndex(['phone', 'mobile']), 
-        notes: getIndex(['notes', 'remark', 'medical']),
-        conf: -1 // Will detect strictly below
+        conf: getIndex(['ConfNo', 'Conf No', 'Form No']), 
+        name: getIndex(['Student', 'Name', 'Sadhaka']), 
+        age: getIndex(['Age']), 
+        gender: getIndex(['Gender', 'Sex']), 
+        // Course Columns
+        c10: getIndex(['10d', '10-Day']),
+        cstp: getIndex(['STP', 'Satipatthana']),
+        ctsc: getIndex(['TSC', 'Teen']),
+        c20: getIndex(['20d']),
+        c30: getIndex(['30d']),
+        c45: getIndex(['45d']),
+        c60: getIndex(['60d']),
+        languages: getIndex(['Languages', 'Language'])
     };
-
-    // 3. 🔍 STRICT CONF NO DETECTION (OM/NM/SM/OF/NF/SF)
-    // We scan the first 5 rows of data to find which column holds the pattern.
-    const confPattern = /^(OM|NM|SM|OF|NF|SF)\s*\d+/i; // Starts with Code + Number
-    let detectedConfIndex = -1;
-
-    // Scan up to 10 rows of data
-    for (let r = headerRowIndex + 1; r < Math.min(rows.length, headerRowIndex + 10); r++) {
-        const row = rows[r];
-        row.forEach((cell, colIndex) => {
-            if (confPattern.test(String(cell).trim())) {
-                detectedConfIndex = colIndex;
-            }
-        });
-        if (detectedConfIndex > -1) break; // Found it!
-    }
-
-    // Fallback to keyword search if data scan failed (e.g., empty file)
-    if (detectedConfIndex === -1) {
-        detectedConfIndex = getIndex(['conf', 'ref', 'token']); // Removed generic 'id'/'no' to prevent false positives
-    }
-    map.conf = detectedConfIndex;
 
     // Build Report
     const report = {
         name: map.name > -1 ? headers[map.name] : null,
         gender: map.gender > -1 ? headers[map.gender] : null,
-        age: map.age > -1 ? headers[map.age] : null,
         conf: map.conf > -1 ? headers[map.conf] : null,
         missing: []
     };
-    if (!report.name) report.missing.push("Name");
+    if (!report.name) report.missing.push("Student (Name)");
     if (!report.gender) report.missing.push("Gender");
-    if (!report.conf) report.missing.push("Conf No (Must match OM/NM...)");
+    if (!report.conf) report.missing.push("ConfNo");
     
     setMappingReport(report); 
 
@@ -226,22 +207,33 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         return;
     }
     
-    // 4. Extract Data
+    // 3. Extract & Transform Data
     const parsedStudents = rows.slice(headerRowIndex + 1).map((row, index) => {
       const rawName = map.name > -1 ? row[map.name] : '';
       if (!rawName) return null; 
       
+      // Aggregate Courses
+      let coursesParts = [];
+      if (map.c10 > -1 && row[map.c10]) coursesParts.push(`10D:${row[map.c10]}`);
+      if (map.cstp > -1 && row[map.cstp]) coursesParts.push(`STP:${row[map.cstp]}`);
+      if (map.ctsc > -1 && row[map.ctsc]) coursesParts.push(`TSC:${row[map.ctsc]}`);
+      if (map.c20 > -1 && row[map.c20]) coursesParts.push(`20D:${row[map.c20]}`);
+      if (map.c30 > -1 && row[map.c30]) coursesParts.push(`30D:${row[map.c30]}`);
+      if (map.c45 > -1 && row[map.c45]) coursesParts.push(`45D:${row[map.c45]}`);
+      if (map.c60 > -1 && row[map.c60]) coursesParts.push(`60D:${row[map.c60]}`);
+      
+      const coursesStr = coursesParts.length > 0 ? coursesParts.join(', ') : 'New';
+
       return { 
           id: Date.now() + index, 
-          // Ensure Conf No is cleaned and formatted
           conf_no: map.conf > -1 ? String(row[map.conf] || '').trim().toUpperCase().replace(/\s+/g, '') : `TEMP-${index + 1}`, 
           full_name: rawName, 
           age: map.age > -1 ? row[map.age] : '', 
           gender: map.gender > -1 ? row[map.gender] : '', 
-          courses_info: map.courses > -1 ? row[map.courses] : '', 
-          email: map.email > -1 ? row[map.email] : '', 
-          mobile: map.phone > -1 ? row[map.phone] : '', 
-          notes: map.notes > -1 ? row[map.notes] : '', 
+          courses_info: coursesStr, 
+          email: '', // Not in mandatory list
+          mobile: '', // Not in mandatory list
+          notes: map.languages > -1 ? `Lang: ${row[map.languages]}` : '', 
           status: (map.conf > -1 && row[map.conf]) ? 'Active' : 'Pending ID' 
       };
     }).filter(s => s !== null);
@@ -485,11 +477,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                   <div style={{fontSize:'13px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
                       <div><strong>Name:</strong> {mappingReport.name || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Gender:</strong> {mappingReport.gender || <span style={{color:'red'}}>Missing</span>}</div>
-                      <div><strong>Age:</strong> {mappingReport.age || <span style={{color:'#999'}}>Skip</span>}</div>
-                      <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'red'}}>❌ No Match</span>}</div>
-                  </div>
-                  <div style={{fontSize:'12px', color:'#555', marginTop:'10px', fontStyle:'italic'}}>
-                      * Conf No must start with OM, NM, SM, OF, NF, or SF to be detected.
+                      <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'red'}}>Missing</span>}</div>
+                      <div><strong>Age:</strong> {mappingReport.age ? 'Found' : 'Skip'}</div>
                   </div>
               </div>
           )}
@@ -507,7 +496,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                </div>
                <div style={{maxHeight:'300px', overflowY:'auto', border:'1px solid #eee', borderRadius:'8px'}}>
                  <table style={{width:'100%', fontSize:'13px', borderCollapse:'collapse'}}>
-                   <thead style={{position:'sticky', top:0, background:'#f1f1f1'}}><tr><th style={thPrint}>Conf</th><th style={thPrint}>Name</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Courses</th></tr></thead>
+                   <thead style={{position:'sticky', top:0, background:'#f1f1f1'}}><tr><th style={thPrint}>Conf</th><th style={thPrint}>Name</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Courses Info</th></tr></thead>
                    <tbody>{students.map(s => (<tr key={s.id} style={{borderBottom:'1px solid #eee'}}><td style={{padding:'8px', color: s.status === 'Pending ID' ? 'orange' : 'blue', fontWeight:'bold'}}>{s.conf_no}</td><td style={{padding:'8px'}}>{s.full_name}</td><td style={{padding:'8px'}}>{s.age}</td><td style={{padding:'8px'}}>{s.gender}</td><td style={{padding:'8px', color:'#666'}}>{s.courses_info}</td></tr>))}</tbody>
                  </table>
                </div>
