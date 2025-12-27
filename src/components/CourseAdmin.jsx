@@ -147,24 +147,15 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ SMART PROCESSOR v2 (Includes Top-Row Metadata Scanning)
+  // ✅ SMART PROCESSOR v3: SECTION-AWARE SCANNING
   const processDataRows = (rows) => {
     if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
-    // --- 1. METADATA SCANNING (Look for "Gender: Male" in top rows) ---
-    let detectedFileGender = null;
-    // Scan first 10 rows for "Gender: MALE" or "Gender: FEMALE" patterns
-    for (let i = 0; i < Math.min(rows.length, 10); i++) {
-        const rowStr = rows[i].map(c => String(c).toUpperCase()).join(' ');
-        if (rowStr.includes('GENDER: MALE') || rowStr.includes('GENDER:MALE')) detectedFileGender = 'Male';
-        else if (rowStr.includes('GENDER: FEMALE') || rowStr.includes('GENDER:FEMALE')) detectedFileGender = 'Female';
-    }
-
-    // --- 2. FIND HEADER ROW ---
+    // 1. Initial Scan for Header Index (To establish Column Mapping)
     let headerRowIndex = -1;
     let headers = [];
     
-    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    for (let i = 0; i < Math.min(rows.length, 15); i++) {
         const rowStr = rows[i].map(c => String(c).toLowerCase()).join(' ');
         if ((rowStr.includes('conf') && rowStr.includes('no')) || (rowStr.includes('student') && rowStr.includes('age'))) {
             headerRowIndex = i;
@@ -178,7 +169,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         return; 
     }
     
-    // --- 3. MAP COLUMNS ---
+    // 2. Map Columns based on that first header row
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.toLowerCase() === k.toLowerCase() || h.toLowerCase().includes(k.toLowerCase())));
     
     const map = { 
@@ -196,64 +187,86 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         languages: getIndex(['Languages', 'Language'])
     };
 
-    // --- 4. GENERATE REPORT ---
+    // 3. Generate Report
     const report = {
         name: map.name > -1 ? headers[map.name] : null,
         conf: map.conf > -1 ? headers[map.conf] : null,
-        // Priority: Column > Metadata
-        gender: map.gender > -1 ? headers[map.gender] : (detectedFileGender ? `📂 File Meta: ${detectedFileGender}` : null), 
+        gender: map.gender > -1 ? headers[map.gender] : 'Auto-Detect from Sections', 
         missing: []
     };
-
     if (!report.name) report.missing.push("Student Name");
     if (!report.conf) report.missing.push("ConfNo");
-    
-    // Only fail if BOTH column and metadata are missing
-    if (!report.gender) report.missing.push("Gender (Column missing & 'Gender: M/F' header not found)");
-    
     setMappingReport(report); 
 
     if (report.missing.length > 0) {
         setUploadStatus({ type: 'error', msg: `❌ Issues found: ${report.missing.join(', ')}` });
         return;
     }
-    
-    // --- 5. EXTRACT DATA ---
-    const parsedStudents = rows.slice(headerRowIndex + 1).map((row, index) => {
-      const rawName = map.name > -1 ? row[map.name] : '';
-      if (!rawName) return null; 
-      
-      // Resolve Gender: Row Value -> Metadata Value
-      let pGender = detectedFileGender; 
-      if (map.gender > -1 && row[map.gender]) {
-          const gVal = String(row[map.gender]).trim().toLowerCase();
-          if (gVal.startsWith('m')) pGender = 'Male';
-          else if (gVal.startsWith('f')) pGender = 'Female';
-      }
 
-      // Aggregate Courses
-      let coursesParts = [];
-      if (map.c10 > -1 && row[map.c10]) coursesParts.push(`10D:${row[map.c10]}`);
-      if (map.cstp > -1 && row[map.cstp]) coursesParts.push(`STP:${row[map.cstp]}`);
-      if (map.ctsc > -1 && row[map.ctsc]) coursesParts.push(`TSC:${row[map.ctsc]}`);
-      if (map.c20 > -1 && row[map.c20]) coursesParts.push(`20D:${row[map.c20]}`);
-      if (map.c30 > -1 && row[map.c30]) coursesParts.push(`30D:${row[map.c30]}`);
-      
-      const coursesStr = coursesParts.length > 0 ? coursesParts.join(', ') : 'New';
+    // 4. MAIN LOOP: Extract Data with DYNAMIC GENDER SWITCHING
+    const parsedStudents = [];
+    let currentSectionGender = null; // Start unknown
 
-      return { 
-          id: Date.now() + index, 
-          conf_no: map.conf > -1 ? String(row[map.conf] || '').trim().toUpperCase().replace(/\s+/g, '') : `TEMP-${index + 1}`, 
-          full_name: rawName, 
-          age: map.age > -1 ? row[map.age] : '', 
-          gender: pGender, // ✅ Uses inferred gender
-          courses_info: coursesStr, 
-          email: '', 
-          mobile: '', 
-          notes: map.languages > -1 ? `Lang: ${row[map.languages]}` : '', 
-          status: (map.conf > -1 && row[map.conf]) ? 'Active' : 'Pending ID' 
-      };
-    }).filter(s => s !== null);
+    // Pre-scan top rows to find initial gender (e.g. Row 4 "Gender: MALE")
+    for(let i=0; i<headerRowIndex; i++) {
+        const rowStr = rows[i].map(c => String(c).toUpperCase()).join(' ');
+        if (rowStr.includes('GENDER: MALE') || rowStr.includes('GENDER:MALE')) currentSectionGender = 'Male';
+        else if (rowStr.includes('GENDER: FEMALE') || rowStr.includes('GENDER:FEMALE')) currentSectionGender = 'Female';
+    }
+
+    // Iterate through ALL rows starting from the header
+    for (let i = headerRowIndex + 1; i < rows.length; i++) {
+        const row = rows[i];
+        const rowStr = row.map(c => String(c).toUpperCase()).join(' ');
+
+        // A. CHECK FOR SECTION HEADERS (Switch Gender mid-file)
+        if (rowStr.includes('GENDER: MALE') || rowStr.includes('GENDER:MALE')) {
+            currentSectionGender = 'Male';
+            continue; // Skip this row, it's just a header
+        }
+        if (rowStr.includes('GENDER: FEMALE') || rowStr.includes('GENDER:FEMALE')) {
+            currentSectionGender = 'Female';
+            continue; // Skip
+        }
+
+        // B. SKIP REPEATED HEADER ROWS (Don't import "Student" as a student name)
+        if (rowStr.includes('CONFNO') && rowStr.includes('STUDENT')) continue;
+
+        // C. PARSE STUDENT ROW
+        const rawName = map.name > -1 ? row[map.name] : '';
+        if (!rawName) continue; // Skip empty rows
+
+        // Determine Gender: Column Specific > Section Gender > Default
+        let pGender = currentSectionGender;
+        if (map.gender > -1 && row[map.gender]) {
+            const gVal = String(row[map.gender]).trim().toLowerCase();
+            if (gVal.startsWith('m')) pGender = 'Male';
+            else if (gVal.startsWith('f')) pGender = 'Female';
+        }
+
+        // Aggregate Courses (Only add if value exists)
+        let coursesParts = [];
+        if (map.c10 > -1 && row[map.c10]) coursesParts.push(`10D:${row[map.c10]}`);
+        if (map.cstp > -1 && row[map.cstp]) coursesParts.push(`STP:${row[map.cstp]}`);
+        if (map.ctsc > -1 && row[map.ctsc]) coursesParts.push(`TSC:${row[map.ctsc]}`);
+        if (map.c20 > -1 && row[map.c20]) coursesParts.push(`20D:${row[map.c20]}`);
+        if (map.c30 > -1 && row[map.c30]) coursesParts.push(`30D:${row[map.c30]}`);
+        
+        const coursesStr = coursesParts.length > 0 ? coursesParts.join(', ') : 'New';
+
+        parsedStudents.push({ 
+            id: Date.now() + i, 
+            conf_no: map.conf > -1 ? String(row[map.conf] || '').trim().toUpperCase().replace(/\s+/g, '') : `TEMP-${i}`, 
+            full_name: rawName, 
+            age: map.age > -1 ? row[map.age] : '', 
+            gender: pGender || 'Unknown', 
+            courses_info: coursesStr, 
+            email: '', 
+            mobile: '', 
+            notes: map.languages > -1 ? `Lang: ${row[map.languages]}` : '', 
+            status: (map.conf > -1 && row[map.conf]) ? 'Active' : 'Pending ID' 
+        });
+    }
     
     setStudents(parsedStudents);
     setUploadStatus({ type: 'success', msg: `✅ Ready to import ${parsedStudents.length} students.` });
