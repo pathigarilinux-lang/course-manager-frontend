@@ -9,6 +9,13 @@ const INDIAN_COMMODES = new Set([
     349, 350, 351, 362, 363
 ]);
 
+// --- HELPER: Generate Course Tag (e.g. 10D, SAT) ---
+const getCourseTag = (courseName) => {
+    if (!courseName) return '';
+    const match = courseName.match(/(\d+)/);
+    return match ? `${match[1]}D` : courseName.substring(0, 3).toUpperCase();
+};
+
 export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     
     // --- HELPER: Identify Toilet Type ---
@@ -94,17 +101,18 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
         
         const p = bed.occupant;
         const isOcc = !!p;
-        
         const isMedical = group.baseNum >= 321 && group.baseNum <= 328;
 
         let badgeColor = null;
         let badgeText = null;
+        let courseTag = '';
 
         if (isOcc) {
             const conf = (p.conf_no || '').toUpperCase();
             const isOld = conf.startsWith('O') || conf.startsWith('S');
             badgeText = isOld ? 'O' : 'N';
             badgeColor = isOld ? '#007bff' : '#ffc107'; 
+            courseTag = getCourseTag(p.course_name);
         }
 
         const bg = isOcc ? '#f8f9fa' : (isMedical ? '#fff8e1' : 'white');
@@ -135,8 +143,11 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
 
                 {isOcc ? (
                     <div style={{fontSize:'10px', lineHeight:'1.1'}}>
-                        <div style={{fontWeight:'bold', color:'#000', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{p.full_name}</div>
-                        <div style={{fontSize:'9px', color:'#444'}}>{p.conf_no}</div>
+                        <div style={{fontWeight:'bold', color:'#000', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginBottom:'2px'}}>{p.full_name}</div>
+                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                            <span style={{fontSize:'9px', color:'#444'}}>{p.conf_no}</span>
+                            {courseTag && <span style={{fontSize:'8px', background:'#e0e0e0', color:'#333', padding:'1px 3px', borderRadius:'3px', fontWeight:'bold'}}>{courseTag}</span>}
+                        </div>
                     </div>
                 ) : <div style={{fontSize:'9px', color: isMedical ? '#e65100' : '#ccc', textAlign:'center', fontWeight: isMedical ? 'bold' : 'normal'}}>{isMedical ? 'MED/SR' : 'EMPTY'}</div>}
 
@@ -180,11 +191,14 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
 
                         let badgeColor = null;
                         let badgeText = null;
+                        let courseTag = '';
+
                         if (isOcc) {
                             const conf = (p.conf_no || '').toUpperCase();
                             const isOld = conf.startsWith('O') || conf.startsWith('S');
                             badgeText = isOld ? 'O' : 'N';
                             badgeColor = isOld ? '#007bff' : '#ffc107';
+                            courseTag = getCourseTag(p.course_name);
                         }
 
                         return (
@@ -194,7 +208,10 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                                 {isOcc ? (
                                     <div style={{textAlign:'center', lineHeight:'1'}}>
                                         <div style={{fontSize:'9px', fontWeight:'bold', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{p.full_name.split(' ')[0]}</div>
-                                        <div style={{fontSize:'8px', color:'#444'}}>{p.conf_no}</div>
+                                        <div style={{display:'flex', justifyContent:'center', alignItems:'center', gap:'2px', marginTop:'2px'}}>
+                                            <span style={{fontSize:'8px', color:'#444'}}>{p.conf_no}</span>
+                                            {courseTag && <span style={{fontSize:'7px', background:'#e0e0e0', color:'#333', padding:'0 2px', borderRadius:'2px', fontWeight:'bold'}}>{courseTag}</span>}
+                                        </div>
                                     </div>
                                 ) : <div style={{fontSize:'10px', color:'rgba(0,0,0,0.1)', textAlign:'center'}}>🛏️</div>}
 
