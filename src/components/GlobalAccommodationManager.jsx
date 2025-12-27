@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, RefreshCw, Users, BedDouble, Calendar } from 'lucide-react';
+import { Search, RefreshCw, Users, BedDouble, Calendar, PlusCircle, Save, X } from 'lucide-react'; // Added Icons
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout';     
 import FemaleBlockLayout from './FemaleBlockLayout'; 
@@ -12,6 +12,10 @@ export default function GlobalAccommodationManager() {
   
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
+
+  // ✅ NEW: Manual Room Addition State
+  const [showAddRoom, setShowAddRoom] = useState(false);
+  const [newRoomData, setNewRoomData] = useState({ roomNo: '', type: 'Male' });
 
   // ✅ DASHBOARD STATE
   const [dashboard, setDashboard] = useState({
@@ -139,6 +143,31 @@ export default function GlobalAccommodationManager() {
       loadData();
   };
 
+  // ✅ NEW: HANDLE ADD MANUAL ROOM
+  const handleAddRoom = async () => {
+      if (!newRoomData.roomNo.trim()) return alert("Room Number is required");
+      
+      try {
+          const res = await fetch(`${API_URL}/rooms`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roomNo: newRoomData.roomNo.trim().toUpperCase(), type: newRoomData.type })
+          });
+
+          if (res.ok) {
+              alert("✅ Room Added Successfully!");
+              setShowAddRoom(false);
+              setNewRoomData({ roomNo: '', type: activeTab }); // Reset form
+              loadData(); // Refresh grid
+          } else {
+              const err = await res.json();
+              alert("❌ Error: " + (err.error || "Failed to add room"));
+          }
+      } catch (err) {
+          alert("❌ Network Error");
+      }
+  };
+
   const searchResult = searchQuery ? occupancy.find(p => p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || p.conf_no.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
   return (
@@ -152,7 +181,7 @@ export default function GlobalAccommodationManager() {
 
           <div style={{display:'flex', gap:'15px', flexWrap:'wrap'}}>
               
-              {/* COURSE CARDS (Separated by Gender) */}
+              {/* COURSE CARDS */}
               {dashboard.courses.map(c => (
                   <div key={c.name} style={{
                       background:'white', borderRadius:'10px', padding:'10px 15px', minWidth:'180px',
@@ -163,14 +192,10 @@ export default function GlobalAccommodationManager() {
                           <span>{c.name}</span>
                           <span style={{color:'#333'}}>Total: {c.total}</span>
                       </div>
-                      
-                      {/* Gender Breakdown Row */}
                       <div style={{display:'flex', justifyContent:'space-between', fontSize:'14px', marginBottom:'6px', fontWeight:'bold'}}>
                           <span style={{color:'#007bff'}}>M: {c.male}</span>
                           <span style={{color:'#e91e63'}}>F: {c.female}</span>
                       </div>
-
-                      {/* Old/New Breakdown Row */}
                       <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px', color:'#666'}}>
                           <span>Old: {c.old}</span>
                           <span>New: {c.new}</span>
@@ -178,7 +203,7 @@ export default function GlobalAccommodationManager() {
                   </div>
               ))}
 
-              {/* AVAILABLE POOL CARDS (Male & Female Separated) */}
+              {/* POOL CARDS */}
               <div style={{
                   background:'#e3f2fd', borderRadius:'10px', padding:'10px 15px', minWidth:'140px',
                   boxShadow:'0 2px 8px rgba(0,0,0,0.08)', borderTop:'4px solid #007bff',
@@ -216,7 +241,7 @@ export default function GlobalAccommodationManager() {
                   return (
                       <button 
                           key={gender}
-                          onClick={() => setActiveTab(gender)} 
+                          onClick={() => { setActiveTab(gender); setNewRoomData(prev => ({...prev, type: gender})); }} 
                           style={{
                               padding:'8px 20px', borderRadius:'20px', border:'none', 
                               background: isActive ? (gender === 'Male' ? '#e3f2fd' : '#fce4ec') : '#f5f5f5',
@@ -230,7 +255,7 @@ export default function GlobalAccommodationManager() {
               })}
           </div>
 
-          {/* SEARCH & REFRESH */}
+          {/* ACTIONS: SEARCH, REFRESH, ADD */}
           <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
               {moveMode && (
                   <div style={{background:'#fff3cd', color:'#856404', padding:'6px 12px', borderRadius:'6px', fontSize:'13px', fontWeight:'bold', display:'flex', alignItems:'center', gap:'10px', border:'1px solid #ffeeba'}}>
@@ -239,6 +264,7 @@ export default function GlobalAccommodationManager() {
                   </div>
               )}
 
+              {/* SEARCH */}
               <div style={{position:'relative'}}>
                   <div style={{display:'flex', alignItems:'center', background:'#f8f9fa', border:'1px solid #ddd', borderRadius:'6px', padding:'6px 12px', width:'220px'}}>
                       <Search size={16} color="#aaa"/>
@@ -254,9 +280,14 @@ export default function GlobalAccommodationManager() {
                       </div>
                   )}
               </div>
+              
+              {/* ✅ ADD ROOM BUTTON */}
+              <button onClick={() => setShowAddRoom(true)} style={{background:'#28a745', border:'none', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', color:'white', display:'flex', alignItems:'center', gap:'5px', fontWeight:'bold'}} title="Add Emergency/Manual Room">
+                  <PlusCircle size={16}/> Add Room
+              </button>
 
               <button onClick={loadData} style={{background:'white', border:'1px solid #ddd', borderRadius:'6px', padding:'6px 10px', cursor:'pointer', color:'#555', display:'flex', alignItems:'center', gap:'5px'}} title="Refresh Data">
-                  <RefreshCw size={16}/> Refresh
+                  <RefreshCw size={16}/>
               </button>
           </div>
       </div>
@@ -273,6 +304,48 @@ export default function GlobalAccommodationManager() {
               </div>
           )}
       </div>
+
+      {/* ✅ ADD ROOM MODAL */}
+      {showAddRoom && (
+          <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}>
+              <div style={{background:'white', padding:'25px', borderRadius:'12px', width:'350px', boxShadow:'0 10px 30px rgba(0,0,0,0.2)'}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+                      <h3 style={{margin:0, color:'#333'}}>Add Manual Room</h3>
+                      <button onClick={()=>setShowAddRoom(false)} style={{border:'none', background:'none', cursor:'pointer'}}><X size={20} color="#999"/></button>
+                  </div>
+                  
+                  <div style={{marginBottom:'15px'}}>
+                      <label style={{display:'block', fontSize:'12px', fontWeight:'bold', color:'#666', marginBottom:'5px'}}>Room Number / Name</label>
+                      <input 
+                          autoFocus
+                          placeholder="e.g. ISO-1, STAFF-A, 401..." 
+                          value={newRoomData.roomNo} 
+                          onChange={e => setNewRoomData({...newRoomData, roomNo: e.target.value})}
+                          style={{width:'100%', padding:'10px', border:'1px solid #ddd', borderRadius:'6px', fontSize:'14px'}} 
+                      />
+                  </div>
+
+                  <div style={{marginBottom:'20px'}}>
+                      <label style={{display:'block', fontSize:'12px', fontWeight:'bold', color:'#666', marginBottom:'5px'}}>Block / Gender</label>
+                      <select 
+                          value={newRoomData.type} 
+                          onChange={e => setNewRoomData({...newRoomData, type: e.target.value})}
+                          style={{width:'100%', padding:'10px', border:'1px solid #ddd', borderRadius:'6px', fontSize:'14px'}}
+                      >
+                          <option value="Male">Male Block</option>
+                          <option value="Female">Female Block</option>
+                      </select>
+                  </div>
+
+                  <div style={{display:'flex', gap:'10px'}}>
+                      <button onClick={()=>setShowAddRoom(false)} style={{flex:1, padding:'10px', borderRadius:'6px', border:'1px solid #ddd', background:'white', cursor:'pointer'}}>Cancel</button>
+                      <button onClick={handleAddRoom} style={{flex:1, padding:'10px', borderRadius:'6px', border:'none', background:'#007bff', color:'white', fontWeight:'bold', cursor:'pointer', display:'flex', justifyContent:'center', alignItems:'center', gap:'8px'}}>
+                          <Save size={16}/> Save
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
 
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
