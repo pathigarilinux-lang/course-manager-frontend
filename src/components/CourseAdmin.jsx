@@ -11,7 +11,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
   // State
   const [students, setStudents] = useState([]);
   const [uploadStatus, setUploadStatus] = useState(null);
-  const [mappingReport, setMappingReport] = useState(null); // ✅ Stores the mapping confirmation details
+  const [mappingReport, setMappingReport] = useState(null);
   const [selectedCourseForUpload, setSelectedCourseForUpload] = useState('');
   
   // Course Form State
@@ -111,11 +111,13 @@ export default function CourseAdmin({ courses, refreshCourses }) {
 
   // --- ✅ EXCEL / IMPORT TOOLS ---
 
+  // 1. Download Excel Template (Corrected Codes)
   const downloadTemplate = () => {
       const data = [
-          ["Full Name", "Age", "Gender", "Conf No", "Old/New (Courses)", "Email", "Phone", "Remarks"],
-          ["John Doe", 30, "Male", "N12345", "S:1 L:0 (New)", "john@example.com", "9999999999", "Medical: Back pain"],
-          ["Jane Smith", 45, "Female", "O98765", "S:3 L:1 (Old)", "jane@example.com", "8888888888", "Server"]
+          ["Conf No", "Full Name", "Age", "Gender", "Old/New (Courses)", "Email", "Phone", "Remarks"],
+          ["OM20", "Amit Kumar", 30, "Male", "Old Student", "amit@example.com", "9999999999", "Medical: Back pain"],
+          ["NF15", "Sarah Jones", 45, "Female", "New Student", "sarah@example.com", "8888888888", "None"],
+          ["SM01", "Rahul Singh", 28, "Male", "Server", "rahul@example.com", "7777777777", "Kitchen"]
       ];
       const ws = XLSX.utils.aoa_to_sheet(data);
       const wb = XLSX.utils.book_new();
@@ -127,7 +129,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     const file = event.target.files[0];
     if (!file) return;
     setUploadStatus({ type: 'info', msg: 'Reading file...' });
-    setMappingReport(null); // Reset report
+    setMappingReport(null); 
 
     const reader = new FileReader();
     reader.onload = (e) => { 
@@ -147,7 +149,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ SMART PROCESSOR WITH CONFIRMATION REPORT
+  // ✅ SMART PROCESSOR WITH STRICT PATTERN MATCHING
   const processDataRows = (rows) => {
     if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
@@ -159,7 +161,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         const rowStr = rows[i].map(c => String(c).toLowerCase()).join(' ');
         if (rowStr.includes('name') && (rowStr.includes('gender') || rowStr.includes('age'))) {
             headerRowIndex = i;
-            headers = rows[i].map(h => String(h).trim()); // Keep original case for display
+            headers = rows[i].map(h => String(h).trim()); 
             break;
         }
     }
@@ -169,21 +171,43 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         return; 
     }
     
-    // 2. Map Columns & Generate Report
+    // 2. Map Columns (Basic Keywords)
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.toLowerCase().includes(k)));
     
     const map = { 
-        conf: getIndex(['conf', 'ref', 'id', 'no.']), 
         name: getIndex(['name', 'student', 'given']), 
         age: getIndex(['age']), 
         gender: getIndex(['gender', 'sex']), 
         courses: getIndex(['course', 'history', 'old', 'new']), 
         email: getIndex(['email']), 
         phone: getIndex(['phone', 'mobile']), 
-        notes: getIndex(['notes', 'remark', 'medical']) 
+        notes: getIndex(['notes', 'remark', 'medical']),
+        conf: -1 // Will detect strictly below
     };
 
-    // Build the Confirmation Report
+    // 3. 🔍 STRICT CONF NO DETECTION (OM/NM/SM/OF/NF/SF)
+    // We scan the first 5 rows of data to find which column holds the pattern.
+    const confPattern = /^(OM|NM|SM|OF|NF|SF)\s*\d+/i; // Starts with Code + Number
+    let detectedConfIndex = -1;
+
+    // Scan up to 10 rows of data
+    for (let r = headerRowIndex + 1; r < Math.min(rows.length, headerRowIndex + 10); r++) {
+        const row = rows[r];
+        row.forEach((cell, colIndex) => {
+            if (confPattern.test(String(cell).trim())) {
+                detectedConfIndex = colIndex;
+            }
+        });
+        if (detectedConfIndex > -1) break; // Found it!
+    }
+
+    // Fallback to keyword search if data scan failed (e.g., empty file)
+    if (detectedConfIndex === -1) {
+        detectedConfIndex = getIndex(['conf', 'ref', 'token']); // Removed generic 'id'/'no' to prevent false positives
+    }
+    map.conf = detectedConfIndex;
+
+    // Build Report
     const report = {
         name: map.name > -1 ? headers[map.name] : null,
         gender: map.gender > -1 ? headers[map.gender] : null,
@@ -193,22 +217,24 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     };
     if (!report.name) report.missing.push("Name");
     if (!report.gender) report.missing.push("Gender");
+    if (!report.conf) report.missing.push("Conf No (Must match OM/NM...)");
     
-    setMappingReport(report); // Show user what we found
+    setMappingReport(report); 
 
     if (report.missing.length > 0) {
         setUploadStatus({ type: 'error', msg: `❌ Critical columns missing: ${report.missing.join(', ')}` });
         return;
     }
     
-    // 3. Extract Data
+    // 4. Extract Data
     const parsedStudents = rows.slice(headerRowIndex + 1).map((row, index) => {
       const rawName = map.name > -1 ? row[map.name] : '';
       if (!rawName) return null; 
       
       return { 
           id: Date.now() + index, 
-          conf_no: map.conf > -1 ? String(row[map.conf] || '') : `TEMP-${index + 1}`, 
+          // Ensure Conf No is cleaned and formatted
+          conf_no: map.conf > -1 ? String(row[map.conf] || '').trim().toUpperCase().replace(/\s+/g, '') : `TEMP-${index + 1}`, 
           full_name: rawName, 
           age: map.age > -1 ? row[map.age] : '', 
           gender: map.gender > -1 ? row[map.gender] : '', 
@@ -460,10 +486,10 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                       <div><strong>Name:</strong> {mappingReport.name || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Gender:</strong> {mappingReport.gender || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Age:</strong> {mappingReport.age || <span style={{color:'#999'}}>Skip</span>}</div>
-                      <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'#999'}}>Auto-Gen</span>}</div>
+                      <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'red'}}>❌ No Match</span>}</div>
                   </div>
                   <div style={{fontSize:'12px', color:'#555', marginTop:'10px', fontStyle:'italic'}}>
-                      * Please verify that the columns above match your Excel headers.
+                      * Conf No must start with OM, NM, SM, OF, NF, or SF to be detected.
                   </div>
               </div>
           )}
