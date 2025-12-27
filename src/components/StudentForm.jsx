@@ -154,7 +154,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       try { 
           const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...formData, diningSeatType: formData.seatType }) });
           
-          // ✅ FIX: Read the detailed error JSON before throwing
           if (!res.ok) {
               const errorData = await res.json();
               throw new Error(errorData.error || "Check-in failed"); 
@@ -165,7 +164,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           setTimeout(() => window.print(), 500); 
           setStatus('✅ Success!'); 
           
-          // Reset
           setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' }));
           setSelectedStudent(null); 
           setSearchTerm(''); 
@@ -176,11 +174,10 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           setTimeout(() => setStatus(''), 4000);
 
       } catch (err) { 
-          // ✅ DISPLAY ERROR CLEARLY
           setStatus(`❌ ${err.message}`); 
           
-          // If it's a conflict error (Laundry/Room), show a popup Alert so user can't miss it
-          if(err.message.includes('Laundry') || err.message.includes('Room')) {
+          // ✅ FIX: Check for Dining and Pagoda conflicts too
+          if(err.message.includes('Laundry') || err.message.includes('Room') || err.message.includes('Dining') || err.message.includes('Pagoda')) {
               alert(`🛑 CONFLICT ALERT:\n\n${err.message}`);
           }
       } 
