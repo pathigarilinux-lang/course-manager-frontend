@@ -147,7 +147,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ SMART PROCESSOR v4: COURSE HISTORY & GENDER SECTIONS
+  // ✅ SMART PROCESSOR v5: STRICT DATA & GENDER SECTIONS
   const processDataRows = (rows) => {
     if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
@@ -155,7 +155,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     let headerRowIndex = -1;
     let headers = [];
     
-    for (let i = 0; i < Math.min(rows.length, 15); i++) {
+    // Scan first 20 rows to be safe
+    for (let i = 0; i < Math.min(rows.length, 20); i++) {
         const rowStr = rows[i].map(c => String(c).toLowerCase()).join(' ');
         if ((rowStr.includes('conf') && rowStr.includes('no')) || (rowStr.includes('student') && rowStr.includes('age'))) {
             headerRowIndex = i;
@@ -169,7 +170,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         return; 
     }
     
-    // 2. Map Columns (Strictly looking for course columns now)
+    // 2. Map Columns (Strictly looking for course columns)
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.toLowerCase() === k.toLowerCase() || h.toLowerCase().includes(k.toLowerCase())));
     
     const map = { 
@@ -183,7 +184,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         ctsc: getIndex(['TSC', 'Teen', 'Service']),
         c20: getIndex(['20d']),
         c30: getIndex(['30d']),
-        c45: getIndex(['45d', '40d']), // Handle typo 40d
+        c45: getIndex(['45d', '40d']), // Handles 40d typo
         c60: getIndex(['60d']),
         languages: getIndex(['Languages', 'Language'])
     };
@@ -248,10 +249,10 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         // ✅ D. STRICT COURSE AGGREGATION
         let coursesParts = [];
         
-        // Helper to check and add valid course counts
+        // Helper: Capture exact numerical value
         const addCourse = (colIndex, label) => {
-            if (colIndex > -1 && row[colIndex]) {
-                const val = parseInt(row[colIndex]);
+            if (colIndex > -1 && row[colIndex] !== undefined && row[colIndex] !== null && row[colIndex] !== '') {
+                const val = parseInt(String(row[colIndex]).trim()); // Robust parse
                 if (!isNaN(val) && val > 0) {
                     coursesParts.push(`${label}:${val}`);
                 }
@@ -266,7 +267,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         addCourse(map.c45, '45D');
         addCourse(map.c60, '60D');
         
-        // If no courses found, set explicitly to "0" per requirements
+        // If no courses found, set explicitly to "0" (New Student)
         const coursesStr = coursesParts.length > 0 ? coursesParts.join(', ') : '0';
 
         parsedStudents.push({ 
