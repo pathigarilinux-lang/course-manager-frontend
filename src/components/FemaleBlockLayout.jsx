@@ -8,6 +8,13 @@ const INDIAN_COMMODES = new Set([
     240, 241, 243, 246, 248                 
 ]);
 
+// --- HELPER: Generate Course Tag ---
+const getCourseTag = (courseName) => {
+    if (!courseName) return '';
+    const match = courseName.match(/(\d+)/);
+    return match ? `${match[1]}D` : courseName.substring(0, 3).toUpperCase();
+};
+
 export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     
     // --- HELPER ---
@@ -22,16 +29,14 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     const getRoomData = () => {
         const roomGroups = {};
         
-        // ✅ CRITICAL FIX: Filter ONLY Female rooms before processing
+        // ✅ Filter ONLY Female rooms
         const femaleRoomsOnly = rooms.filter(r => r.gender_type === 'Female');
 
         femaleRoomsOnly.forEach(r => {
             let key = r.room_no;
-            // Normalize Key: Integers for standard rooms, String for others (FRC)
-            const digitMatch = String(r.room_no).match(/^(\d{3})[A-Za-z]*$/); // Match 201, 201A
+            const digitMatch = String(r.room_no).match(/^(\d{3})[A-Za-z]*$/);
             
             if (digitMatch) {
-                // Keep strictly numeric keys as numbers for sorting, others as is
                 const num = parseInt(digitMatch[1]);
                 key = isNaN(num) ? r.room_no : num;
             }
@@ -73,7 +78,6 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
         const sortedBeds = group.beds.sort((a,b) => a.room_no.localeCompare(b.room_no));
         const wrongGender = group.beds.some(b => (b.gender_type || 'Female') === 'Male');
         
-        // Medical Logic: Check if it's Block F (starts with FRC)
         const isMedical = String(group.baseNum).toString().toUpperCase().startsWith('FRC') || String(group.baseNum).toString().toUpperCase().startsWith('ISO');
 
         let boxBorder = wrongGender ? '2px solid red' : '1px solid #999';
@@ -104,13 +108,16 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                         let bg = i === 0 ? '#fce4ec' : '#f3e5f5'; 
                         if (p) bg = (p.conf_no||'').startsWith('O') ? '#ce93d8' : '#a5d6a7'; 
                         if (!p && isMedical) bg = '#fff3e0'; 
+                        
+                        const courseTag = p ? getCourseTag(p.course_name) : '';
 
                         return (
                             <div key={bed.room_id} onClick={(e) => { e.stopPropagation(); onRoomClick(bed); }}
                                  style={{background: bg, cursor: 'pointer', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', padding:'2px', minHeight:'30px'}}>
                                 {p ? (
                                     <div style={{textAlign:'center', lineHeight:'1'}}>
-                                        <div style={{fontSize:'9px', fontWeight:'bold', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'40px'}}>{p.full_name.split(' ')[0]}</div>
+                                        <div style={{fontSize:'9px', fontWeight:'bold', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'40px', marginBottom:'1px'}}>{p.full_name.split(' ')[0]}</div>
+                                        {courseTag && <div style={{fontSize:'7px', background:'rgba(255,255,255,0.7)', color:'#333', borderRadius:'2px', padding:'0 2px', display:'inline-block'}}>{courseTag}</div>}
                                     </div>
                                 ) : <div style={{fontSize:'8px', color:'#999'}}>{bed.room_no.slice(-1)}</div>}
                             </div>
@@ -172,7 +179,7 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
         ]);
         
         return Object.keys(allRooms)
-            .filter(key => !standardKeys.has(parseInt(key)) && !standardKeys.has(key)) // Check both number and string types
+            .filter(key => !standardKeys.has(parseInt(key)) && !standardKeys.has(key)) 
             .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
     };
 
