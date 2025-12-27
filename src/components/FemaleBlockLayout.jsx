@@ -1,14 +1,23 @@
 import React from 'react';
 import { AlertCircle } from 'lucide-react'; 
 
-// --- CONFIGURATION: Indian Commode Rooms (Female) ---
+// --- CONFIGURATION ---
 const INDIAN_COMMODES = new Set([
     201, 202, 203, 204, 205, 206, 
     219, 220, 221, 222, 223, 224, 
     240, 241, 243, 246, 248                 
 ]);
 
-// --- HELPER: Generate Course Tag ---
+// --- NEW: HIGH VISIBILITY TAG STYLES ---
+const getTagStyle = (tag) => {
+    const t = (tag || '').toUpperCase();
+    if (t === '10D') return { bg: '#e3f2fd', color: '#0d47a1', border: '1px solid #2196f3' }; // Blue
+    if (t === 'SAT') return { bg: '#fff3e0', color: '#e65100', border: '1px solid #ff9800' }; // Orange
+    if (['20D','30D','45D','60D'].includes(t)) return { bg: '#f3e5f5', color: '#4a148c', border: '1px solid #9c27b0' }; // Purple
+    if (['TSC','STM','SER'].includes(t)) return { bg: '#e8f5e9', color: '#1b5e20', border: '1px solid #4caf50' }; // Green
+    return { bg: '#eeeeee', color: '#424242', border: '1px solid #9e9e9e' }; // Grey Default
+};
+
 const getCourseTag = (courseName) => {
     if (!courseName) return '';
     const match = courseName.match(/(\d+)/);
@@ -28,19 +37,15 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     // --- DATA PROCESSOR ---
     const getRoomData = () => {
         const roomGroups = {};
-        
-        // ✅ Filter ONLY Female rooms
         const femaleRoomsOnly = rooms.filter(r => r.gender_type === 'Female');
 
         femaleRoomsOnly.forEach(r => {
             let key = r.room_no;
             const digitMatch = String(r.room_no).match(/^(\d{3})[A-Za-z]*$/);
-            
             if (digitMatch) {
                 const num = parseInt(digitMatch[1]);
                 key = isNaN(num) ? r.room_no : num;
             }
-
             if (!roomGroups[key]) roomGroups[key] = { baseNum: key, beds: [], toilet: getToiletInfo(r.room_no) };
             
             const occupant = occupancy.find(p => p.room_no === r.room_no);
@@ -56,7 +61,6 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     const getBlockStats = (roomList) => {
         let totalBeds = 0;
         let occupiedBeds = 0;
-
         roomList.forEach(num => {
             const group = getRoom(num);
             if (group) {
@@ -64,7 +68,6 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                 occupiedBeds += group.beds.filter(b => b.occupant).length;
             }
         });
-
         const isFull = totalBeds > 0 && totalBeds === occupiedBeds;
         return { text: `${occupiedBeds}/${totalBeds}`, isFull };
     };
@@ -91,7 +94,8 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                     border: boxBorder, 
                     borderRadius: '4px', overflow:'hidden', 
                     background: isMedical ? '#fff8e1' : 'white', 
-                    height:'100%', minHeight:'60px', display:'flex', flexDirection:'column'
+                    height:'100%', minHeight:'65px', // slightly taller
+                    display:'flex', flexDirection:'column'
                 }}>
                 
                 <div style={{background: isMedical ? '#ffe0b2' : '#eee', padding:'2px 4px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #ccc', fontSize:'10px'}}>
@@ -109,15 +113,36 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                         if (p) bg = (p.conf_no||'').startsWith('O') ? '#ce93d8' : '#a5d6a7'; 
                         if (!p && isMedical) bg = '#fff3e0'; 
                         
-                        const courseTag = p ? getCourseTag(p.course_name) : '';
+                        // Tag Logic
+                        let courseTag = '';
+                        let tagStyle = {};
+                        if (p) {
+                            courseTag = getCourseTag(p.course_name);
+                            tagStyle = getTagStyle(courseTag);
+                        }
 
                         return (
                             <div key={bed.room_id} onClick={(e) => { e.stopPropagation(); onRoomClick(bed); }}
                                  style={{background: bg, cursor: 'pointer', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', padding:'2px', minHeight:'30px'}}>
                                 {p ? (
                                     <div style={{textAlign:'center', lineHeight:'1'}}>
-                                        <div style={{fontSize:'9px', fontWeight:'bold', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'40px', marginBottom:'1px'}}>{p.full_name.split(' ')[0]}</div>
-                                        {courseTag && <div style={{fontSize:'7px', background:'rgba(255,255,255,0.7)', color:'#333', borderRadius:'2px', padding:'0 2px', display:'inline-block'}}>{courseTag}</div>}
+                                        <div style={{fontSize:'10px', fontWeight:'bold', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'40px', marginBottom:'2px'}}>{p.full_name.split(' ')[0]}</div>
+                                        
+                                        {/* ✅ BIG VISIBLE TAG */}
+                                        {courseTag && (
+                                            <div style={{
+                                                fontSize:'9px', 
+                                                fontWeight:'bold', 
+                                                background: tagStyle.bg, 
+                                                color: tagStyle.color,
+                                                border: tagStyle.border,
+                                                padding:'0 3px', 
+                                                borderRadius:'3px',
+                                                display: 'inline-block'
+                                            }}>
+                                                {courseTag}
+                                            </div>
+                                        )}
                                     </div>
                                 ) : <div style={{fontSize:'8px', color:'#999'}}>{bed.room_no.slice(-1)}</div>}
                             </div>
@@ -211,7 +236,6 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
 
             <div style={{display:'flex', gap:'20px', justifyContent:'flex-end'}}>
                 <BlockContainer title="BLOCK F (Medical)" roomsInBlock={blockF}>
-                    {/* Dynamic Grid Layout for FRC */}
                     <div style={{display:'grid', gridTemplateColumns: blockF.length > 3 ? '1fr 1fr' : '1fr', gap:'10px'}}>
                         <Column rooms={blockF.slice(0, Math.ceil(blockF.length / 2))} />
                         <Column rooms={blockF.slice(Math.ceil(blockF.length / 2))} />
@@ -229,7 +253,6 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                 MAIN PATHWAY
             </div>
 
-            {/* ✅ OTHER / EMERGENCY ROOMS SECTION */}
             {otherRooms.length > 0 && (
                 <BlockContainer title="OTHER ACCOMMODATION / EMERGENCY" roomsInBlock={otherRooms} color="#555" bg="#f5f5f5">
                     <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(90px, 1fr))', gap:'10px', width:'100%'}}>
