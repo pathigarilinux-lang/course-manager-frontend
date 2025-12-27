@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Home, Utensils, BookOpen, AlertCircle, CheckCircle, Clock, Activity, TrendingUp, UserCheck, Shield, Armchair, Headphones, AlertTriangle } from 'lucide-react';
+import { Users, Home, Utensils, BookOpen, AlertCircle, CheckCircle, Clock, Activity, TrendingUp, UserCheck, Shield, Armchair, Headphones, AlertTriangle, Download, Database } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
 
@@ -33,20 +33,27 @@ export default function Dashboard({ courses }) {
   const stats = useMemo(() => {
       if (!participants.length) return null;
       
+      // 1. ORIGINAL TOTALS (Including Cancelled)
+      const totalCount = participants.length;
+      const totalMale = participants.filter(p => (p.gender || '').toLowerCase().startsWith('m')).length;
+      const totalFemale = participants.filter(p => (p.gender || '').toLowerCase().startsWith('f')).length;
+      const cancelledList = participants.filter(p => p.status === 'Cancelled' || p.status === 'No-Show');
+      const cancelledCount = cancelledList.length;
+
+      // 2. ACTIVE (VALID) PARTICIPANTS
       const valid = participants.filter(p => p.status !== 'Cancelled' && p.status !== 'No-Show');
+      const validCount = valid.length;
+
+      // 3. OPERATIONAL STATUS (Based on Valid only)
       const fullyCheckedIn = valid.filter(p => p.status === 'Attending');
       const atGate = valid.filter(p => p.status === 'Gate Check-In');
       const pendingArrival = valid.filter(p => p.status !== 'Attending' && p.status !== 'Gate Check-In');
-
-      const expectedMale = valid.filter(p => (p.gender || '').toLowerCase().startsWith('m')).length;
-      const expectedFemale = valid.filter(p => (p.gender || '').toLowerCase().startsWith('f')).length;
       
       const getDetailedBreakdown = (list) => {
           const b = { om: 0, nm: 0, sm: 0, of: 0, nf: 0, sf: 0, total: list.length };
           list.forEach(p => {
               const isMale = (p.gender || '').toLowerCase().startsWith('m');
               const conf = (p.conf_no || '').toUpperCase();
-              
               if (isMale) {
                   if (conf.startsWith('SM')) b.sm++;
                   else if (conf.startsWith('O') || conf.startsWith('S')) b.om++;
@@ -64,7 +71,7 @@ export default function Dashboard({ courses }) {
       const gateStats = getDetailedBreakdown(atGate);
       const pendingStats = getDetailedBreakdown(pendingArrival);
 
-      // Age Stats
+      // Age Stats (Valid Only)
       const ageGroups = { '18-29': {m:0, f:0}, '30-49': {m:0, f:0}, '50-64': {m:0, f:0}, '65+': {m:0, f:0} };
       valid.forEach(p => {
           const age = parseInt(p.age) || 0;
@@ -75,7 +82,7 @@ export default function Dashboard({ courses }) {
       });
       const ageData = Object.keys(ageGroups).map(key => ({ name: key, Male: ageGroups[key].m, Female: ageGroups[key].f }));
 
-      // Mix Stats
+      // Mix Stats (Valid Only)
       const mixCounts = { OM:0, NM:0, SM:0, OF:0, NF:0, SF:0 };
       valid.forEach(p => {
           const conf = (p.conf_no || '').toUpperCase();
@@ -100,12 +107,12 @@ export default function Dashboard({ courses }) {
           { name: 'Server F', value: mixCounts.SF, code: 'SF', color: MIX_COLORS.SF }
       ].filter(item => item.value > 0);
 
-      // Critical Stats
+      // Critical Stats (Valid Only)
       const allCritical = valid.filter(p => (parseInt(p.age) >= 65) || (p.medical_info && p.medical_info.length > 2));
       const criticalPendingList = allCritical.filter(p => p.status !== 'Attending'); 
       const criticalStats = { total: allCritical.length, pending: criticalPendingList.length, done: allCritical.length - criticalPendingList.length };
 
-      // Discourse
+      // Discourse (Valid Only)
       const langMap = {}; 
       fullyCheckedIn.forEach(p => {
           const conf = (p.conf_no || '').toUpperCase();
@@ -119,7 +126,7 @@ export default function Dashboard({ courses }) {
       });
       const discourseData = Object.entries(langMap).map(([lang, counts]) => ({ lang, ...counts })).sort((a,b) => b.tot - a.tot);
 
-      // Seating
+      // Seating (Valid Only)
       const seatingStats = { Chowky: {t:0,m:0,f:0}, Chair: {t:0,m:0,f:0}, BackRest: {t:0,m:0,f:0}, Floor: {t:0,m:0,f:0} };
       valid.forEach(p => {
           const type = p.special_seating || 'None';
@@ -130,7 +137,7 @@ export default function Dashboard({ courses }) {
           seatingStats[cat].t++; seatingStats[cat][k]++;
       });
 
-      return { total: valid.length, expectedMale, expectedFemale, fullyCheckedIn: fullyCheckedIn.length, gateStats, arrivedStats, pendingStats, ageData, catData, discourseData, criticalPendingList, criticalStats, seatingStats }; 
+      return { total: totalCount, totalMale, totalFemale, cancelledCount, validCount, fullyCheckedIn: fullyCheckedIn.length, gateStats, arrivedStats, pendingStats, ageData, catData, discourseData, criticalPendingList, criticalStats, seatingStats }; 
   }, [participants]);
 
   const selectedCourse = courses.find(c => c.course_id == courseId);
@@ -161,7 +168,9 @@ export default function Dashboard({ courses }) {
     <div style={styles.card}>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'15px'}}>
           <div><h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px', color:'#2c3e50'}}><Activity size={28} color="#e91e63"/> Zero-Day-Dashboard</h2><div style={{color:'#666', marginTop:'5px', fontSize:'14px'}}>Real-time Operational Metrics • {selectedCourse?.course_name || 'Select Course'}</div></div>
-          <select style={{...styles.input, padding:'10px', fontSize:'14px'}} value={courseId} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+          <div style={{display:'flex', gap:'10px'}}>
+              <select style={{...styles.input, padding:'10px', fontSize:'14px'}} value={courseId} onChange={e => setCourseId(e.target.value)}><option value="">-- Select Course --</option>{courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}</select>
+          </div>
       </div>
 
       {loading && <div style={{textAlign:'center', padding:'50px'}}>Loading Data...</div>}
@@ -170,15 +179,29 @@ export default function Dashboard({ courses }) {
           <>
               {/* PROGRESS BAR (Visualizing Arrival) */}
               <div style={{background:'#e9ecef', height:'8px', borderRadius:'4px', marginBottom:'20px', overflow:'hidden', display:'flex'}}>
-                  <div style={{width:`${(stats.fullyCheckedIn / stats.total) * 100}%`, background:'#28a745', transition:'width 1s'}}></div>
-                  <div style={{width:`${(stats.gateStats.total / stats.total) * 100}%`, background:'#ff9800', transition:'width 1s'}}></div>
+                  <div style={{width:`${(stats.fullyCheckedIn / stats.validCount) * 100}%`, background:'#28a745', transition:'width 1s'}}></div>
+                  <div style={{width:`${(stats.gateStats.total / stats.validCount) * 100}%`, background:'#ff9800', transition:'width 1s'}}></div>
               </div>
               <div style={{textAlign:'right', fontSize:'11px', color:'#666', marginBottom:'20px'}}>
-                  Arrival Progress: <strong>{Math.round(((stats.fullyCheckedIn + stats.gateStats.total) / stats.total) * 100)}%</strong> (Green: Done, Orange: Gate)
+                  Arrival Progress: <strong>{Math.round(((stats.fullyCheckedIn + stats.gateStats.total) / stats.validCount) * 100)}%</strong> (Green: Done, Orange: Gate)
               </div>
 
               <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'20px', marginBottom:'30px'}}>
-                  <div style={{background:'#e3f2fd', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.male}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#0d47a1', textTransform:'uppercase'}}>Expected Total</div><div style={{fontSize:'32px', fontWeight:'900', color:'#333', display:'flex', alignItems:'baseline', gap:'10px'}}>{stats.total}<span style={{fontSize:'14px', fontWeight:'normal', color:'#555'}}>(M: <span style={{color: COLORS.male, fontWeight:'bold'}}>{stats.expectedMale}</span> | F: <span style={{color: COLORS.female, fontWeight:'bold'}}>{stats.expectedFemale}</span>)</span></div><div style={{fontSize:'11px', color:'#666'}}>Valid Registrations</div></div>
+                  {/* ✅ EXPECTED TOTAL (Now shows ORIGINAL count + Cancelled) */}
+                  <div style={{background:'#e3f2fd', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.male}`}}>
+                      <div style={{fontSize:'12px', fontWeight:'bold', color:'#0d47a1', textTransform:'uppercase'}}>Expected Total</div>
+                      <div style={{fontSize:'32px', fontWeight:'900', color:'#333', display:'flex', alignItems:'baseline', gap:'10px'}}>
+                          {stats.total}
+                          <span style={{fontSize:'14px', fontWeight:'normal', color:'#555'}}>(M: <span style={{color: COLORS.male, fontWeight:'bold'}}>{stats.totalMale}</span> | F: <span style={{color: COLORS.female, fontWeight:'bold'}}>{stats.totalFemale}</span>)</span>
+                      </div>
+                      
+                      {/* 🚫 CANCELLED CARD INSIDE THE BOX */}
+                      <div style={{marginTop:'8px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(255,255,255,0.6)', padding:'6px', borderRadius:'6px'}}>
+                          <span style={{fontSize:'12px', color:'#d32f2f', fontWeight:'bold', display:'flex', alignItems:'center', gap:'4px'}}><AlertCircle size={12}/> Cancelled: {stats.cancelledCount}</span>
+                          <span style={{fontSize:'11px', color:'#1b5e20', fontWeight:'bold'}}>Active: {stats.validCount}</span>
+                      </div>
+                  </div>
+
                   <div style={{background:'#fff3e0', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.gate}`}}><div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#e65100', textTransform:'uppercase'}}>At Gate</div><Shield size={16} color="#ef6c00"/></div><div style={{fontSize:'32px', fontWeight:'900', color:'#333'}}>{stats.gateStats.total}</div><BreakdownGrid data={stats.gateStats} /></div>
                   <div style={{background:'#e8f5e9', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.arrived}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#1b5e20', textTransform:'uppercase'}}>Checked-In (Onboarded)</div><div style={{fontSize:'32px', fontWeight:'900', color:'#333'}}>{stats.fullyCheckedIn}</div><BreakdownGrid data={stats.arrivedStats} /></div>
                   <div style={{background:'#fce4ec', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.female}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#880e4f', textTransform:'uppercase'}}>Pending Arrival</div><div style={{fontSize:'32px', fontWeight:'900', color:'#c2185b'}}>{stats.pendingStats.total}</div><BreakdownGrid data={stats.pendingStats} /></div>
