@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Bed, ArrowRight, Save, RefreshCw, X } from 'lucide-react';
+import { User, Bed, ArrowRight, Save, RefreshCw, X, Edit2 } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 export default function AutoAllocationTool({ courseId, onClose, onSuccess }) {
@@ -18,7 +18,7 @@ export default function AutoAllocationTool({ courseId, onClose, onSuccess }) {
             fetch(`${API_URL}/rooms/occupancy`).then(r => r.json())
         ]).then(([students, allRooms, occupancy]) => {
             
-            // Get Unassigned Students (Active but No Room)
+            // Get Unassigned Students
             const unassigned = students.filter(s => 
                 (s.status === 'Attending' || s.status === 'Confirmed' || s.status === 'Active') && 
                 (!s.room_no || s.room_no === '')
@@ -40,24 +40,21 @@ export default function AutoAllocationTool({ courseId, onClose, onSuccess }) {
         });
     }, [courseId]);
 
-    // 2. The Logic Engine 🧠
+    // 2. The Logic Engine
     const generateProposal = () => {
         const assignments = [];
 
-        // --- HELPER: SORTER ---
-        // Priority: Old Students (starts with O/S) > Age (Descending)
+        // Sorter: Old > Age
         const sorter = (a, b) => {
             const isOldA = (a.conf_no||'').match(/^[OS]/i) ? 1 : 0;
             const isOldB = (b.conf_no||'').match(/^[OS]/i) ? 1 : 0;
-            if (isOldA !== isOldB) return isOldB - isOldA; // Old first
-            return (b.age || 0) - (a.age || 0); // Older age first
+            if (isOldA !== isOldB) return isOldB - isOldA;
+            return (b.age || 0) - (a.age || 0);
         };
 
-        // --- PROCESS MALES ---
+        // Males
         const sortedMales = [...stats.males].sort(sorter);
-        // Take as many rooms as we have students (or vice versa)
         const limitM = Math.min(sortedMales.length, stats.mRooms.length);
-        
         for (let i = 0; i < limitM; i++) {
             assignments.push({
                 participantId: sortedMales[i].participant_id,
@@ -69,10 +66,9 @@ export default function AutoAllocationTool({ courseId, onClose, onSuccess }) {
             });
         }
 
-        // --- PROCESS FEMALES ---
+        // Females
         const sortedFemales = [...stats.females].sort(sorter);
         const limitF = Math.min(sortedFemales.length, stats.fRooms.length);
-
         for (let i = 0; i < limitF; i++) {
             assignments.push({
                 participantId: sortedFemales[i].participant_id,
@@ -88,7 +84,14 @@ export default function AutoAllocationTool({ courseId, onClose, onSuccess }) {
         setStep('preview');
     };
 
-    // 3. Save to Database
+    // ✅ NEW: Handle Manual Room Change in Preview
+    const handleRoomChange = (index, newRoomNo) => {
+        const updated = [...proposal];
+        updated[index].roomNo = newRoomNo;
+        setProposal(updated);
+    };
+
+    // 3. Save
     const commitChanges = async () => {
         if (!window.confirm(`Are you sure you want to assign rooms to ${proposal.length} students?\nThis cannot be easily undone.`)) return;
         
@@ -115,15 +118,18 @@ export default function AutoAllocationTool({ courseId, onClose, onSuccess }) {
 
     if (loading) return <div style={{padding:'40px', textAlign:'center', color:'#666'}}>Processing Data...</div>;
 
+    // --- Helper to get currently assigned rooms (to prevent double booking in dropdown) ---
+    const assignedRoomsSet = new Set(proposal.map(p => p.roomNo));
+
     return (
         <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000}}>
-            <div style={{background:'white', width:'800px', maxWidth:'90%', maxHeight:'90vh', borderRadius:'12px', display:'flex', flexDirection:'column', boxShadow:'0 10px 25px rgba(0,0,0,0.2)'}}>
+            <div style={{background:'white', width:'900px', maxWidth:'95%', maxHeight:'90vh', borderRadius:'12px', display:'flex', flexDirection:'column', boxShadow:'0 10px 25px rgba(0,0,0,0.2)'}}>
                 
                 {/* Header */}
                 <div style={{padding:'20px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                     <div>
                         <h3 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}>✨ Auto-Allocation Assistant</h3>
-                        <div style={{fontSize:'12px', color:'#777'}}>Drafting Tool • Does not overwrite existing rooms</div>
+                        <div style={{fontSize:'12px', color:'#777'}}>Drafting Tool • Review & Edit before Applying</div>
                     </div>
                     <button onClick={onClose} style={{background:'none', border:'none', cursor:'pointer'}}><X size={20}/></button>
                 </div>
@@ -149,43 +155,66 @@ export default function AutoAllocationTool({ courseId, onClose, onSuccess }) {
                             {stats.males.length === 0 && stats.females.length === 0 ? (
                                 <div style={{color:'#28a745', fontWeight:'bold'}}>✅ Everyone has a room! No action needed.</div>
                             ) : (
-                                <div style={{maxWidth:'500px', margin:'0 auto', textAlign:'left', background:'#f8f9fa', padding:'15px', borderRadius:'8px', fontSize:'13px', color:'#555'}}>
-                                    <strong>Logic Applied:</strong>
-                                    <ul style={{margin:'10px 0', paddingLeft:'20px'}}>
-                                        <li>Separates Male/Female blocks.</li>
-                                        <li>Prioritizes <strong>Old Students</strong> for lower room numbers.</li>
-                                        <li>Within categories, prioritizes <strong>Older Age</strong>.</li>
-                                        <li>Does NOT touch students who already have a room.</li>
-                                    </ul>
-                                </div>
+                                <button onClick={generateProposal} style={{...styles.btn(true), background:'#007bff', color:'white', padding:'15px 40px', fontSize:'16px', borderRadius:'30px', boxShadow:'0 5px 15px rgba(0,0,0,0.1)'}}>
+                                    <RefreshCw size={18} style={{marginRight:'8px'}}/> Generate Draft Plan
+                                </button>
                             )}
                         </div>
                     )}
 
                     {step === 'preview' && (
                         <div>
-                            <div style={{marginBottom:'15px', fontWeight:'bold', color:'#333'}}>Proposed Assignments ({proposal.length})</div>
-                            <div style={{border:'1px solid #ddd', borderRadius:'8px', overflow:'hidden'}}>
-                                <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}>
+                            <div style={{marginBottom:'15px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                <div style={{fontWeight:'bold', color:'#333'}}>Proposed Assignments ({proposal.length})</div>
+                                <div style={{fontSize:'12px', color:'#777', fontStyle:'italic'}}>Tip: Use dropdown to change rooms if needed.</div>
+                            </div>
+                            <div style={{border:'1px solid #ddd', borderRadius:'8px', overflow:'hidden', boxShadow:'0 2px 5px rgba(0,0,0,0.05)'}}>
+                                <table style={{width:'100%', borderCollapse:'collapse', fontSize:'13px'}}>
                                     <thead style={{background:'#f1f1f1'}}>
                                         <tr>
                                             <th style={{padding:'10px', textAlign:'left'}}>Name</th>
                                             <th style={{padding:'10px', textAlign:'left'}}>Cat</th>
                                             <th style={{padding:'10px', textAlign:'left'}}>Age</th>
                                             <th style={{padding:'10px', textAlign:'center'}}>➡️</th>
-                                            <th style={{padding:'10px', textAlign:'left'}}>Assigned Room</th>
+                                            <th style={{padding:'10px', textAlign:'left'}}>Assigned Room (Editable)</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {proposal.map((p, i) => (
-                                            <tr key={i} style={{borderBottom:'1px solid #eee', background: p.gender === 'Male' ? '#f0f8ff' : '#fff0f5'}}>
-                                                <td style={{padding:'8px', fontWeight:'bold'}}>{p.name}</td>
-                                                <td style={{padding:'8px'}}>{p.category}</td>
-                                                <td style={{padding:'8px'}}>{p.age}</td>
-                                                <td style={{padding:'8px', textAlign:'center', color:'#999'}}><ArrowRight size={14}/></td>
-                                                <td style={{padding:'8px', fontWeight:'bold', fontSize:'14px'}}>{p.roomNo}</td>
-                                            </tr>
-                                        ))}
+                                        {proposal.map((p, i) => {
+                                            // Calculate valid options for this specific row
+                                            // Allow: Current Assigned Room OR (Any Free Room AND Not Taken by someone else in proposal)
+                                            const pool = p.gender === 'Male' ? stats.mRooms : stats.fRooms;
+                                            const validOptions = pool.filter(r => r.room_no === p.roomNo || !assignedRoomsSet.has(r.room_no));
+
+                                            return (
+                                                <tr key={i} style={{borderBottom:'1px solid #eee', background: p.gender === 'Male' ? '#f0f8ff' : '#fff0f5'}}>
+                                                    <td style={{padding:'8px', fontWeight:'bold'}}>{p.name}</td>
+                                                    <td style={{padding:'8px'}}><span style={{background: p.category==='Old'?'#007bff':'#ffc107', color: p.category==='Old'?'white':'black', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold'}}>{p.category}</span></td>
+                                                    <td style={{padding:'8px'}}>{p.age}</td>
+                                                    <td style={{padding:'8px', textAlign:'center', color:'#999'}}><ArrowRight size={14}/></td>
+                                                    <td style={{padding:'8px'}}>
+                                                        <select 
+                                                            value={p.roomNo} 
+                                                            onChange={(e) => handleRoomChange(i, e.target.value)}
+                                                            style={{
+                                                                padding:'6px', 
+                                                                borderRadius:'4px', 
+                                                                border:'1px solid #ccc', 
+                                                                fontWeight:'bold', 
+                                                                color:'#333', 
+                                                                cursor:'pointer',
+                                                                background:'white',
+                                                                minWidth:'100px'
+                                                            }}
+                                                        >
+                                                            {validOptions.map(r => (
+                                                                <option key={r.room_id} value={r.room_no}>{r.room_no}</option>
+                                                            ))}
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -196,14 +225,9 @@ export default function AutoAllocationTool({ courseId, onClose, onSuccess }) {
 
                 {/* Footer */}
                 <div style={{padding:'20px', borderTop:'1px solid #eee', display:'flex', justifyContent:'flex-end', gap:'10px', background:'#f8f9fa'}}>
-                    {step === 'config' && (stats.males.length > 0 || stats.females.length > 0) && (
-                        <button onClick={generateProposal} style={{...styles.btn(true), background:'#007bff', color:'white', padding:'10px 25px'}}>
-                            <RefreshCw size={16} style={{marginRight:'8px'}}/> Generate Draft Plan
-                        </button>
-                    )}
                     {step === 'preview' && (
                         <>
-                            <button onClick={()=>setStep('config')} style={styles.btn(false)}>Back</button>
+                            <button onClick={()=>setStep('config')} style={styles.btn(false)}>Discard & Back</button>
                             <button onClick={commitChanges} style={{...styles.btn(true), background:'#28a745', color:'white', padding:'10px 25px'}}>
                                 <Save size={16} style={{marginRight:'8px'}}/> Confirm & Apply
                             </button>
