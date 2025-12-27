@@ -36,7 +36,6 @@ export default function GateReception({ courses, refreshCourses }) {
 
   // --- 2. ACTIONS ---
   const handleGateCheckIn = async (student) => {
-      // Optimistic Update
       setParticipants(prev => prev.map(p => p.participant_id === student.participant_id ? { ...p, status: 'Gate Check-In' } : p));
       try {
           const res = await fetch(`${API_URL}/gate-checkin`, {
@@ -50,19 +49,13 @@ export default function GateReception({ courses, refreshCourses }) {
 
   const handleCancelStudent = async (student) => {
       if(!window.confirm(`⚠️ Mark ${student.full_name} as Cancelled / No-Show?`)) return;
-      
-      // Optimistic Update
       setParticipants(prev => prev.map(p => p.participant_id === student.participant_id ? { ...p, status: 'Cancelled' } : p));
-
       try {
           const res = await fetch(`${API_URL}/gate-cancel`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ participantId: student.participant_id })
           });
-          if (res.ok) { 
-              loadParticipants(); 
-              if(refreshCourses) refreshCourses(); 
-          }
+          if (res.ok) { loadParticipants(); if(refreshCourses) refreshCourses(); }
       } catch (err) { console.error(err); }
   };
 
@@ -97,25 +90,39 @@ export default function GateReception({ courses, refreshCourses }) {
       });
   }, [participants, searchQuery, activeFilter]);
 
-  // ✅ UPDATED STATS LOGIC (Matching Dashboard)
+  // ✅ UPDATED STATS (With Detailed Mix Breakdown)
   const stats = useMemo(() => {
-      // 1. Original Total (Everything)
+      // 1. Total & Cancelled
       const total = participants.length;
-      
-      // 2. Cancelled
       const cancelledCount = participants.filter(p => p.status === 'Cancelled' || p.status === 'No-Show').length;
-      
-      // 3. Active (Expected Valid Arrivals)
       const activeCount = total - cancelledCount;
 
-      // 4. Arrived (Gate or Hall)
+      // 2. Gender Totals
+      const totalMale = participants.filter(p => (p.gender || '').toLowerCase().startsWith('m')).length;
+      const totalFemale = participants.filter(p => (p.gender || '').toLowerCase().startsWith('f')).length;
+
+      // 3. Arrived (Gate + Hall)
       const arrived = participants.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending').length;
-      
-      // 5. Gender Breakdown (Arrived Only)
       const maleArrived = participants.filter(p => (p.gender === 'Male') && (p.status === 'Gate Check-In' || p.status === 'Attending')).length;
       const femaleArrived = participants.filter(p => (p.gender === 'Female') && (p.status === 'Gate Check-In' || p.status === 'Attending')).length;
-      
-      return { total, cancelledCount, activeCount, arrived, maleArrived, femaleArrived };
+
+      // 4. Detailed Mix (Based on Total Original Roster)
+      const mix = { om: 0, nm: 0, sm: 0, of: 0, nf: 0, sf: 0 };
+      participants.forEach(p => {
+          const isMale = (p.gender || '').toLowerCase().startsWith('m');
+          const conf = (p.conf_no || '').toUpperCase();
+          if (isMale) {
+              if (conf.startsWith('SM')) mix.sm++;
+              else if (conf.startsWith('O') || conf.startsWith('S')) mix.om++;
+              else mix.nm++;
+          } else {
+              if (conf.startsWith('SF')) mix.sf++;
+              else if (conf.startsWith('O') || conf.startsWith('S')) mix.of++;
+              else mix.nf++;
+          }
+      });
+
+      return { total, totalMale, totalFemale, cancelledCount, activeCount, arrived, maleArrived, femaleArrived, mix };
   }, [participants]);
 
   // --- RENDER ---
@@ -145,28 +152,48 @@ export default function GateReception({ courses, refreshCourses }) {
 
       {selectedCourseId ? (
           <>
-              {/* 📊 RESPONSIVE STATS GRID */}
+              {/* 📊 STATS GRID */}
               <div className="stats-grid" style={{display:'grid', gap:'10px', marginBottom:'20px'}}>
-                  {/* ✅ UPDATED EXPECTED CARD */}
+                  
+                  {/* 1. EXPECTED TOTAL CARD (Updated with Breakdown) */}
                   <div style={{background:'#e3f2fd', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #007bff'}}>
                       <div style={{fontSize:'11px', fontWeight:'bold', color:'#007bff', textTransform:'uppercase'}}>Expected Total</div>
-                      <div style={{fontSize:'20px', fontWeight:'900', color:'#333'}}>{stats.total}</div>
-                      <div style={{marginTop:'5px', fontSize:'11px', display:'flex', justifyContent:'space-between', background:'rgba(255,255,255,0.6)', padding:'4px', borderRadius:'4px'}}>
-                          <span style={{color:'#d32f2f', fontWeight:'bold'}}>🚫 {stats.cancelledCount}</span>
+                      <div style={{fontSize:'20px', fontWeight:'900', color:'#333', display:'flex', alignItems:'baseline', gap:'6px'}}>
+                          {stats.total}
+                          <span style={{fontSize:'11px', fontWeight:'normal', color:'#555'}}>(M: <span style={{color:'#007bff', fontWeight:'bold'}}>{stats.totalMale}</span> | F: <span style={{color:'#e91e63', fontWeight:'bold'}}>{stats.totalFemale}</span>)</span>
+                      </div>
+                      
+                      {/* Detailed Breakdown (OM/NM...) */}
+                      <div style={{fontSize:'10px', color:'#555', marginTop:'4px', background:'rgba(255,255,255,0.5)', padding:'3px', borderRadius:'4px'}}>
+                          <div style={{display:'flex', gap:'8px'}}>
+                              <span style={{color:'#007bff', fontWeight:'bold'}}>M:</span> OM:{stats.mix.om} NM:{stats.mix.nm} SM:{stats.mix.sm}
+                          </div>
+                          <div style={{display:'flex', gap:'8px'}}>
+                              <span style={{color:'#e91e63', fontWeight:'bold'}}>F:</span> OF:{stats.mix.of} NF:{stats.mix.nf} SF:{stats.mix.sf}
+                          </div>
+                      </div>
+
+                      <div style={{marginTop:'5px', fontSize:'11px', display:'flex', justifyContent:'space-between', background:'rgba(255,255,255,0.8)', padding:'4px', borderRadius:'4px'}}>
+                          <span style={{color:'#d32f2f', fontWeight:'bold'}}>🚫 Cancelled: {stats.cancelledCount}</span>
                           <span style={{color:'#1b5e20', fontWeight:'bold'}}>Active: {stats.activeCount}</span>
                       </div>
                   </div>
 
+                  {/* 2. ARRIVED CARD */}
                   <div style={{background:'#e8f5e9', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #2e7d32'}}>
                       <div style={{fontSize:'11px', fontWeight:'bold', color:'#2e7d32', textTransform:'uppercase'}}>Arrived</div>
                       <div style={{fontSize:'20px', fontWeight:'900', color:'#333'}}>{stats.arrived} <small style={{color:'#666', fontSize:'12px'}}>({Math.round((stats.arrived/stats.activeCount)*100 || 0)}%)</small></div>
                   </div>
+
+                  {/* 3. GENDER CARD (Arrived) */}
                   <div style={{background:'#fff3e0', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #ef6c00'}}>
                       <div style={{fontSize:'11px', fontWeight:'bold', color:'#ef6c00', textTransform:'uppercase'}}>M / F (Arrived)</div>
                       <div style={{fontSize:'14px', fontWeight:'bold', marginTop:'5px'}}>
                           <span style={{color:'#007bff'}}>M: {stats.maleArrived}</span> | <span style={{color:'#e91e63'}}>F: {stats.femaleArrived}</span>
                       </div>
                   </div>
+
+                  {/* 4. WALK-IN BUTTON */}
                   <div style={{background:'#f5f5f5', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #999', display:'flex', alignItems:'center', justifyContent:'center'}}>
                       <button onClick={()=>setShowWalkIn(true)} style={{background:'#333', color:'white', border:'none', padding:'8px 15px', borderRadius:'30px', cursor:'pointer', fontWeight:'bold', display:'flex', alignItems:'center', gap:'8px', fontSize:'13px'}}>
                           <UserPlus size={16}/> Walk-In
