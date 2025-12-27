@@ -148,7 +148,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ SMART PROCESSOR v7: HYBRID COURSE LOGIC
+  // ✅ SMART PROCESSOR v8: HYBRID LOGIC + STRICT VALIDATION
   const processDataRows = (rows) => {
     if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
@@ -178,9 +178,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         name: getIndex(['Student', 'Name', 'Sadhaka']), 
         age: getIndex(['Age']), 
         gender: getIndex(['Gender', 'Sex']), 
-        // Generic Column (Fallback)
         generic: getIndex(['Courses', 'History', 'Old/New']), 
-        // Specific Columns (Priority)
         c10: getIndex(['10d']),
         cstp: getIndex(['STP', 'Satipatthana']),
         ctsc: getIndex(['TSC', 'Teen', 'Service']),
@@ -212,6 +210,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     // 4. MAIN LOOP
     const parsedStudents = [];
     let currentSectionGender = null;
+    let droppedCount = 0; // Track dropped rows
 
     // Pre-scan top rows to find initial gender
     for(let i=0; i<headerRowIndex; i++) {
@@ -237,7 +236,20 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         // B. SKIP HEADERS
         if (rowStr.includes('CONFNO') && rowStr.includes('STUDENT')) continue;
 
-        // C. PARSE ROW
+        // C. VALIDATE CONF NO (Strict Check)
+        const rawConf = map.conf > -1 ? String(row[map.conf] || '').trim().toUpperCase().replace(/\s+/g, '') : '';
+        const validPattern = /^(OM|NM|OF|NF|SM|SF)\d+$/; // Strict: Code + Number
+        
+        if (!validPattern.test(rawConf)) {
+            // If ConfNo is invalid/empty, DROP this row.
+            // But ensure it's not just an empty spacer row
+            if (rawConf.length > 0 || (map.name > -1 && row[map.name])) {
+               droppedCount++; 
+            }
+            continue; 
+        }
+
+        // D. PARSE VALID ROW
         const rawName = map.name > -1 ? row[map.name] : '';
         if (!rawName) continue; 
 
@@ -249,11 +261,9 @@ export default function CourseAdmin({ courses, refreshCourses }) {
             else if (gVal.startsWith('f')) pGender = 'Female';
         }
 
-        // ✅ D. HYBRID COURSE LOGIC
-        let coursesStr = "0"; // Default to New Student
-
+        // Hybrid Course Logic
+        let coursesStr = "0"; 
         let specificParts = [];
-        // Helper to grab number
         const addSpec = (colIndex, label) => {
             if (colIndex > -1 && row[colIndex] != null && row[colIndex] !== '') {
                 const val = parseInt(String(row[colIndex]).trim());
@@ -269,19 +279,15 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         addSpec(map.c45, '45D');
         addSpec(map.c60, '60D');
 
-        // Priority 1: Specific Columns have data
         if (specificParts.length > 0) {
             coursesStr = specificParts.join(', ');
-        } 
-        // Priority 2: Generic Column has data
-        else if (map.generic > -1 && row[map.generic] != null && row[map.generic] !== '') {
+        } else if (map.generic > -1 && row[map.generic] != null && row[map.generic] !== '') {
             coursesStr = String(row[map.generic]).trim();
         }
-        // Priority 3: Fallback is already "0"
 
         parsedStudents.push({ 
             id: Date.now() + i, 
-            conf_no: map.conf > -1 ? String(row[map.conf] || '').trim().toUpperCase().replace(/\s+/g, '') : `TEMP-${i}`, 
+            conf_no: rawConf, // Validated ConfNo
             full_name: rawName, 
             age: map.age > -1 ? row[map.age] : '', 
             gender: pGender || 'Unknown', 
@@ -289,12 +295,15 @@ export default function CourseAdmin({ courses, refreshCourses }) {
             email: '', 
             mobile: '', 
             notes: map.languages > -1 ? `Lang: ${row[map.languages]}` : '', 
-            status: (map.conf > -1 && row[map.conf]) ? 'Active' : 'Pending ID' 
+            status: 'Active' 
         });
     }
     
     setStudents(parsedStudents);
-    setUploadStatus({ type: 'success', msg: `✅ Ready to import ${parsedStudents.length} students.` });
+    setUploadStatus({ 
+        type: 'success', 
+        msg: `✅ Found ${parsedStudents.length} valid students. (Dropped ${droppedCount} invalid/empty rows)` 
+    });
   };
 
   const saveToDatabase = async () => {
