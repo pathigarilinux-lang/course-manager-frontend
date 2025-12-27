@@ -1,24 +1,27 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, RefreshCw, BedDouble, PlusCircle, Trash2, Printer, X, PieChart as PieIcon, BarChart3, Home, User } from 'lucide-react';
+import { Search, RefreshCw, BedDouble, PlusCircle, Trash2, Printer, X, PieChart as PieIcon, BarChart3, User } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout';     
 import FemaleBlockLayout from './FemaleBlockLayout';
 
+// ✅ COLORS for Dhamma Codes
 const COLORS = { 
     male: '#007bff', female: '#e91e63', 
-    om: '#0d47a1', nm: '#64b5f6', sm: '#2e7d32',
-    of: '#880e4f', nf: '#f06292', sf: '#69f0ae',
+    om: '#0d47a1', nm: '#64b5f6', sm: '#2e7d32', // Old, New, Server (Male)
+    of: '#880e4f', nf: '#f06292', sf: '#69f0ae', // Old, New, Server (Female)
     empty: '#e0e0e0'
 };
 
 export default function GlobalAccommodationManager() {
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
+  const [courses, setCourses] = useState([]); // List of courses for filter
+  const [selectedCourse, setSelectedCourse] = useState(''); // Filter State
   const [activeTab, setActiveTab] = useState('Male'); 
   const [searchQuery, setSearchQuery] = useState('');
 
-  // ✅ Room Management States
+  // Room Management States
   const [showAddRoom, setShowAddRoom] = useState(false);
   const [showDeleteRoom, setShowDeleteRoom] = useState(false);
   const [newRoomData, setNewRoomData] = useState({ no: '', gender: 'Male', type: 'Dorm', capacity: 1 });
@@ -27,6 +30,7 @@ export default function GlobalAccommodationManager() {
 
   useEffect(() => {
     fetchData();
+    fetch(`${API_URL}/courses`).then(res => res.json()).then(setCourses).catch(console.error);
   }, []);
 
   const fetchData = async () => {
@@ -94,26 +98,66 @@ export default function GlobalAccommodationManager() {
       }
   };
 
-  // --- STATS CALC ---
-  const stats = useMemo(() => {
-      const total = 235; // Or rooms.reduce((acc, r) => acc + r.capacity, 0);
-      const occ = occupancy.length;
-      const male = occupancy.filter(p => (p.gender||'').toLowerCase().startsWith('m')).length;
-      const female = occupancy.filter(p => (p.gender||'').toLowerCase().startsWith('f')).length;
+  // --- ✅ FILTER LOGIC ---
+  const filteredOccupancy = useMemo(() => {
+      let data = occupancy;
       
+      // 1. Course Filter
+      if (selectedCourse) {
+          data = data.filter(o => String(o.course_id) === String(selectedCourse));
+      }
+
+      // 2. Search Filter
+      if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          data = data.filter(o => 
+              (o.full_name && o.full_name.toLowerCase().includes(q)) || 
+              (o.room_no && o.room_no.toLowerCase().includes(q)) ||
+              (o.conf_no && o.conf_no.toLowerCase().includes(q))
+          );
+      }
+      return data;
+  }, [occupancy, selectedCourse, searchQuery]);
+
+
+  // --- ✅ ADVANCED STATS CALCULATION ---
+  const stats = useMemo(() => {
+      const total = 235; 
+      const occ = filteredOccupancy.length;
+      
+      // Basic Gender Split
+      const male = filteredOccupancy.filter(p => (p.gender||'').toLowerCase().startsWith('m')).length;
+      const female = filteredOccupancy.filter(p => (p.gender||'').toLowerCase().startsWith('f')).length;
+
+      // Detailed Dhamma Codes (OM, NM, SM, OF, NF, SF)
+      const getCount = (prefix) => filteredOccupancy.filter(p => (p.conf_no||'').toUpperCase().startsWith(prefix)).length;
+
+      const om = getCount('OM');
+      const nm = getCount('NM');
+      const sm = getCount('SM'); // Server Male
+      const of = getCount('OF');
+      const nf = getCount('NF');
+      const sf = getCount('SF'); // Server Female
+      
+      // Data for Charts
       const pieData = [
           { name: 'Male', value: male, color: COLORS.male },
           { name: 'Female', value: female, color: COLORS.female },
-          { name: 'Empty', value: total - occ, color: COLORS.empty }
+          { name: 'Empty', value: Math.max(0, total - occ), color: COLORS.empty }
+      ];
+
+      const barData = [
+          { name: 'Old Male', count: om, fill: COLORS.om },
+          { name: 'New Male', count: nm, fill: COLORS.nm },
+          { name: 'Server M', count: sm, fill: COLORS.sm },
+          { name: 'Old Female', count: of, fill: COLORS.of },
+          { name: 'New Female', count: nf, fill: COLORS.nf },
+          { name: 'Server F', count: sf, fill: COLORS.sf },
       ];
       
-      return { total, occ, male, female, pieData };
-  }, [rooms, occupancy]);
+      return { total, occ, male, female, pieData, barData };
+  }, [filteredOccupancy]);
 
-  // Filter for Layouts
-  const filteredOccupancy = searchQuery 
-    ? occupancy.filter(o => o.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || o.room_no.toLowerCase().includes(searchQuery.toLowerCase()))
-    : occupancy;
 
   return (
     <div style={{...styles.card, maxWidth:'100%', height:'90vh', display:'flex', flexDirection:'column', padding:0, overflow:'hidden', background:'#f4f6f8'}}>
@@ -131,10 +175,21 @@ export default function GlobalAccommodationManager() {
           </div>
 
           <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+             
+             {/* Course Filter Dropdown */}
+             <select 
+                value={selectedCourse} 
+                onChange={(e) => setSelectedCourse(e.target.value)}
+                style={{...styles.input, padding:'8px', borderRadius:'20px', width:'200px', fontWeight:'bold', borderColor:'#007bff', background:'#f0f8ff'}}
+             >
+                 <option value="">-- All Courses --</option>
+                 {courses.map(c => <option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
+             </select>
+
              <div style={{position:'relative'}}>
                  <Search size={16} color="#999" style={{position:'absolute', left:'10px', top:'10px'}}/>
                  <input 
-                    placeholder="Search Room or Student..." 
+                    placeholder="Search Room / Student / Conf..." 
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     style={{...styles.input, paddingLeft:'35px', width:'220px', borderRadius:'20px', background:'#f8f9fa'}}
@@ -159,42 +214,63 @@ export default function GlobalAccommodationManager() {
           </div>
       </div>
 
-      {/* --- STATS DASHBOARD --- */}
-      <div style={{padding:'20px', display:'grid', gridTemplateColumns:'1fr 3fr', gap:'20px', height:'180px'}}>
-          {/* Pie Chart Card */}
+      {/* --- ✅ DASHBOARD AREA (Charts) --- */}
+      <div style={{padding:'20px', display:'grid', gridTemplateColumns:'1fr 2fr', gap:'20px', height:'260px'}}>
+          
+          {/* 1. Pie Chart Card (Occupancy) */}
           <div style={{background:'white', borderRadius:'12px', padding:'15px', display:'flex', alignItems:'center', boxShadow:'0 2px 10px rgba(0,0,0,0.03)'}}>
               <div style={{flex:1}}>
-                  <div style={{fontSize:'12px', color:'#888', fontWeight:'bold', textTransform:'uppercase'}}>Total Occupancy</div>
-                  <div style={{fontSize:'32px', fontWeight:'800', color:'#333', marginTop:'5px'}}>{Math.round(stats.occ/stats.total*100)}%</div>
+                  <div style={{fontSize:'12px', color:'#888', fontWeight:'bold', textTransform:'uppercase', display:'flex', alignItems:'center', gap:'5px'}}>
+                      <PieIcon size={14}/> Total Occupancy
+                  </div>
+                  <div style={{fontSize:'36px', fontWeight:'800', color:'#333', marginTop:'5px'}}>{Math.round(stats.occ/stats.total*100)}%</div>
                   <div style={{fontSize:'12px', color:'#666'}}>{stats.occ} / {stats.total} Beds</div>
+                  
+                  <div style={{marginTop:'15px', display:'flex', gap:'15px'}}>
+                     <div style={{fontSize:'11px'}}><span style={{color:COLORS.male}}>●</span> M: {stats.male}</div>
+                     <div style={{fontSize:'11px'}}><span style={{color:COLORS.female}}>●</span> F: {stats.female}</div>
+                  </div>
               </div>
-              <div style={{width:'100px', height:'100px'}}>
+              <div style={{width:'140px', height:'140px'}}>
                   <ResponsiveContainer>
                       <PieChart>
-                          <Pie data={stats.pieData} innerRadius={30} outerRadius={45} paddingAngle={2} dataKey="value">
+                          <Pie data={stats.pieData} innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value">
                               {stats.pieData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
                           </Pie>
+                          <Tooltip />
                       </PieChart>
                   </ResponsiveContainer>
               </div>
           </div>
 
-          {/* Controls & Legend */}
-          <div style={{background:'white', borderRadius:'12px', padding:'15px', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:'0 2px 10px rgba(0,0,0,0.03)'}}>
-              <div style={{display:'flex', gap:'30px'}}>
-                  <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                       <div style={{padding:'8px', borderRadius:'8px', background:'#e3f2fd', color: COLORS.male}}><User size={20}/></div>
-                       <div><div style={{fontSize:'12px', color:'#888'}}>Male</div><div style={{fontSize:'18px', fontWeight:'bold'}}>{stats.male}</div></div>
+          {/* 2. Bar Chart Card (Dhamma Code Categories) */}
+          <div style={{background:'white', borderRadius:'12px', padding:'15px', display:'flex', flexDirection:'column', boxShadow:'0 2px 10px rgba(0,0,0,0.03)'}}>
+              <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}>
+                  <div style={{fontSize:'12px', color:'#888', fontWeight:'bold', textTransform:'uppercase', display:'flex', alignItems:'center', gap:'5px'}}>
+                      <BarChart3 size={14}/> Student Distribution (By Category)
                   </div>
-                  <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                       <div style={{padding:'8px', borderRadius:'8px', background:'#fce4ec', color: COLORS.female}}><User size={20}/></div>
-                       <div><div style={{fontSize:'12px', color:'#888'}}>Female</div><div style={{fontSize:'18px', fontWeight:'bold'}}>{stats.female}</div></div>
+                  
+                  {/* Tab Switcher */}
+                  <div style={{background:'#f1f3f5', padding:'3px', borderRadius:'20px', display:'flex'}}>
+                      <button onClick={()=>setActiveTab('Male')} style={{padding:'4px 15px', borderRadius:'16px', border:'none', background: activeTab==='Male' ? 'white' : 'transparent', color: activeTab==='Male' ? COLORS.male : '#888', fontWeight:'bold', boxShadow: activeTab==='Male' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none', cursor:'pointer', fontSize:'11px', transition:'0.2s'}}>Male Block</button>
+                      <button onClick={()=>setActiveTab('Female')} style={{padding:'4px 15px', borderRadius:'16px', border:'none', background: activeTab==='Female' ? 'white' : 'transparent', color: activeTab==='Female' ? COLORS.female : '#888', fontWeight:'bold', boxShadow: activeTab==='Female' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none', cursor:'pointer', fontSize:'11px', transition:'0.2s'}}>Female Block</button>
                   </div>
               </div>
-              
-              <div style={{background:'#f1f3f5', padding:'5px', borderRadius:'25px', display:'flex'}}>
-                  <button onClick={()=>setActiveTab('Male')} style={{padding:'8px 25px', borderRadius:'20px', border:'none', background: activeTab==='Male' ? 'white' : 'transparent', color: activeTab==='Male' ? COLORS.male : '#888', fontWeight:'bold', boxShadow: activeTab==='Male' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none', cursor:'pointer', transition:'0.2s'}}>Male Block</button>
-                  <button onClick={()=>setActiveTab('Female')} style={{padding:'8px 25px', borderRadius:'20px', border:'none', background: activeTab==='Female' ? 'white' : 'transparent', color: activeTab==='Female' ? COLORS.female : '#888', fontWeight:'bold', boxShadow: activeTab==='Female' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none', cursor:'pointer', transition:'0.2s'}}>Female Block</button>
+
+              <div style={{flex:1, width:'100%'}}>
+                  <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={stats.barData} margin={{top: 5, right: 30, left: 20, bottom: 5}}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                          <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={false} />
+                          <YAxis fontSize={11} tickLine={false} axisLine={false} />
+                          <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius:'8px', border:'none', boxShadow:'0 5px 15px rgba(0,0,0,0.1)'}} />
+                          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                              {stats.barData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                              ))}
+                          </Bar>
+                      </BarChart>
+                  </ResponsiveContainer>
               </div>
           </div>
       </div>
@@ -207,7 +283,7 @@ export default function GlobalAccommodationManager() {
          }
       </div>
 
-      {/* --- MODALS --- */}
+      {/* --- MODALS (Add/Delete Room) --- */}
       {showAddRoom && (
           <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:3000}}>
               <div style={{background:'white', padding:'25px', borderRadius:'12px', width:'350px', boxShadow:'0 10px 30px rgba(0,0,0,0.2)'}}>
