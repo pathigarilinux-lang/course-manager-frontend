@@ -13,26 +13,32 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     
     // --- HELPER: Identify Toilet Type ---
     const getToiletInfo = (roomNumStr) => {
-        const numMatch = roomNumStr.match(/(\d{3})/);
+        const numMatch = String(roomNumStr).match(/(\d{3})/);
         const num = numMatch ? parseInt(numMatch[1]) : 0;
         
         if (INDIAN_COMMODES.has(num)) {
-            return { type: 'Indian', icon: '🟤', color: '#D84315', label: 'IND' }; // Deep Orange
+            return { type: 'Indian', icon: '🟤', color: '#D84315', label: 'IND' }; 
         }
-        return { type: 'Western', icon: '🚽', color: '#0277bd', label: 'WES' }; // Strong Blue
+        return { type: 'Western', icon: '🚽', color: '#0277bd', label: 'WES' }; 
     };
 
     // --- DATA PROCESSOR ---
     const getRoomData = () => {
         const roomGroups = {};
 
+        // ✅ Filter ONLY Male rooms
         rooms.filter(r => r.gender_type === 'Male').forEach(r => {
-            const numMatch = r.room_no.match(/(\d{3})/);
-            const baseNum = numMatch ? parseInt(numMatch[1]) : 0;
-            const key = baseNum || r.room_no;
+            let key = r.room_no;
+            
+            // Normalize Key: Integers for standard rooms, String for others
+            const digitMatch = String(r.room_no).match(/^(\d{3})[A-Za-z]*$/);
+            if (digitMatch) {
+                const num = parseInt(digitMatch[1]);
+                key = isNaN(num) ? r.room_no : num;
+            }
 
             if (!roomGroups[key]) {
-                roomGroups[key] = { baseNum, beds: [], toilet: getToiletInfo(r.room_no) };
+                roomGroups[key] = { baseNum: key, beds: [], toilet: getToiletInfo(r.room_no) };
             }
             
             const occupant = occupancy.find(p => p.room_no === r.room_no);
@@ -68,14 +74,17 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
         };
     };
 
-    // --- HELPER: Get remaining rooms not in ranges ---
+    // --- HELPER: Get "Other" rooms (Emergency/Manual) ---
     const getOthers = () => {
-        const mainRanges = new Set([
-            ...Array.from({length: 20}, (_, i) => 301 + i), // 301-320 (Block A)
-            ...Array.from({length: 23}, (_, i) => 321 + i), // 321-343 (Block B)
-            ...Array.from({length: 20}, (_, i) => 344 + i)  // 344-363 (Block C)
+        const standardKeys = new Set([
+            ...Array.from({length: 20}, (_, i) => 301 + i), // 301-320
+            ...Array.from({length: 23}, (_, i) => 321 + i), // 321-343
+            ...Array.from({length: 20}, (_, i) => 344 + i)  // 344-363
         ]);
-        return Object.values(allRooms).filter(g => !mainRanges.has(g.baseNum));
+        
+        return Object.values(allRooms)
+            .filter(g => !standardKeys.has(g.baseNum))
+            .sort((a, b) => String(a.baseNum).localeCompare(String(b.baseNum), undefined, { numeric: true }));
     };
 
     // --- RENDER COMPONENT: Single Bed Box ---
@@ -86,19 +95,16 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
         const p = bed.occupant;
         const isOcc = !!p;
         
-        // Medical Logic (Rooms 321 - 328)
         const isMedical = group.baseNum >= 321 && group.baseNum <= 328;
 
-        // O/N Logic
-        let isOld = false;
         let badgeColor = null;
         let badgeText = null;
 
         if (isOcc) {
             const conf = (p.conf_no || '').toUpperCase();
-            isOld = conf.startsWith('O') || conf.startsWith('S');
+            const isOld = conf.startsWith('O') || conf.startsWith('S');
             badgeText = isOld ? 'O' : 'N';
-            badgeColor = isOld ? '#007bff' : '#ffc107'; // Blue vs Yellow
+            badgeColor = isOld ? '#007bff' : '#ffc107'; 
         }
 
         const bg = isOcc ? '#f8f9fa' : (isMedical ? '#fff8e1' : 'white');
@@ -119,7 +125,6 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                      position: 'relative'
                  }}>
                 
-                {/* Header */}
                 <div style={{display:'flex', justifyContent:'space-between', borderBottom:'1px solid rgba(0,0,0,0.1)', paddingBottom:'2px', marginBottom:'2px'}}>
                     <div style={{display:'flex', alignItems:'center', gap:'2px'}}>
                         <span style={{fontWeight:'900', fontSize:'13px', color: isMedical ? '#e65100' : '#333'}}>{group.baseNum}</span>
@@ -128,7 +133,6 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                     <span style={{fontSize:'9px', background: group.toilet.color, color:'white', padding:'1px 3px', borderRadius:'3px', fontWeight:'bold'}}>{group.toilet.label}</span>
                 </div>
 
-                {/* Content */}
                 {isOcc ? (
                     <div style={{fontSize:'10px', lineHeight:'1.1'}}>
                         <div style={{fontWeight:'bold', color:'#000', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{p.full_name}</div>
@@ -136,7 +140,6 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                     </div>
                 ) : <div style={{fontSize:'9px', color: isMedical ? '#e65100' : '#ccc', textAlign:'center', fontWeight: isMedical ? 'bold' : 'normal'}}>{isMedical ? 'MED/SR' : 'EMPTY'}</div>}
 
-                {/* O/N Badge */}
                 {isOcc && (
                     <div style={{
                         position: 'absolute', top: '-6px', right: '-6px',
@@ -156,7 +159,6 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     const DoubleBedBox = ({ group }) => {
         let sortedBeds = group.beds.sort((a,b) => a.room_no.localeCompare(b.room_no));
 
-        // ✅ FIX: Force Room 363 to 2 Beds max
         if (group.baseNum === 363 && sortedBeds.length > 2) {
             sortedBeds = sortedBeds.slice(0, 2);
         }
@@ -174,9 +176,8 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                         const bedLabel = bed.room_no.endsWith('A') ? 'Bed A' : (bed.room_no.endsWith('B') ? 'Bed B' : `Bed ${index + 1}`);
                         
                         let bg = index === 0 ? '#f0f8ff' : '#fffde7'; 
-                        if (isOcc) bg = '#f5f5f5'; // Dim occupied
+                        if (isOcc) bg = '#f5f5f5'; 
 
-                        // O/N Logic
                         let badgeColor = null;
                         let badgeText = null;
                         if (isOcc) {
@@ -197,7 +198,6 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                                     </div>
                                 ) : <div style={{fontSize:'10px', color:'rgba(0,0,0,0.1)', textAlign:'center'}}>🛏️</div>}
 
-                                {/* O/N Badge */}
                                 {isOcc && (
                                     <div style={{
                                         position: 'absolute', top: '2px', right: '2px',
@@ -237,10 +237,10 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     );
 
     // --- BLOCK SECTION ---
-    const BlockSection = ({ title, color, rangeStart, rangeEnd, children }) => {
-        const stats = getStats(rangeStart, rangeEnd);
+    const BlockSection = ({ title, color, rangeStart, rangeEnd, children, bg = '#fff' }) => {
+        const stats = rangeStart && rangeEnd ? getStats(rangeStart, rangeEnd) : { hasRooms: false };
         return (
-            <div style={{border:`2px solid ${color}`, borderRadius:'10px', padding:'15px', background:'#fff'}}>
+            <div style={{border:`2px solid ${color}`, borderRadius:'10px', padding:'15px', background: bg}}>
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:`1px solid ${color}33`, paddingBottom:'5px', marginBottom:'10px'}}>
                     <h3 style={{margin:0, color:color, fontSize:'16px'}}>{title}</h3>
                     {stats.hasRooms && (
@@ -261,6 +261,8 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
             </div>
         );
     };
+
+    const otherRooms = getOthers();
 
     return (
         <div style={{display:'flex', flexDirection:'column', gap:'30px'}}>
@@ -288,25 +290,17 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
 
             {/* --- BLOCK B (Single Beds) --- */}
             <BlockSection title="BLOCK B (Single Beds)" color="#f57f17" rangeStart={321} rangeEnd={343}>
-                {/* Row 1: 321-326 */}
                 <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
                     {getRange(321, 326).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
                 </div>
-                
-                {/* Row 2: 327-332 */}
                 <div style={{height:'10px'}}></div>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
                     {getRange(327, 332).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
                 </div>
-
                 <Pathway label="⬇️ CORRIDOR / WALKWAY ⬆️" />
-
-                {/* Row 3: 333-338 */}
                 <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
                     {getRange(333, 338).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
                 </div>
-
-                {/* Row 4: 339-343 */}
                 <div style={{height:'10px'}}></div>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(6, 1fr)', gap:'10px'}}>
                     {getRange(339, 343).map(g => <SingleBedBox key={g.baseNum} group={g} />)}
@@ -316,39 +310,34 @@ export default function MaleBlockLayout({ rooms, occupancy, onRoomClick }) {
 
             {/* --- BLOCK C (Double Beds) --- */}
             <BlockSection title="BLOCK C (Double Beds)" color="#2e7d32" rangeStart={344} rangeEnd={363}>
-                {/* Row 1: 344-348 */}
                 <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px'}}>
                     {getRange(344, 348).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
                 </div>
-
-                {/* Row 2: 349-353 */}
                 <div style={{height:'10px'}}></div>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px'}}>
                     {getRange(349, 353).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
                 </div>
-
                 <Pathway label="⬇️ CORRIDOR / WALKWAY ⬆️" />
-
-                {/* Row 3: 354-358 */}
                 <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px'}}>
                     {getRange(354, 358).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
                 </div>
-
-                {/* Row 4: 359-363 */}
                 <div style={{height:'10px'}}></div>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'10px'}}>
                     {getRange(359, 363).map(g => <DoubleBedBox key={g.baseNum} group={g} />)}
                 </div>
             </BlockSection>
 
-            {/* --- OTHERS --- */}
-            {getOthers().length > 0 && (
-                <div style={{border:'2px solid #555', borderRadius:'10px', padding:'15px', background:'#fff'}}>
-                    <h3 style={{marginTop:0, color:'#555', borderBottom:'1px solid #ddd', paddingBottom:'5px', fontSize:'16px'}}>Other Rooms</h3>
-                    <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:'10px'}}>
-                        {getOthers().map(g => <SingleBedBox key={g.baseNum} group={g} />)}
+            {/* --- ✅ OTHER ACCOMMODATION / EMERGENCY --- */}
+            {otherRooms.length > 0 && (
+                <BlockSection title="OTHER ACCOMMODATION / EMERGENCY" color="#555" bg="#f5f5f5">
+                    <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:'10px', width:'100%'}}>
+                        {otherRooms.map(g => (
+                            g.beds.length > 1 
+                                ? <DoubleBedBox key={g.baseNum} group={g} /> 
+                                : <SingleBedBox key={g.baseNum} group={g} />
+                        ))}
                     </div>
-                </div>
+                </BlockSection>
             )}
         </div>
     );
