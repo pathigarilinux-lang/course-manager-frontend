@@ -26,6 +26,7 @@ export default function GlobalAccommodationManager() {
   const [newRoomData, setNewRoomData] = useState({ roomNo: '', type: 'Male' });
   const [deleteRoomNo, setDeleteRoomNo] = useState('');
   const [courses, setCourses] = useState([]);
+  const [showAutoTool, setShowAutoTool] = useState(false);
 
   // --- LOADING ---
   const loadData = async () => { 
@@ -363,6 +364,18 @@ export default function GlobalAccommodationManager() {
                   <select value={newRoomData.type} onChange={e => setNewRoomData({...newRoomData, type: e.target.value})} style={{width:'100%', padding:'10px', border:'1px solid #ddd', borderRadius:'6px', marginBottom:'20px'}}>
                       <option value="Male">Male Block</option>
                       <option value="Female">Female Block</option>
+                      <button 
+    onClick={() => setShowAutoTool(true)} 
+    style={{
+        display:'flex', alignItems:'center', gap:'6px', 
+        background:'linear-gradient(45deg, #6a11cb, #2575fc)', 
+        color:'white', border:'none', padding:'8px 15px', 
+        borderRadius:'20px', cursor:'pointer', fontWeight:'bold',
+        boxShadow: '0 4px 10px rgba(106, 17, 203, 0.3)'
+    }}
+>
+    ✨ Auto-Allocate
+</button>
                   </select>
                   <button onClick={handleAddRoom} style={{width:'100%', padding:'10px', borderRadius:'6px', border:'none', background:'#007bff', color:'white', fontWeight:'bold', cursor:'pointer'}}>Save Room</button>
               </div>
@@ -385,6 +398,17 @@ export default function GlobalAccommodationManager() {
       )}
 
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+    {showAutoTool && (
+    <AutoAllocationTool 
+        courseId={selectedCourse} 
+        onClose={() => setShowAutoTool(false)} 
+        onSuccess={() => {
+            // Trigger refresh
+            fetchOccupancy(); 
+            // Optional: fetchStudents() if you have that function exposed
+        }} 
+    />
+)}
     </div>
   );
 }
