@@ -97,13 +97,25 @@ export default function GateReception({ courses, refreshCourses }) {
       });
   }, [participants, searchQuery, activeFilter]);
 
+  // ✅ UPDATED STATS LOGIC (Matching Dashboard)
   const stats = useMemo(() => {
-      const total = participants.filter(p => p.status !== 'Cancelled').length;
+      // 1. Original Total (Everything)
+      const total = participants.length;
+      
+      // 2. Cancelled
+      const cancelledCount = participants.filter(p => p.status === 'Cancelled' || p.status === 'No-Show').length;
+      
+      // 3. Active (Expected Valid Arrivals)
+      const activeCount = total - cancelledCount;
+
+      // 4. Arrived (Gate or Hall)
       const arrived = participants.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending').length;
-      const pending = total - arrived;
+      
+      // 5. Gender Breakdown (Arrived Only)
       const maleArrived = participants.filter(p => (p.gender === 'Male') && (p.status === 'Gate Check-In' || p.status === 'Attending')).length;
       const femaleArrived = participants.filter(p => (p.gender === 'Female') && (p.status === 'Gate Check-In' || p.status === 'Attending')).length;
-      return { total, arrived, pending, maleArrived, femaleArrived };
+      
+      return { total, cancelledCount, activeCount, arrived, maleArrived, femaleArrived };
   }, [participants]);
 
   // --- RENDER ---
@@ -135,16 +147,22 @@ export default function GateReception({ courses, refreshCourses }) {
           <>
               {/* 📊 RESPONSIVE STATS GRID */}
               <div className="stats-grid" style={{display:'grid', gap:'10px', marginBottom:'20px'}}>
+                  {/* ✅ UPDATED EXPECTED CARD */}
                   <div style={{background:'#e3f2fd', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #007bff'}}>
-                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#007bff', textTransform:'uppercase'}}>Expected</div>
+                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#007bff', textTransform:'uppercase'}}>Expected Total</div>
                       <div style={{fontSize:'20px', fontWeight:'900', color:'#333'}}>{stats.total}</div>
+                      <div style={{marginTop:'5px', fontSize:'11px', display:'flex', justifyContent:'space-between', background:'rgba(255,255,255,0.6)', padding:'4px', borderRadius:'4px'}}>
+                          <span style={{color:'#d32f2f', fontWeight:'bold'}}>🚫 {stats.cancelledCount}</span>
+                          <span style={{color:'#1b5e20', fontWeight:'bold'}}>Active: {stats.activeCount}</span>
+                      </div>
                   </div>
+
                   <div style={{background:'#e8f5e9', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #2e7d32'}}>
                       <div style={{fontSize:'11px', fontWeight:'bold', color:'#2e7d32', textTransform:'uppercase'}}>Arrived</div>
-                      <div style={{fontSize:'20px', fontWeight:'900', color:'#333'}}>{stats.arrived} <small style={{color:'#666', fontSize:'12px'}}>({Math.round((stats.arrived/stats.total)*100 || 0)}%)</small></div>
+                      <div style={{fontSize:'20px', fontWeight:'900', color:'#333'}}>{stats.arrived} <small style={{color:'#666', fontSize:'12px'}}>({Math.round((stats.arrived/stats.activeCount)*100 || 0)}%)</small></div>
                   </div>
                   <div style={{background:'#fff3e0', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #ef6c00'}}>
-                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#ef6c00', textTransform:'uppercase'}}>M / F</div>
+                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#ef6c00', textTransform:'uppercase'}}>M / F (Arrived)</div>
                       <div style={{fontSize:'14px', fontWeight:'bold', marginTop:'5px'}}>
                           <span style={{color:'#007bff'}}>M: {stats.maleArrived}</span> | <span style={{color:'#e91e63'}}>F: {stats.femaleArrived}</span>
                       </div>
