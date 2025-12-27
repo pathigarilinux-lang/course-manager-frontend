@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, Database, Save, Download, Trash2, Calendar, Search, PlusCircle, Archive, Edit, FileSpreadsheet } from 'lucide-react';
+import { Upload, Database, Save, Download, Trash2, Calendar, Search, PlusCircle, Edit, FileSpreadsheet, CheckCircle, AlertTriangle } from 'lucide-react';
 import * as XLSX from 'xlsx'; // ✅ REQUIRES: npm install xlsx
 import { API_URL, styles } from '../config';
 
@@ -11,6 +11,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
   // State
   const [students, setStudents] = useState([]);
   const [uploadStatus, setUploadStatus] = useState(null);
+  const [mappingReport, setMappingReport] = useState(null); // ✅ Stores the mapping confirmation details
   const [selectedCourseForUpload, setSelectedCourseForUpload] = useState('');
   
   // Course Form State
@@ -110,7 +111,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
 
   // --- ✅ EXCEL / IMPORT TOOLS ---
 
-  // 1. Download Excel Template
   const downloadTemplate = () => {
       const data = [
           ["Full Name", "Age", "Gender", "Conf No", "Old/New (Courses)", "Email", "Phone", "Remarks"],
@@ -123,25 +123,20 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       XLSX.writeFile(wb, "Dhamma_Student_Import_Template.xlsx");
   };
 
-  // 2. Handle File Selection
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    setUploadStatus({ type: 'info', msg: 'Parsing file...' });
+    setUploadStatus({ type: 'info', msg: 'Reading file...' });
+    setMappingReport(null); // Reset report
 
     const reader = new FileReader();
     reader.onload = (e) => { 
         try { 
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
-            
-            // Get first sheet
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
-            
-            // Convert to JSON (Array of Arrays) to find headers easily
             const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-            
             processDataRows(jsonData);
         } 
         catch (err) { 
@@ -152,11 +147,11 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     reader.readAsArrayBuffer(file);
   };
 
-  // 3. Smart Data Processor
+  // ✅ SMART PROCESSOR WITH CONFIRMATION REPORT
   const processDataRows = (rows) => {
     if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
-    // Scan first 10 rows to find the Header Row (Look for "Name" and "Gender")
+    // 1. Find Header Row
     let headerRowIndex = -1;
     let headers = [];
     
@@ -164,18 +159,19 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         const rowStr = rows[i].map(c => String(c).toLowerCase()).join(' ');
         if (rowStr.includes('name') && (rowStr.includes('gender') || rowStr.includes('age'))) {
             headerRowIndex = i;
-            headers = rows[i].map(h => String(h).toLowerCase().trim());
+            headers = rows[i].map(h => String(h).trim()); // Keep original case for display
             break;
         }
     }
     
     if (headerRowIndex === -1) { 
-        setUploadStatus({ type: 'error', msg: 'Could not find headers (Name, Gender). Use the Template.' }); 
+        setUploadStatus({ type: 'error', msg: '❌ Could not find headers (Name, Gender). Please check the file.' }); 
         return; 
     }
     
-    // Map columns dynamically
-    const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
+    // 2. Map Columns & Generate Report
+    const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.toLowerCase().includes(k)));
+    
     const map = { 
         conf: getIndex(['conf', 'ref', 'id', 'no.']), 
         name: getIndex(['name', 'student', 'given']), 
@@ -186,8 +182,26 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         phone: getIndex(['phone', 'mobile']), 
         notes: getIndex(['notes', 'remark', 'medical']) 
     };
+
+    // Build the Confirmation Report
+    const report = {
+        name: map.name > -1 ? headers[map.name] : null,
+        gender: map.gender > -1 ? headers[map.gender] : null,
+        age: map.age > -1 ? headers[map.age] : null,
+        conf: map.conf > -1 ? headers[map.conf] : null,
+        missing: []
+    };
+    if (!report.name) report.missing.push("Name");
+    if (!report.gender) report.missing.push("Gender");
     
-    // Extract Data
+    setMappingReport(report); // Show user what we found
+
+    if (report.missing.length > 0) {
+        setUploadStatus({ type: 'error', msg: `❌ Critical columns missing: ${report.missing.join(', ')}` });
+        return;
+    }
+    
+    // 3. Extract Data
     const parsedStudents = rows.slice(headerRowIndex + 1).map((row, index) => {
       const rawName = map.name > -1 ? row[map.name] : '';
       if (!rawName) return null; 
@@ -207,20 +221,20 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     }).filter(s => s !== null);
     
     setStudents(parsedStudents);
-    setUploadStatus({ type: 'success', msg: `✅ Successfully loaded ${parsedStudents.length} students!` });
+    setUploadStatus({ type: 'success', msg: `✅ Ready to import ${parsedStudents.length} students.` });
   };
 
   const saveToDatabase = async () => {
     if (students.length === 0) return;
     const targetCourse = courses.find(c => c.course_name === selectedCourseForUpload);
     if (!targetCourse) return alert("Please select a valid course first.");
-    if (!window.confirm(`Save ${students.length} students to ${selectedCourseForUpload}?`)) return;
+    if (!window.confirm(`Confirm Import:\n\nCourse: ${selectedCourseForUpload}\nStudents: ${students.length}\n\nProceed?`)) return;
     
     try {
         const payload = { students: students.map(s => ({ name: s.full_name, confNo: s.conf_no, age: s.age, gender: s.gender, courses: s.courses_info, email: s.email, phone: s.mobile }))};
         const res = await fetch(`${API_URL}/courses/${targetCourse.course_id}/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const data = await res.json();
-        if(res.ok) { alert(`✅ Success: ${data.message}`); setStudents([]); } else { alert(`❌ Error: ${data.error}`); }
+        if(res.ok) { alert(`✅ Success: ${data.message}`); setStudents([]); setMappingReport(null); setUploadStatus(null); } else { alert(`❌ Error: ${data.error}`); }
     } catch(err) { alert("Network Error: Failed to save data."); console.error(err); }
   };
 
@@ -403,7 +417,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               {/* FILE UPLOAD CARD */}
               <div style={{border:'2px dashed #ccc', borderRadius:'12px', padding:'40px', textAlign:'center', background:'#f9f9f9', position:'relative', transition:'all 0.2s', ':hover':{borderColor:'#28a745', background:'#f0fff4'}}}>
                 <h4 style={{margin:'0 0 10px 0', color:'#555'}}>Option A: Upload File</h4>
-                {/* Accept Excel and CSV */}
                 <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
                 <div style={{pointerEvents:'none'}}>
                     <div style={{width:'60px', height:'60px', background:'#e9ecef', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 15px auto'}}>
@@ -437,6 +450,24 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               </div>
           </div>
 
+          {/* ✅ MAPPING CONFIRMATION BOX */}
+          {mappingReport && (
+              <div style={{marginTop:'20px', padding:'15px', background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'8px'}}>
+                  <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'10px', color:'#2e7d32', fontWeight:'bold'}}>
+                      <CheckCircle size={20}/> Smart Mapping Confirmation
+                  </div>
+                  <div style={{fontSize:'13px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
+                      <div><strong>Name:</strong> {mappingReport.name || <span style={{color:'red'}}>Missing</span>}</div>
+                      <div><strong>Gender:</strong> {mappingReport.gender || <span style={{color:'red'}}>Missing</span>}</div>
+                      <div><strong>Age:</strong> {mappingReport.age || <span style={{color:'#999'}}>Skip</span>}</div>
+                      <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'#999'}}>Auto-Gen</span>}</div>
+                  </div>
+                  <div style={{fontSize:'12px', color:'#555', marginTop:'10px', fontStyle:'italic'}}>
+                      * Please verify that the columns above match your Excel headers.
+                  </div>
+              </div>
+          )}
+
           {uploadStatus && <div style={{marginTop:'20px', padding:'15px', background: uploadStatus.type==='success'?'#d4edda':(uploadStatus.type==='info'?'#e3f2fd':'#f8d7da'), color: uploadStatus.type==='success'?'#155724':(uploadStatus.type==='info'?'#0d47a1':'#721c24'), borderRadius:'8px', fontWeight:'bold', textAlign:'center'}}>{uploadStatus.msg}</div>}
           
           {students.length > 0 && (
@@ -444,7 +475,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
                   <h3 style={{margin:0}}>Preview Data ({students.length})</h3>
                   <div style={{display:'flex', gap:'10px'}}>
-                      <button onClick={()=>setStudents([])} style={styles.btn(false)}>Clear All</button>
+                      <button onClick={()=>{setStudents([]); setMappingReport(null);}} style={styles.btn(false)}>Clear All</button>
                       <button onClick={saveToDatabase} style={{...styles.btn(true), background:'#28a745', color:'white', padding:'10px 25px'}}><Save size={16}/> Save to Database</button>
                   </div>
                </div>
@@ -459,7 +490,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         </div>
       )}
 
-      {/* --- BACKUP & SEARCH TABS (Unchanged) --- */}
+      {/* --- BACKUP & SEARCH TABS --- */}
       {activeTab === 'backup' && (
           <div style={{textAlign:'center', padding:'60px 40px', animation:'fadeIn 0.3s ease'}}>
               <div style={{width:'80px', height:'80px', background:'#f8f9fa', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px auto'}}>
