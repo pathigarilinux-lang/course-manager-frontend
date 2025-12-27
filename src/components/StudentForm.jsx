@@ -68,12 +68,28 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : 'Male');
   const themeColor = isMale ? '#007bff' : (isFemale ? '#e91e63' : '#6c757d');
 
-  // PREPARE MAPS FOR LAYOUTS
+  // PREPARE MAPS FOR LAYOUTS (Gender Scoped)
   const diningMap = new Map();
   const pagodaMap = new Map();
 
-  globalOccupied.dining.forEach(item => diningMap.set(item.seat, { blocked: true, tag: item.tag, type: 'Global' }));
-  globalOccupied.pagoda.forEach(item => pagodaMap.set(item.cell, { blocked: true, tag: item.tag, type: 'Global' }));
+  // ✅ GLOBAL BLOCKS: Only block if genders MATCH
+  // (e.g., Male student only sees Male seats as blocked)
+  globalOccupied.dining.forEach(item => {
+      const itemGender = (item.gender || '').toLowerCase();
+      // If item is male and current student is male -> Block
+      // If item is female and current student is female -> Block
+      // If unknown gender, block for safety
+      if (itemGender.startsWith(currentGenderRaw.charAt(0)) || !itemGender) {
+          diningMap.set(item.seat, { blocked: true, tag: item.tag, type: 'Global' });
+      }
+  });
+
+  globalOccupied.pagoda.forEach(item => {
+      const itemGender = (item.gender || '').toLowerCase();
+      if (itemGender.startsWith(currentGenderRaw.charAt(0)) || !itemGender) {
+          pagodaMap.set(item.cell, { blocked: true, tag: item.tag, type: 'Global' });
+      }
+  });
 
   const usedMobiles = new Set();
   const usedValuables = new Set();
@@ -152,7 +168,14 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       setStatus('Submitting...');
       
       try { 
-          const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...formData, diningSeatType: formData.seatType }) });
+          // ✅ Pass Gender to check-in for scoped validation
+          const payload = { 
+              ...formData, 
+              diningSeatType: formData.seatType,
+              gender: selectedStudent?.gender // PASS GENDER
+          };
+
+          const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
           
           if (!res.ok) {
               const errorData = await res.json();
@@ -175,8 +198,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
       } catch (err) { 
           setStatus(`❌ ${err.message}`); 
-          
-          // ✅ FIX: Check for Dining and Pagoda conflicts too
           if(err.message.includes('Laundry') || err.message.includes('Room') || err.message.includes('Dining') || err.message.includes('Pagoda')) {
               alert(`🛑 CONFLICT ALERT:\n\n${err.message}`);
           }
