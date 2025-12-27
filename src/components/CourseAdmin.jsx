@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Upload, Database, Save, FileText, Download, Trash2, Calendar, Search, PlusCircle, Archive, Check, ArrowRight, Edit, XCircle } from 'lucide-react';
+import { Upload, Database, Save, Download, Trash2, Calendar, Search, PlusCircle, Archive, Edit, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx'; // ✅ REQUIRES: npm install xlsx
 import { API_URL, styles } from '../config';
 
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
@@ -32,16 +33,9 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       return { label: 'Upcoming', color: '#007bff', bg: '#cce5ff' };
   };
 
-  // ✅ START EDIT MODE
   const handleEditClick = (c) => {
-      // Safety Check: Ensure ID exists
-      if (!c.course_id) {
-          alert("Error: This course is missing a valid ID and cannot be edited.");
-          return;
-      }
-
+      if (!c.course_id) return alert("Error: Invalid ID");
       const shortName = c.course_name ? c.course_name.split('/')[0].trim() : 'Unknown';
-      
       setNewCourseData({
           name: shortName,
           teacher: c.teacher_name || '',
@@ -52,54 +46,36 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ✅ CANCEL EDIT
   const handleCancelEdit = () => {
       setEditingId(null);
       setNewCourseData({ name: '', teacher: '', startDate: '', endDate: '' });
   };
 
-  // ✅ UPDATE COURSE (DETECTIVE MODE 🕵️‍♂️)
   const handleUpdateCourse = async (e) => {
       e.preventDefault();
       if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
-      
-      // Safety Check
-      if (!editingId) return alert("❌ Error: Course ID is missing. Please refresh and try again.");
+      if (!editingId) return alert("Missing ID");
 
       const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
-      
-      const payload = {
-          courseName: courseName,
-          teacherName: newCourseData.teacher,
-          startDate: newCourseData.startDate,
-          endDate: newCourseData.endDate
-      };
-
-      // 🔍 DEBUG LOG: Check your browser console to see this!
-      console.log(`📡 Attempting UPDATE to: ${API_URL}/courses/${editingId}`);
-      console.log("📦 Payload:", payload);
-
       try {
           const res = await fetch(`${API_URL}/courses/${editingId}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
+              body: JSON.stringify({
+                  courseName: courseName,
+                  teacherName: newCourseData.teacher,
+                  startDate: newCourseData.startDate,
+                  endDate: newCourseData.endDate
+              })
           });
-          
           if (res.ok) {
-              alert(`✅ Course Updated Successfully!`);
+              alert(`✅ Updated!`);
               refreshCourses(); 
               handleCancelEdit(); 
           } else {
-              // ❌ ERROR HANDLING: Shows specific status code (404, 500, etc.)
-              const text = await res.text(); // Get raw response
-              console.error("Server Response:", text);
-              alert(`❌ Update Failed (Status ${res.status}): ${res.statusText}\n\nServer Message: ${text.substring(0, 100)}`);
+              alert(`❌ Failed to update.`);
           }
-      } catch (err) { 
-          console.error("Network Exception:", err);
-          alert(`⚠️ NETWORK ERROR: Could not reach server.\n\nCheck console for details.`); 
-      }
+      } catch (err) { alert(`⚠️ Network Error`); }
   };
 
   const handleCreateCourse = async (e) => {
@@ -107,15 +83,18 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
     const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
     try {
-        const payload = {
-            courseName: courseName,
-            teacherName: newCourseData.teacher || 'Goenka Ji',
-            startDate: newCourseData.startDate,
-            endDate: newCourseData.endDate
-        };
-        const res = await fetch(`${API_URL}/courses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const res = await fetch(`${API_URL}/courses`, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({
+                courseName: courseName,
+                teacherName: newCourseData.teacher || 'Goenka Ji',
+                startDate: newCourseData.startDate,
+                endDate: newCourseData.endDate
+            }) 
+        });
         if (res.ok) {
-            alert(`✅ Course Created: ${courseName}`);
+            alert(`✅ Created: ${courseName}`);
             refreshCourses(); 
             setNewCourseData({ name: '', teacher: '', startDate: '', endDate: '' });
         }
@@ -129,85 +108,106 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       }
   };
 
-  // --- IMPORT TOOLS ---
+  // --- ✅ EXCEL / IMPORT TOOLS ---
+
+  // 1. Download Excel Template
   const downloadTemplate = () => {
-      const headers = ["Name,Age,Gender,Conf No,Courses Info,Email,Phone,Remarks"];
-      const row1 = ["John Doe,30,Male,N12345,S:1 L:0,john@example.com,9999999999,Medical issue"];
-      const csvContent = "data:text/csv;charset=utf-8," + headers.join("\n") + "\n" + row1.join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "student_import_template.csv");
-      document.body.appendChild(link);
-      link.click();
+      const data = [
+          ["Full Name", "Age", "Gender", "Conf No", "Old/New (Courses)", "Email", "Phone", "Remarks"],
+          ["John Doe", 30, "Male", "N12345", "S:1 L:0 (New)", "john@example.com", "9999999999", "Medical: Back pain"],
+          ["Jane Smith", 45, "Female", "O98765", "S:3 L:1 (Old)", "jane@example.com", "8888888888", "Server"]
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Template");
+      XLSX.writeFile(wb, "Dhamma_Student_Import_Template.xlsx");
   };
 
+  // 2. Handle File Selection
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
+    setUploadStatus({ type: 'info', msg: 'Parsing file...' });
+
     const reader = new FileReader();
     reader.onload = (e) => { 
-        try { processCSV(e.target.result); } 
-        catch (err) { console.error(err); setUploadStatus({ type: 'error', msg: 'Failed to parse CSV.' }); } 
+        try { 
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // Get first sheet
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            
+            // Convert to JSON (Array of Arrays) to find headers easily
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            
+            processDataRows(jsonData);
+        } 
+        catch (err) { 
+            console.error(err); 
+            setUploadStatus({ type: 'error', msg: 'Failed to read Excel file.' }); 
+        } 
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   };
 
-  const processCSV = (csvText) => {
-    const lines = csvText.split('\n').filter(line => line.trim() !== '');
-    if (lines.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty or too short.' }); return; }
+  // 3. Smart Data Processor
+  const processDataRows = (rows) => {
+    if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
-    const splitRow = (rowStr) => rowStr.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
+    // Scan first 10 rows to find the Header Row (Look for "Name" and "Gender")
     let headerRowIndex = -1;
     let headers = [];
     
-    for (let i = 0; i < Math.min(lines.length, 10); i++) {
-        const lineLower = lines[i].toLowerCase();
-        if (lineLower.includes('name') && (lineLower.includes('gender') || lineLower.includes('age'))) {
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+        const rowStr = rows[i].map(c => String(c).toLowerCase()).join(' ');
+        if (rowStr.includes('name') && (rowStr.includes('gender') || rowStr.includes('age'))) {
             headerRowIndex = i;
-            headers = splitRow(lines[i]).map(h => h.toLowerCase());
+            headers = rows[i].map(h => String(h).toLowerCase().trim());
             break;
         }
     }
     
-    if (headerRowIndex === -1) { setUploadStatus({ type: 'error', msg: 'Could not detect headers (Name, Gender, Age). Please check CSV format.' }); return; }
+    if (headerRowIndex === -1) { 
+        setUploadStatus({ type: 'error', msg: 'Could not find headers (Name, Gender). Use the Template.' }); 
+        return; 
+    }
     
+    // Map columns dynamically
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
     const map = { 
         conf: getIndex(['conf', 'ref', 'id', 'no.']), 
         name: getIndex(['name', 'student', 'given']), 
         age: getIndex(['age']), 
         gender: getIndex(['gender', 'sex']), 
-        courses: getIndex(['course', 'history']), 
-        seat: getIndex(['seat', 'dining']), 
+        courses: getIndex(['course', 'history', 'old', 'new']), 
         email: getIndex(['email']), 
         phone: getIndex(['phone', 'mobile']), 
-        notes: getIndex(['notes', 'remark']) 
+        notes: getIndex(['notes', 'remark', 'medical']) 
     };
     
-    const parsedStudents = lines.slice(headerRowIndex + 1).map((line, index) => {
-      const row = splitRow(line);
+    // Extract Data
+    const parsedStudents = rows.slice(headerRowIndex + 1).map((row, index) => {
       const rawName = map.name > -1 ? row[map.name] : '';
-      const rawConf = map.conf > -1 ? row[map.conf] : '';
-      if (!rawName && !rawConf) return null; 
+      if (!rawName) return null; 
       
       return { 
           id: Date.now() + index, 
-          conf_no: rawConf || `TEMP-${index + 1}`, 
-          full_name: rawName || 'Unknown Student', 
+          conf_no: map.conf > -1 ? String(row[map.conf] || '') : `TEMP-${index + 1}`, 
+          full_name: rawName, 
           age: map.age > -1 ? row[map.age] : '', 
           gender: map.gender > -1 ? row[map.gender] : '', 
           courses_info: map.courses > -1 ? row[map.courses] : '', 
-          dining_seat: map.seat > -1 ? row[map.seat] : '', 
           email: map.email > -1 ? row[map.email] : '', 
           mobile: map.phone > -1 ? row[map.phone] : '', 
           notes: map.notes > -1 ? row[map.notes] : '', 
-          status: rawConf ? 'Active' : 'Pending ID' 
+          status: (map.conf > -1 && row[map.conf]) ? 'Active' : 'Pending ID' 
       };
     }).filter(s => s !== null);
     
     setStudents(parsedStudents);
-    setUploadStatus({ type: 'success', msg: `Ready! Loaded ${parsedStudents.length} valid students.` });
+    setUploadStatus({ type: 'success', msg: `✅ Successfully loaded ${parsedStudents.length} students!` });
   };
 
   const saveToDatabase = async () => {
@@ -387,7 +387,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       {/* --- IMPORT TAB --- */}
       {activeTab === 'import' && (
         <div style={{maxWidth:'900px', margin:'0 auto', animation:'fadeIn 0.3s ease'}}>
-          {/* ... (Existing Import Code) ... */}
+          
           <div style={{marginBottom:'30px', background:'#e3f2fd', padding:'20px', borderRadius:'12px', border:'1px solid #bbdefb', display:'flex', alignItems:'center', gap:'20px'}}>
             <div style={{background:'white', width:'40px', height:'40px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', color:'#007bff', fontWeight:'bold'}}>1</div>
             <div style={{flex:1}}>
@@ -400,23 +400,26 @@ export default function CourseAdmin({ courses, refreshCourses }) {
           </div>
 
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px'}}>
-              <div style={{border:'2px dashed #ccc', borderRadius:'12px', padding:'40px', textAlign:'center', background:'#f9f9f9', position:'relative', transition:'all 0.2s', ':hover':{borderColor:'#007bff'}}}>
-                <h4 style={{margin:'0 0 10px 0', color:'#555'}}>Option A: Bulk Upload</h4>
-                <input type="file" accept=".csv" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
+              {/* FILE UPLOAD CARD */}
+              <div style={{border:'2px dashed #ccc', borderRadius:'12px', padding:'40px', textAlign:'center', background:'#f9f9f9', position:'relative', transition:'all 0.2s', ':hover':{borderColor:'#28a745', background:'#f0fff4'}}}>
+                <h4 style={{margin:'0 0 10px 0', color:'#555'}}>Option A: Upload File</h4>
+                {/* Accept Excel and CSV */}
+                <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
                 <div style={{pointerEvents:'none'}}>
                     <div style={{width:'60px', height:'60px', background:'#e9ecef', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 15px auto'}}>
-                        <Upload size={30} color="#666"/>
+                        <FileSpreadsheet size={30} color="#28a745"/>
                     </div>
-                    <p style={{margin:'10px 0', color:'#333', fontWeight:'bold', fontSize:'16px'}}>Drag & Drop CSV</p>
-                    <div style={{fontSize:'12px', color:'#888'}}>or click to browse</div>
+                    <p style={{margin:'10px 0', color:'#333', fontWeight:'bold', fontSize:'16px'}}>Drop Excel or CSV</p>
+                    <div style={{fontSize:'12px', color:'#888'}}>Supports .xlsx, .xls, .csv</div>
                 </div>
                 <div style={{marginTop:'30px', pointerEvents:'auto'}}>
-                    <button onClick={downloadTemplate} style={{background:'white', border:'1px solid #ddd', padding:'8px 15px', borderRadius:'20px', color:'#007bff', cursor:'pointer', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'5px', margin:'0 auto'}}>
-                        <Download size={12}/> Download Template
+                    <button onClick={downloadTemplate} style={{background:'white', border:'1px solid #ddd', padding:'8px 15px', borderRadius:'20px', color:'#28a745', cursor:'pointer', fontSize:'12px', display:'flex', alignItems:'center', justifyContent:'center', gap:'5px', margin:'0 auto'}}>
+                        <Download size={12}/> Download Excel Template
                     </button>
                 </div>
               </div>
 
+              {/* MANUAL ENTRY */}
               <div style={{border:'1px solid #eee', borderRadius:'12px', padding:'25px', background:'white', boxShadow:'0 2px 10px rgba(0,0,0,0.02)'}}>
                   <h4 style={{margin:'0 0 20px 0', color:'#555'}}>Option B: Manual Entry</h4>
                   <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
@@ -434,7 +437,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               </div>
           </div>
 
-          {uploadStatus && <div style={{marginTop:'20px', padding:'15px', background: uploadStatus.type==='success'?'#d4edda':'#f8d7da', color: uploadStatus.type==='success'?'#155724':'#721c24', borderRadius:'8px', fontWeight:'bold', textAlign:'center'}}>{uploadStatus.msg}</div>}
+          {uploadStatus && <div style={{marginTop:'20px', padding:'15px', background: uploadStatus.type==='success'?'#d4edda':(uploadStatus.type==='info'?'#e3f2fd':'#f8d7da'), color: uploadStatus.type==='success'?'#155724':(uploadStatus.type==='info'?'#0d47a1':'#721c24'), borderRadius:'8px', fontWeight:'bold', textAlign:'center'}}>{uploadStatus.msg}</div>}
           
           {students.length > 0 && (
             <div style={{marginTop:'40px', borderTop:'1px solid #eee', paddingTop:'20px'}}>
