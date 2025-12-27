@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Home, Utensils, BookOpen, AlertCircle, CheckCircle, Clock, Activity, TrendingUp, UserCheck, Shield, Armchair, Headphones, AlertTriangle, Download, Database } from 'lucide-react';
+import { Users, Home, Utensils, BookOpen, AlertCircle, CheckCircle, Clock, Activity, TrendingUp, UserCheck, Shield, Armchair, Headphones, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
 
@@ -49,6 +49,23 @@ export default function Dashboard({ courses }) {
       const atGate = valid.filter(p => p.status === 'Gate Check-In');
       const pendingArrival = valid.filter(p => p.status !== 'Attending' && p.status !== 'Gate Check-In');
       
+      // 4. DETAILED MIX BREAKDOWN (Based on TOTAL Original Roster)
+      const expectedMix = { om: 0, nm: 0, sm: 0, of: 0, nf: 0, sf: 0 };
+      participants.forEach(p => {
+          const isMale = (p.gender || '').toLowerCase().startsWith('m');
+          const conf = (p.conf_no || '').toUpperCase();
+          if (isMale) {
+              if (conf.startsWith('SM')) expectedMix.sm++;
+              else if (conf.startsWith('O') || conf.startsWith('S')) expectedMix.om++;
+              else expectedMix.nm++;
+          } else {
+              if (conf.startsWith('SF')) expectedMix.sf++;
+              else if (conf.startsWith('O') || conf.startsWith('S')) expectedMix.of++;
+              else expectedMix.nf++;
+          }
+      });
+
+      // Helper for other operational breakdowns
       const getDetailedBreakdown = (list) => {
           const b = { om: 0, nm: 0, sm: 0, of: 0, nf: 0, sf: 0, total: list.length };
           list.forEach(p => {
@@ -82,7 +99,7 @@ export default function Dashboard({ courses }) {
       });
       const ageData = Object.keys(ageGroups).map(key => ({ name: key, Male: ageGroups[key].m, Female: ageGroups[key].f }));
 
-      // Mix Stats (Valid Only)
+      // Mix Stats for Pie Chart (Valid Only)
       const mixCounts = { OM:0, NM:0, SM:0, OF:0, NF:0, SF:0 };
       valid.forEach(p => {
           const conf = (p.conf_no || '').toUpperCase();
@@ -137,7 +154,7 @@ export default function Dashboard({ courses }) {
           seatingStats[cat].t++; seatingStats[cat][k]++;
       });
 
-      return { total: totalCount, totalMale, totalFemale, cancelledCount, validCount, fullyCheckedIn: fullyCheckedIn.length, gateStats, arrivedStats, pendingStats, ageData, catData, discourseData, criticalPendingList, criticalStats, seatingStats }; 
+      return { total: totalCount, totalMale, totalFemale, cancelledCount, validCount, expectedMix, fullyCheckedIn: fullyCheckedIn.length, gateStats, arrivedStats, pendingStats, ageData, catData, discourseData, criticalPendingList, criticalStats, seatingStats }; 
   }, [participants]);
 
   const selectedCourse = courses.find(c => c.course_id == courseId);
@@ -187,7 +204,7 @@ export default function Dashboard({ courses }) {
               </div>
 
               <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'20px', marginBottom:'30px'}}>
-                  {/* ✅ EXPECTED TOTAL (Now shows ORIGINAL count + Cancelled) */}
+                  {/* ✅ EXPECTED TOTAL (With Granular Mix Breakdown) */}
                   <div style={{background:'#e3f2fd', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.male}`}}>
                       <div style={{fontSize:'12px', fontWeight:'bold', color:'#0d47a1', textTransform:'uppercase'}}>Expected Total</div>
                       <div style={{fontSize:'32px', fontWeight:'900', color:'#333', display:'flex', alignItems:'baseline', gap:'10px'}}>
@@ -195,9 +212,19 @@ export default function Dashboard({ courses }) {
                           <span style={{fontSize:'14px', fontWeight:'normal', color:'#555'}}>(M: <span style={{color: COLORS.male, fontWeight:'bold'}}>{stats.totalMale}</span> | F: <span style={{color: COLORS.female, fontWeight:'bold'}}>{stats.totalFemale}</span>)</span>
                       </div>
                       
-                      {/* 🚫 CANCELLED CARD INSIDE THE BOX */}
-                      <div style={{marginTop:'8px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(255,255,255,0.6)', padding:'6px', borderRadius:'6px'}}>
-                          <span style={{fontSize:'12px', color:'#d32f2f', fontWeight:'bold', display:'flex', alignItems:'center', gap:'4px'}}><AlertCircle size={12}/> Cancelled: {stats.cancelledCount}</span>
+                      {/* ✅ MIX BREAKDOWN (New Visual Update) */}
+                      <div style={{fontSize:'10px', color:'#555', marginTop:'4px', background:'rgba(255,255,255,0.5)', padding:'3px', borderRadius:'4px'}}>
+                          <div style={{display:'flex', gap:'8px'}}>
+                              <span style={{color:'#007bff', fontWeight:'bold'}}>M:</span> OM:{stats.expectedMix.om} NM:{stats.expectedMix.nm} SM:{stats.expectedMix.sm}
+                          </div>
+                          <div style={{display:'flex', gap:'8px'}}>
+                              <span style={{color:'#e91e63', fontWeight:'bold'}}>F:</span> OF:{stats.expectedMix.of} NF:{stats.expectedMix.nf} SF:{stats.expectedMix.sf}
+                          </div>
+                      </div>
+
+                      {/* 🚫 CANCELLED / ACTIVE FOOTER */}
+                      <div style={{marginTop:'5px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(255,255,255,0.6)', padding:'4px', borderRadius:'4px'}}>
+                          <span style={{fontSize:'11px', color:'#d32f2f', fontWeight:'bold', display:'flex', alignItems:'center', gap:'4px'}}><AlertCircle size={12}/> Cancelled: {stats.cancelledCount}</span>
                           <span style={{fontSize:'11px', color:'#1b5e20', fontWeight:'bold'}}>Active: {stats.validCount}</span>
                       </div>
                   </div>
