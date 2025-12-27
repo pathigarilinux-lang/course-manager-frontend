@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, UserCheck, UserX, Users, UserPlus, RefreshCw, CheckCircle, Clock, Wifi } from 'lucide-react';
+import { Search, UserCheck, UserX, Users, RefreshCw, CheckCircle, Clock, Wifi } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 export default function GateReception({ courses, refreshCourses }) {
@@ -9,10 +9,6 @@ export default function GateReception({ courses, refreshCourses }) {
   const [activeFilter, setActiveFilter] = useState('All'); 
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Walk-in State
-  const [showWalkIn, setShowWalkIn] = useState(false);
-  const [newStudent, setNewStudent] = useState({ fullName: '', gender: 'Male', phone: '' });
-
   // --- 1. DATA LOADING ---
   const loadParticipants = async () => {
     if (!selectedCourseId) return;
@@ -59,25 +55,6 @@ export default function GateReception({ courses, refreshCourses }) {
       } catch (err) { console.error(err); }
   };
 
-  const handleWalkIn = async (e) => {
-      e.preventDefault();
-      if(!newStudent.fullName) return alert("Name is required");
-      try {
-          const payload = {
-              courseId: selectedCourseId, fullName: newStudent.fullName, gender: newStudent.gender,
-              email: '', age: '', confNo: `WALK-${Date.now().toString().slice(-4)}`, coursesInfo: 'Walk-In'
-          };
-          const res = await fetch(`${API_URL}/participants`, {
-              method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
-          });
-          if(res.ok) {
-              alert(`✅ Walk-in Registered`);
-              setShowWalkIn(false); setNewStudent({ fullName: '', gender: 'Male', phone: '' });
-              loadParticipants(); if(refreshCourses) refreshCourses();
-          } else { const err = await res.json(); alert(`Error: ${err.error}`); }
-      } catch(err) { console.error(err); }
-  };
-
   // --- 3. FILTERING & STATS ---
   const filteredList = useMemo(() => {
       return participants.filter(p => {
@@ -90,23 +67,19 @@ export default function GateReception({ courses, refreshCourses }) {
       });
   }, [participants, searchQuery, activeFilter]);
 
-  // ✅ UPDATED STATS (With Detailed Mix Breakdown)
+  // STATS LOGIC
   const stats = useMemo(() => {
-      // 1. Total & Cancelled
       const total = participants.length;
       const cancelledCount = participants.filter(p => p.status === 'Cancelled' || p.status === 'No-Show').length;
       const activeCount = total - cancelledCount;
 
-      // 2. Gender Totals
       const totalMale = participants.filter(p => (p.gender || '').toLowerCase().startsWith('m')).length;
       const totalFemale = participants.filter(p => (p.gender || '').toLowerCase().startsWith('f')).length;
 
-      // 3. Arrived (Gate + Hall)
       const arrived = participants.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending').length;
       const maleArrived = participants.filter(p => (p.gender === 'Male') && (p.status === 'Gate Check-In' || p.status === 'Attending')).length;
       const femaleArrived = participants.filter(p => (p.gender === 'Female') && (p.status === 'Gate Check-In' || p.status === 'Attending')).length;
 
-      // 4. Detailed Mix (Based on Total Original Roster)
       const mix = { om: 0, nm: 0, sm: 0, of: 0, nf: 0, sf: 0 };
       participants.forEach(p => {
           const isMale = (p.gender || '').toLowerCase().startsWith('m');
@@ -152,10 +125,10 @@ export default function GateReception({ courses, refreshCourses }) {
 
       {selectedCourseId ? (
           <>
-              {/* 📊 STATS GRID */}
+              {/* 📊 RESPONSIVE STATS GRID (NOW 3 COLUMNS) */}
               <div className="stats-grid" style={{display:'grid', gap:'10px', marginBottom:'20px'}}>
                   
-                  {/* 1. EXPECTED TOTAL CARD (Updated with Breakdown) */}
+                  {/* 1. EXPECTED TOTAL CARD */}
                   <div style={{background:'#e3f2fd', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #007bff'}}>
                       <div style={{fontSize:'11px', fontWeight:'bold', color:'#007bff', textTransform:'uppercase'}}>Expected Total</div>
                       <div style={{fontSize:'20px', fontWeight:'900', color:'#333', display:'flex', alignItems:'baseline', gap:'6px'}}>
@@ -163,7 +136,7 @@ export default function GateReception({ courses, refreshCourses }) {
                           <span style={{fontSize:'11px', fontWeight:'normal', color:'#555'}}>(M: <span style={{color:'#007bff', fontWeight:'bold'}}>{stats.totalMale}</span> | F: <span style={{color:'#e91e63', fontWeight:'bold'}}>{stats.totalFemale}</span>)</span>
                       </div>
                       
-                      {/* Detailed Breakdown (OM/NM...) */}
+                      {/* Breakdown */}
                       <div style={{fontSize:'10px', color:'#555', marginTop:'4px', background:'rgba(255,255,255,0.5)', padding:'3px', borderRadius:'4px'}}>
                           <div style={{display:'flex', gap:'8px'}}>
                               <span style={{color:'#007bff', fontWeight:'bold'}}>M:</span> OM:{stats.mix.om} NM:{stats.mix.nm} SM:{stats.mix.sm}
@@ -173,6 +146,7 @@ export default function GateReception({ courses, refreshCourses }) {
                           </div>
                       </div>
 
+                      {/* Footer */}
                       <div style={{marginTop:'5px', fontSize:'11px', display:'flex', justifyContent:'space-between', background:'rgba(255,255,255,0.8)', padding:'4px', borderRadius:'4px'}}>
                           <span style={{color:'#d32f2f', fontWeight:'bold'}}>🚫 Cancelled: {stats.cancelledCount}</span>
                           <span style={{color:'#1b5e20', fontWeight:'bold'}}>Active: {stats.activeCount}</span>
@@ -185,19 +159,12 @@ export default function GateReception({ courses, refreshCourses }) {
                       <div style={{fontSize:'20px', fontWeight:'900', color:'#333'}}>{stats.arrived} <small style={{color:'#666', fontSize:'12px'}}>({Math.round((stats.arrived/stats.activeCount)*100 || 0)}%)</small></div>
                   </div>
 
-                  {/* 3. GENDER CARD (Arrived) */}
+                  {/* 3. GENDER CARD */}
                   <div style={{background:'#fff3e0', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #ef6c00'}}>
                       <div style={{fontSize:'11px', fontWeight:'bold', color:'#ef6c00', textTransform:'uppercase'}}>M / F (Arrived)</div>
                       <div style={{fontSize:'14px', fontWeight:'bold', marginTop:'5px'}}>
                           <span style={{color:'#007bff'}}>M: {stats.maleArrived}</span> | <span style={{color:'#e91e63'}}>F: {stats.femaleArrived}</span>
                       </div>
-                  </div>
-
-                  {/* 4. WALK-IN BUTTON */}
-                  <div style={{background:'#f5f5f5', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #999', display:'flex', alignItems:'center', justifyContent:'center'}}>
-                      <button onClick={()=>setShowWalkIn(true)} style={{background:'#333', color:'white', border:'none', padding:'8px 15px', borderRadius:'30px', cursor:'pointer', fontWeight:'bold', display:'flex', alignItems:'center', gap:'8px', fontSize:'13px'}}>
-                          <UserPlus size={16}/> Walk-In
-                      </button>
                   </div>
               </div>
 
@@ -279,25 +246,13 @@ export default function GateReception({ courses, refreshCourses }) {
           <div style={{textAlign:'center', padding:'40px', color:'#666'}}>Select a course to start.</div>
       )}
 
+      {/* Grid updated to 3 columns */}
       <style>{`
-        .stats-grid { grid-template-columns: 1fr 1fr 1fr 1fr; }
+        .stats-grid { grid-template-columns: 1fr 1fr 1fr; }
         @media (max-width: 768px) {
-            .stats-grid { grid-template-columns: 1fr 1fr; }
+            .stats-grid { grid-template-columns: 1fr; }
         }
       `}</style>
-      
-      {showWalkIn && (
-          <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}>
-              <div style={{background:'white', padding:'20px', borderRadius:'12px', width:'90%', maxWidth:'400px'}}>
-                  <h3>Register Walk-In</h3>
-                  <input style={styles.input} value={newStudent.fullName} onChange={e=>setNewStudent({...newStudent, fullName:e.target.value})} placeholder="Full Name" />
-                  <div style={{display:'flex', justifyContent:'flex-end', marginTop:'15px', gap:'10px'}}>
-                      <button onClick={()=>setShowWalkIn(false)} style={styles.btn(false)}>Cancel</button>
-                      <button onClick={handleWalkIn} style={{...styles.btn(true), background:'#007bff'}}>Save</button>
-                  </div>
-              </div>
-          </div>
-      )}
     </div>
   );
 }
