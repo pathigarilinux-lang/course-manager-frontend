@@ -3,7 +3,8 @@ import { Search, RefreshCw, BedDouble, PlusCircle, Trash2, Printer, X, PieChart 
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout';     
-import FemaleBlockLayout from './FemaleBlockLayout'; 
+import FemaleBlockLayout from './FemaleBlockLayout';
+import AutoAllocationTool from './AutoAllocationTool'; // Adjust path if needed
 
 const COLORS = { 
     male: '#007bff', female: '#e91e63', 
