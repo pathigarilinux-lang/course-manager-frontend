@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Upload, Database, Save, Download, Trash2, Calendar, Search, PlusCircle, Edit, FileSpreadsheet, CheckCircle, AlertTriangle } from 'lucide-react';
+// ✅ FIXED: Removed 'FileSpreadsheet', added 'FileText' (Compatible with your version)
+import { Upload, Database, Save, Download, Trash2, Calendar, Search, PlusCircle, Edit, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 
@@ -111,7 +112,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
 
   // --- ✅ EXCEL / IMPORT TOOLS ---
 
-  // 1. Download Your Specific Template
   const downloadTemplate = () => {
       const data = [
           ["ConfNo", "Student", "Gender", "Age", "10d", "STP", "TSC", "20d", "30d", "45d", "60d"],
@@ -152,7 +152,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
   const processDataRows = (rows) => {
     if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
-    // 1. Find Header Row (Look for "ConfNo" or "Student")
+    // 1. Find Header Row
     let headerRowIndex = -1;
     let headers = [];
     
@@ -231,8 +231,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
           age: map.age > -1 ? row[map.age] : '', 
           gender: map.gender > -1 ? row[map.gender] : '', 
           courses_info: coursesStr, 
-          email: '', // Not in mandatory list
-          mobile: '', // Not in mandatory list
+          email: '', 
+          mobile: '', 
           notes: map.languages > -1 ? `Lang: ${row[map.languages]}` : '', 
           status: (map.conf > -1 && row[map.conf]) ? 'Active' : 'Pending ID' 
       };
@@ -438,7 +438,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                 <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
                 <div style={{pointerEvents:'none'}}>
                     <div style={{width:'60px', height:'60px', background:'#e9ecef', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 15px auto'}}>
-                        <FileSpreadsheet size={30} color="#28a745"/>
+                        <FileText size={30} color="#28a745"/>
                     </div>
                     <p style={{margin:'10px 0', color:'#333', fontWeight:'bold', fontSize:'16px'}}>Drop Excel or CSV</p>
                     <div style={{fontSize:'12px', color:'#888'}}>Supports .xlsx, .xls, .csv</div>
@@ -477,8 +477,11 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                   <div style={{fontSize:'13px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
                       <div><strong>Name:</strong> {mappingReport.name || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Gender:</strong> {mappingReport.gender || <span style={{color:'red'}}>Missing</span>}</div>
-                      <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'red'}}>Missing</span>}</div>
-                      <div><strong>Age:</strong> {mappingReport.age ? 'Found' : 'Skip'}</div>
+                      <div><strong>Age:</strong> {mappingReport.age || <span style={{color:'#999'}}>Skip</span>}</div>
+                      <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'red'}}>❌ No Match</span>}</div>
+                  </div>
+                  <div style={{fontSize:'12px', color:'#555', marginTop:'10px', fontStyle:'italic'}}>
+                      * Conf No must start with OM, NM, SM, OF, NF, or SF to be detected.
                   </div>
               </div>
           )}
