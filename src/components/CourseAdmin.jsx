@@ -114,8 +114,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
   const downloadTemplate = () => {
       const data = [
           ["ConfNo", "Student", "Gender", "Age", "10d", "STP", "TSC", "20d", "30d", "45d", "60d"],
-          ["OM20", "Amit Kumar", "Male", 30, 1, 0, 0, 0, 0, 0, 0],
-          ["NF15", "Sarah Jones", "Female", 45, 3, 1, 0, 0, 0, 0, 0],
+          ["OM20", "Amit Kumar", "Male", 30, 8, 4, 0, 1, 1, 0, 0],
+          ["NF15", "Sarah Jones", "Female", 45, 0, 0, 0, 0, 0, 0, 0],
       ];
       const ws = XLSX.utils.aoa_to_sheet(data);
       const wb = XLSX.utils.book_new();
@@ -147,11 +147,11 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ SMART PROCESSOR v3: SECTION-AWARE SCANNING
+  // ✅ SMART PROCESSOR v4: COURSE HISTORY & GENDER SECTIONS
   const processDataRows = (rows) => {
     if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
-    // 1. Initial Scan for Header Index (To establish Column Mapping)
+    // 1. Initial Scan for Header Index
     let headerRowIndex = -1;
     let headers = [];
     
@@ -169,7 +169,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         return; 
     }
     
-    // 2. Map Columns based on that first header row
+    // 2. Map Columns (Strictly looking for course columns now)
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.toLowerCase() === k.toLowerCase() || h.toLowerCase().includes(k.toLowerCase())));
     
     const map = { 
@@ -177,12 +177,13 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         name: getIndex(['Student', 'Name', 'Sadhaka']), 
         age: getIndex(['Age']), 
         gender: getIndex(['Gender', 'Sex']), 
-        c10: getIndex(['10d', '10-Day']),
+        // ✅ Specific Course Columns
+        c10: getIndex(['10d']),
         cstp: getIndex(['STP', 'Satipatthana']),
-        ctsc: getIndex(['TSC', 'Teen']),
+        ctsc: getIndex(['TSC', 'Teen', 'Service']),
         c20: getIndex(['20d']),
         c30: getIndex(['30d']),
-        c45: getIndex(['45d']),
+        c45: getIndex(['45d', '40d']), // Handle typo 40d
         c60: getIndex(['60d']),
         languages: getIndex(['Languages', 'Language'])
     };
@@ -191,7 +192,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     const report = {
         name: map.name > -1 ? headers[map.name] : null,
         conf: map.conf > -1 ? headers[map.conf] : null,
-        gender: map.gender > -1 ? headers[map.gender] : 'Auto-Detect from Sections', 
+        gender: map.gender > -1 ? headers[map.gender] : 'Auto-Detect from Sections',
+        courses: map.c10 > -1 ? 'Found (10d, STP, etc.)' : 'Not Found',
         missing: []
     };
     if (!report.name) report.missing.push("Student Name");
@@ -203,40 +205,39 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         return;
     }
 
-    // 4. MAIN LOOP: Extract Data with DYNAMIC GENDER SWITCHING
+    // 4. MAIN LOOP: Extract Data
     const parsedStudents = [];
-    let currentSectionGender = null; // Start unknown
+    let currentSectionGender = null;
 
-    // Pre-scan top rows to find initial gender (e.g. Row 4 "Gender: MALE")
+    // Pre-scan top rows to find initial gender
     for(let i=0; i<headerRowIndex; i++) {
         const rowStr = rows[i].map(c => String(c).toUpperCase()).join(' ');
         if (rowStr.includes('GENDER: MALE') || rowStr.includes('GENDER:MALE')) currentSectionGender = 'Male';
         else if (rowStr.includes('GENDER: FEMALE') || rowStr.includes('GENDER:FEMALE')) currentSectionGender = 'Female';
     }
 
-    // Iterate through ALL rows starting from the header
     for (let i = headerRowIndex + 1; i < rows.length; i++) {
         const row = rows[i];
         const rowStr = row.map(c => String(c).toUpperCase()).join(' ');
 
-        // A. CHECK FOR SECTION HEADERS (Switch Gender mid-file)
+        // A. CHECK FOR SECTION HEADERS
         if (rowStr.includes('GENDER: MALE') || rowStr.includes('GENDER:MALE')) {
             currentSectionGender = 'Male';
-            continue; // Skip this row, it's just a header
+            continue;
         }
         if (rowStr.includes('GENDER: FEMALE') || rowStr.includes('GENDER:FEMALE')) {
             currentSectionGender = 'Female';
-            continue; // Skip
+            continue;
         }
 
-        // B. SKIP REPEATED HEADER ROWS (Don't import "Student" as a student name)
+        // B. SKIP REPEATED HEADER ROWS
         if (rowStr.includes('CONFNO') && rowStr.includes('STUDENT')) continue;
 
         // C. PARSE STUDENT ROW
         const rawName = map.name > -1 ? row[map.name] : '';
-        if (!rawName) continue; // Skip empty rows
+        if (!rawName) continue; 
 
-        // Determine Gender: Column Specific > Section Gender > Default
+        // Gender Logic
         let pGender = currentSectionGender;
         if (map.gender > -1 && row[map.gender]) {
             const gVal = String(row[map.gender]).trim().toLowerCase();
@@ -244,15 +245,29 @@ export default function CourseAdmin({ courses, refreshCourses }) {
             else if (gVal.startsWith('f')) pGender = 'Female';
         }
 
-        // Aggregate Courses (Only add if value exists)
+        // ✅ D. STRICT COURSE AGGREGATION
         let coursesParts = [];
-        if (map.c10 > -1 && row[map.c10]) coursesParts.push(`10D:${row[map.c10]}`);
-        if (map.cstp > -1 && row[map.cstp]) coursesParts.push(`STP:${row[map.cstp]}`);
-        if (map.ctsc > -1 && row[map.ctsc]) coursesParts.push(`TSC:${row[map.ctsc]}`);
-        if (map.c20 > -1 && row[map.c20]) coursesParts.push(`20D:${row[map.c20]}`);
-        if (map.c30 > -1 && row[map.c30]) coursesParts.push(`30D:${row[map.c30]}`);
         
-        const coursesStr = coursesParts.length > 0 ? coursesParts.join(', ') : 'New';
+        // Helper to check and add valid course counts
+        const addCourse = (colIndex, label) => {
+            if (colIndex > -1 && row[colIndex]) {
+                const val = parseInt(row[colIndex]);
+                if (!isNaN(val) && val > 0) {
+                    coursesParts.push(`${label}:${val}`);
+                }
+            }
+        };
+
+        addCourse(map.c10, '10D');
+        addCourse(map.cstp, 'STP');
+        addCourse(map.ctsc, 'TSC');
+        addCourse(map.c20, '20D');
+        addCourse(map.c30, '30D');
+        addCourse(map.c45, '45D');
+        addCourse(map.c60, '60D');
+        
+        // If no courses found, set explicitly to "0" per requirements
+        const coursesStr = coursesParts.length > 0 ? coursesParts.join(', ') : '0';
 
         parsedStudents.push({ 
             id: Date.now() + i, 
@@ -508,7 +523,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                       <div><strong>Name:</strong> {mappingReport.name || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Gender:</strong> {mappingReport.gender ? <span style={{color:'#007bff'}}>{mappingReport.gender}</span> : <span style={{color:'red'}}>Missing</span>}</div>
-                      <div><strong>Age:</strong> {mappingReport.age || <span style={{color:'#999'}}>Skip</span>}</div>
+                      <div><strong>Courses:</strong> {mappingReport.courses}</div>
                   </div>
               </div>
           )}
