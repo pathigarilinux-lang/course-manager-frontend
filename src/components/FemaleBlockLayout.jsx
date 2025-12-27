@@ -21,7 +21,11 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     // --- DATA PROCESSOR ---
     const getRoomData = () => {
         const roomGroups = {};
-        rooms.forEach(r => {
+        
+        // ✅ CRITICAL FIX: Filter ONLY Female rooms before processing
+        const femaleRoomsOnly = rooms.filter(r => r.gender_type === 'Female');
+
+        femaleRoomsOnly.forEach(r => {
             let key = r.room_no;
             // Normalize Key: Integers for standard rooms, String for others (FRC)
             const digitMatch = String(r.room_no).match(/^(\d{3})[A-Za-z]*$/); // Match 201, 201A
@@ -77,7 +81,7 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
 
         return (
             <div 
-                onClick={() => isDouble ? null : onRoomClick(group.beds[0])} // If single bed container, click triggers action (or handle individual beds below)
+                onClick={() => isDouble ? null : onRoomClick(group.beds[0])} 
                 title={isMedical ? "Reserved for Medical / Senior Citizen" : ""}
                 style={{
                     border: boxBorder, 
