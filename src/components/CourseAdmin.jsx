@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-// ✅ FIXED: Removed 'FileSpreadsheet', added 'FileText' (Compatible with your version)
 import { Upload, Database, Save, Download, Trash2, Calendar, Search, PlusCircle, Edit, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
@@ -14,6 +13,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
   const [uploadStatus, setUploadStatus] = useState(null);
   const [mappingReport, setMappingReport] = useState(null);
   const [selectedCourseForUpload, setSelectedCourseForUpload] = useState('');
+  const [defaultGender, setDefaultGender] = useState(''); // ✅ NEW: For files without Gender column
   
   // Course Form State
   const [newCourseData, setNewCourseData] = useState({ name: '', teacher: '', startDate: '', endDate: '' });
@@ -148,7 +148,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ SMART PROCESSOR FOR SPECIFIC COLUMNS
+  // ✅ SMART PROCESSOR
   const processDataRows = (rows) => {
     if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
@@ -170,7 +170,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         return; 
     }
     
-    // 2. Map Specific Columns
+    // 2. Map Columns
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.toLowerCase() === k.toLowerCase() || h.toLowerCase().includes(k.toLowerCase())));
     
     const map = { 
@@ -178,7 +178,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         name: getIndex(['Student', 'Name', 'Sadhaka']), 
         age: getIndex(['Age']), 
         gender: getIndex(['Gender', 'Sex']), 
-        // Course Columns
         c10: getIndex(['10d', '10-Day']),
         cstp: getIndex(['STP', 'Satipatthana']),
         ctsc: getIndex(['TSC', 'Teen']),
@@ -189,29 +188,41 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         languages: getIndex(['Languages', 'Language'])
     };
 
-    // Build Report
+    // 3. ✅ Report & Gender Logic
     const report = {
         name: map.name > -1 ? headers[map.name] : null,
-        gender: map.gender > -1 ? headers[map.gender] : null,
         conf: map.conf > -1 ? headers[map.conf] : null,
+        // If column found, show it. If NOT found but Default Gender selected, show "Using Default".
+        gender: map.gender > -1 ? headers[map.gender] : (defaultGender ? `Default: ${defaultGender}` : null), 
         missing: []
     };
-    if (!report.name) report.missing.push("Student (Name)");
-    if (!report.gender) report.missing.push("Gender");
+
+    if (!report.name) report.missing.push("Student Name");
     if (!report.conf) report.missing.push("ConfNo");
+    
+    // Crucial: Only error if Column is missing AND No Default Selected
+    if (!report.gender) report.missing.push("Gender (Column missing & No Default selected)");
     
     setMappingReport(report); 
 
     if (report.missing.length > 0) {
-        setUploadStatus({ type: 'error', msg: `❌ Critical columns missing: ${report.missing.join(', ')}` });
+        setUploadStatus({ type: 'error', msg: `❌ Issues found: ${report.missing.join(', ')}` });
         return;
     }
     
-    // 3. Extract & Transform Data
+    // 4. Extract Data
     const parsedStudents = rows.slice(headerRowIndex + 1).map((row, index) => {
       const rawName = map.name > -1 ? row[map.name] : '';
       if (!rawName) return null; 
       
+      // Determine Gender: Column > Default
+      let pGender = defaultGender;
+      if (map.gender > -1 && row[map.gender]) {
+          const gVal = String(row[map.gender]).trim().toLowerCase();
+          if (gVal.startsWith('m')) pGender = 'Male';
+          else if (gVal.startsWith('f')) pGender = 'Female';
+      }
+
       // Aggregate Courses
       let coursesParts = [];
       if (map.c10 > -1 && row[map.c10]) coursesParts.push(`10D:${row[map.c10]}`);
@@ -219,8 +230,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       if (map.ctsc > -1 && row[map.ctsc]) coursesParts.push(`TSC:${row[map.ctsc]}`);
       if (map.c20 > -1 && row[map.c20]) coursesParts.push(`20D:${row[map.c20]}`);
       if (map.c30 > -1 && row[map.c30]) coursesParts.push(`30D:${row[map.c30]}`);
-      if (map.c45 > -1 && row[map.c45]) coursesParts.push(`45D:${row[map.c45]}`);
-      if (map.c60 > -1 && row[map.c60]) coursesParts.push(`60D:${row[map.c60]}`);
       
       const coursesStr = coursesParts.length > 0 ? coursesParts.join(', ') : 'New';
 
@@ -229,7 +238,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
           conf_no: map.conf > -1 ? String(row[map.conf] || '').trim().toUpperCase().replace(/\s+/g, '') : `TEMP-${index + 1}`, 
           full_name: rawName, 
           age: map.age > -1 ? row[map.age] : '', 
-          gender: map.gender > -1 ? row[map.gender] : '', 
+          gender: pGender, // ✅ Uses resolved gender
           courses_info: coursesStr, 
           email: '', 
           mobile: '', 
@@ -435,6 +444,21 @@ export default function CourseAdmin({ courses, refreshCourses }) {
               {/* FILE UPLOAD CARD */}
               <div style={{border:'2px dashed #ccc', borderRadius:'12px', padding:'40px', textAlign:'center', background:'#f9f9f9', position:'relative', transition:'all 0.2s', ':hover':{borderColor:'#28a745', background:'#f0fff4'}}}>
                 <h4 style={{margin:'0 0 10px 0', color:'#555'}}>Option A: Upload File</h4>
+                
+                {/* ✅ NEW: Default Gender Selector */}
+                <div style={{marginBottom:'15px'}}>
+                    <select 
+                        value={defaultGender} 
+                        onChange={e => setDefaultGender(e.target.value)}
+                        style={{padding:'8px', borderRadius:'6px', border:'1px solid #007bff', width:'80%', cursor:'pointer', color:'#007bff', fontWeight:'bold'}}
+                    >
+                        <option value="">-- Select Default Gender --</option>
+                        <option value="Male">All Male File</option>
+                        <option value="Female">All Female File</option>
+                    </select>
+                    <div style={{fontSize:'10px', color:'#777', marginTop:'3px'}}>(Use if file lacks Gender column)</div>
+                </div>
+
                 <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileUpload} style={{position:'absolute', inset:0, opacity:0, cursor:'pointer', width:'100%', height:'100%'}} />
                 <div style={{pointerEvents:'none'}}>
                     <div style={{width:'60px', height:'60px', background:'#e9ecef', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 15px auto'}}>
@@ -476,12 +500,9 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                   </div>
                   <div style={{fontSize:'13px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
                       <div><strong>Name:</strong> {mappingReport.name || <span style={{color:'red'}}>Missing</span>}</div>
-                      <div><strong>Gender:</strong> {mappingReport.gender || <span style={{color:'red'}}>Missing</span>}</div>
-                      <div><strong>Age:</strong> {mappingReport.age || <span style={{color:'#999'}}>Skip</span>}</div>
-                      <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'red'}}>❌ No Match</span>}</div>
-                  </div>
-                  <div style={{fontSize:'12px', color:'#555', marginTop:'10px', fontStyle:'italic'}}>
-                      * Conf No must start with OM, NM, SM, OF, NF, or SF to be detected.
+                      <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'red'}}>Missing</span>}</div>
+                      <div><strong>Gender:</strong> {mappingReport.gender ? (mappingReport.gender.includes('Default') ? <span style={{color:'#007bff'}}>{mappingReport.gender}</span> : mappingReport.gender) : <span style={{color:'red'}}>Missing</span>}</div>
+                      <div><strong>Age:</strong> {mappingReport.age ? 'Found' : 'Skip'}</div>
                   </div>
               </div>
           )}
