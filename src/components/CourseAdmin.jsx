@@ -147,7 +147,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ SMART PROCESSOR v5: STRICT DATA & GENDER SECTIONS
+  // ✅ SMART PROCESSOR v6: SMART AGGREGATION RESTORED
   const processDataRows = (rows) => {
     if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
@@ -155,7 +155,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     let headerRowIndex = -1;
     let headers = [];
     
-    // Scan first 20 rows to be safe
     for (let i = 0; i < Math.min(rows.length, 20); i++) {
         const rowStr = rows[i].map(c => String(c).toLowerCase()).join(' ');
         if ((rowStr.includes('conf') && rowStr.includes('no')) || (rowStr.includes('student') && rowStr.includes('age'))) {
@@ -170,7 +169,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         return; 
     }
     
-    // 2. Map Columns (Strictly looking for course columns)
+    // 2. Map Columns (Looking for SPECIFIC course columns for aggregation)
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.toLowerCase() === k.toLowerCase() || h.toLowerCase().includes(k.toLowerCase())));
     
     const map = { 
@@ -178,13 +177,13 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         name: getIndex(['Student', 'Name', 'Sadhaka']), 
         age: getIndex(['Age']), 
         gender: getIndex(['Gender', 'Sex']), 
-        // ✅ Specific Course Columns
+        // ✅ Specific Columns for Aggregation
         c10: getIndex(['10d']),
         cstp: getIndex(['STP', 'Satipatthana']),
         ctsc: getIndex(['TSC', 'Teen', 'Service']),
         c20: getIndex(['20d']),
         c30: getIndex(['30d']),
-        c45: getIndex(['45d', '40d']), // Handles 40d typo
+        c45: getIndex(['45d', '40d']), 
         c60: getIndex(['60d']),
         languages: getIndex(['Languages', 'Language'])
     };
@@ -194,7 +193,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         name: map.name > -1 ? headers[map.name] : null,
         conf: map.conf > -1 ? headers[map.conf] : null,
         gender: map.gender > -1 ? headers[map.gender] : 'Auto-Detect from Sections',
-        courses: map.c10 > -1 ? 'Found (10d, STP, etc.)' : 'Not Found',
+        // Confirming to user that we found course columns
+        courses: (map.c10 > -1 || map.c20 > -1) ? 'Smart Aggregation Active' : 'Not Found',
         missing: []
     };
     if (!report.name) report.missing.push("Student Name");
@@ -206,7 +206,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         return;
     }
 
-    // 4. MAIN LOOP: Extract Data
+    // 4. MAIN LOOP
     const parsedStudents = [];
     let currentSectionGender = null;
 
@@ -231,14 +231,14 @@ export default function CourseAdmin({ courses, refreshCourses }) {
             continue;
         }
 
-        // B. SKIP REPEATED HEADER ROWS
+        // B. SKIP HEADERS
         if (rowStr.includes('CONFNO') && rowStr.includes('STUDENT')) continue;
 
-        // C. PARSE STUDENT ROW
+        // C. PARSE ROW
         const rawName = map.name > -1 ? row[map.name] : '';
         if (!rawName) continue; 
 
-        // Gender Logic
+        // Gender
         let pGender = currentSectionGender;
         if (map.gender > -1 && row[map.gender]) {
             const gVal = String(row[map.gender]).trim().toLowerCase();
@@ -246,15 +246,20 @@ export default function CourseAdmin({ courses, refreshCourses }) {
             else if (gVal.startsWith('f')) pGender = 'Female';
         }
 
-        // ✅ D. STRICT COURSE AGGREGATION
+        // ✅ D. RESTORED SMART AGGREGATION LOGIC
+        // It reads specific columns and combines them: "10D:5, STP:1"
         let coursesParts = [];
         
-        // Helper: Capture exact numerical value
         const addCourse = (colIndex, label) => {
-            if (colIndex > -1 && row[colIndex] !== undefined && row[colIndex] !== null && row[colIndex] !== '') {
-                const val = parseInt(String(row[colIndex]).trim()); // Robust parse
-                if (!isNaN(val) && val > 0) {
-                    coursesParts.push(`${label}:${val}`);
+            if (colIndex > -1) {
+                const rawVal = row[colIndex];
+                // Robust check: ensure it's not null/undefined/empty string
+                if (rawVal != null && rawVal !== '') {
+                    const val = parseInt(String(rawVal).trim());
+                    // Only add if > 0
+                    if (!isNaN(val) && val > 0) {
+                        coursesParts.push(`${label}:${val}`);
+                    }
                 }
             }
         };
@@ -267,7 +272,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         addCourse(map.c45, '45D');
         addCourse(map.c60, '60D');
         
-        // If no courses found, set explicitly to "0" (New Student)
+        // If empty, set to "0" (Standard logic for New Student)
         const coursesStr = coursesParts.length > 0 ? coursesParts.join(', ') : '0';
 
         parsedStudents.push({ 
