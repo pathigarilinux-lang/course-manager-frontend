@@ -70,19 +70,20 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
         const wrongGender = group.beds.some(b => (b.gender_type || 'Female') === 'Male');
         
         // Medical Logic: Check if it's Block F (starts with FRC)
-        const isMedical = String(group.baseNum).startsWith('FRC');
+        const isMedical = String(group.baseNum).toString().toUpperCase().startsWith('FRC') || String(group.baseNum).toString().toUpperCase().startsWith('ISO');
 
         let boxBorder = wrongGender ? '2px solid red' : '1px solid #999';
         if (isMedical) boxBorder = '2px solid #ffcc80'; 
 
         return (
             <div 
+                onClick={() => isDouble ? null : onRoomClick(group.beds[0])} // If single bed container, click triggers action (or handle individual beds below)
                 title={isMedical ? "Reserved for Medical / Senior Citizen" : ""}
                 style={{
                     border: boxBorder, 
                     borderRadius: '4px', overflow:'hidden', 
                     background: isMedical ? '#fff8e1' : 'white', 
-                    height:'100%', display:'flex', flexDirection:'column'
+                    height:'100%', minHeight:'60px', display:'flex', flexDirection:'column'
                 }}>
                 
                 <div style={{background: isMedical ? '#ffe0b2' : '#eee', padding:'2px 4px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #ccc', fontSize:'10px'}}>
@@ -101,8 +102,8 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
                         if (!p && isMedical) bg = '#fff3e0'; 
 
                         return (
-                            <div key={bed.room_id} onClick={() => onRoomClick(bed)}
-                                 style={{background: bg, cursor: 'pointer', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', padding:'2px'}}>
+                            <div key={bed.room_id} onClick={(e) => { e.stopPropagation(); onRoomClick(bed); }}
+                                 style={{background: bg, cursor: 'pointer', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', padding:'2px', minHeight:'30px'}}>
                                 {p ? (
                                     <div style={{textAlign:'center', lineHeight:'1'}}>
                                         <div style={{fontSize:'9px', fontWeight:'bold', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'40px'}}>{p.full_name.split(' ')[0]}</div>
@@ -122,17 +123,19 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
 
     const Pathway = () => <div style={{writingMode:'vertical-rl', textAlign:'center', background:'#e0e0e0', color:'#777', fontSize:'10px', fontWeight:'bold', letterSpacing:'2px', padding:'2px'}}>PATHWAY</div>;
 
-    const BlockContainer = ({ title, roomsInBlock, children }) => {
+    const BlockContainer = ({ title, roomsInBlock, children, color = '#e91e63', bg = '#fff0f6' }) => {
         const stats = getBlockStats(roomsInBlock);
         return (
-            <div style={{border:'2px solid #e91e63', borderRadius:'8px', padding:'10px', background:'#fff0f6'}}>
-                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #f8bbd0', paddingBottom:'5px', marginBottom:'8px'}}>
-                    <h4 style={{margin:0, color:'#c2185b'}}>{title}</h4>
-                    <span style={{fontSize:'11px', fontWeight:'bold', background: stats.isFull ? '#e91e63' : '#fff', color: stats.isFull ? 'white' : '#e91e63', padding:'2px 8px', borderRadius:'10px', border: stats.isFull ? 'none' : '1px solid #e91e63'}}>
-                        {stats.text}
-                    </span>
+            <div style={{border:`2px solid ${color}`, borderRadius:'8px', padding:'10px', background: bg}}>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:`1px solid ${color}44`, paddingBottom:'5px', marginBottom:'8px'}}>
+                    <h4 style={{margin:0, color: color}}>{title}</h4>
+                    {stats.text !== "0/0" && (
+                        <span style={{fontSize:'11px', fontWeight:'bold', background: stats.isFull ? color : '#fff', color: stats.isFull ? 'white' : color, padding:'2px 8px', borderRadius:'10px', border: stats.isFull ? 'none' : `1px solid ${color}`}}>
+                            {stats.text}
+                        </span>
+                    )}
                 </div>
-                <div style={{display:'flex', justifyContent:'center', gap:'10px'}}>
+                <div style={{display:'flex', justifyContent:'center', gap:'10px', flexWrap:'wrap'}}>
                     {children}
                 </div>
             </div>
@@ -151,14 +154,25 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
     const blockC = [225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242];
     const blockD = [243, 244, 245, 246, 247, 248];
 
-    // ✅ DYNAMIC FRC BLOCK: Find ANY room starting with "FRC"
-    // This allows you to add "FRC-01" or "FRC-1A" if "FRC-1" is stuck.
+    // Dynamic FRC Block
     const dynamicFRC = Object.keys(allRooms)
         .filter(key => String(key).startsWith('FRC'))
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
 
-    // Fallback if empty (to maintain layout shape)
     const blockF = dynamicFRC.length > 0 ? dynamicFRC : ["FRC-1", "FRC-2", "FRC-3", "FRC-4", "FRC-5", "FRC-6"];
+
+    // ✅ FIND OTHER ROOMS (Emergency / Manual / Overflow)
+    const getOtherRooms = () => {
+        const standardKeys = new Set([
+            ...blockA, ...blockB, ...blockC, ...blockD, ...blockF, ...dynamicFRC
+        ]);
+        
+        return Object.keys(allRooms)
+            .filter(key => !standardKeys.has(parseInt(key)) && !standardKeys.has(key)) // Check both number and string types
+            .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+    };
+
+    const otherRooms = getOtherRooms();
 
     return (
         <div style={{display:'flex', flexDirection:'column', gap:'20px', overflowX:'auto'}}>
@@ -187,7 +201,7 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
             <div style={{display:'flex', gap:'20px', justifyContent:'flex-end'}}>
                 <BlockContainer title="BLOCK F (Medical)" roomsInBlock={blockF}>
                     {/* Dynamic Grid Layout for FRC */}
-                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
+                    <div style={{display:'grid', gridTemplateColumns: blockF.length > 3 ? '1fr 1fr' : '1fr', gap:'10px'}}>
                         <Column rooms={blockF.slice(0, Math.ceil(blockF.length / 2))} />
                         <Column rooms={blockF.slice(Math.ceil(blockF.length / 2))} />
                     </div>
@@ -203,6 +217,19 @@ export default function FemaleBlockLayout({ rooms, occupancy, onRoomClick }) {
             <div style={{background:'#1976d2', color:'white', textAlign:'center', padding:'8px', fontWeight:'bold', borderRadius:'4px', letterSpacing:'5px'}}>
                 MAIN PATHWAY
             </div>
+
+            {/* ✅ OTHER / EMERGENCY ROOMS SECTION */}
+            {otherRooms.length > 0 && (
+                <BlockContainer title="OTHER ACCOMMODATION / EMERGENCY" roomsInBlock={otherRooms} color="#555" bg="#f5f5f5">
+                    <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(90px, 1fr))', gap:'10px', width:'100%'}}>
+                        {otherRooms.map(num => (
+                            <div key={num} style={{height:'60px'}}>
+                                <RoomBox num={num} />
+                            </div>
+                        ))}
+                    </div>
+                </BlockContainer>
+            )}
         </div>
     );
 }
