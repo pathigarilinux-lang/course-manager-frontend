@@ -29,7 +29,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [isSearching, setIsSearching] = useState(false);
   const searchInputRef = useRef(null);
 
-  // GLOBAL CONFLICT STATE (Stores seats taken by OTHER courses)
+  // GLOBAL CONFLICT STATE
   const [globalOccupied, setGlobalOccupied] = useState({ dining: [], pagoda: [] });
 
   const [formData, setFormData] = useState({ 
@@ -65,7 +65,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       if (formData.courseId) {
           fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants);
           
-          // ✅ Fetch Globally Occupied Seats (from concurrent courses)
           fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`)
             .then(res => res.json())
             .then(data => setGlobalOccupied(data))
@@ -75,7 +74,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       }
   }, [formData.courseId]);
 
-  // ✅ AUTO-FILL LAUNDRY LOGIC
+  // AUTO-FILL LAUNDRY LOGIC
   useEffect(() => {
       if (formData.confNo && formData.courseName) {
           const suffix = getCourseSuffix(formData.courseName);
@@ -97,10 +96,8 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const diningMap = new Map();
   const pagodaMap = new Map();
 
-  // 1. Mark Global Conflicts (From other courses)
   globalOccupied.dining.forEach(item => {
       const itemGender = (item.gender || '').toLowerCase();
-      // Block if genders match (Male blocks Male) OR if gender unknown (safety)
       if (!itemGender || itemGender.startsWith(currentGenderRaw.charAt(0))) {
           diningMap.set(item.seat, { blocked: true, tag: item.tag || 'Other', type: 'Global' });
       }
@@ -113,18 +110,16 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       }
   });
 
-  // 2. Mark Local Conflicts (From current course participants)
   const usedMobiles = new Set();
   const usedValuables = new Set();
 
   participants.forEach(p => {
-      if (String(p.participant_id) === String(formData.participantId)) return; // Ignore self
+      if (String(p.participant_id) === String(formData.participantId)) return;
       if (p.status === 'Cancelled') return;
       if (p.mobile_locker_no) usedMobiles.add(cleanNum(p.mobile_locker_no));
       if (p.valuables_locker_no) usedValuables.add(cleanNum(p.valuables_locker_no));
       
       const pGender = (p.gender || '').toLowerCase();
-      // Only block same-gender seats
       if ((isMale && pGender.startsWith('m')) || (isFemale && pGender.startsWith('f'))) {
           const conf = (p.conf_no || '').toUpperCase();
           const cat = (conf.startsWith('O') || conf.startsWith('S')) ? 'O' : 'N';
@@ -178,7 +173,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   };
 
   const handleDiningSeatChange = (val, typeVal) => { 
-      // 🛑 FRONTEND CONFLICT CHECK
       const status = diningMap.get(val);
       if (status && status.blocked) {
           return alert(`⛔ Dining Seat ${val} is occupied (${status.type === 'Global' ? 'Another Course' : 'This Course'}).`);
@@ -189,7 +183,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   };
 
   const handlePagodaSelect = (val) => { 
-      // 🛑 FRONTEND CONFLICT CHECK
       const status = pagodaMap.get(val);
       if (status && status.blocked) {
           return alert(`⛔ Pagoda Cell ${val} is occupied (${status.type === 'Global' ? 'Another Course' : 'This Course'}).`);
@@ -219,7 +212,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       e.preventDefault();
       if (!formData.confNo) return alert("Missing Conf No");
       
-      // 🛑 FINAL SAFETY CHECK ON SUBMIT
       const dStatus = diningMap.get(formData.seatNo);
       if (formData.seatNo && dStatus && dStatus.blocked) return alert(`⛔ STOP: Dining Seat ${formData.seatNo} is ALREADY TAKEN.`);
       
@@ -249,7 +241,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           
           fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants); 
           fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(setOccupancy); 
-          // Refetch conflicts to be safe
           fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`).then(res => res.json()).then(setGlobalOccupied);
           
           setTimeout(() => setStatus(''), 4000);
@@ -322,7 +313,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                                       <button type="button" onClick={() => setShowVisualRoom(true)} style={{...styles.input, textAlign:'left', padding:'8px', fontSize:'13px', background: formData.roomNo ? '#e3f2fd' : 'white', color: formData.roomNo ? '#0d47a1' : '#555', borderColor: formData.roomNo ? '#90caf9' : '#ddd', fontWeight: formData.roomNo ? 'bold' : 'normal', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center'}}>{formData.roomNo || "Select Room"}{formData.roomNo && <CheckCircle size={14} color="#28a745"/>}</button>
                                   </div>
                                   <div>
-                                      {/* ✅ AUTO-FILLED LAUNDRY TOKEN */}
+                                      {/* AUTO-FILLED LAUNDRY TOKEN */}
                                       <div style={{position:'relative'}}>
                                           <input style={{...styles.input, padding:'8px 8px 8px 30px', fontSize:'13px', background:'#f0f8ff', fontWeight:'bold', color:'#0d47a1'}} value={formData.laundryToken} onChange={e=>setFormData({...formData, laundryToken:e.target.value})} placeholder="Laundry Token" />
                                           <Briefcase size={14} color="#0d47a1" style={{position:'absolute', left:'10px', top:'10px'}}/>
@@ -330,16 +321,24 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                                   </div>
                               </div>
                               
-                              {/* DINING */}
+                              {/* DINING & LOCKERS (Updated with Headers) */}
                               <div style={{border:'1px solid #eee', borderRadius:'8px', padding:'12px', boxShadow:'0 2px 5px rgba(0,0,0,0.01)'}}>
-                                  <h5 style={{margin:'0 0 10px 0', color:'#555', display:'flex', alignItems:'center', gap:'6px', borderBottom:'1px solid #f0f0f0', paddingBottom:'5px'}}><Coffee size={14} color="#e91e63"/> Dining</h5>
+                                  <h5 style={{margin:'0 0 10px 0', color:'#555', display:'flex', alignItems:'center', gap:'6px', borderBottom:'1px solid #f0f0f0', paddingBottom:'5px'}}><Coffee size={14} color="#e91e63"/> Dining & Lockers</h5>
                                   <div style={{marginBottom:'10px', display:'flex', gap:'5px'}}>
                                       <select style={{...styles.input, width:'70px', padding:'8px', fontSize:'12px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select>
                                       <button type="button" onClick={() => setShowVisualDining(true)} style={{...styles.input, textAlign:'left', padding:'8px', fontSize:'13px', flex:1, background: formData.seatNo ? '#e3f2fd' : 'white', color: formData.seatNo ? '#0d47a1' : '#555', fontWeight: formData.seatNo ? 'bold' : 'normal', cursor:'pointer'}}>{formData.seatNo || "Seat"}</button>
                                   </div>
-                                  <div style={{display:'flex', gap:'5px'}}>
-                                      <select style={{...styles.input, padding:'8px', fontSize:'12px'}} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">Mob: None</option>{availableMobiles.map(n => <option key={n} value={n}>{n}</option>)}</select>
-                                      <select style={{...styles.input, padding:'8px', fontSize:'12px'}} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">Val: None</option>{availableValuables.map(n => <option key={n} value={n}>{n}</option>)}</select>
+                                  
+                                  {/* ✅ ADDED LABELS FOR LOCKERS */}
+                                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'5px'}}>
+                                      <div>
+                                          <label style={{fontSize:'10px', fontWeight:'bold', color:'#777', display:'block', marginBottom:'2px'}}>Mobile</label>
+                                          <select style={{...styles.input, padding:'6px', fontSize:'12px'}} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">None</option>{availableMobiles.map(n => <option key={n} value={n}>{n}</option>)}</select>
+                                      </div>
+                                      <div>
+                                          <label style={{fontSize:'10px', fontWeight:'bold', color:'#777', display:'block', marginBottom:'2px'}}>Valuables</label>
+                                          <select style={{...styles.input, padding:'6px', fontSize:'12px'}} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">None</option>{availableValuables.map(n => <option key={n} value={n}>{n}</option>)}</select>
+                                      </div>
                                   </div>
                               </div>
                           </div>
