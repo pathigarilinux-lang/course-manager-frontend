@@ -1,64 +1,108 @@
 import React, { useState } from 'react';
-import { Upload, Database, Save, Download, Trash2, Calendar, Search, PlusCircle, Edit, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
+import { 
+    Upload, 
+    Database, 
+    Save, 
+    Download, 
+    Trash2, 
+    Calendar, 
+    Search, 
+    PlusCircle, 
+    Edit, 
+    FileText, 
+    CheckCircle, 
+    AlertTriangle 
+} from 'lucide-react';
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 
-const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
+const thPrint = { 
+    textAlign: 'left', 
+    padding: '8px', 
+    border: '1px solid #000', 
+    fontSize: '12px', 
+    color: '#000', 
+    textTransform: 'uppercase', 
+    background: '#f0f0f0' 
+};
 
-// ✅ SMART PHONE EXTRACTOR HELPER
+// ==========================================
+// ✅ HELPER: SMART PHONE CLEANER
+// ==========================================
 const extractPhoneNumber = (rawStr) => {
     if (!rawStr) return '';
     const str = String(rawStr);
     
-    // 1. Remove Email Addresses (looks for anything with @)
-    // Replaces 'email@domain.com' with empty string
+    // 1. Remove Email Addresses (e.g. test@gmail.com)
+    // The regex looks for patterns with '@' and deletes them
     const withoutEmail = str.replace(/\S+@\S+\.\S+/g, '');
     
-    // 2. Remove non-digit characters (keep + for country code if needed, remove spaces/dashes)
-    // This turns "98-765 (Mob)" into "98765"
+    // 2. Remove non-digits characters
+    // We keep '0-9' and the '+' sign for country codes.
+    // We remove spaces, dashes, brackets, and text like "(Mob)".
     const cleanNumber = withoutEmail.replace(/[^0-9+]/g, '');
     
     return cleanNumber.trim();
 };
 
-export default function CourseAdmin({ courses, refreshCourses, userRole }) { // ✅ ACCEPT USER ROLE
+export default function CourseAdmin({ courses, refreshCourses, userRole }) { 
+  // --- STATE MANAGEMENT ---
   const [activeTab, setActiveTab] = useState('courses'); 
   
-  // State
+  // Data State
   const [students, setStudents] = useState([]);
   const [uploadStatus, setUploadStatus] = useState(null);
   const [mappingReport, setMappingReport] = useState(null);
   const [selectedCourseForUpload, setSelectedCourseForUpload] = useState('');
   
-  // Course Form State
+  // Forms State
   const [newCourseData, setNewCourseData] = useState({ name: '', teacher: '', startDate: '', endDate: '' });
   const [editingId, setEditingId] = useState(null); 
 
   // Manual Entry State
-  const [manualStudent, setManualStudent] = useState({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
+  const [manualStudent, setManualStudent] = useState({ 
+      full_name: '', 
+      gender: 'Male', 
+      age: '', 
+      conf_no: '', 
+      courses_info: '' 
+  });
+
+  // Search State
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalResults, setGlobalResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // --- COURSE MANAGEMENT ---
+  // ==========================================
+  // 1. COURSE MANAGEMENT LOGIC
+  // ==========================================
+  
   const getCourseStatus = (c) => {
       const now = new Date();
       const start = new Date(c.start_date);
       const end = new Date(c.end_date);
-      if (now > end) return { label: 'Completed', color: '#6c757d', bg: '#e2e3e5' };
-      if (now >= start && now <= end) return { label: 'Active', color: '#28a745', bg: '#d4edda' };
+      
+      if (now > end) {
+          return { label: 'Completed', color: '#6c757d', bg: '#e2e3e5' };
+      }
+      if (now >= start && now <= end) {
+          return { label: 'Active', color: '#28a745', bg: '#d4edda' };
+      }
       return { label: 'Upcoming', color: '#007bff', bg: '#cce5ff' };
   };
 
   const handleEditClick = (c) => {
       if (!c.course_id) return alert("Error: Invalid ID");
+      
       const shortName = c.course_name ? c.course_name.split('/')[0].trim() : 'Unknown';
+      
       setNewCourseData({
           name: shortName,
           teacher: c.teacher_name || '',
           startDate: c.start_date ? c.start_date.split('T')[0] : '',
           endDate: c.end_date ? c.end_date.split('T')[0] : ''
       });
+      
       setEditingId(c.course_id);
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -74,6 +118,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
       if (!editingId) return alert("Missing ID");
 
       const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
+      
       try {
           const res = await fetch(`${API_URL}/courses/${editingId}`, {
               method: 'PUT',
@@ -85,6 +130,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
                   endDate: newCourseData.endDate
               })
           });
+          
           if (res.ok) {
               alert(`✅ Updated!`);
               refreshCourses(); 
@@ -92,13 +138,17 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
           } else {
               alert(`❌ Failed to update.`);
           }
-      } catch (err) { alert(`⚠️ Network Error`); }
+      } catch (err) { 
+          alert(`⚠️ Network Error`); 
+      }
   };
 
   const handleCreateCourse = async (e) => {
     e.preventDefault();
     if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
+    
     const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
+    
     try {
         const res = await fetch(`${API_URL}/courses`, { 
             method: 'POST', 
@@ -110,12 +160,15 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
                 endDate: newCourseData.endDate
             }) 
         });
+        
         if (res.ok) {
             alert(`✅ Created: ${courseName}`);
             refreshCourses(); 
             setNewCourseData({ name: '', teacher: '', startDate: '', endDate: '' });
         }
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+        console.error(err); 
+    }
   };
 
   const handleDeleteCourse = async (id, name) => {
@@ -125,14 +178,16 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
       }
   };
 
-  // --- ✅ EXCEL / IMPORT TOOLS ---
+  // ==========================================
+  // 2. EXCEL IMPORT LOGIC (WITH PHONE CLEANING)
+  // ==========================================
 
   const downloadTemplate = () => {
       const data = [
-          ["ConfNo", "Student", "Gender", "Age", "Courses", "Contact", "10d", "STP", "TSC", "20d", "30d", "45d", "60d"],
-          ["OM20", "Long Course Student", "Male", 30, "", "9876543210", 8, 4, 0, 1, 1, 0, 0],
-          ["NM15", "10-Day Student", "Female", 45, "3", "info@test.com / 9988776655", 0, 0, 0, 0, 0, 0, 0],
-          ["NM01", "New Student", "Male", 25, "0", "+91-1234567890", 0, 0, 0, 0, 0, 0, 0],
+          ["ConfNo", "Student", "Gender", "Age", "Courses", "Phone", "10d", "STP", "TSC", "20d", "30d", "45d", "60d"],
+          ["OM20", "Example Student", "Male", 30, "", "9876543210", 8, 4, 0, 1, 1, 0, 0],
+          ["NM15", "New Student", "Female", 45, "3", "9988776655", 0, 0, 0, 0, 0, 0, 0],
+          ["NM01", "Manual Entry", "Male", 25, "0", "+91-1234567890", 0, 0, 0, 0, 0, 0, 0],
       ];
       const ws = XLSX.utils.aoa_to_sheet(data);
       const wb = XLSX.utils.book_new();
@@ -143,6 +198,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
+    
     setUploadStatus({ type: 'info', msg: 'Reading file...' });
     setMappingReport(null); 
 
@@ -164,9 +220,12 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ SMART PROCESSOR v8: HYBRID LOGIC + STRICT VALIDATION
+  // ✅ SMART PROCESSOR v9: WITH PHONE EXTRACTION
   const processDataRows = (rows) => {
-    if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
+    if (!rows || rows.length < 2) { 
+        setUploadStatus({ type: 'error', msg: 'File is empty.' }); 
+        return; 
+    }
     
     // 1. Initial Scan for Header Index
     let headerRowIndex = -1;
@@ -186,7 +245,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
         return; 
     }
     
-    // 2. Map Columns
+    // 2. Map Columns (Dynamic Search)
     const getIndex = (keywords) => headers.findIndex(h => keywords.some(k => h.toLowerCase() === k.toLowerCase() || h.toLowerCase().includes(k.toLowerCase())));
     
     const map = { 
@@ -194,9 +253,11 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
         name: getIndex(['Student', 'Name', 'Sadhaka']), 
         age: getIndex(['Age']), 
         gender: getIndex(['Gender', 'Sex']), 
+        
+        // ✅ CRITICAL: Detect Phone Column
+        phone: getIndex(['Phone', 'Mobile', 'Contact', 'Cell']),
+        
         generic: getIndex(['Courses', 'History', 'Old/New']), 
-        // ✅ NEW: CONTACT MAPPING
-        contact: getIndex(['Contact', 'Phone', 'Mobile', 'Cell']),
         c10: getIndex(['10d']),
         cstp: getIndex(['STP', 'Satipatthana']),
         ctsc: getIndex(['TSC', 'Teen', 'Service']),
@@ -207,13 +268,12 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
         languages: getIndex(['Languages', 'Language'])
     };
 
-    // 3. Generate Report
+    // 3. Generate Mapping Report
     const report = {
         name: map.name > -1 ? headers[map.name] : null,
         conf: map.conf > -1 ? headers[map.conf] : null,
-        gender: map.gender > -1 ? headers[map.gender] : 'Auto-Detect from Sections',
-        contact: map.contact > -1 ? '✅ Found' : '⚠️ Not Found',
-        courses_specific: (map.c10 > -1 || map.c20 > -1) ? '✅ Found' : '❌ Not Found',
+        gender: map.gender > -1 ? headers[map.gender] : 'Auto-Detect',
+        phone: map.phone > -1 ? `✅ Found (${headers[map.phone]})` : '⚠️ Not Found',
         courses_generic: map.generic > -1 ? '✅ Found' : '❌ Not Found',
         missing: []
     };
@@ -229,9 +289,9 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
     // 4. MAIN LOOP
     const parsedStudents = [];
     let currentSectionGender = null;
-    let droppedCount = 0; // Track dropped rows
+    let droppedCount = 0; 
 
-    // Pre-scan top rows to find initial gender
+    // Pre-scan top rows to find initial gender context
     for(let i=0; i<headerRowIndex; i++) {
         const rowStr = rows[i].map(c => String(c).toUpperCase()).join(' ');
         if (rowStr.includes('GENDER: MALE') || rowStr.includes('GENDER:MALE')) currentSectionGender = 'Male';
@@ -243,36 +303,34 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
         const rowStr = row.map(c => String(c).toUpperCase()).join(' ');
 
         // A. CHECK FOR SECTION HEADERS
-        if (rowStr.includes('GENDER: MALE') || rowStr.includes('GENDER:MALE')) {
-            currentSectionGender = 'Male';
-            continue;
+        if (rowStr.includes('GENDER: MALE') || rowStr.includes('GENDER:MALE')) { 
+            currentSectionGender = 'Male'; 
+            continue; 
         }
-        if (rowStr.includes('GENDER: FEMALE') || rowStr.includes('GENDER:FEMALE')) {
-            currentSectionGender = 'Female';
-            continue;
+        if (rowStr.includes('GENDER: FEMALE') || rowStr.includes('GENDER:FEMALE')) { 
+            currentSectionGender = 'Female'; 
+            continue; 
         }
 
-        // B. SKIP HEADERS
+        // B. SKIP SUB-HEADERS
         if (rowStr.includes('CONFNO') && rowStr.includes('STUDENT')) continue;
 
-        // C. VALIDATE CONF NO (Strict Check)
+        // C. VALIDATE CONF NO
         const rawConf = map.conf > -1 ? String(row[map.conf] || '').trim().toUpperCase().replace(/\s+/g, '') : '';
-        const validPattern = /^(OM|NM|OF|NF|SM|SF)\d+$/; // Strict: Code + Number
+        const validPattern = /^(OM|NM|OF|NF|SM|SF)\d+$/; 
         
         if (!validPattern.test(rawConf)) {
-            // If ConfNo is invalid/empty, DROP this row.
-            // But ensure it's not just an empty spacer row
+            // Drop invalid row, but count it if it has data
             if (rawConf.length > 0 || (map.name > -1 && row[map.name])) {
                droppedCount++; 
             }
             continue; 
         }
 
-        // D. PARSE VALID ROW
         const rawName = map.name > -1 ? row[map.name] : '';
         if (!rawName) continue; 
 
-        // Gender
+        // D. PARSE GENDER
         let pGender = currentSectionGender;
         if (map.gender > -1 && row[map.gender]) {
             const gVal = String(row[map.gender]).trim().toLowerCase();
@@ -280,11 +338,11 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
             else if (gVal.startsWith('f')) pGender = 'Female';
         }
 
-        // ✅ CONTACT CLEANING
-        const rawContact = map.contact > -1 ? row[map.contact] : '';
-        const cleanMobile = extractPhoneNumber(rawContact);
+        // E. ✅ PHONE EXTRACTION & CLEANING
+        const rawPhone = map.phone > -1 ? row[map.phone] : '';
+        const cleanPhone = extractPhoneNumber(rawPhone);
 
-        // Hybrid Course Logic
+        // F. PARSE COURSE HISTORY
         let coursesStr = "0"; 
         let specificParts = [];
         const addSpec = (colIndex, label) => {
@@ -308,15 +366,16 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
             coursesStr = String(row[map.generic]).trim();
         }
 
+        // G. ADD TO LIST
         parsedStudents.push({ 
             id: Date.now() + i, 
-            conf_no: rawConf, // Validated ConfNo
+            conf_no: rawConf, 
             full_name: rawName, 
             age: map.age > -1 ? row[map.age] : '', 
             gender: pGender || 'Unknown', 
             courses_info: coursesStr, 
-            email: '', 
-            mobile: cleanMobile, // ✅ Using Cleaned Number
+            // ✅ STANDARDIZED FIELD
+            mobile: cleanPhone, 
             notes: map.languages > -1 ? `Lang: ${row[map.languages]}` : '', 
             status: 'Active' 
         });
@@ -325,7 +384,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
     setStudents(parsedStudents);
     setUploadStatus({ 
         type: 'success', 
-        msg: `✅ Found ${parsedStudents.length} valid students. (Dropped ${droppedCount} invalid/empty rows)` 
+        msg: `✅ Found ${parsedStudents.length} valid students. (Dropped ${droppedCount} invalid rows)` 
     });
   };
 
@@ -336,21 +395,62 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
     if (!window.confirm(`Confirm Import:\n\nCourse: ${selectedCourseForUpload}\nStudents: ${students.length}\n\nProceed?`)) return;
     
     try {
-        const payload = { students: students.map(s => ({ name: s.full_name, confNo: s.conf_no, age: s.age, gender: s.gender, courses: s.courses_info, email: s.email, phone: s.mobile }))};
-        const res = await fetch(`${API_URL}/courses/${targetCourse.course_id}/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const payload = { 
+            students: students.map(s => ({ 
+                name: s.full_name, 
+                confNo: s.conf_no, 
+                age: s.age, 
+                gender: s.gender, 
+                courses: s.courses_info, 
+                // ✅ SEND AS 'phone' IF DATABASE EXPECTS IT
+                phone: s.mobile 
+            }))
+        };
+        
+        const res = await fetch(`${API_URL}/courses/${targetCourse.course_id}/import`, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(payload) 
+        });
+        
         const data = await res.json();
-        if(res.ok) { alert(`✅ Success: ${data.message}`); setStudents([]); setMappingReport(null); setUploadStatus(null); } else { alert(`❌ Error: ${data.error}`); }
-    } catch(err) { alert("Network Error: Failed to save data."); console.error(err); }
+        
+        if(res.ok) { 
+            alert(`✅ Success: ${data.message}`); 
+            setStudents([]); 
+            setMappingReport(null); 
+            setUploadStatus(null); 
+        } else { 
+            alert(`❌ Error: ${data.error}`); 
+        }
+    } catch(err) { 
+        alert("Network Error: Failed to save data."); 
+        console.error(err); 
+    }
   };
 
   const handleManualSubmit = async (e) => {
     e.preventDefault();
     if (!selectedCourseForUpload) return alert("Please select a target course first.");
     if (!manualStudent.full_name) return alert("Name is required.");
-    const newStudent = { id: Date.now(), ...manualStudent, conf_no: manualStudent.conf_no || `MANUAL-${Date.now()}`, status: 'Active', dining_seat: '', room_no: '' };
+    
+    const newStudent = { 
+        id: Date.now(), 
+        ...manualStudent, 
+        conf_no: manualStudent.conf_no || `MANUAL-${Date.now()}`, 
+        status: 'Active', 
+        dining_seat: '', 
+        room_no: '',
+        mobile: '' 
+    };
+    
     setStudents(prev => [newStudent, ...prev]);
     setManualStudent({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
   };
+
+  // ==========================================
+  // 3. BACKUP & SEARCH TOOLS
+  // ==========================================
 
   const handleDownloadBackup = async () => {
       try {
@@ -376,21 +476,29 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
       if(!globalSearch) return;
       setIsSearching(true);
       let results = [];
+      
       for (let c of courses) {
           const res = await fetch(`${API_URL}/courses/${c.course_id}/participants`);
           const data = await res.json();
-          const matches = data.filter(p => p.full_name.toLowerCase().includes(globalSearch.toLowerCase()) || (p.conf_no && p.conf_no.toLowerCase().includes(globalSearch.toLowerCase())));
-          if (matches.length > 0) results.push(...matches.map(m => ({ ...m, courseName: c.course_name })));
+          const matches = data.filter(p => 
+              p.full_name.toLowerCase().includes(globalSearch.toLowerCase()) || 
+              (p.conf_no && p.conf_no.toLowerCase().includes(globalSearch.toLowerCase()))
+          );
+          
+          if (matches.length > 0) {
+              results.push(...matches.map(m => ({ ...m, courseName: c.course_name })));
+          }
       }
+      
       setGlobalResults(results);
       setIsSearching(false);
   };
 
-  // --- RENDER ---
+  // --- TABS DEFINITION ---
   const TABS = [
       { id: 'courses', label: 'Courses', icon: <Calendar size={16}/> },
       { id: 'import', label: 'Import', icon: <Upload size={16}/> },
-      // ✅ HIDE BACKUP TAB FOR STAFF
+      // ✅ USER ROLE CHECK
       ...(userRole === 'admin' ? [{ id: 'backup', label: 'Backup', icon: <Save size={16}/> }] : []),
       { id: 'search', label: 'Search', icon: <Search size={16}/> },
   ];
@@ -489,7 +597,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
                                                 <button onClick={()=>handleEditClick(c)} style={{padding:'8px', background:'white', color:'#e65100', border:'1px solid #ffe0b2', borderRadius:'6px', cursor:'pointer'}} title="Edit Course">
                                                     <Edit size={16}/>
                                                 </button>
-                                                {/* ✅ HIDE DELETE BUTTON FOR STAFF */}
+                                                {/* ✅ ADMIN ONLY DELETE */}
                                                 {userRole === 'admin' && (
                                                     <button onClick={()=>handleDeleteCourse(c.course_id, c.course_name)} style={{padding:'8px', background:'white', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer'}} title="Delete Course">
                                                         <Trash2 size={16}/>
@@ -559,7 +667,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
               </div>
           </div>
 
-          {/* ✅ MAPPING CONFIRMATION BOX */}
+          {/* MAPPING REPORT */}
           {mappingReport && (
               <div style={{marginTop:'20px', padding:'15px', background:'#e8f5e9', border:'1px solid #c8e6c9', borderRadius:'8px'}}>
                   <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'10px', color:'#2e7d32', fontWeight:'bold'}}>
@@ -569,8 +677,11 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
                       <div><strong>Name:</strong> {mappingReport.name || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Gender:</strong> {mappingReport.gender ? <span style={{color:'#007bff'}}>{mappingReport.gender}</span> : <span style={{color:'red'}}>Missing</span>}</div>
-                      <div><strong>Contact:</strong> {mappingReport.contact}</div>
-                      <div><strong>Courses Specific:</strong> {mappingReport.courses_specific}</div>
+                      
+                      {/* ✅ PHONE CHECK */}
+                      <div><strong>Phone:</strong> {mappingReport.phone}</div>
+                      
+                      <div><strong>Courses:</strong> {mappingReport.courses_generic}</div>
                   </div>
               </div>
           )}
@@ -588,8 +699,34 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
                </div>
                <div style={{maxHeight:'300px', overflowY:'auto', border:'1px solid #eee', borderRadius:'8px'}}>
                  <table style={{width:'100%', fontSize:'13px', borderCollapse:'collapse'}}>
-                   <thead style={{position:'sticky', top:0, background:'#f1f1f1'}}><tr><th style={thPrint}>Conf</th><th style={thPrint}>Name</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Phone</th><th style={thPrint}>Courses Info</th></tr></thead>
-                   <tbody>{students.map(s => (<tr key={s.id} style={{borderBottom:'1px solid #eee'}}><td style={{padding:'8px', color: s.status === 'Pending ID' ? 'orange' : 'blue', fontWeight:'bold'}}>{s.conf_no}</td><td style={{padding:'8px'}}>{s.full_name}</td><td style={{padding:'8px'}}>{s.age}</td><td style={{padding:'8px'}}>{s.gender}</td><td style={{padding:'8px', color:'#007bff'}}>{s.mobile}</td><td style={{padding:'8px', color:'#666'}}>{s.courses_info}</td></tr>))}</tbody>
+                   <thead style={{position:'sticky', top:0, background:'#f1f1f1'}}>
+                       <tr>
+                           <th style={thPrint}>Conf</th>
+                           <th style={thPrint}>Name</th>
+                           <th style={thPrint}>Age</th>
+                           <th style={thPrint}>Gender</th>
+                           
+                           {/* ✅ PHONE PREVIEW */}
+                           <th style={thPrint}>Phone</th>
+                           
+                           <th style={thPrint}>Courses Info</th>
+                       </tr>
+                   </thead>
+                   <tbody>
+                       {students.map(s => (
+                           <tr key={s.id} style={{borderBottom:'1px solid #eee'}}>
+                               <td style={{padding:'8px', color: s.status === 'Pending ID' ? 'orange' : 'blue', fontWeight:'bold'}}>{s.conf_no}</td>
+                               <td style={{padding:'8px'}}>{s.full_name}</td>
+                               <td style={{padding:'8px'}}>{s.age}</td>
+                               <td style={{padding:'8px'}}>{s.gender}</td>
+                               
+                               {/* ✅ PHONE PREVIEW CELL */}
+                               <td style={{padding:'8px', color:'#007bff'}}>{s.mobile}</td>
+                               
+                               <td style={{padding:'8px', color:'#666'}}>{s.courses_info}</td>
+                           </tr>
+                       ))}
+                   </tbody>
                  </table>
                </div>
             </div>
@@ -598,7 +735,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
       )}
 
       {/* --- BACKUP & SEARCH TABS --- */}
-      {/* ✅ HIDE BACKUP TAB FOR STAFF */}
+      {/* ✅ ADMIN ONLY BACKUP */}
       {activeTab === 'backup' && userRole === 'admin' && ( 
           <div style={{textAlign:'center', padding:'60px 40px', animation:'fadeIn 0.3s ease'}}>
               <div style={{width:'80px', height:'80px', background:'#f8f9fa', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px auto'}}>
