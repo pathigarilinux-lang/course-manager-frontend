@@ -8,11 +8,21 @@ import { API_URL, LANGUAGES, styles } from '../config';
 
 const NUMBER_OPTIONS = Array.from({ length: 200 }, (_, i) => String(i + 1));
 
-// ✅ Helper to extract course suffix (e.g., "10-Day" -> "-10D")
+// ✅ Helper: Extract Suffix (e.g. "45-Day" -> "-45D", "Satipatthana" -> "-STP")
 const getCourseSuffix = (courseName) => {
     if (!courseName) return '';
-    const match = courseName.match(/(\d+)/); // Find first number
-    return match ? `-${match[1]}D` : ''; // e.g., "-10D"
+    const nameUpper = courseName.toUpperCase();
+    
+    // 1. Check for specific numbers (10, 20, 30, 45, 60)
+    const match = nameUpper.match(/(\d+)/); 
+    if (match) return `-${match[1]}D`; // e.g. "-10D", "-45D"
+
+    // 2. Fallbacks for non-numbered courses
+    if (nameUpper.includes('SATIPATTHANA') || nameUpper.includes('STP')) return '-STP';
+    if (nameUpper.includes('SERVICE') || nameUpper.includes('TSC')) return '-SVC';
+    if (nameUpper.includes('EXEC') || nameUpper.includes('EXECUTIVE')) return '-EXE';
+    
+    return ''; // Default empty if no pattern found
 };
 
 export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
@@ -29,7 +39,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [globalOccupied, setGlobalOccupied] = useState({ dining: [], pagoda: [] });
 
   const [formData, setFormData] = useState({ 
-      courseId: '', courseName: '', // ✅ Added courseName to state
+      courseId: '', courseName: '', // Track course name for Suffix
       participantId: '', roomNo: '', seatNo: '', 
       laundryToken: '', mobileLocker: '', valuablesLocker: '', 
       language: 'English', pagodaCell: '', laptop: 'No', 
@@ -70,15 +80,17 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       }
   }, [formData.courseId]);
 
-  // ✅ AUTO-FILL LOGIC: Update Laundry Token when ConfNo or CourseName changes
+  // ✅ AUTO-FILL LAUNDRY LOGIC
+  // Triggers whenever ConfNo changes OR CourseName changes
   useEffect(() => {
       if (formData.confNo && formData.courseName) {
           const suffix = getCourseSuffix(formData.courseName);
-          const suggestedToken = `${formData.confNo}${suffix}`;
+          const autoToken = `${formData.confNo}${suffix}`;
           
-          // Only auto-fill if currently empty or matches old pattern (respects manual edits)
+          // Only update if field is empty OR currently holds a variation of the ID
+          // This allows manual overrides to stick if the user explicitly typed something else
           if (!formData.laundryToken || formData.laundryToken.includes(formData.confNo)) {
-             setFormData(prev => ({ ...prev, laundryToken: suggestedToken }));
+             setFormData(prev => ({ ...prev, laundryToken: autoToken }));
           }
       }
   }, [formData.confNo, formData.courseName]);
@@ -92,7 +104,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : 'Male');
   const themeColor = isMale ? '#007bff' : (isFemale ? '#e91e63' : '#6c757d');
 
-  // PREPARE MAPS FOR LAYOUTS (Gender Scoped)
   const diningMap = new Map();
   const pagodaMap = new Map();
 
@@ -140,9 +151,11 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const selectStudent = (student) => {
       setSelectedStudent(student);
-      // Find the course name for the selected student context
-      const selectedCourse = courses.find(c => c.course_id == formData.courseId);
       
+      // Use the course from the student object (if from global search) or the form state
+      const targetCourseId = student.courseId || formData.courseId;
+      const targetCourseName = student.courseName || (courses.find(c => c.course_id == targetCourseId)?.course_name) || '';
+
       setFormData(prev => ({ 
           ...prev, 
           participantId: student.participant_id, 
@@ -150,10 +163,22 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           seatNo: '', 
           mobileLocker: '', 
           valuablesLocker: '',
-          courseName: selectedCourse ? selectedCourse.course_name : prev.courseName // Ensure courseName is set
+          courseId: targetCourseId, // Sync course selection
+          courseName: targetCourseName // Trigger Auto-Fill Logic
       }));
       setSearchTerm(student.full_name);
       setIsSearching(false);
+  };
+
+  // ✅ Handle Manual Course Change
+  const handleCourseChange = (e) => {
+      const newId = e.target.value;
+      const newCourse = courses.find(c => String(c.course_id) === String(newId));
+      setFormData(prev => ({ 
+          ...prev, 
+          courseId: newId, 
+          courseName: newCourse ? newCourse.course_name : '' // Updates suffix immediately
+      }));
   };
 
   const handleRoomSelect = (roomObj) => {
@@ -174,17 +199,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   };
 
   const handlePagodaSelect = (val) => { setFormData(prev => ({ ...prev, pagodaCell: val })); setShowVisualPagoda(false); };
-
-  // ✅ Handle Course Selection Manually
-  const handleCourseChange = (e) => {
-      const newId = e.target.value;
-      const newCourse = courses.find(c => String(c.course_id) === String(newId));
-      setFormData(prev => ({ 
-          ...prev, 
-          courseId: newId, 
-          courseName: newCourse ? newCourse.course_name : '' 
-      }));
-  };
 
   const prepareReceipt = () => {
       const courseObj = courses.find(c => c.course_id == formData.courseId);
