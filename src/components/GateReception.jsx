@@ -116,15 +116,14 @@ export default function GateReception({ courses, refreshCourses }) {
       const cancelledP = participants.filter(p => p.status === 'Cancelled' || p.status === 'No-Show');
       const activeP = participants.filter(p => p.status !== 'Cancelled' && p.status !== 'No-Show');
       
-      // 1. CALCULATE GENDER TOTALS & BREAKDOWNS
+      // 1. EXPECTED TOTALS
       const expMale = activeP.filter(isM).length;
       const expFemale = activeP.filter(isF).length;
       
-      // ✅ DETAILED COUNTS
+      // Expected Breakdown
       const om = activeP.filter(p => isM(p) && isOld(p)).length;
       const nm = activeP.filter(p => isM(p) && isNew(p)).length;
       const sm = activeP.filter(p => isM(p) && isSvr(p)).length;
-      
       const of = activeP.filter(p => isF(p) && isOld(p)).length;
       const nf = activeP.filter(p => isF(p) && isNew(p)).length;
       const sf = activeP.filter(p => isF(p) && isSvr(p)).length;
@@ -141,19 +140,27 @@ export default function GateReception({ courses, refreshCourses }) {
           { name: 'Can (F)', value: cancelledP.filter(p => isF(p)).length, fill: COLORS.canF },
       ].filter(d => d.value > 0);
 
-      // 3. Arrived Data
+      // 3. ARRIVED DATA
       const arrivedP = activeP.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending');
       const arrMale = arrivedP.filter(isM).length;
       const arrFemale = arrivedP.filter(isF).length;
       const pendingCount = activeP.length - arrivedP.length;
 
+      // ✅ Arrived Breakdown (NEW LOGIC)
+      const arrMO = arrivedP.filter(p => isM(p) && isOld(p)).length;
+      const arrMN = arrivedP.filter(p => isM(p) && isNew(p)).length;
+      const arrMS = arrivedP.filter(p => isM(p) && isSvr(p)).length;
+      const arrFO = arrivedP.filter(p => isF(p) && isOld(p)).length;
+      const arrFN = arrivedP.filter(p => isF(p) && isNew(p)).length;
+      const arrFS = arrivedP.filter(p => isF(p) && isSvr(p)).length;
+
       const pieData = [
-          { name: 'Old Male', value: arrivedP.filter(p => isM(p) && isOld(p)).length, color: COLORS.om },
-          { name: 'New Male', value: arrivedP.filter(p => isM(p) && isNew(p)).length, color: COLORS.nm },
-          { name: 'Svr Male', value: arrivedP.filter(p => isM(p) && isSvr(p)).length, color: COLORS.sm },
-          { name: 'Old Female', value: arrivedP.filter(p => isF(p) && isOld(p)).length, color: COLORS.of },
-          { name: 'New Female', value: arrivedP.filter(p => isF(p) && isNew(p)).length, color: COLORS.nf },
-          { name: 'Svr Female', value: arrivedP.filter(p => isF(p) && isSvr(p)).length, color: COLORS.sf },
+          { name: 'Old Male', value: arrMO, color: COLORS.om },
+          { name: 'New Male', value: arrMN, color: COLORS.nm },
+          { name: 'Svr Male', value: arrMS, color: COLORS.sm },
+          { name: 'Old Female', value: arrFO, color: COLORS.of },
+          { name: 'New Female', value: arrFN, color: COLORS.nf },
+          { name: 'Svr Female', value: arrFS, color: COLORS.sf },
           { name: 'Pending', value: pendingCount, color: COLORS.pending }
       ].filter(d => d.value > 0);
 
@@ -163,8 +170,9 @@ export default function GateReception({ courses, refreshCourses }) {
           expMale, expFemale, 
           arrived: arrivedP.length,
           arrMale, arrFemale,
-          // ✅ BREAKDOWN OBJECT FOR UI
-          breakdown: { om, nm, sm, of, nf, sf }
+          // BREAKDOWNS
+          expected: { om, nm, sm, of, nf, sf },
+          arrivedBreakdown: { arrMO, arrMN, arrMS, arrFO, arrFN, arrFS }
       };
   }, [participants]);
 
@@ -198,13 +206,12 @@ export default function GateReception({ courses, refreshCourses }) {
               }}>
                   {/* BAR CHART: Expected Total (Detailed Breakdown) */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'10px', display:'flex', flexDirection:'column'}}>
-                      {/* ✅ UPDATED HEADER WITH BREAKDOWN */}
                       <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'5px'}}>
                           <div>
                               <div style={{fontSize:'11px', fontWeight:'bold', color:'#555', textTransform:'uppercase'}}>Expected: <span style={{fontSize:'14px', color:'#007bff'}}>{stats.total}</span></div>
                               <div style={{fontSize:'10px', color:'#666', marginTop:'2px', lineHeight:'1.4'}}>
-                                  M: <b style={{color:'#007bff'}}>{stats.expMale}</b> (O:{stats.breakdown.om} N:{stats.breakdown.nm} S:{stats.breakdown.sm})<br/>
-                                  F: <b style={{color:'#e91e63'}}>{stats.expFemale}</b> (O:{stats.breakdown.of} N:{stats.breakdown.nf} S:{stats.breakdown.sf})
+                                  M: <b style={{color:'#007bff'}}>{stats.expMale}</b> (O:{stats.expected.om} N:{stats.expected.nm} S:{stats.expected.sm})<br/>
+                                  F: <b style={{color:'#e91e63'}}>{stats.expFemale}</b> (O:{stats.expected.of} N:{stats.expected.nf} S:{stats.expected.sf})
                               </div>
                           </div>
                       </div>
@@ -218,12 +225,16 @@ export default function GateReception({ courses, refreshCourses }) {
                       </div>
                   </div>
 
-                  {/* PIE CHART: Arrival Breakdown */}
+                  {/* PIE CHART: Arrival Breakdown (Detailed Breakdown) */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'10px', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
                       <div>
                           <div style={{fontSize:'11px', fontWeight:'bold', color:'#2e7d32', textTransform:'uppercase'}}>Arrived</div>
                           <div style={{fontSize:'24px', fontWeight:'900', color:'#333', lineHeight:'1'}}>{stats.arrived}</div>
-                          <div style={{fontSize:'10px', color:'#666', marginTop:'4px'}}>M: <b style={{color:'#007bff'}}>{stats.arrMale}</b> | F: <b style={{color:'#e91e63'}}>{stats.arrFemale}</b></div>
+                          {/* ✅ DETAILED ARRIVED BREAKDOWN */}
+                          <div style={{fontSize:'10px', color:'#666', marginTop:'4px', lineHeight:'1.4'}}>
+                              M: <b style={{color:'#007bff'}}>{stats.arrMale}</b> (O:{stats.arrivedBreakdown.arrMO} N:{stats.arrivedBreakdown.arrMN} S:{stats.arrivedBreakdown.arrMS})<br/>
+                              F: <b style={{color:'#e91e63'}}>{stats.arrFemale}</b> (O:{stats.arrivedBreakdown.arrFO} N:{stats.arrivedBreakdown.arrFN} S:{stats.arrivedBreakdown.arrFS})
+                          </div>
                       </div>
                       <div style={{width:'120px', height:'100px'}}>
                           <ResponsiveContainer>
