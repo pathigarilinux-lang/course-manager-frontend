@@ -5,7 +5,7 @@ import { API_URL, styles } from '../config';
 
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
 
-export default function CourseAdmin({ courses, refreshCourses }) {
+export default function CourseAdmin({ courses, refreshCourses, userRole }) { // ✅ ACCEPT USER ROLE
   const [activeTab, setActiveTab] = useState('courses'); 
   
   // State
@@ -241,6 +241,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         const validPattern = /^(OM|NM|OF|NF|SM|SF)\d+$/; // Strict: Code + Number
         
         if (!validPattern.test(rawConf)) {
+            // If ConfNo is invalid/empty, DROP this row.
+            // But ensure it's not just an empty spacer row
             if (rawConf.length > 0 || (map.name > -1 && row[map.name])) {
                droppedCount++; 
             }
@@ -285,7 +287,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
 
         parsedStudents.push({ 
             id: Date.now() + i, 
-            conf_no: rawConf, 
+            conf_no: rawConf, // Validated ConfNo
             full_name: rawName, 
             age: map.age > -1 ? row[map.age] : '', 
             gender: pGender || 'Unknown', 
@@ -327,7 +329,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     setManualStudent({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
   };
 
-  // ✅ FIXED: Download Full Backup using Backend Endpoint
   const handleDownloadBackup = async () => {
       try {
           const response = await fetch(`${API_URL}/backup`);
@@ -366,7 +367,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
   const TABS = [
       { id: 'courses', label: 'Courses', icon: <Calendar size={16}/> },
       { id: 'import', label: 'Import', icon: <Upload size={16}/> },
-      { id: 'backup', label: 'Backup', icon: <Save size={16}/> },
+      // ✅ HIDE BACKUP TAB FOR STAFF
+      ...(userRole === 'admin' ? [{ id: 'backup', label: 'Backup', icon: <Save size={16}/> }] : []),
       { id: 'search', label: 'Search', icon: <Search size={16}/> },
   ];
 
@@ -464,9 +466,12 @@ export default function CourseAdmin({ courses, refreshCourses }) {
                                                 <button onClick={()=>handleEditClick(c)} style={{padding:'8px', background:'white', color:'#e65100', border:'1px solid #ffe0b2', borderRadius:'6px', cursor:'pointer'}} title="Edit Course">
                                                     <Edit size={16}/>
                                                 </button>
-                                                <button onClick={()=>handleDeleteCourse(c.course_id, c.course_name)} style={{padding:'8px', background:'white', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer'}} title="Delete Course">
-                                                    <Trash2 size={16}/>
-                                                </button>
+                                                {/* ✅ HIDE DELETE BUTTON FOR STAFF */}
+                                                {userRole === 'admin' && (
+                                                    <button onClick={()=>handleDeleteCourse(c.course_id, c.course_name)} style={{padding:'8px', background:'white', color:'#d32f2f', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer'}} title="Delete Course">
+                                                        <Trash2 size={16}/>
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -570,7 +575,8 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       )}
 
       {/* --- BACKUP & SEARCH TABS --- */}
-      {activeTab === 'backup' && (
+      {/* ✅ HIDE BACKUP TAB FOR STAFF */}
+      {activeTab === 'backup' && userRole === 'admin' && ( 
           <div style={{textAlign:'center', padding:'60px 40px', animation:'fadeIn 0.3s ease'}}>
               <div style={{width:'80px', height:'80px', background:'#f8f9fa', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px auto'}}>
                   <Database size={40} color="#6c757d"/>
