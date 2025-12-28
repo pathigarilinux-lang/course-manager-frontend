@@ -8,21 +8,15 @@ import { API_URL, LANGUAGES, styles } from '../config';
 
 const NUMBER_OPTIONS = Array.from({ length: 200 }, (_, i) => String(i + 1));
 
-// ✅ Helper: Extract Suffix (e.g. "45-Day" -> "-45D", "Satipatthana" -> "-STP")
+// ✅ Helper: Extract Suffix (e.g. "45-Day" -> "-45D")
 const getCourseSuffix = (courseName) => {
     if (!courseName) return '';
     const nameUpper = courseName.toUpperCase();
-    
-    // 1. Check for specific numbers (10, 20, 30, 45, 60)
     const match = nameUpper.match(/(\d+)/); 
-    if (match) return `-${match[1]}D`; // e.g. "-10D", "-45D"
-
-    // 2. Fallbacks for non-numbered courses
+    if (match) return `-${match[1]}D`; 
     if (nameUpper.includes('SATIPATTHANA') || nameUpper.includes('STP')) return '-STP';
     if (nameUpper.includes('SERVICE') || nameUpper.includes('TSC')) return '-SVC';
-    if (nameUpper.includes('EXEC') || nameUpper.includes('EXECUTIVE')) return '-EXE';
-    
-    return ''; // Default empty if no pattern found
+    return ''; 
 };
 
 export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
@@ -35,11 +29,11 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [isSearching, setIsSearching] = useState(false);
   const searchInputRef = useRef(null);
 
-  // GLOBAL CONFLICT STATE
+  // GLOBAL CONFLICT STATE (Stores seats taken by OTHER courses)
   const [globalOccupied, setGlobalOccupied] = useState({ dining: [], pagoda: [] });
 
   const [formData, setFormData] = useState({ 
-      courseId: '', courseName: '', // Track course name for Suffix
+      courseId: '', courseName: '', 
       participantId: '', roomNo: '', seatNo: '', 
       laundryToken: '', mobileLocker: '', valuablesLocker: '', 
       language: 'English', pagodaCell: '', laptop: 'No', 
@@ -66,11 +60,12 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       } 
   }, [preSelectedRoom, courses]);
 
-  // FETCH PARTICIPANTS AND GLOBAL CONFLICTS
+  // FETCH DATA & CONFLICTS
   useEffect(() => { 
       if (formData.courseId) {
           fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants);
           
+          // ✅ Fetch Globally Occupied Seats (from concurrent courses)
           fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`)
             .then(res => res.json())
             .then(data => setGlobalOccupied(data))
@@ -81,56 +76,55 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   }, [formData.courseId]);
 
   // ✅ AUTO-FILL LAUNDRY LOGIC
-  // Triggers whenever ConfNo changes OR CourseName changes
   useEffect(() => {
       if (formData.confNo && formData.courseName) {
           const suffix = getCourseSuffix(formData.courseName);
           const autoToken = `${formData.confNo}${suffix}`;
-          
-          // Only update if field is empty OR currently holds a variation of the ID
-          // This allows manual overrides to stick if the user explicitly typed something else
           if (!formData.laundryToken || formData.laundryToken.includes(formData.confNo)) {
              setFormData(prev => ({ ...prev, laundryToken: autoToken }));
           }
       }
   }, [formData.confNo, formData.courseName]);
 
-  const normalize = (str) => str ? str.toString().replace(/[\s-]+/g, '').toUpperCase() : '';
   const cleanNum = (val) => val ? String(val).trim() : '';
-  
   const currentGenderRaw = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
   const isMale = currentGenderRaw.startsWith('m');
   const isFemale = currentGenderRaw.startsWith('f'); 
   const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : 'Male');
   const themeColor = isMale ? '#007bff' : (isFemale ? '#e91e63' : '#6c757d');
 
+  // --- 🔒 CONFLICT MAP GENERATION ---
   const diningMap = new Map();
   const pagodaMap = new Map();
 
+  // 1. Mark Global Conflicts (From other courses)
   globalOccupied.dining.forEach(item => {
       const itemGender = (item.gender || '').toLowerCase();
-      if (itemGender.startsWith(currentGenderRaw.charAt(0)) || !itemGender) {
-          diningMap.set(item.seat, { blocked: true, tag: item.tag, type: 'Global' });
+      // Block if genders match (Male blocks Male) OR if gender unknown (safety)
+      if (!itemGender || itemGender.startsWith(currentGenderRaw.charAt(0))) {
+          diningMap.set(item.seat, { blocked: true, tag: item.tag || 'Other', type: 'Global' });
       }
   });
 
   globalOccupied.pagoda.forEach(item => {
       const itemGender = (item.gender || '').toLowerCase();
-      if (itemGender.startsWith(currentGenderRaw.charAt(0)) || !itemGender) {
-          pagodaMap.set(item.cell, { blocked: true, tag: item.tag, type: 'Global' });
+      if (!itemGender || itemGender.startsWith(currentGenderRaw.charAt(0))) {
+          pagodaMap.set(item.cell, { blocked: true, tag: item.tag || 'Other', type: 'Global' });
       }
   });
 
+  // 2. Mark Local Conflicts (From current course participants)
   const usedMobiles = new Set();
   const usedValuables = new Set();
 
   participants.forEach(p => {
-      if (String(p.participant_id) === String(formData.participantId)) return;
+      if (String(p.participant_id) === String(formData.participantId)) return; // Ignore self
       if (p.status === 'Cancelled') return;
       if (p.mobile_locker_no) usedMobiles.add(cleanNum(p.mobile_locker_no));
       if (p.valuables_locker_no) usedValuables.add(cleanNum(p.valuables_locker_no));
       
       const pGender = (p.gender || '').toLowerCase();
+      // Only block same-gender seats
       if ((isMale && pGender.startsWith('m')) || (isFemale && pGender.startsWith('f'))) {
           const conf = (p.conf_no || '').toUpperCase();
           const cat = (conf.startsWith('O') || conf.startsWith('S')) ? 'O' : 'N';
@@ -151,8 +145,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const selectStudent = (student) => {
       setSelectedStudent(student);
-      
-      // Use the course from the student object (if from global search) or the form state
       const targetCourseId = student.courseId || formData.courseId;
       const targetCourseName = student.courseName || (courses.find(c => c.course_id == targetCourseId)?.course_name) || '';
 
@@ -160,25 +152,18 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           ...prev, 
           participantId: student.participant_id, 
           confNo: student.conf_no || '', 
-          seatNo: '', 
-          mobileLocker: '', 
-          valuablesLocker: '',
-          courseId: targetCourseId, // Sync course selection
-          courseName: targetCourseName // Trigger Auto-Fill Logic
+          seatNo: '', mobileLocker: '', valuablesLocker: '',
+          courseId: targetCourseId, 
+          courseName: targetCourseName 
       }));
       setSearchTerm(student.full_name);
       setIsSearching(false);
   };
 
-  // ✅ Handle Manual Course Change
   const handleCourseChange = (e) => {
       const newId = e.target.value;
       const newCourse = courses.find(c => String(c.course_id) === String(newId));
-      setFormData(prev => ({ 
-          ...prev, 
-          courseId: newId, 
-          courseName: newCourse ? newCourse.course_name : '' // Updates suffix immediately
-      }));
+      setFormData(prev => ({ ...prev, courseId: newId, courseName: newCourse ? newCourse.course_name : '' }));
   };
 
   const handleRoomSelect = (roomObj) => {
@@ -193,12 +178,25 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   };
 
   const handleDiningSeatChange = (val, typeVal) => { 
+      // 🛑 FRONTEND CONFLICT CHECK
+      const status = diningMap.get(val);
+      if (status && status.blocked) {
+          return alert(`⛔ Dining Seat ${val} is occupied (${status.type === 'Global' ? 'Another Course' : 'This Course'}).`);
+      }
       const lockerVal = (!usedMobiles.has(val) && !usedValuables.has(val)) ? val : '';
       setFormData(prev => ({ ...prev, seatNo: val, seatType: typeVal, mobileLocker: lockerVal, valuablesLocker: lockerVal })); 
       setShowVisualDining(false);
   };
 
-  const handlePagodaSelect = (val) => { setFormData(prev => ({ ...prev, pagodaCell: val })); setShowVisualPagoda(false); };
+  const handlePagodaSelect = (val) => { 
+      // 🛑 FRONTEND CONFLICT CHECK
+      const status = pagodaMap.get(val);
+      if (status && status.blocked) {
+          return alert(`⛔ Pagoda Cell ${val} is occupied (${status.type === 'Global' ? 'Another Course' : 'This Course'}).`);
+      }
+      setFormData(prev => ({ ...prev, pagodaCell: val })); 
+      setShowVisualPagoda(false); 
+  };
 
   const prepareReceipt = () => {
       const courseObj = courses.find(c => c.course_id == formData.courseId);
@@ -220,15 +218,18 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const handleSubmit = async (e) => { 
       e.preventDefault();
       if (!formData.confNo) return alert("Missing Conf No");
+      
+      // 🛑 FINAL SAFETY CHECK ON SUBMIT
+      const dStatus = diningMap.get(formData.seatNo);
+      if (formData.seatNo && dStatus && dStatus.blocked) return alert(`⛔ STOP: Dining Seat ${formData.seatNo} is ALREADY TAKEN.`);
+      
+      const pStatus = pagodaMap.get(formData.pagodaCell);
+      if (formData.pagodaCell && pStatus && pStatus.blocked) return alert(`⛔ STOP: Pagoda Cell ${formData.pagodaCell} is ALREADY TAKEN.`);
+
       setStatus('Submitting...');
       
       try { 
-          const payload = { 
-              ...formData, 
-              diningSeatType: formData.seatType,
-              gender: selectedStudent?.gender 
-          };
-
+          const payload = { ...formData, diningSeatType: formData.seatType, gender: selectedStudent?.gender };
           const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
           
           if (!res.ok) {
@@ -248,13 +249,14 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           
           fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants); 
           fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(setOccupancy); 
+          // Refetch conflicts to be safe
+          fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`).then(res => res.json()).then(setGlobalOccupied);
+          
           setTimeout(() => setStatus(''), 4000);
 
       } catch (err) { 
           setStatus(`❌ ${err.message}`); 
-          if(err.message.includes('Laundry') || err.message.includes('Room') || err.message.includes('Dining') || err.message.includes('Pagoda')) {
-              alert(`🛑 CONFLICT ALERT:\n\n${err.message}`);
-          }
+          alert(`🛑 ERROR: ${err.message}`);
       } 
   };
 
