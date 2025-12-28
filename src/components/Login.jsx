@@ -88,7 +88,7 @@ export default function Login({ onLogin }) {
           )}
         </div>
         
-        <h2 style={{ margin: '0', color: '#1e293b', fontSize: '28px', fontWeight: '800', letterSpacing: '-0.5px' }}>Dhamma Nagajjuna 2</h2>
+        <h2 style={{ margin: '0', color: '#1e293b', fontSize: '28px', fontWeight: '800', letterSpacing: '-0.5px' }}>Dhamma Seva</h2>
         <p style={{ margin: '8px 0 30px 0', color: '#64748b', fontSize: '14px', fontWeight: '500' }}>Secure Registration Access</p>
         
         {error && (
