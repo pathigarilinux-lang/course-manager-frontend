@@ -28,11 +28,14 @@ const STYLES = {
   a4: `
     @page { size: A4 landscape; margin: 10mm; }
     body { font-family: 'Segoe UI', sans-serif; font-size: 11pt; }
-    table { width: 100%; border-collapse: collapse; }
+    table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
     th, td { border: 1px solid #000; padding: 6px; text-align: left; }
-    th { background: #f0f0f0; text-transform: uppercase; font-size: 10pt; }
-    h1 { text-align: center; margin: 0 0 10px 0; font-size: 18pt; text-transform: uppercase; }
-    .meta { display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: bold; }
+    th { background: #f0f0f0; text-transform: uppercase; font-size: 10pt; font-weight: bold; }
+    h1 { text-align: center; margin: 0 0 5px 0; font-size: 16pt; text-transform: uppercase; }
+    h2 { text-align: center; margin: 0 0 10px 0; font-size: 14pt; color: #555; }
+    .meta { display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: bold; border-bottom: 2px solid black; padding-bottom: 5px; }
+    .page-break { page-break-before: always; }
   `
 };
 
@@ -60,7 +63,6 @@ const triggerPrint = (htmlContent) => {
         } catch (e) {
             console.error("Print Error", e);
         }
-        // Cleanup after print dialog closes (approximate)
         setTimeout(() => {
             if (document.body.contains(iframe)) {
                 document.body.removeChild(iframe);
@@ -84,48 +86,24 @@ export const printStudentToken = (student, courseName) => {
             <div class="header">${CENTER_NAME}</div>
             <div class="sub-header">${CENTER_SUB}</div>
             <div class="divider"></div>
-            
             <div style="margin: 10px 0;">
                 <div class="conf">${s.conf_no || '---'}</div>
             </div>
-            
             <div class="name">${s.full_name}</div>
             <div style="font-size: 10px;">${cleanCourse}</div>
-            
             <div class="divider"></div>
-            
             <div class="big-label">Room Allocation</div>
             <div class="big-value">${s.room_no || '-'}</div>
-            
             <div class="grid" style="margin-top: 10px;">
-                <div class="cell">
-                    <div class="cell-label">Dining Seat</div>
-                    <div class="med-value">${s.dining_seat_no || '-'}</div>
-                </div>
-                <div class="cell">
-                    <div class="cell-label">Pagoda</div>
-                    <div class="med-value">${s.pagoda_cell_no || '-'}</div>
-                </div>
+                <div class="cell"><div class="cell-label">Dining Seat</div><div class="med-value">${s.dining_seat_no || '-'}</div></div>
+                <div class="cell"><div class="cell-label">Pagoda</div><div class="med-value">${s.pagoda_cell_no || '-'}</div></div>
             </div>
-
             <div class="grid">
-                <div class="cell">
-                    <div class="cell-label">Mobile Lock</div>
-                    <div class="cell-val">${s.mobile_locker_no || '-'}</div>
-                </div>
-                <div class="cell">
-                    <div class="cell-label">Valuables</div>
-                    <div class="cell-val">${s.valuables_locker_no || '-'}</div>
-                </div>
-                <div class="cell">
-                    <div class="cell-label">Laundry</div>
-                    <div class="cell-val">${s.laundry_token_no || '-'}</div>
-                </div>
+                <div class="cell"><div class="cell-label">Mobile Lock</div><div class="cell-val">${s.mobile_locker_no || '-'}</div></div>
+                <div class="cell"><div class="cell-label">Valuables</div><div class="cell-val">${s.valuables_locker_no || '-'}</div></div>
+                <div class="cell"><div class="cell-label">Laundry</div><div class="cell-val">${s.laundry_token_no || '-'}</div></div>
             </div>
-
-            <div class="footer">
-                Please keep silence • Be happy
-            </div>
+            <div class="footer">Please keep silence • Be happy</div>
         </div>
     </body>
     </html>
@@ -133,8 +111,8 @@ export const printStudentToken = (student, courseName) => {
     triggerPrint(html);
 };
 
-// 2. KITCHEN / NOTICE BOARD LIST (A4 Landscape)
-export const printList = (title, students, courseName) => {
+// 2. HELPER: Generate Table HTML
+const generateTableHtml = (title, students, courseName) => {
     const rows = students.map((s, i) => `
         <tr>
             <td>${i + 1}</td>
@@ -150,11 +128,9 @@ export const printList = (title, students, courseName) => {
         </tr>
     `).join('');
 
-    const html = `
-    <html>
-    <head><style>${STYLES.a4}</style></head>
-    <body>
-        <h1>${CENTER_NAME} - ${title}</h1>
+    return `
+        <h1>${CENTER_NAME}</h1>
+        <h2>${title}</h2>
         <div class="meta">
             <span>Course: ${courseName}</span>
             <span>Date: ${new Date().toLocaleDateString()}</span>
@@ -167,7 +143,7 @@ export const printList = (title, students, courseName) => {
                     <th width="50">Seat</th>
                     <th>Name</th>
                     <th width="60">ID</th>
-                    <th width="60">Sex</th>
+                    <th width="50">Sex</th>
                     <th width="40">Age</th>
                     <th width="60">Room</th>
                     <th width="60">Pagoda</th>
@@ -177,6 +153,28 @@ export const printList = (title, students, courseName) => {
             </thead>
             <tbody>${rows}</tbody>
         </table>
+    `;
+};
+
+// 3. SINGLE LIST PRINT (A4)
+export const printList = (title, students, courseName) => {
+    const content = generateTableHtml(title, students, courseName);
+    const html = `<html><head><style>${STYLES.a4}</style></head><body>${content}</body></html>`;
+    triggerPrint(html);
+};
+
+// 4. COMBINED LIST PRINT (Male + Female on separate pages)
+export const printCombinedList = (titleBase, maleStudents, femaleStudents, courseName) => {
+    const maleContent = generateTableHtml(`MALE ${titleBase}`, maleStudents, courseName);
+    const femaleContent = generateTableHtml(`FEMALE ${titleBase}`, femaleStudents, courseName);
+    
+    const html = `
+    <html>
+    <head><style>${STYLES.a4}</style></head>
+    <body>
+        ${maleContent}
+        <div class="page-break"></div>
+        ${femaleContent}
     </body>
     </html>
     `;
