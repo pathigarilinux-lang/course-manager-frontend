@@ -91,8 +91,9 @@ export default function App() {
       { id: 'onboarding', label: 'Onboarding', icon: <UserPlus size={20} /> },
       { id: 'students', label: 'Manage Students', icon: <Users size={20} /> },
       { id: 'store', label: 'Store', icon: <ShoppingBag size={20} /> },
+      { id: 'admin', label: 'Course Admin', icon: <Settings size={20} /> }, 
       { id: 'seva', label: 'Seva Board', icon: <Heart size={20} /> },
-      { id: 'admin', label: 'Course Admin', icon: <Settings size={20} /> },
+      
   ];
 
   return (
