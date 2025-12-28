@@ -42,7 +42,10 @@ const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
 
 const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, setSpecCols, gender, selectedSeat, handleSeatClick, courseId, courses, participants, seatingConfig }) => {
     const courseObj = courses.find(c=>c.course_id==courseId);
+    // ✅ FIX: Use dynamic Course Name instead of hardcoded "30-DAY"
+    const courseName = courseObj ? courseObj.course_name : 'COURSE';
     const dateRange = courseObj ? `${new Date(courseObj.start_date).toLocaleDateString()} to ${new Date(courseObj.end_date).toLocaleDateString()}` : '';
+    
     const genderKey = gender.toLowerCase().charAt(0);
     const studentsOnSide = participants.filter(p => p.status === 'Attending' && (p.gender||'').toLowerCase().startsWith(genderKey));
     const oldCnt = studentsOnSide.filter(p => getCategory(p.conf_no)==='OLD').length;
@@ -92,7 +95,8 @@ const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, 
             <div style={{textAlign:'center', marginBottom:'20px'}}> 
                 <h1 style={{margin:'0 0 5px 0', fontSize:'28px', fontWeight:'bold', textTransform:'uppercase'}}>SEATING PLAN - {title}</h1> 
                 <div style={{fontSize:'16px', fontWeight:'bold', color:'#333', marginBottom:'5px'}}>Old: {oldCnt} + New: {newCnt} = Total: {oldCnt + newCnt}</div>
-                <h3 style={{margin:0, fontSize:'16px', fontWeight:'bold'}}>30-DAY / {dateRange}</h3> 
+                {/* ✅ UPDATED TITLE */}
+                <h3 style={{margin:0, fontSize:'16px', fontWeight:'bold'}}>{courseName} / {dateRange}</h3> 
             </div> 
             <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content', borderTop:'2px solid black', borderLeft:'2px solid black'}}> {renderGrid()} </div> </div> 
             <div style={{display:'flex', justifyContent:'center', marginTop:'40px'}}> <div style={{textAlign:'center', width:'100%'}}> <div style={{border:'2px dashed black', padding:'15px', fontWeight:'900', fontSize:'32px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 auto', maxWidth:'600px', background:'white'}}>{gender.toUpperCase()} TEACHER</div></div> </div> 
@@ -128,7 +132,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       if (courseId) {
           fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : []));
           try {
-              // ✅ LOAD SPECIFIC COURSE CONFIG
               const savedLayout = localStorage.getItem(`layout_${courseId}`);
               if(savedLayout) {
                   const parsed = JSON.parse(savedLayout);
@@ -195,7 +198,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   };
 
   const saveLayoutConfig = () => { 
-      // ✅ ISOLATED SAVE: Saves only for current course ID
       localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig)); 
       alert("✅ Layout Configuration Saved for this course!"); 
   };
@@ -262,11 +264,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       if (!window.confirm("⚠️ This will overwrite unlocked seats based on Seniority Logic. Continue?")) return;
       setIsAssigning(true);
       setShowAutoAssignModal(false);
-      
-      // ✅ CRITICAL: AUTO-SAVE CONFIG BEFORE RUNNING
-      // This ensures the layout is locked to this courseID and won't revert or affect others
       localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig));
-
       try {
           const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
           const allP = await res.json();
@@ -324,7 +322,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
         const handleSortClick = (key) => { const dir = (diningSort.key === key && diningSort.direction === 'asc') ? 'desc' : 'asc'; setDiningSort({ key, direction: dir }); };
         return ( <div style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> 
             <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> 
-                {/* ✅ New Print Call */}
                 <button onClick={() => handlePrintList(list, `${title} DINING`)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>🖨️ Print {title} List (A4)</button> 
             </div> 
             <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Dining List</h2> 
@@ -341,7 +338,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
         const handleSortClick = (key) => { const dir = (pagodaSort.key === key && pagodaSort.direction === 'asc') ? 'desc' : 'asc'; setPagodaSort({ key, direction: dir }); };
         return ( <div style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> 
             <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> 
-                {/* ✅ New Print Call */}
                 <button onClick={() => handlePrintList(list, `${title} PAGODA`)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>🖨️ Print {title} List (A4)</button> 
             </div> 
             <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Pagoda Cell List</h2> 
@@ -363,6 +359,8 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
                   <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> 
                   <div style={{display:'flex', gap:'10px', alignItems:'center'}}> 
                       <button onClick={saveLayoutConfig} style={styles.toolBtn('#17a2b8')}><Save size={16}/> Store Seat Changes</button> 
+                      {/* ✅ RESTORED PRINT SETTINGS BUTTON */}
+                      <button onClick={() => setShowPrintSettings(true)} style={styles.toolBtn('#6c757d')}><Settings size={16}/> Settings</button> 
                       <button onClick={handleSeatingExport} style={{...styles.quickBtn(true), background:'#6c757d', color:'white'}}>CSV</button> 
                       <button onClick={()=>setShowAutoAssignModal(true)} style={{...styles.btn(true), background:'#ff9800', color:'white'}}><Settings size={16}/> Auto-Assign</button> 
                   </div> 
@@ -395,7 +393,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
               </div> 
               {showPrintSettings && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:3000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'300px'}}><h3>🖨️ Print Settings</h3><div style={{marginBottom:'15px'}}><label style={styles.label}>Paper Size</label><select style={styles.input} value={printConfig.paper} onChange={e=>setPrintConfig({...printConfig, paper:e.target.value})}><option>A4</option><option>A3</option><option>Letter</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Orientation</label><select style={styles.input} value={printConfig.orientation} onChange={e=>setPrintConfig({...printConfig, orientation:e.target.value})}><option>landscape</option><option>portrait</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Scale (Zoom)</label><input type="range" min="0.5" max="1.5" step="0.1" value={printConfig.scale} onChange={e=>setPrintConfig({...printConfig, scale:e.target.value})} style={{width:'100%'}}/><div style={{textAlign:'center', fontSize:'12px'}}>{Math.round(printConfig.scale*100)}%</div></div><div style={{textAlign:'right'}}><button onClick={()=>setShowPrintSettings(false)} style={styles.btn(true)}>Done</button></div></div></div>)} 
               {showAutoAssignModal && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'600px', maxHeight:'90vh', overflowY:'auto'}}><h3>🛠️ Auto-Assign Configuration</h3>
-                  {/* ✅ HEADER TO SHOW WHICH COURSE IS BEING CONFIGURED */}
                   <div style={{marginBottom:'15px', color:'#555', fontSize:'14px', fontStyle:'italic'}}>
                       Configuring for: <strong>{courses.find(c=>c.course_id == courseId)?.course_name || 'Selected Course'}</strong>
                   </div>
