@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, RefreshCw, BedDouble, PlusCircle, Trash2, Printer, X, PieChart as PieIcon, BarChart3, AlertTriangle } from 'lucide-react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout';     
 import FemaleBlockLayout from './FemaleBlockLayout';
@@ -17,8 +17,11 @@ const COLORS = {
 const PROTECTED_PREFIXES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'ISO'];
 
 export default function GlobalAccommodationManager() {
+  // ✅ Initialize with empty arrays to PREVENT CRASH
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
+  const [courses, setCourses] = useState([]); 
+  
   const [activeTab, setActiveTab] = useState('Male'); 
   const [moveMode, setMoveMode] = useState(null); 
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,11 +29,13 @@ export default function GlobalAccommodationManager() {
   // Modals & Tools
   const [showAddRoom, setShowAddRoom] = useState(false);
   const [showDeleteRoom, setShowDeleteRoom] = useState(false);
-  const [newRoomData, setNewRoomData] = useState({ room_no: '', gender: 'Male', capacity: 1, floor: 'Ground', block: 'TEMP' });
+  
+  // ✅ UPDATED: Split Room ID into Prefix + Number for safety
+  const [newRoomData, setNewRoomData] = useState({ prefix: 'TENT', suffix: '', gender: 'Male', capacity: 1, floor: 'Ground' });
+  
   const [deleteRoomNo, setDeleteRoomNo] = useState('');
   const [showAutoTool, setShowAutoTool] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(''); 
-  const [courses, setCourses] = useState([]); 
 
   // --- DATA LOADING ---
   const loadData = async () => { 
@@ -46,13 +51,19 @@ export default function GlobalAccommodationManager() {
         const oList = await occRes.json();
         const cList = await coursesRes.json();
 
+        // ✅ SAFETY: Ensure we never set undefined
         setRooms(Array.isArray(rList) ? rList : []);
         setOccupancy(Array.isArray(oList) ? oList : []);
         setCourses(Array.isArray(cList) ? cList : []);
         
-        if(cList.length > 0 && !selectedCourse) setSelectedCourse(cList[0].course_id);
+        if(Array.isArray(cList) && cList.length > 0 && !selectedCourse) setSelectedCourse(cList[0].course_id);
 
-    } catch (err) { console.error("Error loading data:", err); }
+    } catch (err) { 
+        console.error("Error loading data:", err); 
+        // ✅ SAFETY: Fallback to empty on error
+        setRooms([]);
+        setOccupancy([]);
+    }
   };
   
   useEffect(() => { loadData(); }, []);
@@ -65,7 +76,8 @@ export default function GlobalAccommodationManager() {
           courseData: []
       };
 
-      occupancy.forEach(p => {
+      // ✅ SAFETY: Check if occupancy exists
+      (occupancy || []).forEach(p => {
           const g = (p.gender || '').toLowerCase();
           const isMale = g.startsWith('m');
           const conf = (p.conf_no || '').toUpperCase();
@@ -85,11 +97,11 @@ export default function GlobalAccommodationManager() {
       });
 
       const courseMap = {};
-      courses.forEach(c => {
+      (courses || []).forEach(c => {
           const name = c.course_name.split('/')[0].substring(0, 15);
           courseMap[c.course_id] = { name, Male: 0, Female: 0 };
       });
-      occupancy.forEach(p => {
+      (occupancy || []).forEach(p => {
           if (p.course_id && courseMap[p.course_id]) {
               const g = (p.gender || '').toLowerCase();
               if (g.startsWith('m')) courseMap[p.course_id].Male++;
@@ -104,8 +116,6 @@ export default function GlobalAccommodationManager() {
   // --- ACTIONS ---
   
   const handleRoomInteraction = async (targetRoomData) => {
-      // This function handles clicking on rooms in the layout
-      // Logic preserved from original file logic or delegated to layout components
       const targetRoomNo = targetRoomData.room_no;
       const targetOccupant = occupancy.find(p => p.room_no === targetRoomNo);
 
@@ -122,7 +132,6 @@ export default function GlobalAccommodationManager() {
           if(!window.confirm(`⚠️ GENDER WARNING: Moving ${student.gender} to ${targetRoomData.gender_type} room?`)) return;
       }
 
-      // Execute Move
       if (targetOccupant) {
           if (!window.confirm(`Swap ${student.full_name} <-> ${targetOccupant.full_name}?`)) return;
           await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: 'TEMP_SWAP' }) });
@@ -137,24 +146,27 @@ export default function GlobalAccommodationManager() {
   };
 
   const handleAddRoom = async () => {
-      // Mapping fields to match backend expectations (roomNo vs room_no)
-      if (!newRoomData.room_no.trim()) return alert("Room Number is required");
+      // ✅ LOGIC: Combine Prefix + Suffix (e.g. TENT + 1 = TENT-1)
+      if (!newRoomData.suffix.trim()) return alert("Please enter a number/letter suffix");
+      
+      const generatedRoomNo = `${newRoomData.prefix}-${newRoomData.suffix.trim().toUpperCase()}`;
+
       try {
           const res = await fetch(`${API_URL}/rooms`, { 
               method: 'POST', 
               headers: { 'Content-Type': 'application/json' }, 
               body: JSON.stringify({ 
-                  roomNo: newRoomData.room_no.trim().toUpperCase(), 
+                  roomNo: generatedRoomNo, 
                   type: newRoomData.gender,
                   capacity: newRoomData.capacity,
                   floor: newRoomData.floor,
-                  block: newRoomData.block
+                  block: 'TEMP' // Force TEMP block for manual adds
               }) 
           });
           if (res.ok) { 
-              alert("✅ Room Added!"); 
+              alert(`✅ Room ${generatedRoomNo} Added!`); 
               setShowAddRoom(false); 
-              setNewRoomData({ room_no: '', gender: activeTab, capacity: 1, floor: 'Ground', block: 'TEMP' }); 
+              setNewRoomData({ prefix: 'TENT', suffix: '', gender: activeTab, capacity: 1, floor: 'Ground' }); 
               loadData(); 
           } 
           else { 
@@ -169,24 +181,24 @@ export default function GlobalAccommodationManager() {
       if(!roomNo) return false;
       const upper = roomNo.toUpperCase();
       return PROTECTED_PREFIXES.some(prefix => {
+          // Matches "A-1", "A1", "ISO-1"
           return upper.startsWith(prefix + '-') || (upper.startsWith(prefix) && !isNaN(parseInt(upper.replace(prefix, '').charAt(0))));
       });
   };
 
   const handleDeleteRoom = async () => {
       if (!deleteRoomNo.trim()) return;
-      const room = rooms.find(r => r.room_no === deleteRoomNo.trim().toUpperCase());
+      // ✅ SAFETY: Handle if rooms is undefined
+      const room = (rooms || []).find(r => r.room_no === deleteRoomNo.trim().toUpperCase());
       
       if (!room) return alert("❌ Room not found.");
       
-      // ✅ SAFETY CHECK 1: Core Protection
       if (isRoomProtected(room.room_no)) {
-          alert(`⛔ ACTION DENIED\n\nRoom '${room.room_no}' is a Core System Room.\nYou can only delete manually added rooms (e.g. TEMP, TENT, HALL).`);
+          alert(`⛔ ACTION DENIED\n\nRoom '${room.room_no}' is a Core System Room.\nYou can only delete manually added rooms (e.g. TENT, HALL).`);
           return;
       }
 
-      // ✅ SAFETY CHECK 2: Occupancy
-      const isOccupied = occupancy.some(p => p.room_no === room.room_no);
+      const isOccupied = (occupancy || []).some(p => p.room_no === room.room_no);
       if (isOccupied) return alert(`⛔ Cannot delete ${room.room_no}. It is occupied! Move student first.`);
 
       if (!window.confirm(`🗑️ PERMANENTLY DELETE Room ${room.room_no}?`)) return;
@@ -198,27 +210,28 @@ export default function GlobalAccommodationManager() {
       } catch(err) { console.error(err); }
   };
 
+  // ✅ PRINT EMPTY ROOMS (Safe Filter)
   const handlePrintEmpty = () => {
-      const occupiedSet = new Set(occupancy.map(p => p.room_no));
-      const emptyMales = rooms.filter(r => r.gender_type === 'Male' && !occupiedSet.has(r.room_no)).map(r => r.room_no).sort();
-      const emptyFemales = rooms.filter(r => r.gender_type === 'Female' && !occupiedSet.has(r.room_no)).map(r => r.room_no).sort();
+      const occupiedSet = new Set((occupancy || []).map(p => p.room_no));
+      // ✅ SAFETY: Use (rooms || [])
+      const emptyMales = (rooms || []).filter(r => r.gender_type === 'Male' && !occupiedSet.has(r.room_no)).map(r => r.room_no).sort();
+      const emptyFemales = (rooms || []).filter(r => r.gender_type === 'Female' && !occupiedSet.has(r.room_no)).map(r => r.room_no).sort();
 
       const printWindow = window.open('', '', 'height=600,width=800');
       printWindow.document.write(`
         <html>
           <head><title>Empty Rooms</title><style>body{font-family:sans-serif;padding:20px}.col{width:45%;float:left;padding:10px;border:1px solid #ccc}.room{display:inline-block;padding:5px;border:1px solid #eee;margin:2px;font-size:11px}</style></head>
           <body><h1>Empty Rooms Report</h1>
-            <div class="col" style="border-top:4px solid blue"><h3>MALE</h3>${emptyMales.map(r=>`<span class="room">${r}</span>`).join('')}</div>
-            <div class="col" style="border-top:4px solid pink"><h3>FEMALE</h3>${emptyFemales.map(r=>`<span class="room">${r}</span>`).join('')}</div>
+            <div class="col" style="border-top:4px solid blue"><h3>MALE (${emptyMales.length})</h3>${emptyMales.map(r=>`<span class="room">${r}</span>`).join('')}</div>
+            <div class="col" style="border-top:4px solid pink"><h3>FEMALE (${emptyFemales.length})</h3>${emptyFemales.map(r=>`<span class="room">${r}</span>`).join('')}</div>
           </body>
         </html>
       `);
       printWindow.document.close();
   };
 
-  const searchResult = searchQuery ? occupancy.find(p => p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || p.conf_no.toLowerCase().includes(searchQuery.toLowerCase())) : null;
+  const searchResult = searchQuery ? (occupancy || []).find(p => p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || p.conf_no.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
-  // Chart Data
   const malePieData = [ { name: 'Old', value: stats.male.OM, color: COLORS.om }, { name: 'New', value: stats.male.NM, color: COLORS.nm }, { name: 'Server', value: stats.male.SM, color: COLORS.sm } ].filter(d => d.value > 0);
   const femalePieData = [ { name: 'Old', value: stats.female.OF, color: COLORS.of }, { name: 'New', value: stats.female.NF, color: COLORS.nf }, { name: 'Server', value: stats.female.SF, color: COLORS.sf } ].filter(d => d.value > 0);
 
@@ -287,7 +300,6 @@ export default function GlobalAccommodationManager() {
                       <button onClick={()=>setMoveMode(null)} style={{border:'none', background:'transparent', cursor:'pointer', fontWeight:'bold'}}>✕</button>
                   </div>
               )}
-              {/* Search */}
               <div style={{position:'relative'}}>
                   <div style={{display:'flex', alignItems:'center', background:'#f8f9fa', border:'1px solid #ddd', borderRadius:'6px', padding:'6px 12px', width:'220px'}}>
                       <Search size={16} color="#aaa"/>
@@ -310,16 +322,16 @@ export default function GlobalAccommodationManager() {
           </div>
       </div>
 
-      {/* 3. VISUAL LAYOUTS */}
+      {/* 3. VISUAL LAYOUTS (SAFETY PROPS) */}
       <div style={{background:'#f8f9fa', padding:'20px', borderRadius:'12px', border:'1px solid #eee', minHeight:'500px', overflowX:'auto'}}>
           {activeTab === 'Male' ? (
-              <MaleBlockLayout occupancy={occupancy} onRefresh={loadData} moveMode={moveMode} setMoveMode={setMoveMode} />
+              <MaleBlockLayout rooms={rooms || []} occupancy={occupancy || []} onRoomClick={handleRoomInteraction} />
           ) : (
-              <FemaleBlockLayout occupancy={occupancy} onRefresh={loadData} moveMode={moveMode} setMoveMode={setMoveMode} />
+              <FemaleBlockLayout rooms={rooms || []} occupancy={occupancy || []} onRoomClick={handleRoomInteraction} />
           )}
       </div>
 
-      {/* --- SCROLLABLE MODAL FIX: ADD ROOM --- */}
+      {/* --- ADD ROOM MODAL (EASY FORMAT) --- */}
       {showAddRoom && (
           <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'flex-start', padding:'50px 20px', overflowY:'auto'}}>
               <div style={{background:'white', padding:'30px', borderRadius:'12px', width:'400px', boxShadow:'0 10px 40px rgba(0,0,0,0.3)', position:'relative', marginTop:'20px'}}>
@@ -328,10 +340,34 @@ export default function GlobalAccommodationManager() {
                       <button onClick={()=>setShowAddRoom(false)} style={{border:'none', background:'none', cursor:'pointer'}}><X size={20}/></button>
                   </div>
                   <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
+                      
+                      {/* ✅ IMPROVED INPUT: Prefix Selector + Number */}
                       <div>
-                          <label style={styles.label}>Room Number (Unique)</label>
-                          <input placeholder="e.g. TENT-1" value={newRoomData.room_no} onChange={e=>setNewRoomData({...newRoomData, room_no: e.target.value.toUpperCase()})} style={styles.input} autoFocus />
+                          <label style={styles.label}>Room Prefix & Number</label>
+                          <div style={{display:'flex', gap:'10px'}}>
+                              <select 
+                                  value={newRoomData.prefix} 
+                                  onChange={e=>setNewRoomData({...newRoomData, prefix: e.target.value})} 
+                                  style={{...styles.input, width:'120px', fontWeight:'bold'}}
+                              >
+                                  <option value="TENT">TENT</option>
+                                  <option value="HALL">HALL</option>
+                                  <option value="DORM">DORM</option>
+                                  <option value="TEMP">TEMP</option>
+                                  <option value="ISO">ISO</option>
+                              </select>
+                              <span style={{alignSelf:'center', fontWeight:'bold'}}>-</span>
+                              <input 
+                                  placeholder="1, 2, A, B..." 
+                                  value={newRoomData.suffix} 
+                                  onChange={e=>setNewRoomData({...newRoomData, suffix: e.target.value.toUpperCase()})} 
+                                  style={{...styles.input, flex:1}} 
+                                  autoFocus 
+                              />
+                          </div>
+                          <div style={{fontSize:'12px', color:'#666', marginTop:'5px'}}>Will create: <strong>{newRoomData.prefix}-{newRoomData.suffix || '?'}</strong></div>
                       </div>
+
                       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
                           <div>
                               <label style={styles.label}>Gender Block</label>
@@ -344,14 +380,6 @@ export default function GlobalAccommodationManager() {
                               <input type="number" value={newRoomData.capacity} onChange={e=>setNewRoomData({...newRoomData, capacity:parseInt(e.target.value)})} style={styles.input} />
                           </div>
                       </div>
-                      <div>
-                          <label style={styles.label}>Block / Zone</label>
-                          <select value={newRoomData.block} onChange={e=>setNewRoomData({...newRoomData, block:e.target.value})} style={styles.input}>
-                              <option value="TEMP">Temporary / Overflow</option>
-                              <option value="ISO">Isolation</option>
-                              <option value="O">Other</option>
-                          </select>
-                      </div>
                       
                       <div style={{marginTop:'15px', borderTop:'1px solid #eee', paddingTop:'15px'}}>
                           <button onClick={() => setShowAutoTool(true)} style={{display:'flex', alignItems:'center', justifyContent:'center', width:'100%', gap:'6px', background:'linear-gradient(45deg, #6a11cb, #2575fc)', color:'white', border:'none', padding:'10px 15px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', boxShadow:'0 4px 10px rgba(106, 17, 203, 0.2)'}}>✨ Launch Auto-Allocator</button>
@@ -363,7 +391,7 @@ export default function GlobalAccommodationManager() {
           </div>
       )}
 
-      {/* --- SCROLLABLE MODAL FIX: DELETE ROOM (WITH PROTECTION) --- */}
+      {/* --- DELETE ROOM MODAL (PROTECTED) --- */}
       {showDeleteRoom && (
           <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'flex-start', padding:'50px 20px', overflowY:'auto'}}>
               <div style={{background:'white', padding:'30px', borderRadius:'12px', width:'400px', boxShadow:'0 10px 40px rgba(0,0,0,0.3)', borderTop:'5px solid #dc3545', marginTop:'20px'}}>
@@ -377,7 +405,7 @@ export default function GlobalAccommodationManager() {
                           <AlertTriangle size={18}/> RESTRICTED ACTION
                       </div>
                       <p style={{margin:0, fontSize:'12px', color:'#b71c1c'}}>
-                          You can only delete <strong>Manually Added</strong> rooms (e.g. Tent, Hall). 
+                          You can only delete <strong>Manually Added</strong> rooms (e.g. TENT-1). 
                           Core blocks (A-N, ISO) are protected.
                       </p>
                   </div>
