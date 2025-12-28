@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, RefreshCw, BedDouble, PlusCircle, Trash2, Printer, X, PieChart as PieIcon, BarChart3 } from 'lucide-react';
+import { Search, RefreshCw, BedDouble, PlusCircle, Trash2, Printer, X, PieChart as PieIcon, BarChart3, AlertTriangle } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout';     
 import FemaleBlockLayout from './FemaleBlockLayout';
-import AutoAllocationTool from './AutoAllocationTool'; // Adjust path if needed
+import AutoAllocationTool from './AutoAllocationTool';
 
 const COLORS = { 
     male: '#007bff', female: '#e91e63', 
@@ -13,6 +13,9 @@ const COLORS = {
     empty: '#e0e0e0'
 };
 
+// ✅ CORE SYSTEM BLOCKS (Protected from Deletion)
+const PROTECTED_PREFIXES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'ISO'];
+
 export default function GlobalAccommodationManager() {
   const [rooms, setRooms] = useState([]); 
   const [occupancy, setOccupancy] = useState([]); 
@@ -20,15 +23,16 @@ export default function GlobalAccommodationManager() {
   const [moveMode, setMoveMode] = useState(null); 
   const [searchQuery, setSearchQuery] = useState('');
 
-  // ✅ NEW STATES
+  // Modals & Tools
   const [showAddRoom, setShowAddRoom] = useState(false);
   const [showDeleteRoom, setShowDeleteRoom] = useState(false);
-  const [newRoomData, setNewRoomData] = useState({ roomNo: '', type: 'Male' });
+  const [newRoomData, setNewRoomData] = useState({ room_no: '', gender: 'Male', capacity: 1, floor: 'Ground', block: 'TEMP' });
   const [deleteRoomNo, setDeleteRoomNo] = useState('');
-  const [courses, setCourses] = useState([]);
   const [showAutoTool, setShowAutoTool] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState(''); 
+  const [courses, setCourses] = useState([]); 
 
-  // --- LOADING ---
+  // --- DATA LOADING ---
   const loadData = async () => { 
     try {
         const t = Date.now(); 
@@ -45,6 +49,8 @@ export default function GlobalAccommodationManager() {
         setRooms(Array.isArray(rList) ? rList : []);
         setOccupancy(Array.isArray(oList) ? oList : []);
         setCourses(Array.isArray(cList) ? cList : []);
+        
+        if(cList.length > 0 && !selectedCourse) setSelectedCourse(cList[0].course_id);
 
     } catch (err) { console.error("Error loading data:", err); }
   };
@@ -59,13 +65,11 @@ export default function GlobalAccommodationManager() {
           courseData: []
       };
 
-      // 1. Calculate Occupancy Breakdown
       occupancy.forEach(p => {
           const g = (p.gender || '').toLowerCase();
           const isMale = g.startsWith('m');
           const conf = (p.conf_no || '').toUpperCase();
           const type = conf.startsWith('S') ? 'S' : (conf.startsWith('O') ? 'O' : 'N');
-          const key = type + (isMale ? 'M' : 'F'); // OM, NM, SM...
 
           if (isMale) {
               if (type === 'S') breakdown.male.SM++;
@@ -80,10 +84,9 @@ export default function GlobalAccommodationManager() {
           }
       });
 
-      // 2. Calculate Course Data
       const courseMap = {};
       courses.forEach(c => {
-          const name = c.course_name.split('/')[0].substring(0, 15); // Shorten name
+          const name = c.course_name.split('/')[0].substring(0, 15);
           courseMap[c.course_id] = { name, Male: 0, Female: 0 };
       });
       occupancy.forEach(p => {
@@ -99,7 +102,10 @@ export default function GlobalAccommodationManager() {
   }, [occupancy, courses]);
 
   // --- ACTIONS ---
+  
   const handleRoomInteraction = async (targetRoomData) => {
+      // This function handles clicking on rooms in the layout
+      // Logic preserved from original file logic or delegated to layout components
       const targetRoomNo = targetRoomData.room_no;
       const targetOccupant = occupancy.find(p => p.room_no === targetRoomNo);
 
@@ -131,22 +137,55 @@ export default function GlobalAccommodationManager() {
   };
 
   const handleAddRoom = async () => {
-      if (!newRoomData.roomNo.trim()) return alert("Room Number is required");
+      // Mapping fields to match backend expectations (roomNo vs room_no)
+      if (!newRoomData.room_no.trim()) return alert("Room Number is required");
       try {
-          const res = await fetch(`${API_URL}/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomNo: newRoomData.roomNo.trim().toUpperCase(), type: newRoomData.type }) });
-          if (res.ok) { alert("✅ Room Added!"); setShowAddRoom(false); setNewRoomData({ roomNo: '', type: activeTab }); loadData(); } 
-          else { const err = await res.json(); alert("❌ Error: " + err.error); }
+          const res = await fetch(`${API_URL}/rooms`, { 
+              method: 'POST', 
+              headers: { 'Content-Type': 'application/json' }, 
+              body: JSON.stringify({ 
+                  roomNo: newRoomData.room_no.trim().toUpperCase(), 
+                  type: newRoomData.gender,
+                  capacity: newRoomData.capacity,
+                  floor: newRoomData.floor,
+                  block: newRoomData.block
+              }) 
+          });
+          if (res.ok) { 
+              alert("✅ Room Added!"); 
+              setShowAddRoom(false); 
+              setNewRoomData({ room_no: '', gender: activeTab, capacity: 1, floor: 'Ground', block: 'TEMP' }); 
+              loadData(); 
+          } 
+          else { 
+              const err = await res.json(); 
+              alert("❌ Error: " + err.error); 
+          }
       } catch (err) { alert("❌ Network Error"); }
   };
 
-  // ✅ DELETE ROOM LOGIC
+  // ✅ DELETE PROTECTION LOGIC
+  const isRoomProtected = (roomNo) => {
+      if(!roomNo) return false;
+      const upper = roomNo.toUpperCase();
+      return PROTECTED_PREFIXES.some(prefix => {
+          return upper.startsWith(prefix + '-') || (upper.startsWith(prefix) && !isNaN(parseInt(upper.replace(prefix, '').charAt(0))));
+      });
+  };
+
   const handleDeleteRoom = async () => {
       if (!deleteRoomNo.trim()) return;
       const room = rooms.find(r => r.room_no === deleteRoomNo.trim().toUpperCase());
       
       if (!room) return alert("❌ Room not found.");
       
-      // Safety Check: Is it occupied?
+      // ✅ SAFETY CHECK 1: Core Protection
+      if (isRoomProtected(room.room_no)) {
+          alert(`⛔ ACTION DENIED\n\nRoom '${room.room_no}' is a Core System Room.\nYou can only delete manually added rooms (e.g. TEMP, TENT, HALL).`);
+          return;
+      }
+
+      // ✅ SAFETY CHECK 2: Occupancy
       const isOccupied = occupancy.some(p => p.room_no === room.room_no);
       if (isOccupied) return alert(`⛔ Cannot delete ${room.room_no}. It is occupied! Move student first.`);
 
@@ -159,7 +198,6 @@ export default function GlobalAccommodationManager() {
       } catch(err) { console.error(err); }
   };
 
-  // ✅ PRINT EMPTY ROOMS LOGIC
   const handlePrintEmpty = () => {
       const occupiedSet = new Set(occupancy.map(p => p.room_no));
       const emptyMales = rooms.filter(r => r.gender_type === 'Male' && !occupiedSet.has(r.room_no)).map(r => r.room_no).sort();
@@ -168,39 +206,10 @@ export default function GlobalAccommodationManager() {
       const printWindow = window.open('', '', 'height=600,width=800');
       printWindow.document.write(`
         <html>
-          <head>
-            <title>Empty Rooms Report</title>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 20px; }
-              h1 { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
-              .container { display: flex; gap: 20px; }
-              .column { flex: 1; border: 1px solid #ccc; padding: 15px; border-radius: 8px; }
-              .male { border-top: 5px solid #007bff; }
-              .female { border-top: 5px solid #e91e63; }
-              h2 { margin-top: 0; }
-              .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; font-size: 12px; }
-              .room { border: 1px solid #eee; padding: 5px; text-align: center; font-weight: bold; }
-              @media print { button { display: none; } }
-            </style>
-          </head>
-          <body>
-            <h1>Available / Empty Rooms Report</h1>
-            <p style="text-align:center">Generated: ${new Date().toLocaleString()}</p>
-            <div class="container">
-              <div class="column male">
-                <h2 style="color:#007bff">MALE BLOCK (${emptyMales.length} Available)</h2>
-                <div class="grid">
-                  ${emptyMales.map(r => `<div class="room">${r}</div>`).join('')}
-                </div>
-              </div>
-              <div class="column female">
-                <h2 style="color:#e91e63">FEMALE BLOCK (${emptyFemales.length} Available)</h2>
-                <div class="grid">
-                  ${emptyFemales.map(r => `<div class="room">${r}</div>`).join('')}
-                </div>
-              </div>
-            </div>
-            <script>window.print();</script>
+          <head><title>Empty Rooms</title><style>body{font-family:sans-serif;padding:20px}.col{width:45%;float:left;padding:10px;border:1px solid #ccc}.room{display:inline-block;padding:5px;border:1px solid #eee;margin:2px;font-size:11px}</style></head>
+          <body><h1>Empty Rooms Report</h1>
+            <div class="col" style="border-top:4px solid blue"><h3>MALE</h3>${emptyMales.map(r=>`<span class="room">${r}</span>`).join('')}</div>
+            <div class="col" style="border-top:4px solid pink"><h3>FEMALE</h3>${emptyFemales.map(r=>`<span class="room">${r}</span>`).join('')}</div>
           </body>
         </html>
       `);
@@ -209,36 +218,25 @@ export default function GlobalAccommodationManager() {
 
   const searchResult = searchQuery ? occupancy.find(p => p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || p.conf_no.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
-  // Chart Data Preparation
-  const malePieData = [
-    { name: 'Old', value: stats.male.OM, color: COLORS.om },
-    { name: 'New', value: stats.male.NM, color: COLORS.nm },
-    { name: 'Server', value: stats.male.SM, color: COLORS.sm },
-  ].filter(d => d.value > 0);
-
-  const femalePieData = [
-    { name: 'Old', value: stats.female.OF, color: COLORS.of },
-    { name: 'New', value: stats.female.NF, color: COLORS.nf },
-    { name: 'Server', value: stats.female.SF, color: COLORS.sf },
-  ].filter(d => d.value > 0);
+  // Chart Data
+  const malePieData = [ { name: 'Old', value: stats.male.OM, color: COLORS.om }, { name: 'New', value: stats.male.NM, color: COLORS.nm }, { name: 'Server', value: stats.male.SM, color: COLORS.sm } ].filter(d => d.value > 0);
+  const femalePieData = [ { name: 'Old', value: stats.female.OF, color: COLORS.of }, { name: 'New', value: stats.female.NF, color: COLORS.nf }, { name: 'Server', value: stats.female.SF, color: COLORS.sf } ].filter(d => d.value > 0);
 
   return (
     <div style={{...styles.card, padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', background: '#f4f6f8'}}>
       
-      {/* 1. VISUAL STATISTICS HEADER */}
+      {/* 1. HEADER & STATS */}
       <div className="no-print" style={{padding: '20px', background: 'white', borderBottom:'1px solid #eee'}}>
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
                <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'12px', color:'#2c3e50', fontSize:'24px'}}>
                   <BedDouble size={28} color="#0d47a1"/> Global Accommodation
               </h2>
-              {/* PRINT EMPTY BUTTON */}
               <button onClick={handlePrintEmpty} style={{background:'#6c757d', color:'white', border:'none', padding:'8px 15px', borderRadius:'6px', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', fontWeight:'bold'}}>
                   <Printer size={16}/> Print Empty List
               </button>
           </div>
 
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr', gap:'20px'}}>
-              
               {/* Male Pie */}
               <div style={{background:'#e3f2fd', borderRadius:'12px', padding:'10px', display:'flex', alignItems:'center', justifyContent:'space-between', borderLeft:'5px solid #007bff'}}>
                   <div>
@@ -247,16 +245,9 @@ export default function GlobalAccommodationManager() {
                       <div style={{fontSize:'10px', color:'#555'}}>OM:{stats.male.OM} | NM:{stats.male.NM} | SM:{stats.male.SM}</div>
                   </div>
                   <div style={{width:'80px', height:'80px'}}>
-                      <ResponsiveContainer>
-                          <PieChart>
-                              <Pie data={malePieData} cx="50%" cy="50%" innerRadius={25} outerRadius={35} paddingAngle={2} dataKey="value">
-                                  {malePieData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-                              </Pie>
-                          </PieChart>
-                      </ResponsiveContainer>
+                      <ResponsiveContainer><PieChart><Pie data={malePieData} cx="50%" cy="50%" innerRadius={25} outerRadius={35} paddingAngle={2} dataKey="value">{malePieData.map((entry, index) => <Cell key={index} fill={entry.color} />)}</Pie></PieChart></ResponsiveContainer>
                   </div>
               </div>
-
               {/* Female Pie */}
               <div style={{background:'#fce4ec', borderRadius:'12px', padding:'10px', display:'flex', alignItems:'center', justifyContent:'space-between', borderLeft:'5px solid #e91e63'}}>
                   <div>
@@ -265,29 +256,14 @@ export default function GlobalAccommodationManager() {
                       <div style={{fontSize:'10px', color:'#555'}}>OF:{stats.female.OF} | NF:{stats.female.NF} | SF:{stats.female.SF}</div>
                   </div>
                   <div style={{width:'80px', height:'80px'}}>
-                      <ResponsiveContainer>
-                          <PieChart>
-                              <Pie data={femalePieData} cx="50%" cy="50%" innerRadius={25} outerRadius={35} paddingAngle={2} dataKey="value">
-                                  {femalePieData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-                              </Pie>
-                          </PieChart>
-                      </ResponsiveContainer>
+                      <ResponsiveContainer><PieChart><Pie data={femalePieData} cx="50%" cy="50%" innerRadius={25} outerRadius={35} paddingAngle={2} dataKey="value">{femalePieData.map((entry, index) => <Cell key={index} fill={entry.color} />)}</Pie></PieChart></ResponsiveContainer>
                   </div>
               </div>
-
-              {/* Course Bar Chart */}
+              {/* Chart */}
               <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'10px'}}>
                   <div style={{fontSize:'12px', fontWeight:'bold', color:'#555', marginBottom:'5px'}}>COURSE DISTRIBUTION</div>
                   <div style={{width:'100%', height:'80px'}}>
-                      <ResponsiveContainer>
-                          <BarChart data={stats.courseData} layout="vertical" margin={{top:0, left:0, right:10, bottom:0}}>
-                              <XAxis type="number" hide />
-                              <YAxis dataKey="name" type="category" width={80} tick={{fontSize:10}} />
-                              <Tooltip />
-                              <Bar dataKey="Male" stackId="a" fill="#007bff" radius={[0, 4, 4, 0]} barSize={15} />
-                              <Bar dataKey="Female" stackId="a" fill="#e91e63" radius={[0, 4, 4, 0]} barSize={15} />
-                          </BarChart>
-                      </ResponsiveContainer>
+                      <ResponsiveContainer><BarChart data={stats.courseData} layout="vertical" margin={{top:0, left:0, right:10, bottom:0}}><XAxis type="number" hide /><YAxis dataKey="name" type="category" width={80} tick={{fontSize:10}} /><Tooltip /><Bar dataKey="Male" stackId="a" fill="#007bff" radius={[0, 4, 4, 0]} barSize={15} /><Bar dataKey="Female" stackId="a" fill="#e91e63" radius={[0, 4, 4, 0]} barSize={15} /></BarChart></ResponsiveContainer>
                   </div>
               </div>
           </div>
@@ -295,17 +271,15 @@ export default function GlobalAccommodationManager() {
 
       {/* 2. CONTROLS BAR */}
       <div className="no-print" style={{ background: 'white', padding: '10px 20px', borderBottom: '1px solid #eaeaea', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          {/* TABS */}
           <div style={{display:'flex', gap:'10px'}}>
               {['Male', 'Female'].map(gender => (
-                  <button key={gender} onClick={() => { setActiveTab(gender); setNewRoomData(prev => ({...prev, type: gender})); }} 
+                  <button key={gender} onClick={() => { setActiveTab(gender); setNewRoomData(prev => ({...prev, gender: gender})); }} 
                           style={{ padding:'8px 20px', borderRadius:'20px', border:'none', background: activeTab === gender ? (gender === 'Male' ? '#e3f2fd' : '#fce4ec') : '#f5f5f5', color: activeTab === gender ? (gender === 'Male' ? '#007bff' : '#e91e63') : '#666', fontWeight: 'bold', cursor:'pointer' }}>
                           {gender.toUpperCase()} BLOCK
                   </button>
               ))}
           </div>
 
-          {/* ACTIONS */}
           <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
               {moveMode && (
                   <div style={{background:'#fff3cd', color:'#856404', padding:'6px 12px', borderRadius:'6px', fontSize:'13px', fontWeight:'bold', display:'flex', alignItems:'center', gap:'10px', border:'1px solid #ffeeba'}}>
@@ -313,7 +287,6 @@ export default function GlobalAccommodationManager() {
                       <button onClick={()=>setMoveMode(null)} style={{border:'none', background:'transparent', cursor:'pointer', fontWeight:'bold'}}>✕</button>
                   </div>
               )}
-
               {/* Search */}
               <div style={{position:'relative'}}>
                   <div style={{display:'flex', alignItems:'center', background:'#f8f9fa', border:'1px solid #ddd', borderRadius:'6px', padding:'6px 12px', width:'220px'}}>
@@ -331,84 +304,106 @@ export default function GlobalAccommodationManager() {
                   )}
               </div>
               
-              {/* Add Room */}
-              <button onClick={() => setShowAddRoom(true)} style={{background:'#28a745', border:'none', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', color:'white', display:'flex', alignItems:'center', gap:'5px', fontWeight:'bold'}}>
-                  <PlusCircle size={16}/> Add Room
-              </button>
-
-              {/* Delete Room */}
-              <button onClick={() => setShowDeleteRoom(true)} style={{background:'#dc3545', border:'none', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', color:'white', display:'flex', alignItems:'center', gap:'5px', fontWeight:'bold'}}>
-                  <Trash2 size={16}/> Del Room
-              </button>
-
-              <button onClick={loadData} style={{background:'white', border:'1px solid #ddd', borderRadius:'6px', padding:'6px 10px', cursor:'pointer', color:'#555'}} title="Refresh">
-                  <RefreshCw size={16}/>
-              </button>
+              <button onClick={() => setShowAddRoom(true)} style={{background:'#28a745', border:'none', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', color:'white', display:'flex', alignItems:'center', gap:'5px', fontWeight:'bold'}}><PlusCircle size={16}/> Add Room</button>
+              <button onClick={() => setShowDeleteRoom(true)} style={{background:'#dc3545', border:'none', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', color:'white', display:'flex', alignItems:'center', gap:'5px', fontWeight:'bold'}}><Trash2 size={16}/> Del Room</button>
+              <button onClick={loadData} style={{background:'white', border:'1px solid #ddd', borderRadius:'6px', padding:'6px 10px', cursor:'pointer', color:'#555'}} title="Refresh"><RefreshCw size={16}/></button>
           </div>
       </div>
 
-      {/* 3. CANVAS */}
-      <div style={{padding:'30px', background:'white', minHeight:'600px', overflowX:'auto'}}>
-          {activeTab === 'Male' ? <MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} /> : <FemaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomInteraction} />}
+      {/* 3. VISUAL LAYOUTS */}
+      <div style={{background:'#f8f9fa', padding:'20px', borderRadius:'12px', border:'1px solid #eee', minHeight:'500px', overflowX:'auto'}}>
+          {activeTab === 'Male' ? (
+              <MaleBlockLayout occupancy={occupancy} onRefresh={loadData} moveMode={moveMode} setMoveMode={setMoveMode} />
+          ) : (
+              <FemaleBlockLayout occupancy={occupancy} onRefresh={loadData} moveMode={moveMode} setMoveMode={setMoveMode} />
+          )}
       </div>
 
-      {/* ADD ROOM MODAL */}
+      {/* --- SCROLLABLE MODAL FIX: ADD ROOM --- */}
       {showAddRoom && (
-          <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}>
-              <div style={{background:'white', padding:'25px', borderRadius:'12px', width:'350px', boxShadow:'0 10px 30px rgba(0,0,0,0.2)'}}>
+          <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'flex-start', padding:'50px 20px', overflowY:'auto'}}>
+              <div style={{background:'white', padding:'30px', borderRadius:'12px', width:'400px', boxShadow:'0 10px 40px rgba(0,0,0,0.3)', position:'relative', marginTop:'20px'}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-                      <h3 style={{margin:0, color:'#333'}}>Add Manual Room</h3>
-                      <button onClick={()=>setShowAddRoom(false)} style={{border:'none', background:'none', cursor:'pointer'}}><X size={20} color="#999"/></button>
+                      <h3 style={{margin:0}}>Add Manual Room</h3>
+                      <button onClick={()=>setShowAddRoom(false)} style={{border:'none', background:'none', cursor:'pointer'}}><X size={20}/></button>
                   </div>
-                  <input autoFocus placeholder="Room Number (e.g. ISO-1)" value={newRoomData.roomNo} onChange={e => setNewRoomData({...newRoomData, roomNo: e.target.value})} style={{width:'100%', padding:'10px', border:'1px solid #ddd', borderRadius:'6px', marginBottom:'15px'}} />
-                  <select value={newRoomData.type} onChange={e => setNewRoomData({...newRoomData, type: e.target.value})} style={{width:'100%', padding:'10px', border:'1px solid #ddd', borderRadius:'6px', marginBottom:'20px'}}>
-                      <option value="Male">Male Block</option>
-                      <option value="Female">Female Block</option>
-                      <button 
-    onClick={() => setShowAutoTool(true)} 
-    style={{
-        display:'flex', alignItems:'center', gap:'6px', 
-        background:'linear-gradient(45deg, #6a11cb, #2575fc)', 
-        color:'white', border:'none', padding:'8px 15px', 
-        borderRadius:'20px', cursor:'pointer', fontWeight:'bold',
-        boxShadow: '0 4px 10px rgba(106, 17, 203, 0.3)'
-    }}
->
-    ✨ Auto-Allocate
-</button>
-                  </select>
-                  <button onClick={handleAddRoom} style={{width:'100%', padding:'10px', borderRadius:'6px', border:'none', background:'#007bff', color:'white', fontWeight:'bold', cursor:'pointer'}}>Save Room</button>
+                  <div style={{display:'flex', flexDirection:'column', gap:'15px'}}>
+                      <div>
+                          <label style={styles.label}>Room Number (Unique)</label>
+                          <input placeholder="e.g. TENT-1" value={newRoomData.room_no} onChange={e=>setNewRoomData({...newRoomData, room_no: e.target.value.toUpperCase()})} style={styles.input} autoFocus />
+                      </div>
+                      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
+                          <div>
+                              <label style={styles.label}>Gender Block</label>
+                              <select value={newRoomData.gender} onChange={e=>setNewRoomData({...newRoomData, gender:e.target.value})} style={styles.input}>
+                                  <option>Male</option><option>Female</option>
+                              </select>
+                          </div>
+                          <div>
+                              <label style={styles.label}>Capacity</label>
+                              <input type="number" value={newRoomData.capacity} onChange={e=>setNewRoomData({...newRoomData, capacity:parseInt(e.target.value)})} style={styles.input} />
+                          </div>
+                      </div>
+                      <div>
+                          <label style={styles.label}>Block / Zone</label>
+                          <select value={newRoomData.block} onChange={e=>setNewRoomData({...newRoomData, block:e.target.value})} style={styles.input}>
+                              <option value="TEMP">Temporary / Overflow</option>
+                              <option value="ISO">Isolation</option>
+                              <option value="O">Other</option>
+                          </select>
+                      </div>
+                      
+                      <div style={{marginTop:'15px', borderTop:'1px solid #eee', paddingTop:'15px'}}>
+                          <button onClick={() => setShowAutoTool(true)} style={{display:'flex', alignItems:'center', justifyContent:'center', width:'100%', gap:'6px', background:'linear-gradient(45deg, #6a11cb, #2575fc)', color:'white', border:'none', padding:'10px 15px', borderRadius:'8px', cursor:'pointer', fontWeight:'bold', boxShadow:'0 4px 10px rgba(106, 17, 203, 0.2)'}}>✨ Launch Auto-Allocator</button>
+                      </div>
+
+                      <button onClick={handleAddRoom} style={{...styles.btn(true), background:'#28a745', color:'white', padding:'12px', marginTop:'10px'}}>CREATE ROOM</button>
+                  </div>
               </div>
           </div>
       )}
 
-      {/* DELETE ROOM MODAL */}
+      {/* --- SCROLLABLE MODAL FIX: DELETE ROOM (WITH PROTECTION) --- */}
       {showDeleteRoom && (
-          <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}>
-              <div style={{background:'white', padding:'25px', borderRadius:'12px', width:'350px', boxShadow:'0 10px 30px rgba(0,0,0,0.2)'}}>
+          <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:2000, display:'flex', justifyContent:'center', alignItems:'flex-start', padding:'50px 20px', overflowY:'auto'}}>
+              <div style={{background:'white', padding:'30px', borderRadius:'12px', width:'400px', boxShadow:'0 10px 40px rgba(0,0,0,0.3)', borderTop:'5px solid #dc3545', marginTop:'20px'}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                       <h3 style={{margin:0, color:'#dc3545'}}>Delete Room</h3>
                       <button onClick={()=>setShowDeleteRoom(false)} style={{border:'none', background:'none', cursor:'pointer'}}><X size={20} color="#999"/></button>
                   </div>
-                  <p style={{fontSize:'13px', color:'#666', marginBottom:'15px'}}>Enter the Room Number to delete. <br/><strong>Warning:</strong> Must be empty first.</p>
-                  <input autoFocus placeholder="Enter Room No (e.g. ISO-1)" value={deleteRoomNo} onChange={e => setDeleteRoomNo(e.target.value)} style={{width:'100%', padding:'10px', border:'1px solid #dc3545', borderRadius:'6px', marginBottom:'20px'}} />
-                  <button onClick={handleDeleteRoom} style={{width:'100%', padding:'10px', borderRadius:'6px', border:'none', background:'#dc3545', color:'white', fontWeight:'bold', cursor:'pointer'}}>Permanently Delete</button>
+                  
+                  <div style={{background:'#fff5f5', padding:'15px', borderRadius:'8px', marginBottom:'20px', border:'1px solid #ffcdd2'}}>
+                      <div style={{display:'flex', gap:'10px', alignItems:'center', color:'#c62828', fontWeight:'bold', marginBottom:'5px'}}>
+                          <AlertTriangle size={18}/> RESTRICTED ACTION
+                      </div>
+                      <p style={{margin:0, fontSize:'12px', color:'#b71c1c'}}>
+                          You can only delete <strong>Manually Added</strong> rooms (e.g. Tent, Hall). 
+                          Core blocks (A-N, ISO) are protected.
+                      </p>
+                  </div>
+
+                  <input 
+                      autoFocus 
+                      placeholder="Enter Room No (e.g. TENT-1)" 
+                      value={deleteRoomNo} 
+                      onChange={e => setDeleteRoomNo(e.target.value.toUpperCase())} 
+                      style={{width:'100%', padding:'12px', border:'1px solid #dc3545', borderRadius:'6px', marginBottom:'20px', fontSize:'16px', fontWeight:'bold'}} 
+                  />
+                  
+                  <button onClick={handleDeleteRoom} style={{width:'100%', padding:'12px', borderRadius:'6px', border:'none', background:'#dc3545', color:'white', fontWeight:'bold', cursor:'pointer', fontSize:'14px'}}>
+                      PERMANENTLY DELETE
+                  </button>
               </div>
           </div>
       )}
 
-      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }`}</style>
-    {showAutoTool && (
-    <AutoAllocationTool 
-        courseId={selectedCourse} 
-        onClose={() => setShowAutoTool(false)} 
-        onSuccess={() => {
-            // Trigger refresh
-            fetchOccupancy(); 
-            // Optional: fetchStudents() if you have that function exposed
-        }} 
-    />
-)}
+      {showAutoTool && (
+        <AutoAllocationTool 
+            courseId={selectedCourse} 
+            onClose={() => setShowAutoTool(false)} 
+            onSuccess={() => { loadData(); }} 
+        />
+      )}
     </div>
   );
 }
