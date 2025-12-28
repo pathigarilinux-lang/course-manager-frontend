@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BedDouble, Users, UserPlus, LayoutDashboard, Database, LogOut } from 'lucide-react';
-import Login from './Login'; // ✅ Import Login Component
+import Login from './components/Login'; // ✅ Import Login Component
 import CourseAdmin from './components/CourseAdmin';
 import StudentForm from './components/StudentForm';
 import GlobalAccommodationManager from './components/GlobalAccommodationManager';
