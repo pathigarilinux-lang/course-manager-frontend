@@ -20,16 +20,12 @@ import GatekeeperPanel from './components/GatekeeperPanel';
 import ATPanel from './components/ATPanel';
 
 function App() {
-  // --- STATE ---
-  const [user, setUser] = useState(null); // Auth User
+  const [user, setUser] = useState(null); 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
-  
-  // Shared Data State
   const [courses, setCourses] = useState([]);
   const [stats, setStats] = useState({});
 
-  // --- DATA FETCHING ---
   const fetchCourses = async () => {
       try {
           const res = await fetch(`${API_URL}/courses`);
@@ -51,7 +47,7 @@ function App() {
   useEffect(() => { fetchCourses(); }, []);
   useEffect(() => { if(courses.length > 0) fetchStats(); }, [courses]);
 
-  // ✅ SMART REDIRECT ON LOGIN
+  // SMART REDIRECT
   useEffect(() => {
       if (user) {
           if (user.role === 'gate') {
@@ -67,40 +63,29 @@ function App() {
       }
   }, [user]);
 
-  // --- LOGIN GUARD ---
   if (!user) {
       return <Login onLogin={(u) => setUser(u)} />;
   }
 
-  // --- MENU CONFIGURATION ---
   const MENU_ITEMS = [
-      // Common (Admin & Staff)
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff'] },
       { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate'] },
       { id: 'gatekeeper', label: 'Gatekeeper View', icon: <Shield size={20}/>, roles: ['admin', 'staff'] },
-      
-      // Operations (Admin & Staff)
       { id: 'checkin', label: 'Onboarding', icon: <UserPlus size={20}/>, roles: ['admin', 'staff'] },
       { id: 'students', label: 'Manage Students', icon: <Users size={20}/>, roles: ['admin', 'staff'] },
       { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={20}/>, roles: ['admin', 'staff'] },
-      
-      // Shared Modules (Admin & Staff)
       { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin', 'staff', 'at'] }, 
       { id: 'admin', label: 'Course Admin', icon: <Database size={20}/>, roles: ['admin', 'staff'] }, 
-      // ✅ UPDATED: Seva Board now accessible to Staff
       { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin', 'staff'] }, 
-
-      // 🔒 STRICTLY ADMIN ONLY
       { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin'] }, 
   ];
 
-  // Filter menu
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#f4f6f8', fontFamily: 'Segoe UI, sans-serif' }}>
       
-      {/* --- SIDEBAR --- */}
+      {/* SIDEBAR */}
       <aside style={{
           width: isSidebarOpen ? '260px' : '0px', 
           minWidth: isSidebarOpen ? '260px' : '0px',
@@ -114,9 +99,10 @@ function App() {
           overflow: 'hidden'
       }}>
           <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #334155', whiteSpace:'nowrap' }}>
-              <div style={{ minWidth: '35px', height: '35px', borderRadius: '8px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>DS</div>
+              <div style={{ minWidth: '35px', height: '35px', borderRadius: '8px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>DN</div>
               <div>
-                  <div style={{ fontWeight: 'bold', fontSize: '16px' }}>Dhamma Seva</div>
+                  {/* ✅ RENAMED SIDEBAR TITLE */}
+                  <div style={{ fontWeight: 'bold', fontSize: '16px' }}>Dhamma Nagajjuna</div>
                   <div style={{ fontSize: '11px', color: '#94a3b8' }}>{user.username} ({user.role})</div>
               </div>
           </div>
@@ -171,7 +157,7 @@ function App() {
           </div>
       </aside>
 
-      {/* --- MAIN CONTENT --- */}
+      {/* MAIN CONTENT */}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           
           <header style={{ background: 'white', padding: '15px 30px', boxShadow: '0 2px 5px rgba(0,0,0,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -179,8 +165,9 @@ function App() {
                   <button onClick={() => setSidebarOpen(!isSidebarOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
                       {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
                   </button>
+                  {/* ✅ RENAMED HEADER TITLE */}
                   <div style={{ fontSize: '14px', color: '#64748b', fontWeight: '600' }}>
-                      {MENU_ITEMS.find(i => i.id === activeTab)?.label || 'Dhamma Seva'}
+                      {MENU_ITEMS.find(i => i.id === activeTab)?.label || 'Dhamma Nagajjuna'}
                   </div>
               </div>
               {!isSidebarOpen && (
@@ -191,52 +178,16 @@ function App() {
           </header>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
-              
-              {/* --- 1. CORE MODULES (Access for Admin & Staff) --- */}
               {activeTab === 'dashboard' && <CourseDashboard courses={courses} stats={stats} />}
               {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} />}
               {activeTab === 'gatekeeper' && <GatekeeperPanel courses={courses} />}
-              
-              {activeTab === 'checkin' && (
-                  <StudentForm 
-                      courses={courses} 
-                      fetchStats={fetchStats} 
-                      refreshCourses={fetchCourses}
-                      preSelectedRoom={null}
-                      clearRoom={()=>{}}
-                  />
-              )}
-              
-              {activeTab === 'students' && (
-                  <ParticipantList 
-                      courses={courses} 
-                      refreshCourses={fetchCourses} 
-                      userRole={user.role} 
-                  />
-              )}
-              
+              {activeTab === 'checkin' && <StudentForm courses={courses} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} />}
+              {activeTab === 'students' && <ParticipantList courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               {activeTab === 'accommodation' && <GlobalAccommodationManager />}
-
               {activeTab === 'at' && <ATPanel courses={courses} />}
-              
-              {activeTab === 'admin' && (
-                  <CourseAdmin 
-                      courses={courses} 
-                      refreshCourses={fetchCourses} 
-                      userRole={user.role} 
-                  />
-              )}
-
-              {/* ✅ MOVED: Seva Board now visible to Staff (no longer inside Admin block) */}
+              {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               {activeTab === 'seva' && <SevaBoard courses={courses} />}
-              
-              {/* --- 2. ADMIN ONLY MODULES --- */}
-              {user.role === 'admin' && (
-                  <>
-                      {activeTab === 'store' && <ExpenseTracker courses={courses} />}
-                  </>
-              )}
-
+              {user.role === 'admin' && activeTab === 'store' && <ExpenseTracker courses={courses} />}
           </div>
       </main>
     </div>
