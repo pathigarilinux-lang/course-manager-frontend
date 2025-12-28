@@ -5,6 +5,22 @@ import { API_URL, styles } from '../config';
 
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
 
+// ✅ SMART PHONE EXTRACTOR HELPER
+const extractPhoneNumber = (rawStr) => {
+    if (!rawStr) return '';
+    const str = String(rawStr);
+    
+    // 1. Remove Email Addresses (looks for anything with @)
+    // Replaces 'email@domain.com' with empty string
+    const withoutEmail = str.replace(/\S+@\S+\.\S+/g, '');
+    
+    // 2. Remove non-digit characters (keep + for country code if needed, remove spaces/dashes)
+    // This turns "98-765 (Mob)" into "98765"
+    const cleanNumber = withoutEmail.replace(/[^0-9+]/g, '');
+    
+    return cleanNumber.trim();
+};
+
 export default function CourseAdmin({ courses, refreshCourses, userRole }) { // ✅ ACCEPT USER ROLE
   const [activeTab, setActiveTab] = useState('courses'); 
   
@@ -113,10 +129,10 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
 
   const downloadTemplate = () => {
       const data = [
-          ["ConfNo", "Student", "Gender", "Age", "Courses", "10d", "STP", "TSC", "20d", "30d", "45d", "60d"],
-          ["OM20", "Long Course Student", "Male", 30, "", 8, 4, 0, 1, 1, 0, 0],
-          ["NM15", "10-Day Student", "Female", 45, "3", 0, 0, 0, 0, 0, 0, 0],
-          ["NM01", "New Student", "Male", 25, "0", 0, 0, 0, 0, 0, 0, 0],
+          ["ConfNo", "Student", "Gender", "Age", "Courses", "Contact", "10d", "STP", "TSC", "20d", "30d", "45d", "60d"],
+          ["OM20", "Long Course Student", "Male", 30, "", "9876543210", 8, 4, 0, 1, 1, 0, 0],
+          ["NM15", "10-Day Student", "Female", 45, "3", "info@test.com / 9988776655", 0, 0, 0, 0, 0, 0, 0],
+          ["NM01", "New Student", "Male", 25, "0", "+91-1234567890", 0, 0, 0, 0, 0, 0, 0],
       ];
       const ws = XLSX.utils.aoa_to_sheet(data);
       const wb = XLSX.utils.book_new();
@@ -179,6 +195,8 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
         age: getIndex(['Age']), 
         gender: getIndex(['Gender', 'Sex']), 
         generic: getIndex(['Courses', 'History', 'Old/New']), 
+        // ✅ NEW: CONTACT MAPPING
+        contact: getIndex(['Contact', 'Phone', 'Mobile', 'Cell']),
         c10: getIndex(['10d']),
         cstp: getIndex(['STP', 'Satipatthana']),
         ctsc: getIndex(['TSC', 'Teen', 'Service']),
@@ -194,6 +212,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
         name: map.name > -1 ? headers[map.name] : null,
         conf: map.conf > -1 ? headers[map.conf] : null,
         gender: map.gender > -1 ? headers[map.gender] : 'Auto-Detect from Sections',
+        contact: map.contact > -1 ? '✅ Found' : '⚠️ Not Found',
         courses_specific: (map.c10 > -1 || map.c20 > -1) ? '✅ Found' : '❌ Not Found',
         courses_generic: map.generic > -1 ? '✅ Found' : '❌ Not Found',
         missing: []
@@ -261,6 +280,10 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
             else if (gVal.startsWith('f')) pGender = 'Female';
         }
 
+        // ✅ CONTACT CLEANING
+        const rawContact = map.contact > -1 ? row[map.contact] : '';
+        const cleanMobile = extractPhoneNumber(rawContact);
+
         // Hybrid Course Logic
         let coursesStr = "0"; 
         let specificParts = [];
@@ -293,7 +316,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
             gender: pGender || 'Unknown', 
             courses_info: coursesStr, 
             email: '', 
-            mobile: '', 
+            mobile: cleanMobile, // ✅ Using Cleaned Number
             notes: map.languages > -1 ? `Lang: ${row[map.languages]}` : '', 
             status: 'Active' 
         });
@@ -542,12 +565,12 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
                   <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'10px', color:'#2e7d32', fontWeight:'bold'}}>
                       <CheckCircle size={20}/> Smart Mapping Confirmation
                   </div>
-                  <div style={{fontSize:'13px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:'10px'}}>
+                  <div style={{fontSize:'13px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr', gap:'10px'}}>
                       <div><strong>Name:</strong> {mappingReport.name || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Gender:</strong> {mappingReport.gender ? <span style={{color:'#007bff'}}>{mappingReport.gender}</span> : <span style={{color:'red'}}>Missing</span>}</div>
+                      <div><strong>Contact:</strong> {mappingReport.contact}</div>
                       <div><strong>Courses Specific:</strong> {mappingReport.courses_specific}</div>
-                      <div><strong>Courses Generic:</strong> {mappingReport.courses_generic}</div>
                   </div>
               </div>
           )}
@@ -565,8 +588,8 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) { // 
                </div>
                <div style={{maxHeight:'300px', overflowY:'auto', border:'1px solid #eee', borderRadius:'8px'}}>
                  <table style={{width:'100%', fontSize:'13px', borderCollapse:'collapse'}}>
-                   <thead style={{position:'sticky', top:0, background:'#f1f1f1'}}><tr><th style={thPrint}>Conf</th><th style={thPrint}>Name</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Courses Info</th></tr></thead>
-                   <tbody>{students.map(s => (<tr key={s.id} style={{borderBottom:'1px solid #eee'}}><td style={{padding:'8px', color: s.status === 'Pending ID' ? 'orange' : 'blue', fontWeight:'bold'}}>{s.conf_no}</td><td style={{padding:'8px'}}>{s.full_name}</td><td style={{padding:'8px'}}>{s.age}</td><td style={{padding:'8px'}}>{s.gender}</td><td style={{padding:'8px', color:'#666'}}>{s.courses_info}</td></tr>))}</tbody>
+                   <thead style={{position:'sticky', top:0, background:'#f1f1f1'}}><tr><th style={thPrint}>Conf</th><th style={thPrint}>Name</th><th style={thPrint}>Age</th><th style={thPrint}>Gender</th><th style={thPrint}>Phone</th><th style={thPrint}>Courses Info</th></tr></thead>
+                   <tbody>{students.map(s => (<tr key={s.id} style={{borderBottom:'1px solid #eee'}}><td style={{padding:'8px', color: s.status === 'Pending ID' ? 'orange' : 'blue', fontWeight:'bold'}}>{s.conf_no}</td><td style={{padding:'8px'}}>{s.full_name}</td><td style={{padding:'8px'}}>{s.age}</td><td style={{padding:'8px'}}>{s.gender}</td><td style={{padding:'8px', color:'#007bff'}}>{s.mobile}</td><td style={{padding:'8px', color:'#666'}}>{s.courses_info}</td></tr>))}</tbody>
                  </table>
                </div>
             </div>
