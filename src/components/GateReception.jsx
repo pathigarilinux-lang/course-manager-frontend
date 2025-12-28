@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, UserCheck, UserX, Users, RefreshCw, CheckCircle, RotateCcw, BarChart3, PieChart as PieIcon } from 'lucide-react';
+import { Search, UserCheck, UserX, Users, RefreshCw, CheckCircle, RotateCcw, BarChart3, PieChart as PieIcon, ArrowUpDown } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { API_URL, styles } from '../config';
 
 const COLORS = { 
-    male: '#007bff', female: '#e91e63', 
+    // Stacked Bar Colors (Gender + Cat)
     om: '#0d47a1', nm: '#64b5f6', sm: '#2e7d32',
-    of: '#880e4f', nf: '#f06292', sf: '#69f0ae'
+    of: '#880e4f', nf: '#f06292', sf: '#69f0ae',
+    
+    // Pie Chart Colors (Category Breakdown)
+    arrivedOld: '#1976d2', // Blue
+    arrivedNew: '#009688', // Teal
+    arrivedSvr: '#ff9800', // Orange
+    pending: '#e0e0e0'     // Grey
 };
 
 export default function GateReception({ courses, refreshCourses }) {
@@ -15,6 +21,9 @@ export default function GateReception({ courses, refreshCourses }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All'); 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // ✅ NEW: Sorting State
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   
   // --- 1. DATA LOADING ---
   const loadParticipants = async () => {
@@ -33,25 +42,23 @@ export default function GateReception({ courses, refreshCourses }) {
 
   useEffect(() => {
       loadParticipants();
-      const interval = setInterval(loadParticipants, 30000); // Auto-refresh every 30s
+      const interval = setInterval(loadParticipants, 30000); 
       return () => clearInterval(interval);
   }, [selectedCourseId]);
 
   // --- 2. ACTIONS ---
   const updateStatus = async (student, newStatus) => {
-      // Optimistic Update
       setParticipants(prev => prev.map(p => p.participant_id === student.participant_id ? { ...p, status: newStatus } : p));
       
-      let endpoint = '/gate-checkin'; // Default
+      let endpoint = '/gate-checkin'; 
       if (newStatus === 'Cancelled') endpoint = '/gate-cancel';
-      if (newStatus === 'Pending') endpoint = '/gate-reset'; // Hypothetical endpoint, or reuse update logic
-
+      
       try {
-          // If resetting, we might need a specific endpoint or just update the participant directly
           if (newStatus === 'Pending') {
+             // Undo Logic: Reset to 'No Response'
              await fetch(`${API_URL}/participants/${student.participant_id}`, {
                  method: 'PUT', headers: {'Content-Type':'application/json'},
-                 body: JSON.stringify({ ...student, status: 'No Response' }) // Reset to default
+                 body: JSON.stringify({ ...student, status: 'No Response' }) 
              });
           } else {
              await fetch(`${API_URL}${endpoint}`, {
@@ -70,28 +77,62 @@ export default function GateReception({ courses, refreshCourses }) {
   const handleCancelStudent = (p) => { if(window.confirm(`⚠️ Cancel ${p.full_name}?`)) updateStatus(p, 'Cancelled'); };
   const handleUndoCancel = (p) => { if(window.confirm(`↩️ Restore ${p.full_name} to List?`)) updateStatus(p, 'Pending'); };
 
-  // --- 3. FILTERING & STATS ---
-  const filteredList = useMemo(() => {
-      return participants.filter(p => {
+  // ✅ SORT HANDLER
+  const handleSort = (key) => {
+      let direction = 'asc';
+      if (sortConfig.key === key && sortConfig.direction === 'asc') {
+          direction = 'desc';
+      }
+      setSortConfig({ key, direction });
+  };
+
+  // --- 3. FILTERING, SORTING & STATS ---
+  const processedList = useMemo(() => {
+      // 1. Filter
+      let data = participants.filter(p => {
           const matchesSearch = p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.conf_no && p.conf_no.toLowerCase().includes(searchQuery.toLowerCase()));
           if (!matchesSearch) return false;
           
           const isArrived = p.status === 'Gate Check-In' || p.status === 'Attending';
           const isCancelled = p.status === 'Cancelled' || p.status === 'No-Show';
           
-          if (activeFilter === 'Pending') return !isArrived && !isCancelled; // ✅ FIX: Catch-all for pending
+          if (activeFilter === 'Pending') return !isArrived && !isCancelled; 
           if (activeFilter === 'CheckedIn') return isArrived;
           if (activeFilter === 'Cancelled') return isCancelled;
           
-          return !isCancelled; // Default 'All' view hides cancelled usually, or shows all active
+          return !isCancelled; 
       });
-  }, [participants, searchQuery, activeFilter]);
 
-  // STATS LOGIC
+      // 2. Sort
+      if (sortConfig.key) {
+          data.sort((a, b) => {
+              let aValue = a[sortConfig.key] || '';
+              let bValue = b[sortConfig.key] || '';
+              
+              // Handle special keys if needed
+              if (sortConfig.key === 'full_name') {
+                  aValue = aValue.toLowerCase();
+                  bValue = bValue.toLowerCase();
+              }
+
+              if (aValue < bValue) {
+                  return sortConfig.direction === 'asc' ? -1 : 1;
+              }
+              if (aValue > bValue) {
+                  return sortConfig.direction === 'asc' ? 1 : -1;
+              }
+              return 0;
+          });
+      }
+
+      return data;
+  }, [participants, searchQuery, activeFilter, sortConfig]);
+
+  // STATS LOGIC (Detailed Breakdown)
   const stats = useMemo(() => {
       const activeP = participants.filter(p => p.status !== 'Cancelled' && p.status !== 'No-Show');
       
-      // Data for Stacked Bar Chart (Breakdown)
+      // A. Bar Chart Data (Expected Breakdown)
       const barData = [
           { name: 'Old (M)', value: activeP.filter(p => (p.gender||'').startsWith('M') && (p.conf_no||'').startsWith('O')).length, fill: COLORS.om },
           { name: 'New (M)', value: activeP.filter(p => (p.gender||'').startsWith('M') && (p.conf_no||'').startsWith('N')).length, fill: COLORS.nm },
@@ -101,16 +142,28 @@ export default function GateReception({ courses, refreshCourses }) {
           { name: 'Svr (F)', value: activeP.filter(p => (p.gender||'').startsWith('F') && (p.conf_no||'').startsWith('S')).length, fill: COLORS.sf },
       ].filter(d => d.value > 0);
 
-      // Data for Pie Chart (Arrived vs Pending)
-      const arrivedCount = activeP.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending').length;
-      const pendingCount = activeP.length - arrivedCount;
-      const pieData = [
-          { name: 'Arrived', value: arrivedCount, color: '#2e7d32' },
-          { name: 'Pending', value: pendingCount, color: '#ff9800' }
-      ];
+      // B. Pie Chart Data (Arrived Breakdown by Category)
+      const arrivedP = activeP.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending');
+      const arrOld = arrivedP.filter(p => (p.conf_no||'').startsWith('O')).length;
+      const arrNew = arrivedP.filter(p => (p.conf_no||'').startsWith('N')).length;
+      const arrSvr = arrivedP.filter(p => (p.conf_no||'').startsWith('S')).length;
+      const pendingCount = activeP.length - arrivedP.length;
 
-      return { barData, pieData, total: activeP.length, arrived: arrivedCount };
+      const pieData = [
+          { name: 'Old Arrived', value: arrOld, color: COLORS.arrivedOld },
+          { name: 'New Arrived', value: arrNew, color: COLORS.arrivedNew },
+          { name: 'Svr Arrived', value: arrSvr, color: COLORS.arrivedSvr },
+          { name: 'Pending', value: pendingCount, color: COLORS.pending }
+      ].filter(d => d.value > 0);
+
+      return { barData, pieData, total: activeP.length, arrived: arrivedP.length };
   }, [participants]);
+
+  // Helper for Sort Icons
+  const SortIcon = ({ column }) => {
+      if (sortConfig.key !== column) return <ArrowUpDown size={12} style={{marginLeft:'5px', opacity:0.3}} />;
+      return <span style={{marginLeft:'5px'}}>{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>;
+  };
 
   // --- RENDER ---
   return (
@@ -168,17 +221,17 @@ export default function GateReception({ courses, refreshCourses }) {
                       </div>
                   </div>
 
-                  {/* CHART 2: ARRIVAL PROGRESS (PIE) */}
+                  {/* CHART 2: ARRIVAL BREAKDOWN (PIE) */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'10px', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
                       <div>
                           <div style={{fontSize:'11px', fontWeight:'bold', color:'#2e7d32', textTransform:'uppercase'}}>Arrived</div>
                           <div style={{fontSize:'24px', fontWeight:'900', color:'#333'}}>{stats.arrived}</div>
                           <div style={{fontSize:'11px', color:'#999'}}>of {stats.total}</div>
                       </div>
-                      <div style={{width:'100px', height:'100px'}}>
+                      <div style={{width:'120px', height:'100px'}}>
                           <ResponsiveContainer>
                               <PieChart>
-                                  <Pie data={stats.pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={40} paddingAngle={5} dataKey="value">
+                                  <Pie data={stats.pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={45} paddingAngle={2} dataKey="value">
                                       {stats.pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                                   </Pie>
                                   <Tooltip />
@@ -216,19 +269,26 @@ export default function GateReception({ courses, refreshCourses }) {
                   </div>
               </div>
 
-              {/* 📋 TABLE */}
+              {/* 📋 TABLE WITH SORTABLE HEADERS */}
               <div style={{background:'white', borderRadius:'12px', border:'1px solid #eee', overflowX:'auto'}}>
                   <table style={{width:'100%', borderCollapse:'collapse', minWidth:'600px'}}>
                       <thead style={{background:'#f9fafb'}}>
                           <tr>
-                              <th style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase'}}>Status</th>
-                              <th style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase'}}>Name / ID</th>
-                              <th style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase'}}>Gender</th>
+                              <th onClick={() => handleSort('status')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>
+                                  Status <SortIcon column="status"/>
+                              </th>
+                              <th onClick={() => handleSort('full_name')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>
+                                  Name / ID <SortIcon column="full_name"/>
+                              </th>
+                              {/* ✅ CLICKABLE GENDER HEADER */}
+                              <th onClick={() => handleSort('gender')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>
+                                  Gender <SortIcon column="gender"/>
+                              </th>
                               <th style={{textAlign:'right', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase'}}>Action</th>
                           </tr>
                       </thead>
                       <tbody>
-                          {filteredList.map(p => {
+                          {processedList.map(p => {
                               const isCheckedIn = p.status === 'Gate Check-In' || p.status === 'Attending';
                               const isCancelled = p.status === 'Cancelled' || p.status === 'No-Show';
                               return (
@@ -253,7 +313,7 @@ export default function GateReception({ courses, refreshCourses }) {
                                               </div>
                                           )}
                                           {isCheckedIn && <CheckCircle size={18} color="green"/>}
-                                          {/* ✅ UNDO CANCEL OPTION */}
+                                          {/* ✅ UNDO CANCEL BUTTON */}
                                           {isCancelled && (
                                               <button onClick={() => handleUndoCancel(p)} style={{background:'#f3e5f5', color:'#7b1fa2', border:'1px solid #e1bee7', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold', fontSize:'11px', display:'inline-flex', alignItems:'center', gap:'5px'}}>
                                                   <RotateCcw size={14}/> Undo
@@ -265,14 +325,14 @@ export default function GateReception({ courses, refreshCourses }) {
                           })}
                       </tbody>
                   </table>
-                  {filteredList.length === 0 && <div style={{textAlign:'center', padding:'30px', color:'#999'}}>No students found.</div>}
+                  {processedList.length === 0 && <div style={{textAlign:'center', padding:'30px', color:'#999'}}>No students found.</div>}
               </div>
           </>
       ) : (
           <div style={{textAlign:'center', padding:'40px', color:'#666'}}>Select a course to start.</div>
       )}
 
-      {/* Responsive Grid for Stats */}
+      {/* Responsive Stats Grid */}
       <style>{`
         .stats-panel { grid-template-columns: 2fr 1fr; }
         @media (max-width: 768px) {
