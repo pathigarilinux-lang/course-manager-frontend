@@ -105,7 +105,7 @@ export default function GateReception({ courses, refreshCourses }) {
       return data;
   }, [participants, searchQuery, activeFilter, sortConfig]);
 
-  // --- 4. STATS LOGIC (ENHANCED WITH GENDER TOTALS) ---
+  // --- 4. STATS LOGIC (DETAILED BREAKDOWN) ---
   const stats = useMemo(() => {
       const isM = (p) => (p.gender||'').startsWith('M');
       const isF = (p) => (p.gender||'').startsWith('F');
@@ -116,29 +116,37 @@ export default function GateReception({ courses, refreshCourses }) {
       const cancelledP = participants.filter(p => p.status === 'Cancelled' || p.status === 'No-Show');
       const activeP = participants.filter(p => p.status !== 'Cancelled' && p.status !== 'No-Show');
       
-      // ✅ GENDER BREAKDOWN FOR EXPECTED TOTAL
+      // 1. CALCULATE GENDER TOTALS & BREAKDOWNS
       const expMale = activeP.filter(isM).length;
       const expFemale = activeP.filter(isF).length;
+      
+      // ✅ DETAILED COUNTS
+      const om = activeP.filter(p => isM(p) && isOld(p)).length;
+      const nm = activeP.filter(p => isM(p) && isNew(p)).length;
+      const sm = activeP.filter(p => isM(p) && isSvr(p)).length;
+      
+      const of = activeP.filter(p => isF(p) && isOld(p)).length;
+      const nf = activeP.filter(p => isF(p) && isNew(p)).length;
+      const sf = activeP.filter(p => isF(p) && isSvr(p)).length;
 
-      // A. Bar Chart: TOTAL BREAKDOWN
+      // 2. Bar Chart Data
       const barData = [
-          { name: 'Old (M)', value: activeP.filter(p => isM(p) && isOld(p)).length, fill: COLORS.om },
-          { name: 'New (M)', value: activeP.filter(p => isM(p) && isNew(p)).length, fill: COLORS.nm },
-          { name: 'Svr (M)', value: activeP.filter(p => isM(p) && isSvr(p)).length, fill: COLORS.sm },
-          { name: 'Old (F)', value: activeP.filter(p => isF(p) && isOld(p)).length, fill: COLORS.of },
-          { name: 'New (F)', value: activeP.filter(p => isF(p) && isNew(p)).length, fill: COLORS.nf },
-          { name: 'Svr (F)', value: activeP.filter(p => isF(p) && isSvr(p)).length, fill: COLORS.sf },
+          { name: 'Old (M)', value: om, fill: COLORS.om },
+          { name: 'New (M)', value: nm, fill: COLORS.nm },
+          { name: 'Svr (M)', value: sm, fill: COLORS.sm },
+          { name: 'Old (F)', value: of, fill: COLORS.of },
+          { name: 'New (F)', value: nf, fill: COLORS.nf },
+          { name: 'Svr (F)', value: sf, fill: COLORS.sf },
           { name: 'Can (M)', value: cancelledP.filter(p => isM(p)).length, fill: COLORS.canM },
           { name: 'Can (F)', value: cancelledP.filter(p => isF(p)).length, fill: COLORS.canF },
       ].filter(d => d.value > 0);
 
-      // ✅ GENDER BREAKDOWN FOR ARRIVED
+      // 3. Arrived Data
       const arrivedP = activeP.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending');
       const arrMale = arrivedP.filter(isM).length;
       const arrFemale = arrivedP.filter(isF).length;
       const pendingCount = activeP.length - arrivedP.length;
 
-      // B. Pie Chart: ARRIVAL BREAKDOWN
       const pieData = [
           { name: 'Old Male', value: arrivedP.filter(p => isM(p) && isOld(p)).length, color: COLORS.om },
           { name: 'New Male', value: arrivedP.filter(p => isM(p) && isNew(p)).length, color: COLORS.nm },
@@ -152,9 +160,11 @@ export default function GateReception({ courses, refreshCourses }) {
       return { 
           barData, pieData, 
           total: activeP.length, 
-          expMale, expFemale, // Totals
+          expMale, expFemale, 
           arrived: arrivedP.length,
-          arrMale, arrFemale  // Arrived Totals
+          arrMale, arrFemale,
+          // ✅ BREAKDOWN OBJECT FOR UI
+          breakdown: { om, nm, sm, of, nf, sf }
       };
   }, [participants]);
 
@@ -186,16 +196,22 @@ export default function GateReception({ courses, refreshCourses }) {
                   padding: '15px 0', borderBottom: '1px solid #eee', marginBottom: '20px',
                   display: 'grid', gap: '15px' 
               }}>
-                  {/* BAR CHART: Expected Total (Breakdown with Cancelled) */}
+                  {/* BAR CHART: Expected Total (Detailed Breakdown) */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'10px', display:'flex', flexDirection:'column'}}>
-                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#555', textTransform:'uppercase', marginBottom:'5px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                          <div>Expected <span style={{fontSize:'10px', color:'#888'}}>(M: <b style={{color:'#007bff'}}>{stats.expMale}</b> | F: <b style={{color:'#e91e63'}}>{stats.expFemale}</b>)</span></div>
-                          <span style={{fontSize:'16px', color:'#333', fontWeight:'900'}}>{stats.total}</span>
+                      {/* ✅ UPDATED HEADER WITH BREAKDOWN */}
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'5px'}}>
+                          <div>
+                              <div style={{fontSize:'11px', fontWeight:'bold', color:'#555', textTransform:'uppercase'}}>Expected: <span style={{fontSize:'14px', color:'#007bff'}}>{stats.total}</span></div>
+                              <div style={{fontSize:'10px', color:'#666', marginTop:'2px', lineHeight:'1.4'}}>
+                                  M: <b style={{color:'#007bff'}}>{stats.expMale}</b> (O:{stats.breakdown.om} N:{stats.breakdown.nm} S:{stats.breakdown.sm})<br/>
+                                  F: <b style={{color:'#e91e63'}}>{stats.expFemale}</b> (O:{stats.breakdown.of} N:{stats.breakdown.nf} S:{stats.breakdown.sf})
+                              </div>
+                          </div>
                       </div>
                       <div style={{flex:1, minHeight:'100px'}}>
                           <ResponsiveContainer width="100%" height="100%">
                               <BarChart data={stats.barData} layout="vertical" margin={{top:0, left:0, right:30, bottom:0}}>
-                                  <XAxis type="number" hide /><YAxis dataKey="name" type="category" width={60} tick={{fontSize:9}} /><Tooltip cursor={{fill: 'transparent'}} />
+                                  <XAxis type="number" hide /><YAxis dataKey="name" type="category" width={55} tick={{fontSize:9}} /><Tooltip cursor={{fill: 'transparent'}} />
                                   <Bar dataKey="value" barSize={12} radius={[0, 4, 4, 0]}>{stats.barData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}</Bar>
                               </BarChart>
                           </ResponsiveContainer>
