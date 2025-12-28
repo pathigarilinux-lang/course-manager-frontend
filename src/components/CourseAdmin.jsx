@@ -241,8 +241,6 @@ export default function CourseAdmin({ courses, refreshCourses }) {
         const validPattern = /^(OM|NM|OF|NF|SM|SF)\d+$/; // Strict: Code + Number
         
         if (!validPattern.test(rawConf)) {
-            // If ConfNo is invalid/empty, DROP this row.
-            // But ensure it's not just an empty spacer row
             if (rawConf.length > 0 || (map.name > -1 && row[map.name])) {
                droppedCount++; 
             }
@@ -287,7 +285,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
 
         parsedStudents.push({ 
             id: Date.now() + i, 
-            conf_no: rawConf, // Validated ConfNo
+            conf_no: rawConf, 
             full_name: rawName, 
             age: map.age > -1 ? row[map.age] : '', 
             gender: pGender || 'Unknown', 
@@ -329,24 +327,25 @@ export default function CourseAdmin({ courses, refreshCourses }) {
     setManualStudent({ full_name: '', gender: 'Male', age: '', conf_no: '', courses_info: '' });
   };
 
+  // ✅ FIXED: Download Full Backup using Backend Endpoint
   const handleDownloadBackup = async () => {
       try {
-          const resCourses = await fetch(`${API_URL}/courses`);
-          const coursesData = await resCourses.json();
-          let allData = { timestamp: new Date().toISOString(), courses: coursesData, participants: [] };
-          for (let c of coursesData) {
-              const resP = await fetch(`${API_URL}/courses/${c.course_id}/participants`);
-              const pData = await resP.json();
-              allData.participants.push(...pData);
-          }
-          const blob = new Blob([JSON.stringify(allData, null, 2)], {type : 'application/json'});
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(blob);
-          link.download = `dhamma_backup_${new Date().toISOString().split('T')[0]}.json`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-      } catch(e) { alert("Backup Failed"); }
+          const response = await fetch(`${API_URL}/backup`);
+          if (!response.ok) throw new Error("Backup failed");
+          
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `dhamma_system_backup_${new Date().toISOString().split('T')[0]}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+      } catch(e) { 
+          console.error(e);
+          alert("Backup Failed: " + e.message); 
+      }
   };
 
   const handleGlobalSearch = async () => {
@@ -574,7 +573,7 @@ export default function CourseAdmin({ courses, refreshCourses }) {
       {activeTab === 'backup' && (
           <div style={{textAlign:'center', padding:'60px 40px', animation:'fadeIn 0.3s ease'}}>
               <div style={{width:'80px', height:'80px', background:'#f8f9fa', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px auto'}}>
-                  <Archive size={40} color="#6c757d"/>
+                  <Database size={40} color="#6c757d"/>
               </div>
               <h3 style={{fontSize:'24px', margin:'0 0 10px 0'}}>System Backup</h3>
               <p style={{color:'#666', marginBottom:'40px', maxWidth:'500px', margin:'0 auto 40px auto', lineHeight:'1.6'}}>
