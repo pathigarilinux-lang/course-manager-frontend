@@ -29,8 +29,7 @@ export default function ExpenseTracker({ courses }) {
   const [reportMode, setReportMode] = useState(''); 
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // ✅ NEW: Gender Filter for Reports
-  const [reportGenderFilter, setReportGenderFilter] = useState('All'); // 'All', 'Male', 'Female'
+  const [reportGenderFilter, setReportGenderFilter] = useState('All'); 
 
   useEffect(() => { 
       if (courseId) {
@@ -69,23 +68,52 @@ export default function ExpenseTracker({ courses }) {
       return { totalPending, totalPaid, pendingM, pendingF, laundryCount, laundryM, laundryF };
   }, [financialData]);
 
+  // ✅ UPDATED: Add To Cart with Qty * Rate Logic for Laundry
   const addToCart = (product) => {
       if (!selectedStudentId) return alert("Please select a student first.");
-      let finalName = product.name;
+      
+      // --- 1. SPECIAL LOGIC FOR LAUNDRY ---
       if (product.id === 'laundry') {
-          if (studentToken) finalName = `Laundry Token ${studentToken}`;
-          else {
-              const manualToken = prompt("No assigned token found. Enter Token Number:");
-              if (manualToken) finalName = `Laundry Token ${manualToken}`; else return; 
+          // A. Determine Token Number
+          let tokenLabel = studentToken;
+          if (!tokenLabel) {
+              tokenLabel = prompt("No assigned token found. Enter Token Number manually:");
+              if (!tokenLabel) return; 
           }
-      } else if (product.id === 'misc') {
+
+          // B. Get Quantity
+          const qtyStr = prompt("🧺 Enter Number of Clothes:", "1");
+          if (qtyStr === null) return; // Cancelled
+          const qty = parseInt(qtyStr);
+          if (isNaN(qty) || qty <= 0) return alert("Invalid Quantity");
+
+          // C. Get Rate (Default 25)
+          const rateStr = prompt("💰 Enter Rate per Cloth (₹):", "25");
+          if (rateStr === null) return; // Cancelled
+          const rate = parseFloat(rateStr);
+          if (isNaN(rate) || rate < 0) return alert("Invalid Rate");
+
+          // D. Calculate Total & Create Name
+          const totalAmount = qty * rate;
+          const finalName = `Laundry Token ${tokenLabel} (${qty}pcs @ ₹${rate})`;
+
+          // E. Add to Cart
+          setCart([...cart, { ...product, name: finalName, price: totalAmount, date: entryDate, uid: Date.now() }]);
+          return; 
+      }
+
+      // --- 2. STANDARD LOGIC FOR OTHER ITEMS ---
+      let finalName = product.name;
+      if (product.id === 'misc') {
           const custom = prompt("Enter Item Name:", "Misc Item");
           if (custom) finalName = custom;
       }
+
       const priceStr = prompt(`Enter Price for ${finalName}:`);
       if (priceStr === null) return; 
       const price = parseFloat(priceStr);
       if (isNaN(price) || price <= 0) return alert("Please enter a valid amount.");
+      
       setCart([...cart, { ...product, name: finalName, price, date: entryDate, uid: Date.now() }]);
   };
 
@@ -153,7 +181,6 @@ export default function ExpenseTracker({ courses }) {
   const loadPendingReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => { const pendingUsers = (Array.isArray(data) ? data : []).filter(p => parseFloat(p.total_due) > 0); setFinancialData(pendingUsers); setReportMode('pending'); setReportGenderFilter('All'); }); };
   const loadPaidReport = () => { if (!courseId) return; fetch(`${API_URL}/courses/${courseId}/financial-report`).then(res => res.json()).then(data => { const paidUsers = (Array.isArray(data) ? data : []).filter(p => { const due = parseFloat(p.total_due || 0); const bill = parseFloat(p.total_bill || 0); return due < 1.0 && bill > 0; }); setFinancialData(paidUsers); setReportMode('paid'); setReportGenderFilter('All'); }); };
 
-  // ✅ EXPORT FUNCTION
   const handleExportCSV = (data, filename) => {
       if(!data || !data.length) return alert("No data to export");
       const headers = Object.keys(data[0]).join(",");
@@ -196,7 +223,6 @@ export default function ExpenseTracker({ courses }) {
   };
 
   const renderReport = () => {
-      // ✅ FILTER LOGIC
       const filteredData = financialData.filter(p => {
           if (reportGenderFilter === 'All') return true;
           const gender = (p.gender || '').toLowerCase();
@@ -281,7 +307,6 @@ export default function ExpenseTracker({ courses }) {
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
                       <h4 style={{margin:0, color:'#555'}}>Quick Add Items (Price Prompt)</h4>
                       
-                      {/* ✅ ENTRY DATE PICKER */}
                       <div style={{display:'flex', alignItems:'center', gap:'5px', background:'#f8f9fa', padding:'5px 10px', borderRadius:'6px', border:'1px solid #ddd'}}>
                           <Calendar size={14} color="#666"/>
                           <span style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>Date:</span>
