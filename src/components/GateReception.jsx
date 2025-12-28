@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, UserCheck, UserX, Users, RefreshCw, CheckCircle, Clock, Wifi } from 'lucide-react';
+import { Search, UserCheck, UserX, Users, RefreshCw, CheckCircle, RotateCcw, BarChart3, PieChart as PieIcon } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { API_URL, styles } from '../config';
+
+const COLORS = { 
+    male: '#007bff', female: '#e91e63', 
+    om: '#0d47a1', nm: '#64b5f6', sm: '#2e7d32',
+    of: '#880e4f', nf: '#f06292', sf: '#69f0ae'
+};
 
 export default function GateReception({ courses, refreshCourses }) {
   const [selectedCourseId, setSelectedCourseId] = useState('');
@@ -26,76 +33,83 @@ export default function GateReception({ courses, refreshCourses }) {
 
   useEffect(() => {
       loadParticipants();
-      const interval = setInterval(loadParticipants, 30000);
+      const interval = setInterval(loadParticipants, 30000); // Auto-refresh every 30s
       return () => clearInterval(interval);
   }, [selectedCourseId]);
 
   // --- 2. ACTIONS ---
-  const handleGateCheckIn = async (student) => {
-      setParticipants(prev => prev.map(p => p.participant_id === student.participant_id ? { ...p, status: 'Gate Check-In' } : p));
+  const updateStatus = async (student, newStatus) => {
+      // Optimistic Update
+      setParticipants(prev => prev.map(p => p.participant_id === student.participant_id ? { ...p, status: newStatus } : p));
+      
+      let endpoint = '/gate-checkin'; // Default
+      if (newStatus === 'Cancelled') endpoint = '/gate-cancel';
+      if (newStatus === 'Pending') endpoint = '/gate-reset'; // Hypothetical endpoint, or reuse update logic
+
       try {
-          const res = await fetch(`${API_URL}/gate-checkin`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ participantId: student.participant_id })
-          });
-          if (!res.ok) throw new Error("Failed");
+          // If resetting, we might need a specific endpoint or just update the participant directly
+          if (newStatus === 'Pending') {
+             await fetch(`${API_URL}/participants/${student.participant_id}`, {
+                 method: 'PUT', headers: {'Content-Type':'application/json'},
+                 body: JSON.stringify({ ...student, status: 'No Response' }) // Reset to default
+             });
+          } else {
+             await fetch(`${API_URL}${endpoint}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ participantId: student.participant_id })
+             });
+          }
           if(refreshCourses) refreshCourses();
-      } catch (err) { alert("Sync Error - Check Internet"); loadParticipants(); }
+      } catch (err) { 
+          alert("Sync Error - Check Internet"); 
+          loadParticipants(); 
+      }
   };
 
-  const handleCancelStudent = async (student) => {
-      if(!window.confirm(`⚠️ Mark ${student.full_name} as Cancelled / No-Show?`)) return;
-      setParticipants(prev => prev.map(p => p.participant_id === student.participant_id ? { ...p, status: 'Cancelled' } : p));
-      try {
-          const res = await fetch(`${API_URL}/gate-cancel`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ participantId: student.participant_id })
-          });
-          if (res.ok) { loadParticipants(); if(refreshCourses) refreshCourses(); }
-      } catch (err) { console.error(err); }
-  };
+  const handleGateCheckIn = (p) => updateStatus(p, 'Gate Check-In');
+  const handleCancelStudent = (p) => { if(window.confirm(`⚠️ Cancel ${p.full_name}?`)) updateStatus(p, 'Cancelled'); };
+  const handleUndoCancel = (p) => { if(window.confirm(`↩️ Restore ${p.full_name} to List?`)) updateStatus(p, 'Pending'); };
 
   // --- 3. FILTERING & STATS ---
   const filteredList = useMemo(() => {
       return participants.filter(p => {
           const matchesSearch = p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.conf_no && p.conf_no.toLowerCase().includes(searchQuery.toLowerCase()));
           if (!matchesSearch) return false;
-          if (activeFilter === 'Pending') return p.status === 'No Response' || p.status === 'Pending';
-          if (activeFilter === 'CheckedIn') return p.status === 'Gate Check-In' || p.status === 'Attending';
-          if (activeFilter === 'Cancelled') return p.status === 'Cancelled';
-          return p.status !== 'Cancelled'; 
+          
+          const isArrived = p.status === 'Gate Check-In' || p.status === 'Attending';
+          const isCancelled = p.status === 'Cancelled' || p.status === 'No-Show';
+          
+          if (activeFilter === 'Pending') return !isArrived && !isCancelled; // ✅ FIX: Catch-all for pending
+          if (activeFilter === 'CheckedIn') return isArrived;
+          if (activeFilter === 'Cancelled') return isCancelled;
+          
+          return !isCancelled; // Default 'All' view hides cancelled usually, or shows all active
       });
   }, [participants, searchQuery, activeFilter]);
 
   // STATS LOGIC
   const stats = useMemo(() => {
-      const total = participants.length;
-      const cancelledCount = participants.filter(p => p.status === 'Cancelled' || p.status === 'No-Show').length;
-      const activeCount = total - cancelledCount;
+      const activeP = participants.filter(p => p.status !== 'Cancelled' && p.status !== 'No-Show');
+      
+      // Data for Stacked Bar Chart (Breakdown)
+      const barData = [
+          { name: 'Old (M)', value: activeP.filter(p => (p.gender||'').startsWith('M') && (p.conf_no||'').startsWith('O')).length, fill: COLORS.om },
+          { name: 'New (M)', value: activeP.filter(p => (p.gender||'').startsWith('M') && (p.conf_no||'').startsWith('N')).length, fill: COLORS.nm },
+          { name: 'Svr (M)', value: activeP.filter(p => (p.gender||'').startsWith('M') && (p.conf_no||'').startsWith('S')).length, fill: COLORS.sm },
+          { name: 'Old (F)', value: activeP.filter(p => (p.gender||'').startsWith('F') && (p.conf_no||'').startsWith('O')).length, fill: COLORS.of },
+          { name: 'New (F)', value: activeP.filter(p => (p.gender||'').startsWith('F') && (p.conf_no||'').startsWith('N')).length, fill: COLORS.nf },
+          { name: 'Svr (F)', value: activeP.filter(p => (p.gender||'').startsWith('F') && (p.conf_no||'').startsWith('S')).length, fill: COLORS.sf },
+      ].filter(d => d.value > 0);
 
-      const totalMale = participants.filter(p => (p.gender || '').toLowerCase().startsWith('m')).length;
-      const totalFemale = participants.filter(p => (p.gender || '').toLowerCase().startsWith('f')).length;
+      // Data for Pie Chart (Arrived vs Pending)
+      const arrivedCount = activeP.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending').length;
+      const pendingCount = activeP.length - arrivedCount;
+      const pieData = [
+          { name: 'Arrived', value: arrivedCount, color: '#2e7d32' },
+          { name: 'Pending', value: pendingCount, color: '#ff9800' }
+      ];
 
-      const arrived = participants.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending').length;
-      const maleArrived = participants.filter(p => (p.gender === 'Male') && (p.status === 'Gate Check-In' || p.status === 'Attending')).length;
-      const femaleArrived = participants.filter(p => (p.gender === 'Female') && (p.status === 'Gate Check-In' || p.status === 'Attending')).length;
-
-      const mix = { om: 0, nm: 0, sm: 0, of: 0, nf: 0, sf: 0 };
-      participants.forEach(p => {
-          const isMale = (p.gender || '').toLowerCase().startsWith('m');
-          const conf = (p.conf_no || '').toUpperCase();
-          if (isMale) {
-              if (conf.startsWith('SM')) mix.sm++;
-              else if (conf.startsWith('O') || conf.startsWith('S')) mix.om++;
-              else mix.nm++;
-          } else {
-              if (conf.startsWith('SF')) mix.sf++;
-              else if (conf.startsWith('O') || conf.startsWith('S')) mix.of++;
-              else mix.nf++;
-          }
-      });
-
-      return { total, totalMale, totalFemale, cancelledCount, activeCount, arrived, maleArrived, femaleArrived, mix };
+      return { barData, pieData, total: activeP.length, arrived: arrivedCount };
   }, [participants]);
 
   // --- RENDER ---
@@ -125,45 +139,51 @@ export default function GateReception({ courses, refreshCourses }) {
 
       {selectedCourseId ? (
           <>
-              {/* 📊 RESPONSIVE STATS GRID (NOW 3 COLUMNS) */}
-              <div className="stats-grid" style={{display:'grid', gap:'10px', marginBottom:'20px'}}>
+              {/* 📊 STICKY STATS PANEL */}
+              <div className="stats-panel" style={{
+                  position: 'sticky', top: 0, zIndex: 100, 
+                  background: 'rgba(255, 255, 255, 0.95)', 
+                  backdropFilter: 'blur(5px)',
+                  padding: '15px 0', borderBottom: '1px solid #eee', marginBottom: '20px',
+                  display: 'grid', gap: '15px' 
+              }}>
                   
-                  {/* 1. EXPECTED TOTAL CARD */}
-                  <div style={{background:'#e3f2fd', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #007bff'}}>
-                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#007bff', textTransform:'uppercase'}}>Expected Total</div>
-                      <div style={{fontSize:'20px', fontWeight:'900', color:'#333', display:'flex', alignItems:'baseline', gap:'6px'}}>
-                          {stats.total}
-                          <span style={{fontSize:'11px', fontWeight:'normal', color:'#555'}}>(M: <span style={{color:'#007bff', fontWeight:'bold'}}>{stats.totalMale}</span> | F: <span style={{color:'#e91e63', fontWeight:'bold'}}>{stats.totalFemale}</span>)</span>
+                  {/* CHART 1: TOTAL BREAKDOWN (BAR) */}
+                  <div style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'10px', display:'flex', flexDirection:'column'}}>
+                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#555', textTransform:'uppercase', marginBottom:'5px', display:'flex', justifyContent:'space-between'}}>
+                          <span>Expected Total</span>
+                          <span style={{fontSize:'14px', color:'#007bff'}}>{stats.total}</span>
                       </div>
-                      
-                      {/* Breakdown */}
-                      <div style={{fontSize:'10px', color:'#555', marginTop:'4px', background:'rgba(255,255,255,0.5)', padding:'3px', borderRadius:'4px'}}>
-                          <div style={{display:'flex', gap:'8px'}}>
-                              <span style={{color:'#007bff', fontWeight:'bold'}}>M:</span> OM:{stats.mix.om} NM:{stats.mix.nm} SM:{stats.mix.sm}
-                          </div>
-                          <div style={{display:'flex', gap:'8px'}}>
-                              <span style={{color:'#e91e63', fontWeight:'bold'}}>F:</span> OF:{stats.mix.of} NF:{stats.mix.nf} SF:{stats.mix.sf}
-                          </div>
-                      </div>
-
-                      {/* Footer */}
-                      <div style={{marginTop:'5px', fontSize:'11px', display:'flex', justifyContent:'space-between', background:'rgba(255,255,255,0.8)', padding:'4px', borderRadius:'4px'}}>
-                          <span style={{color:'#d32f2f', fontWeight:'bold'}}>🚫 Cancelled: {stats.cancelledCount}</span>
-                          <span style={{color:'#1b5e20', fontWeight:'bold'}}>Active: {stats.activeCount}</span>
+                      <div style={{flex:1, minHeight:'100px'}}>
+                          <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={stats.barData} layout="vertical" margin={{top:0, left:0, right:30, bottom:0}}>
+                                  <XAxis type="number" hide />
+                                  <YAxis dataKey="name" type="category" width={60} tick={{fontSize:10}} />
+                                  <Tooltip cursor={{fill: 'transparent'}} />
+                                  <Bar dataKey="value" barSize={15} radius={[0, 4, 4, 0]}>
+                                    {stats.barData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
+                                  </Bar>
+                              </BarChart>
+                          </ResponsiveContainer>
                       </div>
                   </div>
 
-                  {/* 2. ARRIVED CARD */}
-                  <div style={{background:'#e8f5e9', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #2e7d32'}}>
-                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#2e7d32', textTransform:'uppercase'}}>Arrived</div>
-                      <div style={{fontSize:'20px', fontWeight:'900', color:'#333'}}>{stats.arrived} <small style={{color:'#666', fontSize:'12px'}}>({Math.round((stats.arrived/stats.activeCount)*100 || 0)}%)</small></div>
-                  </div>
-
-                  {/* 3. GENDER CARD */}
-                  <div style={{background:'#fff3e0', padding:'15px', borderRadius:'10px', borderLeft:'5px solid #ef6c00'}}>
-                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#ef6c00', textTransform:'uppercase'}}>M / F (Arrived)</div>
-                      <div style={{fontSize:'14px', fontWeight:'bold', marginTop:'5px'}}>
-                          <span style={{color:'#007bff'}}>M: {stats.maleArrived}</span> | <span style={{color:'#e91e63'}}>F: {stats.femaleArrived}</span>
+                  {/* CHART 2: ARRIVAL PROGRESS (PIE) */}
+                  <div style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'10px', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                      <div>
+                          <div style={{fontSize:'11px', fontWeight:'bold', color:'#2e7d32', textTransform:'uppercase'}}>Arrived</div>
+                          <div style={{fontSize:'24px', fontWeight:'900', color:'#333'}}>{stats.arrived}</div>
+                          <div style={{fontSize:'11px', color:'#999'}}>of {stats.total}</div>
+                      </div>
+                      <div style={{width:'100px', height:'100px'}}>
+                          <ResponsiveContainer>
+                              <PieChart>
+                                  <Pie data={stats.pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={40} paddingAngle={5} dataKey="value">
+                                      {stats.pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                                  </Pie>
+                                  <Tooltip />
+                              </PieChart>
+                          </ResponsiveContainer>
                       </div>
                   </div>
               </div>
@@ -210,7 +230,7 @@ export default function GateReception({ courses, refreshCourses }) {
                       <tbody>
                           {filteredList.map(p => {
                               const isCheckedIn = p.status === 'Gate Check-In' || p.status === 'Attending';
-                              const isCancelled = p.status === 'Cancelled';
+                              const isCancelled = p.status === 'Cancelled' || p.status === 'No-Show';
                               return (
                                   <tr key={p.participant_id} style={{borderBottom:'1px solid #f0f0f0', background: isCheckedIn ? '#f0fff4' : (isCancelled ? '#fff5f5' : 'white')}}>
                                       <td style={{padding:'12px'}}>
@@ -233,6 +253,12 @@ export default function GateReception({ courses, refreshCourses }) {
                                               </div>
                                           )}
                                           {isCheckedIn && <CheckCircle size={18} color="green"/>}
+                                          {/* ✅ UNDO CANCEL OPTION */}
+                                          {isCancelled && (
+                                              <button onClick={() => handleUndoCancel(p)} style={{background:'#f3e5f5', color:'#7b1fa2', border:'1px solid #e1bee7', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold', fontSize:'11px', display:'inline-flex', alignItems:'center', gap:'5px'}}>
+                                                  <RotateCcw size={14}/> Undo
+                                              </button>
+                                          )}
                                       </td>
                                   </tr>
                               );
@@ -246,11 +272,11 @@ export default function GateReception({ courses, refreshCourses }) {
           <div style={{textAlign:'center', padding:'40px', color:'#666'}}>Select a course to start.</div>
       )}
 
-      {/* Grid updated to 3 columns */}
+      {/* Responsive Grid for Stats */}
       <style>{`
-        .stats-grid { grid-template-columns: 1fr 1fr 1fr; }
+        .stats-panel { grid-template-columns: 2fr 1fr; }
         @media (max-width: 768px) {
-            .stats-grid { grid-template-columns: 1fr; }
+            .stats-panel { grid-template-columns: 1fr; position: relative !important; }
         }
       `}</style>
     </div>
