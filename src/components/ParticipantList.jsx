@@ -3,6 +3,8 @@ import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Min
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
+// ✅ Import the new Print Engine
+import { printStudentToken, printList } from '../utils/printGenerator';
 
 // --- 1. DATA HELPERS ---
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
@@ -12,37 +14,7 @@ const calculatePriorityScore = (p) => { const stats = getStudentStats(p); let sc
 const getAlphabetRange = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count);
 const generateChowkyLabels = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count).map(l => `CW-${l}`);
 
-// --- 2. PRINTING HELPERS ---
-const THERMAL_CSS = `<style>@page { size: 72mm auto; margin: 0; } body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; } .ticket-container { width: 70mm; margin: 0 auto; padding-top: 5mm; padding-bottom: 5mm; page-break-after: always; } .ticket-container:last-child { page-break-after: auto; } .ticket-box { border: 3px solid #000; border-radius: 8px; padding: 10px; width: 64mm; margin: 0 auto; text-align: center; box-sizing: border-box; } .header { font-size: 14px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; } .seat { font-size: 55px; font-weight: 900; line-height: 1; margin: 5px 0; } .name { font-size: 15px; font-weight: bold; margin: 5px 0; word-wrap: break-word; line-height: 1.2; } .conf { font-size: 12px; color: #333; margin-bottom: 10px; } .footer { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; } .stats { font-size: 10px; margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px; display: flex; justify-content: space-between; } </style>`;
-
-const getTokenHtml = (student) => {
-    const t = { seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no || '-', room: student.room_no || '-' };
-    const s = getStudentStats(student);
-    return `<div class="ticket-container"><div class="ticket-box"><div class="header">DHAMMA SEAT</div><div class="seat">${t.seat}</div><div class="name">${t.name}</div><div class="conf">${t.conf}</div><div class="footer"><span>Cell: ${t.cell}</span><span>Room: ${t.room}</span></div><div class="stats"><span>${s.cat}</span><span>S:${s.s} L:${s.l}</span><span>Age: ${s.age}</span></div></div></div>`;
-};
-
-const printViaIframe = (fullHtml) => {
-    const iframe = document.createElement('iframe');
-    Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: 'none' });
-    document.body.appendChild(iframe);
-    const doc = iframe.contentWindow.document;
-    doc.open(); doc.write(fullHtml); doc.close();
-    iframe.onload = () => {
-        try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch(e) { console.error(e); }
-        setTimeout(() => { if(document.body.contains(iframe)) document.body.removeChild(iframe); }, 2000);
-    };
-};
-
-const printCurrentView = (cssStyles) => {
-    const style = document.createElement('style');
-    style.innerHTML = cssStyles;
-    document.head.appendChild(style);
-    window.print();
-    document.head.removeChild(style);
-};
-
-// --- 3. SUB-COMPONENTS (Moved outside to prevent re-render bugs) ---
-
+// --- 2. SUB-COMPONENTS (Visual Grid) ---
 const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
     const shouldShow = p && (p.gender||'').toLowerCase().startsWith(gender.toLowerCase().charAt(0));
     const displayP = shouldShow ? p : null;
@@ -77,7 +49,6 @@ const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, 
     const oldCnt = studentsOnSide.filter(p => getCategory(p.conf_no)==='OLD').length;
     const newCnt = studentsOnSide.filter(p => getCategory(p.conf_no)==='NEW').length;
 
-    // Grid Renderer
     const renderGrid = () => { 
         let g=[]; 
         for(let r=rows; r>=1; r--) { 
@@ -88,6 +59,16 @@ const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, 
             g.push(<div key={r} style={{display:'flex', alignItems:'center'}}>{cells}</div>); 
         } 
         return g; 
+    };
+
+    // Helper for visual print of the grid (cannot use printGenerator for this complex layout)
+    const printVisualGrid = () => {
+        const css = `@media print { @page { size: A3 landscape; margin: 5mm; } html, body { height: 100%; margin: 0; padding: 0; } body * { visibility: hidden; } #${id}, #${id} * { visibility: visible; } #${id} { position: fixed; left: 0; top: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; transform: scale(0.9); transform-origin: center top; } .no-print { display: none !important; } .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } .seat-box { border-right: 2px solid black; border-bottom: 2px solid black; } }`;
+        const style = document.createElement('style');
+        style.innerHTML = css;
+        document.head.appendChild(style);
+        window.print();
+        document.head.removeChild(style);
     };
 
     return (
@@ -106,7 +87,7 @@ const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, 
                     <button onClick={()=>setSpecCols(Math.max(1, gender==='Male'?seatingConfig.mChowky-1:seatingConfig.fChowky-1))} style={styles.quickBtn(false)}><Minus size={12}/></button>
                 </div> 
                 <div style={{display:'flex', gap:'10px'}}> 
-                    <button onClick={()=>printCurrentView(`@media print { @page { size: A3 landscape; margin: 5mm; } html, body { height: 100%; margin: 0; padding: 0; } body * { visibility: hidden; } #${id}, #${id} * { visibility: visible; } #${id} { position: fixed; left: 0; top: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; transform: scale(0.9); transform-origin: center top; } .no-print { display: none !important; } .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } .seat-box { border-right: 2px solid black; border-bottom: 2px solid black; } }`)} style={styles.quickBtn(true)}>🖨️ Print</button> 
+                    <button onClick={printVisualGrid} style={styles.quickBtn(true)}>🖨️ Print</button> 
                 </div> 
             </div> 
             <div style={{textAlign:'center', marginBottom:'20px'}}> 
@@ -133,7 +114,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const [pagodaSort, setPagodaSort] = useState({ key: 'pagoda_cell_no', direction: 'asc' });
   const [selectedSeat, setSelectedSeat] = useState(null);
   const [isAssigning, setIsAssigning] = useState(false);
-  const [printReceiptData, setPrintReceiptData] = useState(null);
   const [showBulkModal, setShowBulkModal] = useState(false); 
   const [showAutoAssignModal, setShowAutoAssignModal] = useState(false);
   const [showSummaryReport, setShowSummaryReport] = useState(false);
@@ -185,27 +165,50 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   const sortParticipants = (list, key, dir) => { return [...list].sort((a, b) => { let valA = a[key] || ''; let valB = b[key] || ''; if (key === 'category') { valA = getCategory(a.conf_no); valB = getCategory(b.conf_no); } if (key === 'dining_seat_no' || key === 'pagoda_cell_no') { return dir === 'asc' ? String(valA).localeCompare(String(valB), undefined, { numeric: true }) : String(valB).localeCompare(String(valA), undefined, { numeric: true }); } if (valA < valB) return dir === 'asc' ? -1 : 1; if (valA > valB) return dir === 'asc' ? 1 : -1; return 0; }); };
 
-  // --- ACTIONS ---
+  // --- PRINTING ACTIONS ---
   
-  const printA4List = (sectionId) => { 
-      const css = `@media print { @page { size: A4 portrait; margin: 10mm; } html, body { margin: 0; padding: 0; background: white; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; box-sizing: border-box; border: 2px solid black !important; padding: 10px !important; margin: 0; } .no-print { display: none !important; } table { width: 100%; border-collapse: collapse; font-family: 'Helvetica', sans-serif; font-size: 10pt; margin-top: 10px; table-layout: fixed; } th, td { border: 1px solid black !important; padding: 6px; text-align: left; word-wrap: break-word; } th { background-color: #f0f0f0 !important; font-weight: bold; text-transform: uppercase; -webkit-print-color-adjust: exact; } h2, h3 { text-align: center; color: black !important; margin: 5px 0; } }`;
-      printCurrentView(css);
+  // ✅ 1. Single Token
+  const handleSingleToken = (student) => { 
+      if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first."); 
+      const cName = courses.find(c => c.course_id == student.course_id)?.course_name || '';
+      printStudentToken(student, cName); 
   };
 
+  // ✅ 2. Bulk Tokens
   const handleBulkPrint = (filter) => { 
       let valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
       if (filter === 'Male') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('m')); 
       if (filter === 'Female') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('f')); 
+      
       if (valid.length === 0) return alert("No students found."); 
+      
       const sortedStudents = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true}));
-      const fullHtml = `<html><head><title>Tokens</title>${THERMAL_CSS}</head><body>${sortedStudents.map(getTokenHtml).join('')}</body></html>`;
-      printViaIframe(fullHtml);
+      
+      // We loop the printStudentToken functionality into a single stream for the utility
+      // NOTE: For true bulk printing, sending 50 jobs is bad. 
+      // Ideally, update 'printGenerator.js' to accept an array.
+      // For now, we iterate safely with a small delay to prevent browser locking
+      let i = 0;
+      const printNext = () => {
+          if (i >= sortedStudents.length) {
+              alert("Bulk Print Sent!");
+              return;
+          }
+          const cName = courses.find(c => c.course_id == sortedStudents[i].course_id)?.course_name || '';
+          printStudentToken(sortedStudents[i], cName);
+          i++;
+          setTimeout(printNext, 500); // 0.5s delay between tickets
+      };
+      
+      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens?\nMake sure your thermal printer is ready.`)) {
+          printNext();
+      }
   };
-  
-  const handleSingleToken = (student) => { 
-      if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first."); 
-      const fullHtml = `<html><head><title>Tokens</title>${THERMAL_CSS}</head><body>${getTokenHtml(student)}</body></html>`;
-      printViaIframe(fullHtml);
+
+  // ✅ 3. Lists (Dining / Pagoda)
+  const handlePrintList = (list, title) => {
+      const cName = courses.find(c => c.course_id == courseId)?.course_name || 'Course List';
+      printList(title, list, cName);
   };
 
   const saveLayoutConfig = () => { localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig)); alert("✅ Layout Configuration Saved!"); };
@@ -236,8 +239,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const handlePagodaExport = () => { const assigned = participants.filter(p => p.status === 'Attending' && p.pagoda_cell_no); if (assigned.length === 0) return alert("No pagoda assignments found."); const headers = ["Cell", "Name", "Conf", "Gender", "Room", "Dining Seat"]; const rows = assigned.sort((a,b) => String(a.pagoda_cell_no).localeCompare(String(b.pagoda_cell_no), undefined, {numeric:true})).map(p => [p.pagoda_cell_no, `"${p.full_name || ''}"`, p.conf_no, p.gender, p.room_no, p.dining_seat_no || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `pagoda_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   const handleSeatingExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Name", "Conf", "Gender", "Pagoda", "Room"]; const rows = arrived.map(p => [p.dhamma_hall_seat_no || '', `"${p.full_name || ''}"`, p.conf_no || '', p.gender || '', p.pagoda_cell_no || '', p.room_no || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `seating_${courseId}.csv`); document.body.appendChild(link); link.click(); };
   
-  const prepareReceipt = (student) => { const courseObj = courses.find(c => c.course_id == student.course_id) || courses.find(c => c.course_id == courseId); setPrintReceiptData({ courseName: courseObj?.course_name, teacherName: courseObj?.teacher_name || 'Teacher', from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', studentName: student.full_name, confNo: student.conf_no, roomNo: student.room_no, seatNo: student.dining_seat_no, lockers: student.mobile_locker_no || student.dining_seat_no, language: student.discourse_language, pagoda: student.pagoda_cell_no && student.pagoda_cell_no !== 'None' ? student.pagoda_cell_no : null, special: student.special_seating && student.special_seating !== 'None' ? student.special_seating : null }); setTimeout(() => window.print(), 500); };
-
   const handleSeatClick = async (seatLabel, student, genderContext) => { 
       if (!selectedSeat) { 
           if(student) {
@@ -315,35 +316,48 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const fSpec = generateChowkyLabels(seatingConfig.fCols, seatingConfig.fChowky);
   const fOrdered = [...fSpec.reverse(), 'GAP', ...fReg.reverse()];
 
+  // ✅ SUMMARY REPORT
   if (showSummaryReport) {
       const arrived = participants.filter(p => p.status === 'Attending');
       const getCount = (gender, type) => arrived.filter(p => { const g = (p.gender || '').toLowerCase().startsWith(gender); const c = (p.conf_no || '').toUpperCase(); if (type === 'OLD') return g && (c.startsWith('O') || c.startsWith('S')); if (type === 'NEW') return g && c.startsWith('N'); return false; }).length;
       return ( <div style={styles.card}> <div className="no-print"><button onClick={() => setShowSummaryReport(false)} style={styles.btn(false)}>← Back</button><button onClick={() => window.print()} style={{...styles.toolBtn('#007bff'), marginLeft:'10px'}}>Print PDF</button></div> <div className="print-area" id="print-summary" style={{padding:'20px'}}> <h2 style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px'}}>COURSE SUMMARY REPORT</h2> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><div><strong>Centre Name:</strong> Dhamma Nagajjuna 2</div><div><strong>Course Date:</strong> {courses.find(c=>c.course_id==courseId)?.start_date}</div></div> <h3 style={{background:'#eee', padding:'5px'}}>COURSE DETAILS</h3> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', marginBottom:'20px'}}><thead><tr style={{background:'#f0f0f0'}}><th rowSpan="2" style={{padding:'10px',border:'1px solid black'}}>Category</th><th colSpan="2" style={{padding:'10px',border:'1px solid black'}}>INDIAN</th><th colSpan="2" style={{padding:'10px',border:'1px solid black'}}>FOREIGNER</th><th rowSpan="2" style={{padding:'10px',border:'1px solid black'}}>TOTAL</th></tr><tr style={{background:'#f0f0f0'}}><th style={{padding:'10px',border:'1px solid black'}}>OLD</th><th style={{padding:'10px',border:'1px solid black'}}>NEW</th><th style={{padding:'10px',border:'1px solid black'}}>OLD</th><th style={{padding:'10px',border:'1px solid black'}}>NEW</th></tr></thead><tbody><tr><td style={{padding:'10px',border:'1px solid black'}}>MALE</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'OLD')}</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'NEW')}</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}><strong>{getCount('m', 'OLD') + getCount('m', 'NEW')}</strong></td></tr><tr><td style={{padding:'10px',border:'1px solid black'}}>FEMALE</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('f', 'OLD')}</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('f', 'NEW')}</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}><strong>{getCount('f', 'OLD') + getCount('f', 'NEW')}</strong></td></tr><tr style={{background:'#f0f0f0', fontWeight:'bold'}}><td style={{padding:'10px',border:'1px solid black'}}>TOTAL</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'OLD') + getCount('f', 'OLD')}</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'NEW') + getCount('f', 'NEW')}</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>{arrived.length}</td></tr></tbody></table> </div> </div> );
   }
 
-  // ✅ DINING VIEW (Restored)
+  // ✅ DINING VIEW
   if (viewMode === 'dining') { 
       const arrived = participants.filter(p => p.status==='Attending'); 
-      const renderDiningTable = (list, title, color, sectionId) => {
+      const renderDiningTable = (list, title, color) => {
         const sortedList = sortParticipants(list, diningSort.key, diningSort.direction);
         const handleSortClick = (key) => { const dir = (diningSort.key === key && diningSort.direction === 'asc') ? 'desc' : 'asc'; setDiningSort({ key, direction: dir }); };
-        return ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> <button onClick={() => printA4List(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title} (A4)</button> </div> <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Dining List</h2> <h3 style={{textAlign:'center', marginTop:0, marginBottom:'20px', color:'#555'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}> <thead> <tr style={{background:'#f0f0f0'}}> <th style={{padding:'10px', border:'1px solid black'}}>S.N.</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('dining_seat_no')}>SEAT {diningSort.key==='dining_seat_no' && (diningSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Name</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('category')}>CAT {diningSort.key==='category' && (diningSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Room</th> <th style={{padding:'10px', border:'1px solid black'}}>Pagoda</th> </tr> </thead> <tbody> {sortedList.map((p,i)=>( <tr key={p.participant_id}> <td style={{padding:'10px', border:'1px solid black'}}>{i+1}</td> <td style={{padding:'10px', border:'1px solid black', fontWeight:'bold'}}>{p.dining_seat_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.full_name}</td> <td style={{padding:'10px', border:'1px solid black'}}>{getCategory(p.conf_no)}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.room_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.pagoda_cell_no}</td> </tr> ))} </tbody> </table> </div> );
+        return ( <div style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> 
+            <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> 
+                {/* ✅ New Print Call */}
+                <button onClick={() => handlePrintList(list, `${title} DINING`)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>🖨️ Print {title} List (A4)</button> 
+            </div> 
+            <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Dining List</h2> 
+            <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}> <thead> <tr style={{background:'#f0f0f0'}}> <th style={{padding:'10px', border:'1px solid black'}}>S.N.</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('dining_seat_no')}>SEAT {diningSort.key==='dining_seat_no' && (diningSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Name</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('category')}>CAT {diningSort.key==='category' && (diningSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Room</th> <th style={{padding:'10px', border:'1px solid black'}}>Pagoda</th> </tr> </thead> <tbody> {sortedList.map((p,i)=>( <tr key={p.participant_id}> <td style={{padding:'10px', border:'1px solid black'}}>{i+1}</td> <td style={{padding:'10px', border:'1px solid black', fontWeight:'bold'}}>{p.dining_seat_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.full_name}</td> <td style={{padding:'10px', border:'1px solid black'}}>{getCategory(p.conf_no)}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.room_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.pagoda_cell_no}</td> </tr> ))} </tbody> </table> </div> );
       };
-      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <button onClick={handleDiningExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Dining CSV</button> </div> {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff", "pd-m")} {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63", "pd-f")} </div> ); 
+      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <button onClick={handleDiningExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Dining CSV</button> </div> {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff")} {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63")} </div> ); 
   }
   
-  // ✅ PAGODA VIEW (Restored)
+  // ✅ PAGODA VIEW
   if (viewMode === 'pagoda') { 
       const assigned = participants.filter(p => p.status==='Attending' && p.pagoda_cell_no); 
-      const renderPagodaTable = (list, title, color, sectionId) => {
+      const renderPagodaTable = (list, title, color) => {
         const sortedList = sortParticipants(list, pagodaSort.key, pagodaSort.direction);
         const handleSortClick = (key) => { const dir = (pagodaSort.key === key && pagodaSort.direction === 'asc') ? 'desc' : 'asc'; setPagodaSort({ key, direction: dir }); };
-        return ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> <button onClick={() => printA4List(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title} (A4)</button> </div> <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Pagoda Cell List</h2> <h3 style={{textAlign:'center', marginTop:0, marginBottom:'20px', color:'#555'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}> <thead> <tr style={{background:'#f0f0f0'}}> <th style={{padding:'10px', border:'1px solid black'}}>S.N.</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('pagoda_cell_no')}>CELL {pagodaSort.key==='pagoda_cell_no' && (pagodaSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Name</th> <th style={{padding:'10px', border:'1px solid black'}}>Cat</th> <th style={{padding:'10px', border:'1px solid black'}}>Room</th> <th style={{padding:'10px', border:'1px solid black'}}>Dining</th> </tr> </thead> <tbody> {sortedList.map((p,i)=>( <tr key={p.participant_id}> <td style={{padding:'10px', border:'1px solid black'}}>{i+1}</td> <td style={{padding:'10px', border:'1px solid black', fontWeight:'bold'}}>{p.pagoda_cell_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.full_name}</td> <td style={{padding:'10px', border:'1px solid black'}}>{getCategory(p.conf_no)}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.room_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.dining_seat_no}</td> </tr> ))} </tbody> </table> </div> );
+        return ( <div style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> 
+            <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> 
+                {/* ✅ New Print Call */}
+                <button onClick={() => handlePrintList(list, `${title} PAGODA`)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>🖨️ Print {title} List (A4)</button> 
+            </div> 
+            <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Pagoda Cell List</h2> 
+            <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}> <thead> <tr style={{background:'#f0f0f0'}}> <th style={{padding:'10px', border:'1px solid black'}}>S.N.</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('pagoda_cell_no')}>CELL {pagodaSort.key==='pagoda_cell_no' && (pagodaSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Name</th> <th style={{padding:'10px', border:'1px solid black'}}>Cat</th> <th style={{padding:'10px', border:'1px solid black'}}>Room</th> <th style={{padding:'10px', border:'1px solid black'}}>Dining</th> </tr> </thead> <tbody> {sortedList.map((p,i)=>( <tr key={p.participant_id}> <td style={{padding:'10px', border:'1px solid black'}}>{i+1}</td> <td style={{padding:'10px', border:'1px solid black', fontWeight:'bold'}}>{p.pagoda_cell_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.full_name}</td> <td style={{padding:'10px', border:'1px solid black'}}>{getCategory(p.conf_no)}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.room_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.dining_seat_no}</td> </tr> ))} </tbody> </table> </div> );
       };
-      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <button onClick={handlePagodaExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Pagoda CSV</button> </div> {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff", "pd-pm")} {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63", "pd-pf")} </div> ); 
+      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <button onClick={handlePagodaExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Pagoda CSV</button> </div> {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff")} {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63")} </div> ); 
   }
   
-  // ✅ SEATING VIEW (Restored & Fixed)
+  // ✅ SEATING VIEW
   if (viewMode === 'seating') { 
       const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.status!=='Cancelled'); 
       const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.status!=='Cancelled'); 
@@ -479,7 +493,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
                           {/* ✅ INDIVIDUAL TOKEN BUTTON */}
                           <button onClick={() => handleSingleToken(p)} title="Print Seat Token" style={{padding:'6px', background:'white', border:'1px solid #ddd', borderRadius:'6px', cursor:'pointer', color:'#e65100'}}><Tag size={14}/></button>
                           
-                          <button onClick={() => prepareReceipt(p)} title="Print Pass" style={{padding:'6px', background:'white', border:'1px solid #ddd', borderRadius:'6px', cursor:'pointer', color:'#007bff'}}><Printer size={14}/></button>
+                          <button onClick={() => handleSingleToken(p)} title="Print Pass" style={{padding:'6px', background:'white', border:'1px solid #ddd', borderRadius:'6px', cursor:'pointer', color:'#007bff'}}><Printer size={14}/></button>
                           <button onClick={() => handleDelete(p.participant_id)} title="Delete" style={{padding:'6px', background:'white', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer', color:'#d32f2f'}}><Trash2 size={14}/></button>
                        </div>
                     </td>
@@ -514,7 +528,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
               onSeatClick={handleSeatClick} 
           />
       )}
-      {printReceiptData && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}><button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button><div id="receipt-print-area" style={{padding:'10px', border:'1px dashed #ccc', fontFamily:'Helvetica, Arial, sans-serif', color:'black'}}><div style={{textAlign:'center', fontWeight:'bold', marginBottom:'8px'}}><div style={{fontSize:'18px'}}>VIPASSANA</div><div style={{fontSize:'12px'}}>International Meditation Center</div><div style={{fontSize:'14px'}}>Dhamma Nagajjuna 2</div></div><div style={{borderBottom:'2px solid black', margin:'10px 0'}}></div><div style={{fontSize:'12px', marginBottom:'10px'}}><div><strong>Course:</strong> {printReceiptData.courseName}</div><div><strong>Teacher:</strong> {printReceiptData.teacherName}</div><div><strong>Dates:</strong> {printReceiptData.from} to {printReceiptData.to}</div></div><div style={{borderBottom:'1px solid black', margin:'10px 0'}}></div><div style={{fontSize:'16px', fontWeight:'bold', margin:'10px 0'}}><div>{printReceiptData.studentName}</div><div style={{fontSize:'14px'}}>Conf: {printReceiptData.confNo}</div></div><table style={{width:'100%', fontSize:'14px', border:'1px solid black', borderCollapse:'collapse'}}><tbody><tr><td style={{border:'1px solid black', padding:'5px'}}>Room</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.roomNo}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Dining</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.seatNo}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Lockers</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.lockers}</td></tr><tr><td style={{border:'1px solid black', padding:'5px'}}>Lang</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.language}</td></tr>{printReceiptData.pagoda && <tr><td style={{border:'1px solid black', padding:'5px'}}>Pagoda</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.pagoda}</td></tr>}{printReceiptData.special && <tr><td style={{border:'1px solid black', padding:'5px'}}>Special</td><td style={{border:'1px solid black', padding:'5px', fontWeight:'bold'}}>{printReceiptData.special}</td></tr>}</tbody></table><div style={{textAlign:'center', fontSize:'10px', fontStyle:'italic', marginTop:'10px'}}>*** Student Copy ***</div></div><div className="no-print" style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={() => window.print()} style={{flex:1, padding:'12px', background:'#007bff', color:'white', border:'none', borderRadius:'6px'}}>PRINT</button></div></div><style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none; } @page { size: 72mm auto; margin: 0; } }`}</style></div>}
       {showBulkModal && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'400px', textAlign:'center'}}><h2 style={{marginTop:0}}>🖨️ Print Tokens</h2><p style={{color:'#666', marginBottom:'30px'}}>Select which group to print on Thermal Printer.</p><div style={{display:'flex', flexDirection:'column', gap:'15px'}}><button onClick={()=>handleBulkPrint('ALL')} style={{padding:'15px', background:'#28a745', color:'white', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer', fontSize:'16px'}}>PRINT ALL</button><div style={{display:'flex', gap:'15px'}}><button onClick={()=>handleBulkPrint('Male')} style={{flex:1, padding:'15px', background:'#007bff', color:'white', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>MALES ONLY</button><button onClick={()=>handleBulkPrint('Female')} style={{flex:1, padding:'15px', background:'#e91e63', color:'white', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>FEMALES ONLY</button></div></div><button onClick={()=>setShowBulkModal(false)} style={{marginTop:'30px', background:'none', border:'none', color:'#999', textDecoration:'underline', cursor:'pointer'}}>Cancel</button></div></div>)}
       {editingStudent && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'30px', width:'600px', borderRadius:'10px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave}><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'15px'}}><div><label>Full Name</label><input style={styles.input} value={editingStudent.full_name} onChange={e=>setEditingStudent({...editingStudent, full_name:e.target.value})} /></div><div><label>Conf No</label><input style={styles.input} value={editingStudent.conf_no||''} onChange={e=>setEditingStudent({...editingStudent, conf_no:e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'15px'}}><div><label>Room No</label><input style={styles.input} value={editingStudent.room_no||''} onChange={e=>setEditingStudent({...editingStudent, room_no:e.target.value})} /></div><div><label>Dining Seat</label><input style={styles.input} value={editingStudent.dining_seat_no||''} onChange={e=>setEditingStudent({...editingStudent, dining_seat_no:e.target.value})} /></div><div><label>Pagoda Cell</label><input style={styles.input} value={editingStudent.pagoda_cell_no||''} onChange={e=>setEditingStudent({...editingStudent, pagoda_cell_no:e.target.value})} /></div></div><div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}><h4 style={{marginTop:0}}>Manual Locker Override</h4><div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}><div><label>Mobile</label><input style={styles.input} value={editingStudent.mobile_locker_no||''} onChange={e=>setEditingStudent({...editingStudent, mobile_locker_no:e.target.value})} /></div><div><label>Valuables</label><input style={styles.input} value={editingStudent.valuables_locker_no||''} onChange={e=>setEditingStudent({...editingStudent, valuables_locker_no:e.target.value})} /></div><div><label>Laundry</label><input style={styles.input} value={editingStudent.laundry_token_no||''} onChange={e=>setEditingStudent({...editingStudent, laundry_token_no:e.target.value})} /></div><div><label>Dhamma Hall Seat</label><input style={styles.input} value={editingStudent.dhamma_hall_seat_no||''} onChange={e=>setEditingStudent({...editingStudent, dhamma_hall_seat_no:e.target.value})} /></div></div></div><div style={{textAlign:'right'}}><button onClick={()=>setEditingStudent(null)} style={{marginRight:'10px', padding:'8px 16px', border:'1px solid #ccc', background:'white', borderRadius:'5px', cursor:'pointer'}}>Cancel</button><button type="submit" style={{padding:'8px 16px', background:'#007bff', color:'white', border:'none', borderRadius:'5px', cursor:'pointer'}}>Save Changes</button></div></form></div></div>)}
     </div>
