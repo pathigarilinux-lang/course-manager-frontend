@@ -64,10 +64,13 @@ function App() {
       { id: 'checkin', label: 'Onboarding', icon: <UserPlus size={20}/>, roles: ['admin', 'staff'] },
       { id: 'students', label: 'Manage Students', icon: <Users size={20}/>, roles: ['admin', 'staff'] },
       { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={20}/>, roles: ['admin', 'staff'] },
-      { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin'] }, // Admin Only
-      { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin'] }, // Admin Only
-      { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin'] }, // Admin Only
-      { id: 'admin', label: 'Course Admin', icon: <Database size={20}/>, roles: ['admin'] }, // Admin Only
+      // ✅ UPDATED: AT Panel & Admin now accessible to 'staff'
+      { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin', 'staff'] }, 
+      { id: 'admin', label: 'Course Admin', icon: <Database size={20}/>, roles: ['admin', 'staff'] }, 
+      
+      // 🔒 REMAINING ADMIN ONLY
+      { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin'] }, 
+      { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin'] }, 
   ];
 
   // Filter menu based on logged-in user role
@@ -178,7 +181,6 @@ function App() {
                       courses={courses} 
                       fetchStats={fetchStats} 
                       refreshCourses={fetchCourses}
-                      // Pass dummy functions if preSelectedRoom props aren't used here directly
                       preSelectedRoom={null}
                       clearRoom={()=>{}}
                   />
@@ -188,25 +190,28 @@ function App() {
                   <ParticipantList 
                       courses={courses} 
                       refreshCourses={fetchCourses} 
-                      userRole={user.role} // ✅ Pass Role for Security
+                      userRole={user.role} 
                   />
               )}
               
               {activeTab === 'accommodation' && <GlobalAccommodationManager />}
+
+              {/* ✅ MOVED THESE OUT OF ADMIN BLOCK SO STAFF CAN ACCESS */}
+              {activeTab === 'at' && <ATPanel courses={courses} />}
               
-              {/* ADMIN ONLY MODULES */}
+              {activeTab === 'admin' && (
+                  <CourseAdmin 
+                      courses={courses} 
+                      refreshCourses={fetchCourses} 
+                      userRole={user.role} // Pass role to internal security
+                  />
+              )}
+              
+              {/* 🔒 STRICTLY ADMIN ONLY MODULES */}
               {user.role === 'admin' && (
                   <>
                       {activeTab === 'store' && <ExpenseTracker courses={courses} />}
                       {activeTab === 'seva' && <SevaBoard courses={courses} />}
-                      {activeTab === 'at' && <ATPanel courses={courses} />}
-                      {activeTab === 'admin' && (
-                          <CourseAdmin 
-                              courses={courses} 
-                              refreshCourses={fetchCourses} 
-                              userRole={user.role} // ✅ Pass Role for Security
-                          />
-                      )}
                   </>
               )}
 
