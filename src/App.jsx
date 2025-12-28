@@ -51,24 +51,47 @@ function App() {
   useEffect(() => { fetchCourses(); }, []);
   useEffect(() => { if(courses.length > 0) fetchStats(); }, [courses]);
 
+  // ✅ SMART REDIRECT ON LOGIN
+  useEffect(() => {
+      if (user) {
+          if (user.role === 'gate') {
+              setActiveTab('gate');
+              setSidebarOpen(false); // Auto-hide sidebar for single-task users
+          } else if (user.role === 'at') {
+              setActiveTab('at');
+              setSidebarOpen(false);
+          } else {
+              setActiveTab('dashboard'); // Default for Admin/Staff
+              setSidebarOpen(true);
+          }
+      }
+  }, [user]);
+
   // --- LOGIN GUARD ---
   if (!user) {
       return <Login onLogin={(u) => setUser(u)} />;
   }
 
-  // --- MENU CONFIGURATION ---
+  // --- MENU CONFIGURATION (Strict Access Control) ---
   const MENU_ITEMS = [
+      // Common Views (Admin & Staff)
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff'] },
-      { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff'] },
+      
+      // Gate User ONLY sees this (plus Admin/Staff)
+      { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate'] },
+      
       { id: 'gatekeeper', label: 'Gatekeeper View', icon: <Shield size={20}/>, roles: ['admin', 'staff'] },
       { id: 'checkin', label: 'Onboarding', icon: <UserPlus size={20}/>, roles: ['admin', 'staff'] },
       { id: 'students', label: 'Manage Students', icon: <Users size={20}/>, roles: ['admin', 'staff'] },
       { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={20}/>, roles: ['admin', 'staff'] },
-      // ✅ UPDATED: AT Panel & Admin now accessible to 'staff'
-      { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin', 'staff'] }, 
+      
+      // AT User ONLY sees this (plus Admin/Staff)
+      { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin', 'staff', 'at'] }, 
+      
+      // Admin & Staff
       { id: 'admin', label: 'Course Admin', icon: <Database size={20}/>, roles: ['admin', 'staff'] }, 
       
-      // 🔒 REMAINING ADMIN ONLY
+      // Strictly Admin
       { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin'] }, 
       { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin'] }, 
   ];
@@ -80,25 +103,26 @@ function App() {
     <div style={{ display: 'flex', height: '100vh', background: '#f4f6f8', fontFamily: 'Segoe UI, sans-serif' }}>
       
       {/* --- SIDEBAR --- */}
+      {/* Only show sidebar if user has more than 1 option OR is explicitly open */}
       <aside style={{
-          width: isSidebarOpen ? '260px' : '70px',
+          width: isSidebarOpen ? '260px' : '0px', // Collapse completely for restricted users if desired
+          minWidth: isSidebarOpen ? '260px' : '0px',
           background: '#1e293b',
           color: 'white',
-          transition: 'width 0.3s ease',
+          transition: 'all 0.3s ease',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '2px 0 10px rgba(0,0,0,0.1)',
-          zIndex: 100
+          zIndex: 100,
+          overflow: 'hidden'
       }}>
           {/* Brand */}
-          <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #334155' }}>
+          <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #334155', whiteSpace:'nowrap' }}>
               <div style={{ minWidth: '35px', height: '35px', borderRadius: '8px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>DS</div>
-              {isSidebarOpen && (
-                  <div>
-                      <div style={{ fontWeight: 'bold', fontSize: '16px' }}>Dhamma Seva</div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>{user.username} ({user.role})</div>
-                  </div>
-              )}
+              <div>
+                  <div style={{ fontWeight: 'bold', fontSize: '16px' }}>Dhamma Seva</div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{user.username}</div>
+              </div>
           </div>
 
           {/* Navigation */}
@@ -107,7 +131,6 @@ function App() {
                   <button
                       key={item.id}
                       onClick={() => setActiveTab(item.id)}
-                      title={!isSidebarOpen ? item.label : ''}
                       style={{
                           width: '100%',
                           display: 'flex',
@@ -121,11 +144,11 @@ function App() {
                           cursor: 'pointer',
                           marginBottom: '5px',
                           transition: 'all 0.2s',
-                          justifyContent: isSidebarOpen ? 'flex-start' : 'center'
+                          whiteSpace: 'nowrap'
                       }}
                   >
                       {item.icon}
-                      {isSidebarOpen && <span style={{ fontSize: '14px' }}>{item.label}</span>}
+                      <span style={{ fontSize: '14px' }}>{item.label}</span>
                   </button>
               ))}
           </nav>
@@ -145,11 +168,11 @@ function App() {
                       border: 'none',
                       borderRadius: '8px',
                       cursor: 'pointer',
-                      justifyContent: isSidebarOpen ? 'flex-start' : 'center'
+                      whiteSpace: 'nowrap'
                   }}
               >
                   <LogOut size={20} />
-                  {isSidebarOpen && <span>Sign Out</span>}
+                  <span>Sign Out</span>
               </button>
           </div>
       </aside>
@@ -159,21 +182,29 @@ function App() {
           
           {/* Top Bar */}
           <header style={{ background: 'white', padding: '15px 30px', boxShadow: '0 2px 5px rgba(0,0,0,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button onClick={() => setSidebarOpen(!isSidebarOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
-                  {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-              </button>
-              <div style={{ fontSize: '14px', color: '#64748b', fontWeight: '600' }}>
-                  {MENU_ITEMS.find(i => i.id === activeTab)?.label || 'Dashboard'}
+              <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+                  <button onClick={() => setSidebarOpen(!isSidebarOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                      {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+                  </button>
+                  <div style={{ fontSize: '14px', color: '#64748b', fontWeight: '600' }}>
+                      {MENU_ITEMS.find(i => i.id === activeTab)?.label || 'Dhamma Seva'}
+                  </div>
               </div>
+              
+              {/* Restricted User Quick Logout (visible if sidebar is closed) */}
+              {!isSidebarOpen && (
+                  <button onClick={() => setUser(null)} style={{background:'#ffebee', color:'#c62828', border:'none', borderRadius:'50%', width:'35px', height:'35px', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer'}}>
+                      <LogOut size={16}/>
+                  </button>
+              )}
           </header>
 
           {/* Content Area */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
               
+              {/* Common Modules */}
               {activeTab === 'dashboard' && <CourseDashboard courses={courses} stats={stats} />}
-              
               {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} />}
-              
               {activeTab === 'gatekeeper' && <GatekeeperPanel courses={courses} />}
               
               {activeTab === 'checkin' && (
@@ -196,18 +227,19 @@ function App() {
               
               {activeTab === 'accommodation' && <GlobalAccommodationManager />}
 
-              {/* ✅ MOVED THESE OUT OF ADMIN BLOCK SO STAFF CAN ACCESS */}
+              {/* AT Panel (Now accessible to 'at' role) */}
               {activeTab === 'at' && <ATPanel courses={courses} />}
               
+              {/* Course Admin (Now accessible to 'staff' & 'admin') */}
               {activeTab === 'admin' && (
                   <CourseAdmin 
                       courses={courses} 
                       refreshCourses={fetchCourses} 
-                      userRole={user.role} // Pass role to internal security
+                      userRole={user.role} // Pass role for button safety
                   />
               )}
               
-              {/* 🔒 STRICTLY ADMIN ONLY MODULES */}
+              {/* Admin Only Modules */}
               {user.role === 'admin' && (
                   <>
                       {activeTab === 'store' && <ExpenseTracker courses={courses} />}
