@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, UserCheck, UserX, Users, RefreshCw, CheckCircle, RotateCcw, BarChart3, PieChart as PieIcon, ArrowUpDown } from 'lucide-react';
+import { Search, UserCheck, UserX, Users, RefreshCw, CheckCircle, RotateCcw, BarChart3, PieChart as PieIcon, ArrowUpDown, Phone } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { API_URL, styles } from '../config';
 
@@ -79,7 +79,13 @@ export default function GateReception({ courses, refreshCourses }) {
   // --- 3. FILTERING & SORTING ---
   const processedList = useMemo(() => {
       let data = participants.filter(p => {
-          const matchesSearch = p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.conf_no && p.conf_no.toLowerCase().includes(searchQuery.toLowerCase()));
+          // Allow search by phone number too
+          const searchLower = searchQuery.toLowerCase();
+          const matchesSearch = 
+              p.full_name.toLowerCase().includes(searchLower) || 
+              (p.conf_no && p.conf_no.toLowerCase().includes(searchLower)) ||
+              (p.mobile && p.mobile.includes(searchLower)); // ✅ Added Mobile Search
+
           if (!matchesSearch) return false;
           
           const isArrived = p.status === 'Gate Check-In' || p.status === 'Attending';
@@ -96,7 +102,19 @@ export default function GateReception({ courses, refreshCourses }) {
           data.sort((a, b) => {
               let aValue = a[sortConfig.key] || '';
               let bValue = b[sortConfig.key] || '';
+              
               if (sortConfig.key === 'full_name') { aValue = aValue.toLowerCase(); bValue = bValue.toLowerCase(); }
+              
+              // Handle Phone Sorting (Treat as string to handle +, -, spaces)
+              if (sortConfig.key === 'mobile') {
+                  // Strip non-digits for cleaner sort
+                  const cleanA = String(aValue).replace(/\D/g, '');
+                  const cleanB = String(bValue).replace(/\D/g, '');
+                  if (cleanA < cleanB) return sortConfig.direction === 'asc' ? -1 : 1;
+                  if (cleanA > cleanB) return sortConfig.direction === 'asc' ? 1 : -1;
+                  return 0;
+              }
+
               if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
               if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
               return 0;
@@ -105,7 +123,7 @@ export default function GateReception({ courses, refreshCourses }) {
       return data;
   }, [participants, searchQuery, activeFilter, sortConfig]);
 
-  // --- 4. STATS LOGIC (DETAILED BREAKDOWN) ---
+  // --- 4. STATS LOGIC ---
   const stats = useMemo(() => {
       const isM = (p) => (p.gender||'').startsWith('M');
       const isF = (p) => (p.gender||'').startsWith('F');
@@ -116,11 +134,9 @@ export default function GateReception({ courses, refreshCourses }) {
       const cancelledP = participants.filter(p => p.status === 'Cancelled' || p.status === 'No-Show');
       const activeP = participants.filter(p => p.status !== 'Cancelled' && p.status !== 'No-Show');
       
-      // 1. EXPECTED TOTALS
       const expMale = activeP.filter(isM).length;
       const expFemale = activeP.filter(isF).length;
       
-      // Expected Breakdown
       const om = activeP.filter(p => isM(p) && isOld(p)).length;
       const nm = activeP.filter(p => isM(p) && isNew(p)).length;
       const sm = activeP.filter(p => isM(p) && isSvr(p)).length;
@@ -128,7 +144,6 @@ export default function GateReception({ courses, refreshCourses }) {
       const nf = activeP.filter(p => isF(p) && isNew(p)).length;
       const sf = activeP.filter(p => isF(p) && isSvr(p)).length;
 
-      // 2. Bar Chart Data
       const barData = [
           { name: 'Old (M)', value: om, fill: COLORS.om },
           { name: 'New (M)', value: nm, fill: COLORS.nm },
@@ -140,13 +155,11 @@ export default function GateReception({ courses, refreshCourses }) {
           { name: 'Can (F)', value: cancelledP.filter(p => isF(p)).length, fill: COLORS.canF },
       ].filter(d => d.value > 0);
 
-      // 3. ARRIVED DATA
       const arrivedP = activeP.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending');
       const arrMale = arrivedP.filter(isM).length;
       const arrFemale = arrivedP.filter(isF).length;
       const pendingCount = activeP.length - arrivedP.length;
 
-      // ✅ Arrived Breakdown (NEW LOGIC)
       const arrMO = arrivedP.filter(p => isM(p) && isOld(p)).length;
       const arrMN = arrivedP.filter(p => isM(p) && isNew(p)).length;
       const arrMS = arrivedP.filter(p => isM(p) && isSvr(p)).length;
@@ -170,7 +183,6 @@ export default function GateReception({ courses, refreshCourses }) {
           expMale, expFemale, 
           arrived: arrivedP.length,
           arrMale, arrFemale,
-          // BREAKDOWNS
           expected: { om, nm, sm, of, nf, sf },
           arrivedBreakdown: { arrMO, arrMN, arrMS, arrFO, arrFN, arrFS }
       };
@@ -204,7 +216,7 @@ export default function GateReception({ courses, refreshCourses }) {
                   padding: '15px 0', borderBottom: '1px solid #eee', marginBottom: '20px',
                   display: 'grid', gap: '15px' 
               }}>
-                  {/* BAR CHART: Expected Total (Detailed Breakdown) */}
+                  {/* BAR CHART: Expected Total */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'10px', display:'flex', flexDirection:'column'}}>
                       <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'5px'}}>
                           <div>
@@ -225,12 +237,11 @@ export default function GateReception({ courses, refreshCourses }) {
                       </div>
                   </div>
 
-                  {/* PIE CHART: Arrival Breakdown (Detailed Breakdown) */}
+                  {/* PIE CHART: Arrival Breakdown */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'10px', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
                       <div>
                           <div style={{fontSize:'11px', fontWeight:'bold', color:'#2e7d32', textTransform:'uppercase'}}>Arrived</div>
                           <div style={{fontSize:'24px', fontWeight:'900', color:'#333', lineHeight:'1'}}>{stats.arrived}</div>
-                          {/* ✅ DETAILED ARRIVED BREAKDOWN */}
                           <div style={{fontSize:'10px', color:'#666', marginTop:'4px', lineHeight:'1.4'}}>
                               M: <b style={{color:'#007bff'}}>{stats.arrMale}</b> (O:{stats.arrivedBreakdown.arrMO} N:{stats.arrivedBreakdown.arrMN} S:{stats.arrivedBreakdown.arrMS})<br/>
                               F: <b style={{color:'#e91e63'}}>{stats.arrFemale}</b> (O:{stats.arrivedBreakdown.arrFO} N:{stats.arrivedBreakdown.arrFN} S:{stats.arrivedBreakdown.arrFS})
@@ -253,7 +264,7 @@ export default function GateReception({ courses, refreshCourses }) {
               <div style={{display:'flex', flexWrap:'wrap', gap:'10px', marginBottom:'20px'}}>
                   <div style={{flex:1, minWidth:'200px', position:'relative'}}>
                       <Search size={18} color="#999" style={{position:'absolute', left:'15px', top:'10px'}}/>
-                      <input placeholder="Search Name/ID..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{width:'100%', padding:'10px 10px 10px 40px', borderRadius:'30px', border:'2px solid #eee', fontSize:'14px', outline:'none', boxSizing:'border-box'}}/>
+                      <input placeholder="Search Name, ID or Mobile..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{width:'100%', padding:'10px 10px 10px 40px', borderRadius:'30px', border:'2px solid #eee', fontSize:'14px', outline:'none', boxSizing:'border-box'}}/>
                   </div>
                   <div style={{display:'flex', gap:'5px', overflowX:'auto', paddingBottom:'5px'}}>
                       {['All', 'Pending', 'CheckedIn', 'Cancelled'].map(f => (
@@ -262,13 +273,15 @@ export default function GateReception({ courses, refreshCourses }) {
                   </div>
               </div>
 
-              {/* 📋 SORTABLE TABLE */}
+              {/* 📋 SORTABLE TABLE WITH PHONE */}
               <div style={{background:'white', borderRadius:'12px', border:'1px solid #eee', overflowX:'auto'}}>
                   <table style={{width:'100%', borderCollapse:'collapse', minWidth:'600px'}}>
                       <thead style={{background:'#f9fafb'}}>
                           <tr>
                               <th onClick={() => handleSort('status')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Status <SortIcon column="status"/></th>
                               <th onClick={() => handleSort('full_name')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Name / ID <SortIcon column="full_name"/></th>
+                              {/* ✅ NEW PHONE COLUMN */}
+                              <th onClick={() => handleSort('mobile')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Contact <SortIcon column="mobile"/></th>
                               <th onClick={() => handleSort('gender')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Gender <SortIcon column="gender"/></th>
                               <th style={{textAlign:'right', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase'}}>Action</th>
                           </tr>
@@ -281,6 +294,14 @@ export default function GateReception({ courses, refreshCourses }) {
                                   <tr key={p.participant_id} style={{borderBottom:'1px solid #f0f0f0', background: isCheckedIn ? '#f0fff4' : (isCancelled ? '#fff5f5' : 'white')}}>
                                       <td style={{padding:'12px'}}>{isCheckedIn ? <span style={{color:'green', fontWeight:'bold', fontSize:'12px'}}>Arrived</span> : isCancelled ? <span style={{color:'red', fontWeight:'bold', fontSize:'12px'}}>🚫 Cancelled</span> : <span style={{color:'orange', fontWeight:'bold', fontSize:'12px'}}>Pending</span>}</td>
                                       <td style={{padding:'12px'}}><div style={{fontWeight:'bold', fontSize:'14px', color:'#333'}}>{p.full_name}</div><div style={{fontSize:'11px', color:'#888'}}>{p.conf_no || '-'}</div></td>
+                                      {/* ✅ PHONE CELL (Clickable) */}
+                                      <td style={{padding:'12px'}}>
+                                          {p.mobile ? (
+                                              <a href={`tel:${p.mobile}`} style={{textDecoration:'none', color:'#007bff', fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px', fontSize:'13px'}}>
+                                                  <Phone size={12}/> {p.mobile}
+                                              </a>
+                                          ) : <span style={{color:'#ccc', fontSize:'12px'}}>-</span>}
+                                      </td>
                                       <td style={{padding:'12px'}}><span style={{padding:'2px 8px', borderRadius:'10px', fontSize:'10px', fontWeight:'bold', background: p.gender==='Male'?'#e3f2fd':'#fce4ec', color: p.gender==='Male'?'#0d47a1':'#880e4f'}}>{p.gender}</span></td>
                                       <td style={{padding:'12px', textAlign:'right'}}>
                                           {!isCheckedIn && !isCancelled && (<div style={{display:'flex', gap:'8px', justifyContent:'flex-end'}}><button onClick={() => handleGateCheckIn(p)} style={{background:'#28a745', color:'white', border:'none', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight:'bold', fontSize:'12px'}}>CHECK IN</button><button onClick={() => handleCancelStudent(p)} style={{background:'#fff5f5', color:'#d32f2f', border:'1px solid #ffcdd2', padding:'6px 8px', borderRadius:'6px', cursor:'pointer'}} title="Cancel"><UserX size={16}/></button></div>)}
