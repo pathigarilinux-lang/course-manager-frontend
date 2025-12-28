@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Lock, User } from 'lucide-react';
-import { API_URL, styles } from '../config';
+import { Lock, User, ArrowRight, ShieldCheck } from 'lucide-react';
+import { API_URL } from '../config';
 
 export default function Login({ onLogin }) {
   const [creds, setCreds] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [focused, setFocused] = useState(null);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -22,14 +23,14 @@ export default function Login({ onLogin }) {
       const data = await res.json();
       
       if (res.ok) {
-        onLogin(data); 
+        // Simulate a smooth transition delay
+        setTimeout(() => onLogin(data), 600);
       } else {
-        setError(data.error || 'Invalid credentials');
+        setError(data.error || 'Access Denied');
+        setLoading(false);
       }
     } catch (err) {
-      console.error(err);
-      setError('Server connection failed. Please try again.');
-    } finally {
+      setError('Unable to connect to server');
       setLoading(false);
     }
   };
@@ -37,94 +38,136 @@ export default function Login({ onLogin }) {
   return (
     <div style={{ 
       height: '100vh', 
+      width: '100vw',
       display: 'flex', 
       justifyContent: 'center', 
       alignItems: 'center', 
-      background: 'linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%)', // Original soft teal gradient
-      fontFamily: 'Segoe UI, sans-serif'
+      background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)', // Deep Calming Teal/Blue
+      fontFamily: '"Inter", "Segoe UI", sans-serif',
+      position: 'relative',
+      overflow: 'hidden'
     }}>
+      
+      {/* Decorative Background Elements */}
+      <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '500px', height: '500px', background: 'radial-gradient(circle, rgba(72,169,254,0.2) 0%, rgba(0,0,0,0) 70%)', borderRadius: '50%' }}></div>
+      <div style={{ position: 'absolute', bottom: '-10%', right: '-10%', width: '600px', height: '600px', background: 'radial-gradient(circle, rgba(40,167,69,0.15) 0%, rgba(0,0,0,0) 70%)', borderRadius: '50%' }}></div>
+
+      {/* Main Card */}
       <div style={{ 
-        background: 'white', 
-        padding: '40px 50px', 
-        borderRadius: '12px', 
-        boxShadow: '0 8px 30px rgba(0,0,0,0.08)', 
+        background: 'rgba(255, 255, 255, 0.95)', 
+        backdropFilter: 'blur(20px)',
+        padding: '50px 40px', 
+        borderRadius: '24px', 
+        boxShadow: '0 20px 60px rgba(0,0,0,0.4)', 
         width: '100%', 
-        maxWidth: '360px', 
-        textAlign: 'center' 
+        maxWidth: '400px', 
+        textAlign: 'center',
+        position: 'relative',
+        zIndex: 10,
+        border: '1px solid rgba(255,255,255,0.2)'
       }}>
-        {/* LOGO ICON */}
+        
+        {/* Animated Logo Container */}
         <div style={{ 
-          background: 'linear-gradient(135deg, #007bff, #0056b3)', 
-          width: '60px', 
-          height: '60px', 
-          borderRadius: '12px', // Square-ish rounded
+          width: '80px', 
+          height: '80px', 
+          background: 'linear-gradient(135deg, #007bff, #00d2ff)', 
+          borderRadius: '20px', 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'center', 
-          margin: '0 auto 20px auto',
-          boxShadow: '0 4px 10px rgba(0,123,255,0.2)'
+          margin: '0 auto 30px auto',
+          boxShadow: '0 10px 20px rgba(0,123,255,0.3)',
+          transform: loading ? 'scale(0.95)' : 'scale(1)',
+          transition: 'transform 0.3s ease'
         }}>
-          <Lock size={28} color="white" />
+          {loading ? (
+             <div style={{ width: '30px', height: '30px', border: '3px solid rgba(255,255,255,0.3)', borderTop: '3px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          ) : (
+             <ShieldCheck size={40} color="white" strokeWidth={1.5} />
+          )}
         </div>
         
-        <h2 style={{ margin: '0 0 5px 0', color: '#333', fontSize: '22px', fontWeight: '700' }}>Dhamma Seva</h2>
-        <p style={{ margin: '0 0 30px 0', color: '#888', fontSize: '13px' }}>Please sign in to continue</p>
+        <h2 style={{ margin: '0', color: '#1e293b', fontSize: '28px', fontWeight: '800', letterSpacing: '-0.5px' }}>Dhamma Nagajjuna 2</h2>
+        <p style={{ margin: '8px 0 30px 0', color: '#64748b', fontSize: '14px', fontWeight: '500' }}>Secure Registration Access</p>
         
-        {/* ERROR MESSAGE */}
         {error && (
           <div style={{ 
             background: '#fee2e2', 
-            color: '#b91c1c', 
-            padding: '10px', 
-            borderRadius: '6px', 
-            fontSize: '12px', 
-            marginBottom: '20px',
-            border: '1px solid #fca5a5'
+            color: '#ef4444', 
+            padding: '12px', 
+            borderRadius: '12px', 
+            fontSize: '13px', 
+            fontWeight: '600',
+            marginBottom: '25px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            animation: 'shake 0.4s cubic-bezier(.36,.07,.19,.97) both'
           }}>
-            {error}
+            <AlertTriangle size={16} /> {error}
           </div>
         )}
 
-        {/* LOGIN FORM */}
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          <div style={{ position: 'relative' }}>
-            <User size={16} color="#aaa" style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)' }} />
-            <input 
-              placeholder="Username" 
-              value={creds.username} 
-              onChange={e => setCreds({...creds, username: e.target.value})} 
-              style={{ 
-                width: '100%', 
-                padding: '12px 12px 12px 40px', 
-                borderRadius: '8px', 
-                border: '1px solid #ddd', 
-                fontSize: '14px', 
-                outline: 'none', 
-                boxSizing: 'border-box',
-                transition: 'border 0.2s',
-                ':focus': { borderColor: '#007bff' }
-              }} 
-              autoFocus 
-            />
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Username Input */}
+          <div style={{ position: 'relative', textAlign: 'left' }}>
+            <label style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginLeft: '5px', marginBottom: '5px', display: 'block' }}>Username</label>
+            <div style={{ position: 'relative' }}>
+                <User size={20} color={focused === 'user' ? '#007bff' : '#cbd5e1'} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', transition: 'color 0.3s' }} />
+                <input 
+                  placeholder="Enter ID" 
+                  value={creds.username} 
+                  onChange={e => setCreds({...creds, username: e.target.value})} 
+                  onFocus={() => setFocused('user')}
+                  onBlur={() => setFocused(null)}
+                  style={{ 
+                    width: '100%', 
+                    padding: '16px 16px 16px 50px', 
+                    borderRadius: '12px', 
+                    border: focused === 'user' ? '2px solid #007bff' : '2px solid #f1f5f9', 
+                    background: '#f8fafc',
+                    fontSize: '15px', 
+                    fontWeight: '600',
+                    color: '#334155',
+                    outline: 'none', 
+                    boxSizing: 'border-box',
+                    transition: 'all 0.2s ease'
+                  }} 
+                  autoFocus 
+                />
+            </div>
           </div>
           
-          <div style={{ position: 'relative' }}>
-            <Lock size={16} color="#aaa" style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)' }} />
-            <input 
-              type="password" 
-              placeholder="Password" 
-              value={creds.password} 
-              onChange={e => setCreds({...creds, password: e.target.value})} 
-              style={{ 
-                width: '100%', 
-                padding: '12px 12px 12px 40px', 
-                borderRadius: '8px', 
-                border: '1px solid #ddd', 
-                fontSize: '14px', 
-                outline: 'none', 
-                boxSizing: 'border-box'
-              }} 
-            />
+          {/* Password Input */}
+          <div style={{ position: 'relative', textAlign: 'left' }}>
+            <label style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginLeft: '5px', marginBottom: '5px', display: 'block' }}>Password</label>
+            <div style={{ position: 'relative' }}>
+                <Lock size={20} color={focused === 'pass' ? '#007bff' : '#cbd5e1'} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', transition: 'color 0.3s' }} />
+                <input 
+                  type="password" 
+                  placeholder="••••••••" 
+                  value={creds.password} 
+                  onChange={e => setCreds({...creds, password: e.target.value})} 
+                  onFocus={() => setFocused('pass')}
+                  onBlur={() => setFocused(null)}
+                  style={{ 
+                    width: '100%', 
+                    padding: '16px 16px 16px 50px', 
+                    borderRadius: '12px', 
+                    border: focused === 'pass' ? '2px solid #007bff' : '2px solid #f1f5f9', 
+                    background: '#f8fafc',
+                    fontSize: '15px', 
+                    fontWeight: '600',
+                    color: '#334155',
+                    outline: 'none', 
+                    boxSizing: 'border-box',
+                    transition: 'all 0.2s ease'
+                  }} 
+                />
+            </div>
           </div>
 
           <button 
@@ -132,27 +175,43 @@ export default function Login({ onLogin }) {
             disabled={loading}
             style={{ 
               width: '100%', 
-              justifyContent: 'center', 
-              padding: '12px', 
-              background: loading ? '#ccc' : '#007bff', 
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              padding: '16px', 
+              background: loading ? '#94a3b8' : 'linear-gradient(135deg, #007bff 0%, #0062cc 100%)', 
               color: 'white', 
-              fontSize: '14px', 
-              fontWeight: '600',
-              borderRadius: '8px',
+              fontSize: '16px', 
+              fontWeight: '700',
+              borderRadius: '12px',
               border: 'none',
               marginTop: '10px',
-              cursor: loading ? 'wait' : 'pointer',
-              transition: 'background 0.2s'
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'transform 0.1s, box-shadow 0.2s',
+              boxShadow: '0 4px 15px rgba(0,123,255,0.3)'
             }}
+            onMouseEnter={(e) => !loading && (e.currentTarget.style.transform = 'translateY(-2px)')}
+            onMouseLeave={(e) => !loading && (e.currentTarget.style.transform = 'translateY(0)')}
           >
-            {loading ? 'Verifying...' : 'LOGIN'}
+            {loading ? 'Authenticating...' : 'Sign In'}
+            {!loading && <ArrowRight size={20} />}
           </button>
         </form>
         
-        <div style={{ marginTop: '30px', fontSize: '11px', color: '#bbb' }}>
-          Restricted Access System
+        <div style={{ marginTop: '30px', fontSize: '12px', color: '#94a3b8', fontWeight: '500' }}>
+          Restricted System • Bhavatu Sabba Mangalam
         </div>
       </div>
+
+      <style>{`
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
+      `}</style>
     </div>
   );
 }
+
+// Icon helper since AlertTriangle isn't imported from main but used in error
+const AlertTriangle = ({ size }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.
