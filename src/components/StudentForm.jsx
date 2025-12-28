@@ -8,7 +8,7 @@ import { API_URL, LANGUAGES, styles } from '../config';
 
 const NUMBER_OPTIONS = Array.from({ length: 200 }, (_, i) => String(i + 1));
 
-// ✅ Helper: Extract Suffix (e.g. "45-Day" -> "-45D")
+// Helper: Extract Suffix (e.g. "45-Day" -> "-45D")
 const getCourseSuffix = (courseName) => {
     if (!courseName) return '';
     const nameUpper = courseName.toUpperCase();
@@ -253,7 +253,8 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const searchResults = participants.filter(p => {
       if (!searchTerm) return false;
-      if (p.status === 'Attending' || p.status === 'Cancelled') return false; 
+      // ✅ FIX: Removed check for 'Cancelled' so they appear in search
+      if (p.status === 'Attending') return false; 
       const term = searchTerm.toLowerCase();
       return p.full_name.toLowerCase().includes(term) || (p.conf_no || '').toLowerCase().includes(term);
   });
@@ -288,7 +289,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                                   <input ref={searchInputRef} style={{...styles.input, padding:'8px 8px 8px 32px', fontSize:'14px'}} placeholder="Name / ID..." value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setIsSearching(true); }} disabled={!formData.courseId} onFocus={() => setIsSearching(true)}/>
                                   {searchTerm && (<button type="button" onClick={()=>{setSearchTerm(''); setSelectedStudent(null);}} style={{position:'absolute', right:'10px', background:'none', border:'none', cursor:'pointer', color:'#999'}}><X size={14}/></button>)}
                               </div>
-                              {isSearching && searchTerm && (<div style={{position:'absolute', top:'105%', left:0, right:0, background:'white', border:'1px solid #eee', borderRadius:'8px', boxShadow:'0 5px 15px rgba(0,0,0,0.1)', zIndex:100, maxHeight:'250px', overflowY:'auto'}}>{searchResults.length === 0 ? <div style={{padding:'10px', color:'#999', textAlign:'center', fontSize:'12px'}}>No matches.</div> : searchResults.map(p => (<div key={p.participant_id} onClick={() => selectStudent(p)} style={{padding:'8px 12px', borderBottom:'1px solid #f9f9f9', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'13px', ':hover': {background: '#f8f9fa'}}} onMouseEnter={(e) => e.currentTarget.style.background = '#f0f7ff'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}><div><div style={{fontWeight:'bold', color:'#333'}}>{p.full_name}</div><div style={{fontSize:'11px', color:'#777'}}>{p.conf_no} • {p.gender}</div></div><div style={{background:'#eee', padding:'2px 6px', borderRadius:'8px', fontSize:'10px', fontWeight:'bold'}}>{p.age}</div></div>))}</div>)}
+                              {isSearching && searchTerm && (<div style={{position:'absolute', top:'105%', left:0, right:0, background:'white', border:'1px solid #eee', borderRadius:'8px', boxShadow:'0 5px 15px rgba(0,0,0,0.1)', zIndex:100, maxHeight:'250px', overflowY:'auto'}}>{searchResults.length === 0 ? <div style={{padding:'10px', color:'#999', textAlign:'center', fontSize:'12px'}}>No matches.</div> : searchResults.map(p => (<div key={p.participant_id} onClick={() => selectStudent(p)} style={{padding:'8px 12px', borderBottom:'1px solid #f9f9f9', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'13px', ':hover': {background: '#f8f9fa'}}} onMouseEnter={(e) => e.currentTarget.style.background = '#f0f7ff'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}><div><div style={{fontWeight:'bold', color:'#333'}}>{p.full_name}</div><div style={{fontSize:'11px', color:'#777'}}>{p.conf_no} • {p.gender}</div></div><div style={{background: p.status === 'Cancelled' ? '#ffebee' : '#eee', color: p.status === 'Cancelled' ? '#c62828' : '#333', padding:'2px 6px', borderRadius:'8px', fontSize:'10px', fontWeight:'bold'}}>{p.status}</div></div>))}</div>)}
                           </div>
                       </div>
                   </div>
@@ -329,7 +330,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                                       <button type="button" onClick={() => setShowVisualDining(true)} style={{...styles.input, textAlign:'left', padding:'8px', fontSize:'13px', flex:1, background: formData.seatNo ? '#e3f2fd' : 'white', color: formData.seatNo ? '#0d47a1' : '#555', fontWeight: formData.seatNo ? 'bold' : 'normal', cursor:'pointer'}}>{formData.seatNo || "Seat"}</button>
                                   </div>
                                   
-                                  {/* ✅ ADDED LABELS FOR LOCKERS */}
+                                  {/* LABELS FOR LOCKERS */}
                                   <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'5px'}}>
                                       <div>
                                           <label style={{fontSize:'10px', fontWeight:'bold', color:'#777', display:'block', marginBottom:'2px'}}>Mobile</label>
