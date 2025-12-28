@@ -79,8 +79,8 @@ export default function GateReception({ courses, refreshCourses }) {
   // --- 3. FILTERING & SORTING ---
   const processedList = useMemo(() => {
       let data = participants.filter(p => {
-          // ✅ ROBUST CHECK: Look for 'mobile' OR 'phone' OR 'Phone'
-          const mobile = p.mobile || p.phone || p.Phone || p.contact_number || '';
+          // ✅ CORRECT FIELD: 'phone_number'
+          const mobile = p.phone_number || '';
           
           const searchLower = searchQuery.toLowerCase();
           const matchesSearch = 
@@ -105,11 +105,9 @@ export default function GateReception({ courses, refreshCourses }) {
               let aValue = '';
               let bValue = '';
 
-              if (sortConfig.key === 'mobile') {
-                  aValue = a.mobile || a.phone || a.Phone || '';
-                  bValue = b.mobile || b.phone || b.Phone || '';
-                  aValue = aValue.replace(/\D/g, '');
-                  bValue = bValue.replace(/\D/g, '');
+              if (sortConfig.key === 'phone_number') {
+                  aValue = (a.phone_number || '').replace(/\D/g, '');
+                  bValue = (b.phone_number || '').replace(/\D/g, '');
               } else {
                   aValue = a[sortConfig.key] || '';
                   bValue = b[sortConfig.key] || '';
@@ -211,7 +209,7 @@ export default function GateReception({ courses, refreshCourses }) {
 
       {selectedCourseId ? (
           <>
-              {/* STICKY STATS */}
+              {/* STATS PANEL */}
               <div className="stats-panel" style={{
                   position: 'sticky', top: 0, zIndex: 100, 
                   background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(5px)',
@@ -282,8 +280,8 @@ export default function GateReception({ courses, refreshCourses }) {
                           <tr>
                               <th onClick={() => handleSort('status')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Status <SortIcon column="status"/></th>
                               <th onClick={() => handleSort('full_name')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Name / ID <SortIcon column="full_name"/></th>
-                              {/* ✅ UPDATED HEADER */}
-                              <th onClick={() => handleSort('mobile')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Contact <SortIcon column="mobile"/></th>
+                              {/* ✅ SORT BY PHONE_NUMBER */}
+                              <th onClick={() => handleSort('phone_number')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Contact <SortIcon column="phone_number"/></th>
                               <th onClick={() => handleSort('gender')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Gender <SortIcon column="gender"/></th>
                               <th style={{textAlign:'right', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase'}}>Action</th>
                           </tr>
@@ -292,15 +290,15 @@ export default function GateReception({ courses, refreshCourses }) {
                           {processedList.map(p => {
                               const isCheckedIn = p.status === 'Gate Check-In' || p.status === 'Attending';
                               const isCancelled = p.status === 'Cancelled' || p.status === 'No-Show';
-                              // ✅ ROBUST CHECK: Look for 'mobile' or 'phone' or 'Phone'
-                              const phoneNum = p.mobile || p.phone || p.Phone || '';
+                              // ✅ USE CORRECT FIELD
+                              const phoneNum = p.phone_number || '';
 
                               return (
                                   <tr key={p.participant_id} style={{borderBottom:'1px solid #f0f0f0', background: isCheckedIn ? '#f0fff4' : (isCancelled ? '#fff5f5' : 'white')}}>
                                       <td style={{padding:'12px'}}>{isCheckedIn ? <span style={{color:'green', fontWeight:'bold', fontSize:'12px'}}>Arrived</span> : isCancelled ? <span style={{color:'red', fontWeight:'bold', fontSize:'12px'}}>🚫 Cancelled</span> : <span style={{color:'orange', fontWeight:'bold', fontSize:'12px'}}>Pending</span>}</td>
                                       <td style={{padding:'12px'}}><div style={{fontWeight:'bold', fontSize:'14px', color:'#333'}}>{p.full_name}</div><div style={{fontSize:'11px', color:'#888'}}>{p.conf_no || '-'}</div></td>
                                       
-                                      {/* ✅ PHONE CELL */}
+                                      {/* ✅ DISPLAY PHONE NUMBER */}
                                       <td style={{padding:'12px'}}>
                                           {phoneNum ? (
                                               <a href={`tel:${phoneNum}`} style={{textDecoration:'none', color:'#007bff', fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px', fontSize:'13px'}}>
