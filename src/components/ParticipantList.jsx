@@ -3,7 +3,6 @@ import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Min
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
-// ✅ Import the new Print Engine
 import { printStudentToken, printList } from '../utils/printGenerator';
 
 // --- 1. DATA HELPERS ---
@@ -61,7 +60,7 @@ const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, 
         return g; 
     };
 
-    // Helper for visual print of the grid (cannot use printGenerator for this complex layout)
+    // Helper for visual print of the grid
     const printVisualGrid = () => {
         const css = `@media print { @page { size: A3 landscape; margin: 5mm; } html, body { height: 100%; margin: 0; padding: 0; } body * { visibility: hidden; } #${id}, #${id} * { visibility: visible; } #${id} { position: fixed; left: 0; top: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; transform: scale(0.9); transform-origin: center top; } .no-print { display: none !important; } .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } .seat-box { border-right: 2px solid black; border-bottom: 2px solid black; } }`;
         const style = document.createElement('style');
@@ -129,6 +128,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       if (courseId) {
           fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : []));
           try {
+              // ✅ LOAD SPECIFIC COURSE CONFIG
               const savedLayout = localStorage.getItem(`layout_${courseId}`);
               if(savedLayout) {
                   const parsed = JSON.parse(savedLayout);
@@ -166,52 +166,40 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const sortParticipants = (list, key, dir) => { return [...list].sort((a, b) => { let valA = a[key] || ''; let valB = b[key] || ''; if (key === 'category') { valA = getCategory(a.conf_no); valB = getCategory(b.conf_no); } if (key === 'dining_seat_no' || key === 'pagoda_cell_no') { return dir === 'asc' ? String(valA).localeCompare(String(valB), undefined, { numeric: true }) : String(valB).localeCompare(String(valA), undefined, { numeric: true }); } if (valA < valB) return dir === 'asc' ? -1 : 1; if (valA > valB) return dir === 'asc' ? 1 : -1; return 0; }); };
 
   // --- PRINTING ACTIONS ---
-  
-  // ✅ 1. Single Token
   const handleSingleToken = (student) => { 
       if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first."); 
       const cName = courses.find(c => c.course_id == student.course_id)?.course_name || '';
       printStudentToken(student, cName); 
   };
 
-  // ✅ 2. Bulk Tokens
   const handleBulkPrint = (filter) => { 
       let valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
       if (filter === 'Male') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('m')); 
       if (filter === 'Female') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('f')); 
-      
       if (valid.length === 0) return alert("No students found."); 
-      
       const sortedStudents = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true}));
-      
-      // We loop the printStudentToken functionality into a single stream for the utility
-      // NOTE: For true bulk printing, sending 50 jobs is bad. 
-      // Ideally, update 'printGenerator.js' to accept an array.
-      // For now, we iterate safely with a small delay to prevent browser locking
       let i = 0;
       const printNext = () => {
-          if (i >= sortedStudents.length) {
-              alert("Bulk Print Sent!");
-              return;
-          }
+          if (i >= sortedStudents.length) { alert("Bulk Print Sent!"); return; }
           const cName = courses.find(c => c.course_id == sortedStudents[i].course_id)?.course_name || '';
           printStudentToken(sortedStudents[i], cName);
           i++;
-          setTimeout(printNext, 500); // 0.5s delay between tickets
+          setTimeout(printNext, 500); 
       };
-      
-      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens?\nMake sure your thermal printer is ready.`)) {
-          printNext();
-      }
+      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens?\nMake sure your thermal printer is ready.`)) { printNext(); }
   };
 
-  // ✅ 3. Lists (Dining / Pagoda)
   const handlePrintList = (list, title) => {
       const cName = courses.find(c => c.course_id == courseId)?.course_name || 'Course List';
       printList(title, list, cName);
   };
 
-  const saveLayoutConfig = () => { localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig)); alert("✅ Layout Configuration Saved!"); };
+  const saveLayoutConfig = () => { 
+      // ✅ ISOLATED SAVE: Saves only for current course ID
+      localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig)); 
+      alert("✅ Layout Configuration Saved for this course!"); 
+  };
+
   const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(editingStudent) }); setEditingStudent(null); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); };
   const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
   const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
@@ -274,6 +262,11 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       if (!window.confirm("⚠️ This will overwrite unlocked seats based on Seniority Logic. Continue?")) return;
       setIsAssigning(true);
       setShowAutoAssignModal(false);
+      
+      // ✅ CRITICAL: AUTO-SAVE CONFIG BEFORE RUNNING
+      // This ensures the layout is locked to this courseID and won't revert or affect others
+      localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig));
+
       try {
           const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
           const allP = await res.json();
@@ -302,7 +295,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
           if (allUpdates.length === 0) { alert("✅ No new assignments needed."); setIsAssigning(false); return; }
           const BATCH_SIZE = 5;
           for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) { await Promise.all(allUpdates.slice(i, i + BATCH_SIZE).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }))); }
-          alert(`✅ Assigned seats to ${allUpdates.length} students.`);
+          alert(`✅ Assigned seats to ${allUpdates.length} students.\nConfig Auto-Saved.`);
           const finalRes = await fetch(`${API_URL}/courses/${courseId}/participants`);
           setParticipants(await finalRes.json());
       } catch (err) { console.error(err); alert("❌ Error during auto-assign."); }
@@ -402,6 +395,10 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
               </div> 
               {showPrintSettings && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:3000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'300px'}}><h3>🖨️ Print Settings</h3><div style={{marginBottom:'15px'}}><label style={styles.label}>Paper Size</label><select style={styles.input} value={printConfig.paper} onChange={e=>setPrintConfig({...printConfig, paper:e.target.value})}><option>A4</option><option>A3</option><option>Letter</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Orientation</label><select style={styles.input} value={printConfig.orientation} onChange={e=>setPrintConfig({...printConfig, orientation:e.target.value})}><option>landscape</option><option>portrait</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Scale (Zoom)</label><input type="range" min="0.5" max="1.5" step="0.1" value={printConfig.scale} onChange={e=>setPrintConfig({...printConfig, scale:e.target.value})} style={{width:'100%'}}/><div style={{textAlign:'center', fontSize:'12px'}}>{Math.round(printConfig.scale*100)}%</div></div><div style={{textAlign:'right'}}><button onClick={()=>setShowPrintSettings(false)} style={styles.btn(true)}>Done</button></div></div></div>)} 
               {showAutoAssignModal && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'600px', maxHeight:'90vh', overflowY:'auto'}}><h3>🛠️ Auto-Assign Configuration</h3>
+                  {/* ✅ HEADER TO SHOW WHICH COURSE IS BEING CONFIGURED */}
+                  <div style={{marginBottom:'15px', color:'#555', fontSize:'14px', fontStyle:'italic'}}>
+                      Configuring for: <strong>{courses.find(c=>c.course_id == courseId)?.course_name || 'Selected Course'}</strong>
+                  </div>
                   <div style={{background:'#f0f8ff', padding:'15px', borderRadius:'8px', marginBottom:'20px', border:'1px solid #cce5ff'}}>
                       <h4 style={{margin:'0 0 10px 0', fontSize:'14px', color:'#0056b3'}}>Requirements Overview (Live)</h4>
                       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
