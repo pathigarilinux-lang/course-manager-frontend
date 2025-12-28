@@ -4,19 +4,11 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import { API_URL, styles } from '../config';
 
 const COLORS = { 
-    // Bar & Pie Chart Colors
-    om: '#0d47a1', // Old Male (Dark Blue)
-    nm: '#64b5f6', // New Male (Light Blue)
-    sm: '#2e7d32', // Server Male (Green)
-    
-    of: '#880e4f', // Old Female (Dark Pink)
-    nf: '#f06292', // New Female (Light Pink)
-    sf: '#69f0ae', // Server Female (Light Green)
-
-    canM: '#b71c1c', // Cancelled Male (Dark Red)
-    canF: '#e57373', // Cancelled Female (Light Red)
-    
-    pending: '#e0e0e0' // Grey for Pending in Pie
+    om: '#0d47a1', nm: '#64b5f6', sm: '#2e7d32',
+    of: '#880e4f', nf: '#f06292', sf: '#69f0ae',
+    canM: '#b71c1c', canF: '#e57373',
+    arrivedOld: '#1976d2', arrivedNew: '#009688', arrivedSvr: '#ff9800',
+    pending: '#e0e0e0'
 };
 
 export default function GateReception({ courses, refreshCourses }) {
@@ -113,9 +105,8 @@ export default function GateReception({ courses, refreshCourses }) {
       return data;
   }, [participants, searchQuery, activeFilter, sortConfig]);
 
-  // --- 4. STATS LOGIC (ENHANCED) ---
+  // --- 4. STATS LOGIC (ENHANCED WITH GENDER TOTALS) ---
   const stats = useMemo(() => {
-      // Helper to check category
       const isM = (p) => (p.gender||'').startsWith('M');
       const isF = (p) => (p.gender||'').startsWith('F');
       const isOld = (p) => (p.conf_no||'').startsWith('O');
@@ -125,7 +116,11 @@ export default function GateReception({ courses, refreshCourses }) {
       const cancelledP = participants.filter(p => p.status === 'Cancelled' || p.status === 'No-Show');
       const activeP = participants.filter(p => p.status !== 'Cancelled' && p.status !== 'No-Show');
       
-      // A. Bar Chart: TOTAL BREAKDOWN (Including Cancelled)
+      // ✅ GENDER BREAKDOWN FOR EXPECTED TOTAL
+      const expMale = activeP.filter(isM).length;
+      const expFemale = activeP.filter(isF).length;
+
+      // A. Bar Chart: TOTAL BREAKDOWN
       const barData = [
           { name: 'Old (M)', value: activeP.filter(p => isM(p) && isOld(p)).length, fill: COLORS.om },
           { name: 'New (M)', value: activeP.filter(p => isM(p) && isNew(p)).length, fill: COLORS.nm },
@@ -133,28 +128,34 @@ export default function GateReception({ courses, refreshCourses }) {
           { name: 'Old (F)', value: activeP.filter(p => isF(p) && isOld(p)).length, fill: COLORS.of },
           { name: 'New (F)', value: activeP.filter(p => isF(p) && isNew(p)).length, fill: COLORS.nf },
           { name: 'Svr (F)', value: activeP.filter(p => isF(p) && isSvr(p)).length, fill: COLORS.sf },
-          // ✅ ADDED CANCELLED DATA TO BAR
           { name: 'Can (M)', value: cancelledP.filter(p => isM(p)).length, fill: COLORS.canM },
           { name: 'Can (F)', value: cancelledP.filter(p => isF(p)).length, fill: COLORS.canF },
       ].filter(d => d.value > 0);
 
-      // B. Pie Chart: ARRIVAL BREAKDOWN (Detailed)
+      // ✅ GENDER BREAKDOWN FOR ARRIVED
       const arrivedP = activeP.filter(p => p.status === 'Gate Check-In' || p.status === 'Attending');
+      const arrMale = arrivedP.filter(isM).length;
+      const arrFemale = arrivedP.filter(isF).length;
       const pendingCount = activeP.length - arrivedP.length;
 
+      // B. Pie Chart: ARRIVAL BREAKDOWN
       const pieData = [
           { name: 'Old Male', value: arrivedP.filter(p => isM(p) && isOld(p)).length, color: COLORS.om },
           { name: 'New Male', value: arrivedP.filter(p => isM(p) && isNew(p)).length, color: COLORS.nm },
           { name: 'Svr Male', value: arrivedP.filter(p => isM(p) && isSvr(p)).length, color: COLORS.sm },
-          
           { name: 'Old Female', value: arrivedP.filter(p => isF(p) && isOld(p)).length, color: COLORS.of },
           { name: 'New Female', value: arrivedP.filter(p => isF(p) && isNew(p)).length, color: COLORS.nf },
           { name: 'Svr Female', value: arrivedP.filter(p => isF(p) && isSvr(p)).length, color: COLORS.sf },
-          
           { name: 'Pending', value: pendingCount, color: COLORS.pending }
       ].filter(d => d.value > 0);
 
-      return { barData, pieData, total: participants.length, arrived: arrivedP.length };
+      return { 
+          barData, pieData, 
+          total: activeP.length, 
+          expMale, expFemale, // Totals
+          arrived: arrivedP.length,
+          arrMale, arrFemale  // Arrived Totals
+      };
   }, [participants]);
 
   const SortIcon = ({ column }) => {
@@ -187,8 +188,9 @@ export default function GateReception({ courses, refreshCourses }) {
               }}>
                   {/* BAR CHART: Expected Total (Breakdown with Cancelled) */}
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'10px', display:'flex', flexDirection:'column'}}>
-                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#555', textTransform:'uppercase', marginBottom:'5px', display:'flex', justifyContent:'space-between'}}>
-                          <span>Total Registered</span><span style={{fontSize:'14px', color:'#007bff'}}>{stats.total}</span>
+                      <div style={{fontSize:'11px', fontWeight:'bold', color:'#555', textTransform:'uppercase', marginBottom:'5px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                          <div>Expected <span style={{fontSize:'10px', color:'#888'}}>(M: <b style={{color:'#007bff'}}>{stats.expMale}</b> | F: <b style={{color:'#e91e63'}}>{stats.expFemale}</b>)</span></div>
+                          <span style={{fontSize:'16px', color:'#333', fontWeight:'900'}}>{stats.total}</span>
                       </div>
                       <div style={{flex:1, minHeight:'100px'}}>
                           <ResponsiveContainer width="100%" height="100%">
@@ -204,7 +206,8 @@ export default function GateReception({ courses, refreshCourses }) {
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'10px', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
                       <div>
                           <div style={{fontSize:'11px', fontWeight:'bold', color:'#2e7d32', textTransform:'uppercase'}}>Arrived</div>
-                          <div style={{fontSize:'24px', fontWeight:'900', color:'#333'}}>{stats.arrived}</div>
+                          <div style={{fontSize:'24px', fontWeight:'900', color:'#333', lineHeight:'1'}}>{stats.arrived}</div>
+                          <div style={{fontSize:'10px', color:'#666', marginTop:'4px'}}>M: <b style={{color:'#007bff'}}>{stats.arrMale}</b> | F: <b style={{color:'#e91e63'}}>{stats.arrFemale}</b></div>
                       </div>
                       <div style={{width:'120px', height:'100px'}}>
                           <ResponsiveContainer>
