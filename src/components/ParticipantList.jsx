@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, ArrowUp, ArrowDown, Tag, Armchair, Download } from 'lucide-react';
+import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, Tag, Download, Database } from 'lucide-react';
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
@@ -41,7 +41,87 @@ const printCurrentView = (cssStyles) => {
     document.head.removeChild(style);
 };
 
-export default function ParticipantList({ courses, refreshCourses, userRole }) { // ✅ Accept userRole
+// --- 3. SUB-COMPONENTS (Moved outside to prevent re-render bugs) ---
+
+const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
+    const shouldShow = p && (p.gender||'').toLowerCase().startsWith(gender.toLowerCase().charAt(0));
+    const displayP = shouldShow ? p : null;
+    const stats = getStudentStats(displayP); 
+    const isSel = selectedSeat?.label === id;
+    return (
+        <div key={id} onClick={()=>handleSeatClick(id, displayP, gender)} className="seat-box" style={{ border: '2px solid black', background: displayP ? (isSel ? '#ffeb3b' : 'white') : 'white', width: '130px', height: '95px', fontSize: '10px', overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', boxSizing: 'border-box' }}>
+            <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px', background: isSel?'#fdd835':'white', borderBottom:'1px solid black'}}>
+                <span>{id}</span><span style={{fontSize:'12px'}}>{displayP?.room_no || ''}</span>
+            </div>
+            {displayP && (
+                <div style={{textAlign:'center', padding:'0 2px'}}>
+                    <div style={{fontSize:'10px', fontWeight:'bold', textAlign:'right', marginBottom:'2px', color:'#0d47a1'}}>P:{displayP.pagoda_cell_no || '-'}</div>
+                    <div style={{fontWeight:'900', fontSize:'12px', lineHeight:'1.1', textTransform:'uppercase'}}>{displayP.full_name}</div>
+                </div>
+            )}
+            {displayP ? (
+                <div style={{fontSize:'10px', padding:'2px 5px', fontWeight:'bold', whiteSpace:'nowrap', display:'flex', justifyContent:'space-between', borderTop:'1px solid black', background:'white'}}>
+                    <span>{stats.cat}</span><span>S:{stats.s} L:{stats.l}</span><span>Age:({stats.age})</span>
+                </div>
+            ) : ( <div style={{flex:1}}></div> )}
+            {displayP && displayP.is_seat_locked && <div style={{position:'absolute', bottom:'25px', left:'2px', fontSize:'10px'}}>🔒</div>}
+        </div>
+    );
+};
+
+const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, setSpecCols, gender, selectedSeat, handleSeatClick, courseId, courses, participants, seatingConfig }) => {
+    const courseObj = courses.find(c=>c.course_id==courseId);
+    const dateRange = courseObj ? `${new Date(courseObj.start_date).toLocaleDateString()} to ${new Date(courseObj.end_date).toLocaleDateString()}` : '';
+    const genderKey = gender.toLowerCase().charAt(0);
+    const studentsOnSide = participants.filter(p => p.status === 'Attending' && (p.gender||'').toLowerCase().startsWith(genderKey));
+    const oldCnt = studentsOnSide.filter(p => getCategory(p.conf_no)==='OLD').length;
+    const newCnt = studentsOnSide.filter(p => getCategory(p.conf_no)==='NEW').length;
+
+    // Grid Renderer
+    const renderGrid = () => { 
+        let g=[]; 
+        for(let r=rows; r>=1; r--) { 
+            let cells = orderedCols.map((c, idx) => {
+               if(c === 'GAP') return <div key={`gap-${r}-${idx}`} style={{width:'30px', writingMode:'vertical-rl', fontSize:'9px', color:'#ccc', display:'flex', alignItems:'center', justifyContent:'center'}}>{r===Math.ceil(rows/2) && "PATHWAY"}</div>;
+               return renderCell(c+r, map[c+r], gender, selectedSeat, handleSeatClick);
+            });
+            g.push(<div key={r} style={{display:'flex', alignItems:'center'}}>{cells}</div>); 
+        } 
+        return g; 
+    };
+
+    return (
+        <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto', fontFamily:'Arial, sans-serif'}}> 
+            <div className="no-print" style={{textAlign:'right', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8f9fa', padding:'10px', borderRadius:'8px'}}> 
+                <div style={{display:'flex', gap:'5px', alignItems:'center'}}> 
+                    <button onClick={()=>setRows(rows+1)} style={styles.quickBtn(false)}><Plus size={12}/> Row</button>
+                    <button onClick={()=>setRows(Math.max(1, rows-1))} style={styles.quickBtn(false)}><Minus size={12}/> Row</button>
+                    <span style={{margin:'0 10px', color:'#ccc'}}>|</span>
+                    <span style={{fontSize:'12px', fontWeight:'bold'}}>Std:</span>
+                    <button onClick={()=>setRegCols(gender==='Male'?seatingConfig.mCols+1:seatingConfig.fCols+1)} style={styles.quickBtn(false)}><Plus size={12}/></button>
+                    <button onClick={()=>setRegCols(Math.max(1, gender==='Male'?seatingConfig.mCols-1:seatingConfig.fCols-1))} style={styles.quickBtn(false)}><Minus size={12}/></button>
+                    <span style={{margin:'0 10px', color:'#ccc'}}>|</span>
+                    <span style={{fontSize:'12px', fontWeight:'bold'}}>Chowky:</span>
+                    <button onClick={()=>setSpecCols(gender==='Male'?seatingConfig.mChowky+1:seatingConfig.fChowky+1)} style={styles.quickBtn(false)}><Plus size={12}/></button>
+                    <button onClick={()=>setSpecCols(Math.max(1, gender==='Male'?seatingConfig.mChowky-1:seatingConfig.fChowky-1))} style={styles.quickBtn(false)}><Minus size={12}/></button>
+                </div> 
+                <div style={{display:'flex', gap:'10px'}}> 
+                    <button onClick={()=>printCurrentView(`@media print { @page { size: A3 landscape; margin: 5mm; } html, body { height: 100%; margin: 0; padding: 0; } body * { visibility: hidden; } #${id}, #${id} * { visibility: visible; } #${id} { position: fixed; left: 0; top: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; transform: scale(0.9); transform-origin: center top; } .no-print { display: none !important; } .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } .seat-box { border-right: 2px solid black; border-bottom: 2px solid black; } }`)} style={styles.quickBtn(true)}>🖨️ Print</button> 
+                </div> 
+            </div> 
+            <div style={{textAlign:'center', marginBottom:'20px'}}> 
+                <h1 style={{margin:'0 0 5px 0', fontSize:'28px', fontWeight:'bold', textTransform:'uppercase'}}>SEATING PLAN - {title}</h1> 
+                <div style={{fontSize:'16px', fontWeight:'bold', color:'#333', marginBottom:'5px'}}>Old: {oldCnt} + New: {newCnt} = Total: {oldCnt + newCnt}</div>
+                <h3 style={{margin:0, fontSize:'16px', fontWeight:'bold'}}>30-DAY / {dateRange}</h3> 
+            </div> 
+            <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content', borderTop:'2px solid black', borderLeft:'2px solid black'}}> {renderGrid()} </div> </div> 
+            <div style={{display:'flex', justifyContent:'center', marginTop:'40px'}}> <div style={{textAlign:'center', width:'100%'}}> <div style={{border:'2px dashed black', padding:'15px', fontWeight:'900', fontSize:'32px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 auto', maxWidth:'600px', background:'white'}}>{gender.toUpperCase()} TEACHER</div></div> </div> 
+        </div> 
+    );
+};
+
+// --- MAIN COMPONENT ---
+export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
   const [search, setSearch] = useState(''); 
@@ -107,11 +187,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
 
   // --- ACTIONS ---
   
-  const printChart = (sectionId) => { 
-      const css = `@media print { @page { size: ${printConfig.paper} ${printConfig.orientation}; margin: 5mm; } html, body { height: 100%; margin: 0; padding: 0; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: fixed; left: 0; top: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; transform: scale(${printConfig.scale}); transform-origin: center top; } .no-print { display: none !important; } .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } .seat-box { border-right: 2px solid black; border-bottom: 2px solid black; } }`;
-      printCurrentView(css);
-  };
-
   const printA4List = (sectionId) => { 
       const css = `@media print { @page { size: A4 portrait; margin: 10mm; } html, body { margin: 0; padding: 0; background: white; } body * { visibility: hidden; } #${sectionId}, #${sectionId} * { visibility: visible; } #${sectionId} { position: absolute; left: 0; top: 0; width: 100%; box-sizing: border-box; border: 2px solid black !important; padding: 10px !important; margin: 0; } .no-print { display: none !important; } table { width: 100%; border-collapse: collapse; font-family: 'Helvetica', sans-serif; font-size: 10pt; margin-top: 10px; table-layout: fixed; } th, td { border: 1px solid black !important; padding: 6px; text-align: left; word-wrap: break-word; } th { background-color: #f0f0f0 !important; font-weight: bold; text-transform: uppercase; -webkit-print-color-adjust: exact; } h2, h3 { text-align: center; color: black !important; margin: 5px 0; } }`;
       printCurrentView(css);
@@ -141,32 +216,19 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); };
   const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
   
-  // EXCEL EXPORT (Single File, Two Sheets)
+  // EXCEL EXPORT
   const handleExport = () => { 
       if (participants.length === 0) return alert("No data to export.");
-      
       const courseObj = courses.find(c => String(c.course_id) === String(courseId));
       let courseName = courseObj ? courseObj.course_name.split('/')[0].trim().replace(/\s+/g, '-') : `Course-${courseId}`;
       const fileName = `${courseName}_Master-Data.xlsx`;
-
       const headers = ["Name", "Conf No", "Courses Info", "Age", "Gender", "Room", "Dining Seat", "Pagoda", "Dhamma Seat", "Status", "Mobile Locker", "Valuables Locker", "Laundry Token", "Language"];
       const getRows = (list) => list.map(p => [p.full_name, p.conf_no, p.courses_info, p.age, p.gender, p.room_no, p.dining_seat_no, p.pagoda_cell_no, p.dhamma_hall_seat_no, p.status, p.mobile_locker_no, p.valuables_locker_no, p.laundry_token_no, p.discourse_language]);
-
       const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
       const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
-
       const wb = XLSX.utils.book_new();
-      
-      if (males.length > 0) {
-          const ws = XLSX.utils.aoa_to_sheet([headers, ...getRows(males)]);
-          XLSX.utils.book_append_sheet(wb, ws, "Male");
-      }
-      if (females.length > 0) {
-          const ws = XLSX.utils.aoa_to_sheet([headers, ...getRows(females)]);
-          XLSX.utils.book_append_sheet(wb, ws, "Female");
-      }
-
-      if (wb.SheetNames.length === 0) return alert("No data found.");
+      if (males.length > 0) { const ws = XLSX.utils.aoa_to_sheet([headers, ...getRows(males)]); XLSX.utils.book_append_sheet(wb, ws, "Male"); }
+      if (females.length > 0) { const ws = XLSX.utils.aoa_to_sheet([headers, ...getRows(females)]); XLSX.utils.book_append_sheet(wb, ws, "Female"); }
       XLSX.writeFile(wb, fileName);
   };
 
@@ -253,86 +315,97 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const fSpec = generateChowkyLabels(seatingConfig.fCols, seatingConfig.fChowky);
   const fOrdered = [...fSpec.reverse(), 'GAP', ...fReg.reverse()];
 
-  const renderCell = (id, p, gender) => {
-      const shouldShow = p && (p.gender||'').toLowerCase().startsWith(gender.toLowerCase().charAt(0));
-      const displayP = shouldShow ? p : null;
-      const stats = getStudentStats(displayP); 
-      const isSel = selectedSeat?.label === id;
-      return (
-          <div key={id} onClick={()=>handleSeatClick(id, displayP, gender)} className="seat-box" style={{ border: '2px solid black', background: displayP ? (isSel ? '#ffeb3b' : 'white') : 'white', width: '130px', height: '95px', fontSize: '10px', overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', boxSizing: 'border-box' }}>
-              <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px', background: isSel?'#fdd835':'white', borderBottom:'1px solid black'}}>
-                  <span>{id}</span><span style={{fontSize:'12px'}}>{displayP?.room_no || ''}</span>
-              </div>
-              {displayP && (
-                  <div style={{textAlign:'center', padding:'0 2px'}}>
-                      <div style={{fontSize:'10px', fontWeight:'bold', textAlign:'right', marginBottom:'2px', color:'#0d47a1'}}>P:{displayP.pagoda_cell_no || '-'}</div>
-                      <div style={{fontWeight:'900', fontSize:'12px', lineHeight:'1.1', textTransform:'uppercase'}}>{displayP.full_name}</div>
-                  </div>
-              )}
-              {displayP ? (
-                  <div style={{fontSize:'10px', padding:'2px 5px', fontWeight:'bold', whiteSpace:'nowrap', display:'flex', justifyContent:'space-between', borderTop:'1px solid black', background:'white'}}>
-                      <span>{stats.cat}</span><span>S:{stats.s} L:{stats.l}</span><span>Age:({stats.age})</span>
-                  </div>
-              ) : ( <div style={{flex:1}}></div> )}
-              {displayP && displayP.is_seat_locked && <div style={{position:'absolute', bottom:'25px', left:'2px', fontSize:'10px'}}>🔒</div>}
-          </div>
-      );
-  };
-
-  const renderGrid = (map, orderedCols, rows, gender) => { 
-      let g=[]; 
-      for(let r=rows; r>=1; r--) { 
-          let cells = orderedCols.map((c, idx) => {
-             if(c === 'GAP') return <div key={`gap-${r}-${idx}`} style={{width:'30px', writingMode:'vertical-rl', fontSize:'9px', color:'#ccc', display:'flex', alignItems:'center', justifyContent:'center'}}>{r===Math.ceil(rows/2) && "PATHWAY"}</div>;
-             return renderCell(c+r, map[c+r], gender);
-          });
-          g.push(<div key={r} style={{display:'flex', alignItems:'center'}}>{cells}</div>); 
-      } 
-      return g; 
-  };
-
-  const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, setSpecCols, gender }) => {
-      const courseObj = courses.find(c=>c.course_id==courseId);
-      const dateRange = courseObj ? `${new Date(courseObj.start_date).toLocaleDateString()} to ${new Date(courseObj.end_date).toLocaleDateString()}` : '';
-      const genderKey = gender.toLowerCase().charAt(0);
-      const studentsOnSide = participants.filter(p => p.status === 'Attending' && (p.gender||'').toLowerCase().startsWith(genderKey));
-      const oldCnt = studentsOnSide.filter(p => getCategory(p.conf_no)==='OLD').length;
-      const newCnt = studentsOnSide.filter(p => getCategory(p.conf_no)==='NEW').length;
-      return (
-          <div id={id} style={{width:'100%', maxWidth:'1500px', margin:'0 auto', fontFamily:'Arial, sans-serif'}}> 
-              <div className="no-print" style={{textAlign:'right', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#f8f9fa', padding:'10px', borderRadius:'8px'}}> 
-                  <div style={{display:'flex', gap:'5px', alignItems:'center'}}> 
-                      <button onClick={()=>setRows(rows+1)} style={styles.quickBtn(false)}><Plus size={12}/> Row</button>
-                      <button onClick={()=>setRows(Math.max(1, rows-1))} style={styles.quickBtn(false)}><Minus size={12}/> Row</button>
-                      <span style={{margin:'0 10px', color:'#ccc'}}>|</span>
-                      <span style={{fontSize:'12px', fontWeight:'bold'}}>Std:</span>
-                      <button onClick={()=>setRegCols(gender==='Male'?seatingConfig.mCols+1:seatingConfig.fCols+1)} style={styles.quickBtn(false)}><Plus size={12}/></button>
-                      <button onClick={()=>setRegCols(Math.max(1, gender==='Male'?seatingConfig.mCols-1:seatingConfig.fCols-1))} style={styles.quickBtn(false)}><Minus size={12}/></button>
-                      <span style={{margin:'0 10px', color:'#ccc'}}>|</span>
-                      <span style={{fontSize:'12px', fontWeight:'bold'}}>Chowky:</span>
-                      <button onClick={()=>setSpecCols(gender==='Male'?seatingConfig.mChowky+1:seatingConfig.fChowky+1)} style={styles.quickBtn(false)}><Plus size={12}/></button>
-                      <button onClick={()=>setSpecCols(Math.max(1, gender==='Male'?seatingConfig.mChowky-1:seatingConfig.fChowky-1))} style={styles.quickBtn(false)}><Minus size={12}/></button>
-                  </div> 
-                  <div style={{display:'flex', gap:'10px'}}> 
-                      <button onClick={()=>setShowPrintSettings(true)} style={styles.toolBtn('#6c757d')}><Settings size={14}/> Print Settings</button> 
-                      <button onClick={()=>printChart(id)} style={styles.quickBtn(true)}>🖨️ Print</button> 
-                  </div> 
-              </div> 
-              <div style={{textAlign:'center', marginBottom:'20px'}}> 
-                  <h1 style={{margin:'0 0 5px 0', fontSize:'28px', fontWeight:'bold', textTransform:'uppercase'}}>SEATING PLAN - {title}</h1> 
-                  <div style={{fontSize:'16px', fontWeight:'bold', color:'#333', marginBottom:'5px'}}>Old: {oldCnt} + New: {newCnt} = Total: {oldCnt + newCnt}</div>
-                  <h3 style={{margin:0, fontSize:'16px', fontWeight:'bold'}}>30-DAY / {dateRange}</h3> 
-              </div> 
-              <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content', borderTop:'2px solid black', borderLeft:'2px solid black'}}> {renderGrid(map, orderedCols, rows, gender)} </div> </div> 
-              <div style={{display:'flex', justifyContent:'center', marginTop:'40px'}}> <div style={{textAlign:'center', width:'100%'}}> <div style={{border:'2px dashed black', padding:'15px', fontWeight:'900', fontSize:'32px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 auto', maxWidth:'600px', background:'white'}}>{gender.toUpperCase()} TEACHER</div></div> </div> 
-          </div> 
-      );
-  };
-
   if (showSummaryReport) {
       const arrived = participants.filter(p => p.status === 'Attending');
       const getCount = (gender, type) => arrived.filter(p => { const g = (p.gender || '').toLowerCase().startsWith(gender); const c = (p.conf_no || '').toUpperCase(); if (type === 'OLD') return g && (c.startsWith('O') || c.startsWith('S')); if (type === 'NEW') return g && c.startsWith('N'); return false; }).length;
       return ( <div style={styles.card}> <div className="no-print"><button onClick={() => setShowSummaryReport(false)} style={styles.btn(false)}>← Back</button><button onClick={() => window.print()} style={{...styles.toolBtn('#007bff'), marginLeft:'10px'}}>Print PDF</button></div> <div className="print-area" id="print-summary" style={{padding:'20px'}}> <h2 style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px'}}>COURSE SUMMARY REPORT</h2> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><div><strong>Centre Name:</strong> Dhamma Nagajjuna 2</div><div><strong>Course Date:</strong> {courses.find(c=>c.course_id==courseId)?.start_date}</div></div> <h3 style={{background:'#eee', padding:'5px'}}>COURSE DETAILS</h3> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', marginBottom:'20px'}}><thead><tr style={{background:'#f0f0f0'}}><th rowSpan="2" style={{padding:'10px',border:'1px solid black'}}>Category</th><th colSpan="2" style={{padding:'10px',border:'1px solid black'}}>INDIAN</th><th colSpan="2" style={{padding:'10px',border:'1px solid black'}}>FOREIGNER</th><th rowSpan="2" style={{padding:'10px',border:'1px solid black'}}>TOTAL</th></tr><tr style={{background:'#f0f0f0'}}><th style={{padding:'10px',border:'1px solid black'}}>OLD</th><th style={{padding:'10px',border:'1px solid black'}}>NEW</th><th style={{padding:'10px',border:'1px solid black'}}>OLD</th><th style={{padding:'10px',border:'1px solid black'}}>NEW</th></tr></thead><tbody><tr><td style={{padding:'10px',border:'1px solid black'}}>MALE</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'OLD')}</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'NEW')}</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}><strong>{getCount('m', 'OLD') + getCount('m', 'NEW')}</strong></td></tr><tr><td style={{padding:'10px',border:'1px solid black'}}>FEMALE</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('f', 'OLD')}</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('f', 'NEW')}</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}><strong>{getCount('f', 'OLD') + getCount('f', 'NEW')}</strong></td></tr><tr style={{background:'#f0f0f0', fontWeight:'bold'}}><td style={{padding:'10px',border:'1px solid black'}}>TOTAL</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'OLD') + getCount('f', 'OLD')}</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'NEW') + getCount('f', 'NEW')}</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>{arrived.length}</td></tr></tbody></table> </div> </div> );
+  }
+
+  // ✅ DINING VIEW (Restored)
+  if (viewMode === 'dining') { 
+      const arrived = participants.filter(p => p.status==='Attending'); 
+      const renderDiningTable = (list, title, color, sectionId) => {
+        const sortedList = sortParticipants(list, diningSort.key, diningSort.direction);
+        const handleSortClick = (key) => { const dir = (diningSort.key === key && diningSort.direction === 'asc') ? 'desc' : 'asc'; setDiningSort({ key, direction: dir }); };
+        return ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> <button onClick={() => printA4List(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title} (A4)</button> </div> <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Dining List</h2> <h3 style={{textAlign:'center', marginTop:0, marginBottom:'20px', color:'#555'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}> <thead> <tr style={{background:'#f0f0f0'}}> <th style={{padding:'10px', border:'1px solid black'}}>S.N.</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('dining_seat_no')}>SEAT {diningSort.key==='dining_seat_no' && (diningSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Name</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('category')}>CAT {diningSort.key==='category' && (diningSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Room</th> <th style={{padding:'10px', border:'1px solid black'}}>Pagoda</th> </tr> </thead> <tbody> {sortedList.map((p,i)=>( <tr key={p.participant_id}> <td style={{padding:'10px', border:'1px solid black'}}>{i+1}</td> <td style={{padding:'10px', border:'1px solid black', fontWeight:'bold'}}>{p.dining_seat_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.full_name}</td> <td style={{padding:'10px', border:'1px solid black'}}>{getCategory(p.conf_no)}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.room_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.pagoda_cell_no}</td> </tr> ))} </tbody> </table> </div> );
+      };
+      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <button onClick={handleDiningExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Dining CSV</button> </div> {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff", "pd-m")} {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63", "pd-f")} </div> ); 
+  }
+  
+  // ✅ PAGODA VIEW (Restored)
+  if (viewMode === 'pagoda') { 
+      const assigned = participants.filter(p => p.status==='Attending' && p.pagoda_cell_no); 
+      const renderPagodaTable = (list, title, color, sectionId) => {
+        const sortedList = sortParticipants(list, pagodaSort.key, pagodaSort.direction);
+        const handleSortClick = (key) => { const dir = (pagodaSort.key === key && pagodaSort.direction === 'asc') ? 'desc' : 'asc'; setPagodaSort({ key, direction: dir }); };
+        return ( <div id={sectionId} style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> <button onClick={() => printA4List(sectionId)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>Print {title} (A4)</button> </div> <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Pagoda Cell List</h2> <h3 style={{textAlign:'center', marginTop:0, marginBottom:'20px', color:'#555'}}>{courses.find(c=>c.course_id==courseId)?.course_name}</h3> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}> <thead> <tr style={{background:'#f0f0f0'}}> <th style={{padding:'10px', border:'1px solid black'}}>S.N.</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('pagoda_cell_no')}>CELL {pagodaSort.key==='pagoda_cell_no' && (pagodaSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Name</th> <th style={{padding:'10px', border:'1px solid black'}}>Cat</th> <th style={{padding:'10px', border:'1px solid black'}}>Room</th> <th style={{padding:'10px', border:'1px solid black'}}>Dining</th> </tr> </thead> <tbody> {sortedList.map((p,i)=>( <tr key={p.participant_id}> <td style={{padding:'10px', border:'1px solid black'}}>{i+1}</td> <td style={{padding:'10px', border:'1px solid black', fontWeight:'bold'}}>{p.pagoda_cell_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.full_name}</td> <td style={{padding:'10px', border:'1px solid black'}}>{getCategory(p.conf_no)}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.room_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.dining_seat_no}</td> </tr> ))} </tbody> </table> </div> );
+      };
+      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <button onClick={handlePagodaExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Pagoda CSV</button> </div> {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff", "pd-pm")} {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63", "pd-pf")} </div> ); 
+  }
+  
+  // ✅ SEATING VIEW (Restored & Fixed)
+  if (viewMode === 'seating') { 
+      const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.status!=='Cancelled'); 
+      const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.status!=='Cancelled'); 
+      const mM = {}; males.forEach(p=>mM[p.dhamma_hall_seat_no]=p); 
+      const fM = {}; females.forEach(p=>fM[p.dhamma_hall_seat_no]=p); 
+      
+      return (
+          <div style={styles.card}>
+              <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'10px', alignItems:'center'}}> 
+                  <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> 
+                  <div style={{display:'flex', gap:'10px', alignItems:'center'}}> 
+                      <button onClick={saveLayoutConfig} style={styles.toolBtn('#17a2b8')}><Save size={16}/> Store Seat Changes</button> 
+                      <button onClick={handleSeatingExport} style={{...styles.quickBtn(true), background:'#6c757d', color:'white'}}>CSV</button> 
+                      <button onClick={()=>setShowAutoAssignModal(true)} style={{...styles.btn(true), background:'#ff9800', color:'white'}}><Settings size={16}/> Auto-Assign</button> 
+                  </div> 
+              </div> 
+              <div className="print-area" style={{display:'flex', flexDirection:'column', gap:'100px'}}> 
+                  <SeatingSheet id="print-male" title="MALE" map={mM} orderedCols={mOrdered} rows={seatingConfig.mRows} 
+                      setRows={(v)=>setSeatingConfig({...seatingConfig, mRows:v})} 
+                      setRegCols={(v)=>setSeatingConfig({...seatingConfig, mCols:v})}
+                      setSpecCols={(v)=>setSeatingConfig({...seatingConfig, mChowky:v})}
+                      gender="Male"
+                      selectedSeat={selectedSeat}
+                      handleSeatClick={handleSeatClick}
+                      courseId={courseId}
+                      courses={courses}
+                      participants={participants}
+                      seatingConfig={seatingConfig}
+                  /> 
+                  <SeatingSheet id="print-female" title="FEMALE" map={fM} orderedCols={fOrdered} rows={seatingConfig.fRows} 
+                      setRows={(v)=>setSeatingConfig({...seatingConfig, fRows:v})} 
+                      setRegCols={(v)=>setSeatingConfig({...seatingConfig, fCols:v})}
+                      setSpecCols={(v)=>setSeatingConfig({...seatingConfig, fChowky:v})}
+                      gender="Female"
+                      selectedSeat={selectedSeat}
+                      handleSeatClick={handleSeatClick}
+                      courseId={courseId}
+                      courses={courses}
+                      participants={participants}
+                      seatingConfig={seatingConfig}
+                  /> 
+              </div> 
+              {showPrintSettings && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:3000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'300px'}}><h3>🖨️ Print Settings</h3><div style={{marginBottom:'15px'}}><label style={styles.label}>Paper Size</label><select style={styles.input} value={printConfig.paper} onChange={e=>setPrintConfig({...printConfig, paper:e.target.value})}><option>A4</option><option>A3</option><option>Letter</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Orientation</label><select style={styles.input} value={printConfig.orientation} onChange={e=>setPrintConfig({...printConfig, orientation:e.target.value})}><option>landscape</option><option>portrait</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Scale (Zoom)</label><input type="range" min="0.5" max="1.5" step="0.1" value={printConfig.scale} onChange={e=>setPrintConfig({...printConfig, scale:e.target.value})} style={{width:'100%'}}/><div style={{textAlign:'center', fontSize:'12px'}}>{Math.round(printConfig.scale*100)}%</div></div><div style={{textAlign:'right'}}><button onClick={()=>setShowPrintSettings(false)} style={styles.btn(true)}>Done</button></div></div></div>)} 
+              {showAutoAssignModal && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'600px', maxHeight:'90vh', overflowY:'auto'}}><h3>🛠️ Auto-Assign Configuration</h3>
+                  <div style={{background:'#f0f8ff', padding:'15px', borderRadius:'8px', marginBottom:'20px', border:'1px solid #cce5ff'}}>
+                      <h4 style={{margin:'0 0 10px 0', fontSize:'14px', color:'#0056b3'}}>Requirements Overview (Live)</h4>
+                      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
+                          <div>
+                              <div style={{fontWeight:'bold', color:'#007bff'}}>MALE</div>
+                              <div style={{fontSize:'12px'}}>Chowky Need: <strong>{seatingStats.m.chowky}</strong></div>
+                              <div style={{fontSize:'12px'}}>Cushion Need: <strong>{seatingStats.m.std}</strong></div>
+                          </div>
+                          <div>
+                              <div style={{fontWeight:'bold', color:'#e91e63'}}>FEMALE</div>
+                              <div style={{fontSize:'12px'}}>Chowky Need: <strong>{seatingStats.f.chowky}</strong></div>
+                              <div style={{fontSize:'12px'}}>Cushion Need: <strong>{seatingStats.f.std}</strong></div>
+                          </div>
+                      </div>
+                  </div>
+                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}><div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#007bff'}}>Male Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.mCols} onChange={e=>setSeatingConfig({...seatingConfig, mCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.mChowky} onChange={e=>setSeatingConfig({...seatingConfig, mChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.mRows} onChange={e=>setSeatingConfig({...seatingConfig, mRows: parseInt(e.target.value)||0})} /></div><div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#e91e63'}}>Female Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.fCols} onChange={e=>setSeatingConfig({...seatingConfig, fCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.fChowky} onChange={e=>setSeatingConfig({...seatingConfig, fChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.fRows} onChange={e=>setSeatingConfig({...seatingConfig, fRows: parseInt(e.target.value)||0})} /></div></div><div style={{display:'flex', gap:'10px', justifyContent:'flex-end'}}><button onClick={()=>setShowAutoAssignModal(false)} style={styles.btn(false)}>Cancel</button><button onClick={handleAutoAssign} style={isAssigning ? styles.btn(false) : {...styles.btn(true), background:'#28a745', color:'white'}} disabled={isAssigning}>{isAssigning ? 'Processing...' : 'RUN ASSIGNMENT'}</button></div></div></div>)} 
+          </div> 
+      ); 
   }
 
   // --- DEFAULT LIST VIEW ---
@@ -422,7 +495,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
              <button onClick={handleAutoNoShow} style={{...styles.quickBtn(false), fontSize:'12px'}}>🚫 Auto-Flag No-Shows</button>
              <button onClick={handleSendReminders} style={{...styles.quickBtn(false), fontSize:'12px'}}>📢 Send Reminders</button>
              <div style={{width:'1px', background:'#ccc', margin:'0 10px'}}></div>
-             {/* ✅ HIDDEN FOR STAFF */}
+             {/* ✅ HIDE DANGEROUS BUTTONS FOR STAFF */}
              {userRole === 'admin' && (
                  <>
                      <button onClick={handleResetCourse} style={{...styles.quickBtn(false), color:'#d32f2f', border:'1px solid #d32f2f', fontSize:'12px'}}>⚠️ Reset Student List</button>
