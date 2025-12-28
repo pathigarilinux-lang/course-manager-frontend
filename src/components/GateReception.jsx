@@ -79,8 +79,8 @@ export default function GateReception({ courses, refreshCourses }) {
   // --- 3. FILTERING & SORTING ---
   const processedList = useMemo(() => {
       let data = participants.filter(p => {
-          // ✅ SAFE PROPERTY CHECK
-          const mobile = p.mobile || p.phone || p.contact_number || '';
+          // ✅ ROBUST CHECK: Look for 'mobile' OR 'phone' OR 'Phone'
+          const mobile = p.mobile || p.phone || p.Phone || p.contact_number || '';
           
           const searchLower = searchQuery.toLowerCase();
           const matchesSearch = 
@@ -106,9 +106,8 @@ export default function GateReception({ courses, refreshCourses }) {
               let bValue = '';
 
               if (sortConfig.key === 'mobile') {
-                  aValue = a.mobile || a.phone || a.contact_number || '';
-                  bValue = b.mobile || b.phone || b.contact_number || '';
-                  // Clean non-digits for sorting
+                  aValue = a.mobile || a.phone || a.Phone || '';
+                  bValue = b.mobile || b.phone || b.Phone || '';
                   aValue = aValue.replace(/\D/g, '');
                   bValue = bValue.replace(/\D/g, '');
               } else {
@@ -198,6 +197,7 @@ export default function GateReception({ courses, refreshCourses }) {
 
   return (
     <div style={styles.card}>
+      {/* HEADER */}
       <div style={{display:'flex', flexWrap:'wrap', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', borderBottom:'1px solid #eee', paddingBottom:'15px', gap:'10px'}}>
           <div><h2 style={{margin:0, display:'flex', alignItems:'center', gap:'12px', color:'#2c3e50', fontSize:'22px'}}><UserCheck size={28} className="text-green-600"/> Gate Reception</h2></div>
           <div style={{display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap'}}>
@@ -282,10 +282,8 @@ export default function GateReception({ courses, refreshCourses }) {
                           <tr>
                               <th onClick={() => handleSort('status')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Status <SortIcon column="status"/></th>
                               <th onClick={() => handleSort('full_name')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Name / ID <SortIcon column="full_name"/></th>
-                              
-                              {/* ✅ SMART CONTACT HEADER */}
+                              {/* ✅ UPDATED HEADER */}
                               <th onClick={() => handleSort('mobile')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Contact <SortIcon column="mobile"/></th>
-                              
                               <th onClick={() => handleSort('gender')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Gender <SortIcon column="gender"/></th>
                               <th style={{textAlign:'right', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase'}}>Action</th>
                           </tr>
@@ -294,15 +292,15 @@ export default function GateReception({ courses, refreshCourses }) {
                           {processedList.map(p => {
                               const isCheckedIn = p.status === 'Gate Check-In' || p.status === 'Attending';
                               const isCancelled = p.status === 'Cancelled' || p.status === 'No-Show';
-                              // ✅ ROBUST PHONE EXTRACTOR
-                              const phoneNum = p.mobile || p.phone || p.contact_number || '';
+                              // ✅ ROBUST CHECK: Look for 'mobile' or 'phone' or 'Phone'
+                              const phoneNum = p.mobile || p.phone || p.Phone || '';
 
                               return (
                                   <tr key={p.participant_id} style={{borderBottom:'1px solid #f0f0f0', background: isCheckedIn ? '#f0fff4' : (isCancelled ? '#fff5f5' : 'white')}}>
                                       <td style={{padding:'12px'}}>{isCheckedIn ? <span style={{color:'green', fontWeight:'bold', fontSize:'12px'}}>Arrived</span> : isCancelled ? <span style={{color:'red', fontWeight:'bold', fontSize:'12px'}}>🚫 Cancelled</span> : <span style={{color:'orange', fontWeight:'bold', fontSize:'12px'}}>Pending</span>}</td>
                                       <td style={{padding:'12px'}}><div style={{fontWeight:'bold', fontSize:'14px', color:'#333'}}>{p.full_name}</div><div style={{fontSize:'11px', color:'#888'}}>{p.conf_no || '-'}</div></td>
                                       
-                                      {/* ✅ SMART CONTACT CELL */}
+                                      {/* ✅ PHONE CELL */}
                                       <td style={{padding:'12px'}}>
                                           {phoneNum ? (
                                               <a href={`tel:${phoneNum}`} style={{textDecoration:'none', color:'#007bff', fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px', fontSize:'13px'}}>
