@@ -1,12 +1,18 @@
 // src/utils/printGenerator.js
 
+// Helper to determine Category (Old/New) from Conf No
+const getCat = (conf) => {
+    if (!conf) return '-';
+    const s = conf.toUpperCase();
+    return (s.startsWith('O') || s.startsWith('S')) ? 'OLD' : 'NEW';
+};
+
 /**
  * ✅ 1. INDIVIDUAL TOKEN PRINT
- * - Uses exact CSS from your reference file.
- * - Adds 'portrait' keyword to enforce orientation.
- * - Centers the box perfectly on the strip.
+ * - Header: DHAMMA SEAT
+ * - Content: Name | Cell | Cat | Age | Room
  */
-export const printStudentToken = (student, courseName) => {
+export const printStudentToken = (student) => {
     if (!student) return;
 
     const iframe = document.createElement('iframe');
@@ -23,48 +29,54 @@ export const printStudentToken = (student, courseName) => {
         <head>
             <title>Token-${student.conf_no}</title>
             <style>
-                /* ✅ EXACT CSS FROM REFERENCE + PORTRAIT FORCE */
-                @page { size: 58mm 40mm portrait; margin: 0; }
+                @page { size: 58mm 40mm; margin: 0; }
                 body { 
                     margin: 0; 
-                    padding: 5px; 
+                    padding: 2px 5px; 
                     font-family: Arial, sans-serif; 
                     text-align: center; 
+                    width: 48mm;
                 }
                 .token-box { 
                     border: 2px solid black; 
                     padding: 5px; 
                     border-radius: 8px; 
-                    height: 38mm; /* Fixed height for consistent professional look */
-                    width: 48mm;  /* Fixed width to center on 58mm paper */
-                    margin: 0 auto; /* Center alignment */
-                    box-sizing: border-box;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: space-between;
-                    page-break-inside: avoid;
+                    height: 38mm; 
+                    box-sizing: border-box; 
+                    display: flex; 
+                    flex-direction: column; 
+                    justify-content: space-between; 
                 }
-                h2 { margin: 0; font-size: 16px; text-transform: uppercase; font-weight: bold; }
-                .divider { border-bottom: 1px solid black; margin: 2px 0; }
+                h2 { 
+                    margin: 0; 
+                    font-size: 16px; 
+                    font-weight: 900; 
+                    text-transform: uppercase; 
+                    border-bottom: 2px solid black; 
+                    padding-bottom: 2px; 
+                }
                 .seat { font-size: 36px; font-weight: 900; margin: 2px 0; line-height: 1; }
-                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
+                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+                .details { 
+                    font-size: 10px; 
+                    font-weight: bold; 
+                    display: flex; 
+                    justify-content: space-between; 
+                    margin-top: 2px; 
+                }
             </style>
         </head>
         <body>
             <div class="token-box">
-                <div>
-                    <h2>${courseName || 'DHAMMA COURSE'}</h2>
-                    <div class="divider"></div>
-                </div>
-                
+                <h2>DHAMMA SEAT</h2>
                 <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
-                
                 <div>
                     <div class="name">${student.full_name}</div>
                     <div class="details">
-                        <span>${student.conf_no}</span>
-                        <span>${student.gender}</span>
+                        <span>${student.pagoda_cell_no ? `P:${student.pagoda_cell_no}` : '-'}</span>
+                        <span>${getCat(student.conf_no)}</span>
+                        <span>Age:${student.age}</span>
+                        <span>Rm:${student.room_no || '-'}</span>
                     </div>
                 </div>
             </div>
@@ -82,10 +94,10 @@ export const printStudentToken = (student, courseName) => {
 
 /**
  * ✅ 2. BULK TOKEN PRINT
- * - Exact same styling as single token.
- * - Uses page-break-after: always for cutting.
+ * - Continuous print job.
+ * - Same layout as Individual.
  */
-export const printBulkTokens = (students, courseName) => {
+export const printBulkTokens = (students) => {
     if (!students || students.length === 0) return;
 
     const iframe = document.createElement('iframe');
@@ -100,16 +112,15 @@ export const printBulkTokens = (students, courseName) => {
     const tokensHtml = students.map(student => `
         <div class="token-wrapper">
             <div class="token-box">
-                <div>
-                    <h2>${courseName || 'DHAMMA COURSE'}</h2>
-                    <div class="divider"></div>
-                </div>
+                <h2>DHAMMA SEAT</h2>
                 <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
                 <div>
                     <div class="name">${student.full_name}</div>
                     <div class="details">
-                        <span>${student.conf_no}</span>
-                        <span>${student.gender}</span>
+                        <span>${student.pagoda_cell_no ? `P:${student.pagoda_cell_no}` : '-'}</span>
+                        <span>${getCat(student.conf_no)}</span>
+                        <span>Age:${student.age}</span>
+                        <span>Rm:${student.room_no || '-'}</span>
                     </div>
                 </div>
             </div>
@@ -122,44 +133,52 @@ export const printBulkTokens = (students, courseName) => {
         <head>
             <title>Bulk Tokens</title>
             <style>
-                @page { size: 58mm 40mm portrait; margin: 0; }
+                @page { size: 58mm 40mm; margin: 0; }
                 body { 
                     margin: 0; 
                     padding: 0; 
                     font-family: Arial, sans-serif; 
                     text-align: center; 
+                    width: 48mm;
                 }
-                .token-wrapper {
-                    padding: 5px;
-                    page-break-after: always;
-                    width: 100%;
+                .token-wrapper { 
+                    padding: 2px 5px; 
+                    page-break-after: always; 
                     display: flex;
                     justify-content: center;
                 }
-                .token-wrapper:last-child {
-                    page-break-after: avoid;
-                }
+                .token-wrapper:last-child { page-break-after: avoid; }
                 .token-box { 
                     border: 2px solid black; 
                     padding: 5px; 
                     border-radius: 8px; 
                     height: 38mm; 
-                    width: 48mm;
-                    box-sizing: border-box;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: space-between;
+                    width: 100%;
+                    box-sizing: border-box; 
+                    display: flex; 
+                    flex-direction: column; 
+                    justify-content: space-between; 
                 }
-                h2 { margin: 0; font-size: 16px; text-transform: uppercase; font-weight: bold; }
-                .divider { border-bottom: 1px solid black; margin: 2px 0; }
-                .seat { font-size: 36px; font-weight: 900; margin: 2px 0; line-height: 1; }
-                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
+                h2 { 
+                    margin: 0; 
+                    font-size: 16px; 
+                    font-weight: 900; 
+                    text-transform: uppercase; 
+                    border-bottom: 2px solid black; 
+                    padding-bottom: 2px; 
+                }
+                .seat { font-size: 36px; font-weight: 900; margin: 2px 0; }
+                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+                .details { 
+                    font-size: 10px; 
+                    font-weight: bold; 
+                    display: flex; 
+                    justify-content: space-between; 
+                    margin-top: 2px; 
+                }
             </style>
         </head>
-        <body>
-            ${tokensHtml}
-        </body>
+        <body>${tokensHtml}</body>
         </html>
     `);
     doc.close();
@@ -171,7 +190,7 @@ export const printBulkTokens = (students, courseName) => {
     }, 1000);
 };
 
-// ... (printArrivalPass, printList, printCombinedList remain unchanged - they are already correct) ...
+// ... (printArrivalPass, printList, printCombinedList remain exactly as they were) ...
 export const printArrivalPass = (data) => {
     if (!data) return;
     const iframe = document.createElement('iframe');
