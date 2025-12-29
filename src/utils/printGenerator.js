@@ -1,10 +1,13 @@
 // src/utils/printGenerator.js
 
-// ✅ 1. RESTORED TOKEN PRINT LOGIC (Matches ParticipantList(3).jsx exactly)
+/**
+ * Prints a single student token on a 58mm thermal printer.
+ * Logic extracted directly from ParticipantList.jsx (Original Version).
+ */
 export const printStudentToken = (student, courseName) => {
     if (!student) return;
 
-    // Create a hidden iframe
+    // 1. Create a hidden iframe
     const iframe = document.createElement('iframe');
     iframe.style.position = 'absolute';
     iframe.style.width = '0px';
@@ -12,9 +15,8 @@ export const printStudentToken = (student, courseName) => {
     iframe.style.border = 'none';
     document.body.appendChild(iframe);
 
+    // 2. Write the exact HTML & CSS structure
     const doc = iframe.contentWindow.document;
-
-    // EXACT HTML STRUCTURE FROM PREVIOUS VERSION
     doc.open();
     doc.write(`
         <html>
@@ -32,7 +34,7 @@ export const printStudentToken = (student, courseName) => {
                     border: 2px solid black; 
                     padding: 5px; 
                     border-radius: 8px; 
-                    height: 38mm; /* Fixed height for label */
+                    height: 38mm; /* Fixed height to fit label */
                     box-sizing: border-box;
                     display: flex;
                     flex-direction: column;
@@ -67,16 +69,19 @@ export const printStudentToken = (student, courseName) => {
     `);
     doc.close();
 
-    // Print and Cleanup
+    // 3. Trigger Print & Cleanup
     iframe.contentWindow.focus();
     setTimeout(() => {
         iframe.contentWindow.print();
-        // Remove iframe after print dialog closes (approximate delay)
+        // Remove iframe after a short delay to allow print dialog to open
         setTimeout(() => document.body.removeChild(iframe), 1000);
     }, 500);
 };
 
-// ✅ 2. RESTORED LIST PRINT LOGIC (Matches ParticipantList(3).jsx exactly)
+/**
+ * Prints a standard list (A4 size).
+ * Kept consistent with previous logic.
+ */
 export const printList = (title, list, courseName) => {
     if (!list || list.length === 0) return;
 
@@ -141,7 +146,9 @@ export const printList = (title, list, courseName) => {
     printWindow.print();
 };
 
-// ✅ 3. COMBINED LIST PRINT (New helper, kept simple and consistent)
+/**
+ * Prints a combined list (Male & Female side-by-side).
+ */
 export const printCombinedList = (type, males, females, courseName) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return alert("Popup blocked.");
