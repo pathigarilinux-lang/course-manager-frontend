@@ -3,8 +3,7 @@ import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Min
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
-// ✅ Importing the FIXED generator
-import { printStudentToken, printList, printCombinedList, printArrivalPass, printBulkTokens } from '../utils/printGenerator';
+import { printList, printCombinedList, printArrivalPass } from '../utils/printGenerator';
 
 // --- DATA HELPERS ---
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
@@ -14,7 +13,7 @@ const calculatePriorityScore = (p) => { const stats = getStudentStats(p); let sc
 const getAlphabetRange = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count);
 const generateChowkyLabels = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count).map(l => `CW-${l}`);
 
-// --- SUB-COMPONENTS ---
+// --- SUB-COMPONENTS (Keep renderCell & SeatingSheet unchanged) ---
 const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
     const shouldShow = p && (p.gender||'').toLowerCase().startsWith(gender.toLowerCase().charAt(0));
     const displayP = shouldShow ? p : null;
@@ -102,6 +101,7 @@ const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, 
 };
 
 export default function ParticipantList({ courses, refreshCourses, userRole }) {
+  // ... (State Declarations - Same as before) ...
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
   const [search, setSearch] = useState(''); 
@@ -124,6 +124,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const [seatingConfig, setSeatingConfig] = useState(defaultConfig);
   const [printConfig, setPrintConfig] = useState({ scale: 0.9, orientation: 'landscape', paper: 'A3' });
 
+  // ... (useEffect for loading & Layout saving - Same as before) ...
   useEffect(() => { 
       if (courseId) {
           fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : []));
@@ -140,6 +141,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       } 
   }, [courseId]);
 
+  // ... (Memos: processedList, seatingStats - Same as before) ...
   const processedList = useMemo(() => { 
       let items = [...participants]; 
       if (filterType !== 'ALL') { items = items.filter(p => { const cat = getCategory(p.conf_no); if (filterType === 'OLD') return cat === 'OLD'; if (filterType === 'NEW') return cat === 'NEW'; if (filterType === 'MED') return (p.medical_info && p.medical_info.trim() !== ''); if (filterType === 'MALE') return (p.gender||'').toLowerCase().startsWith('m'); if (filterType === 'FEMALE') return (p.gender||'').toLowerCase().startsWith('f'); return true; }); }
@@ -165,9 +167,62 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
 
   const getCourseName = () => { return courses.find(c => String(c.course_id) === String(courseId))?.course_name || 'Dhamma Course'; };
 
-  const handleSingleToken = (student) => { 
-      if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first."); 
-      printStudentToken(student, getCourseName()); 
+  // ✅ 1. UPDATED SINGLE TOKEN PRINT (New Layout: DHAMMA SEAT + Detailed Stats)
+  const handleSingleToken = (student) => {
+      if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first.");
+      
+      const cat = getCategory(student.conf_no); // OLD or NEW
+      const catLabel = cat === 'OLD' ? 'OLD' : 'NEW';
+      const genderLabel = (student.gender || '').toUpperCase();
+      
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.width = '0px';
+      iframe.style.height = '0px';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentWindow.document;
+      
+      doc.open();
+      doc.write(`
+          <html>
+          <head>
+              <title>Token-${student.conf_no}</title>
+              <style>
+                  @page { size: 58mm 40mm; margin: 0; }
+                  body { margin: 0; padding: 5px; font-family: Arial, sans-serif; text-align: center; }
+                  .token-box { border: 2px solid black; padding: 5px; border-radius: 8px; height: 38mm; box-sizing: border-box; display: flex; flexDirection: column; justify-content: space-between; }
+                  h2 { margin: 0; font-size: 16px; font-weight: 900; text-transform: uppercase; } /* CHANGED TO DHAMMA SEAT */
+                  .seat { font-size: 36px; font-weight: 900; margin: 2px 0; }
+                  .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+                  .info-row { font-size: 10px; font-weight: bold; display: flex; justify-content: space-between; margin-top: 2px; }
+                  .divider { border-bottom: 2px solid black; margin: 2px 0; }
+              </style>
+          </head>
+          <body>
+              <div class="token-box">
+                  <div>
+                      <h2>DHAMMA SEAT</h2> <div class="divider"></div>
+                  </div>
+                  
+                  <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
+                  
+                  <div>
+                      <div class="name">${student.full_name}</div>
+                      <div class="info-row">
+                          <span>${student.pagoda_cell_no ? `P:${student.pagoda_cell_no}` : ''}</span>
+                          <span>${catLabel}</span>
+                          <span>Age:${student.age}</span>
+                          <span>Rm:${student.room_no || '-'}</span>
+                      </div>
+                  </div>
+              </div>
+          </body>
+          </html>
+      `);
+      doc.close();
+      iframe.contentWindow.focus();
+      setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 1000); }, 500);
   };
 
   const handlePrintPass = (student) => {
@@ -186,7 +241,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       printArrivalPass(data);
   };
 
-  // ✅ UPDATED: USE NEW BULK PRINT FUNCTION
+  // ✅ 2. UPDATED BULK TOKEN PRINT (New Layout + One Job)
   const handleBulkPrint = (filter) => { 
       let valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
       if (filter === 'Male') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('m')); 
@@ -195,9 +250,61 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       
       const sortedStudents = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true}));
       
-      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens in ONE continuous job?`)) { 
-          const cName = courses.find(c => c.course_id == courseId)?.course_name || '';
-          printBulkTokens(sortedStudents, cName); 
+      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens?`)) { 
+          
+          const tokensHtml = sortedStudents.map(student => {
+              const cat = getCategory(student.conf_no) === 'OLD' ? 'OLD' : 'NEW';
+              return `
+              <div class="token-wrapper">
+                  <div class="token-box">
+                      <div>
+                          <h2>DHAMMA SEAT</h2>
+                          <div style="border-bottom: 2px solid black; margin: 2px 0;"></div>
+                      </div>
+                      <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
+                      <div>
+                          <div class="name">${student.full_name}</div>
+                          <div style="font-size: 10px; font-weight: bold; display: flex; justify-content: space-between; margin-top: 2px;">
+                              <span>${student.pagoda_cell_no ? `P:${student.pagoda_cell_no}` : ''}</span>
+                              <span>${cat}</span>
+                              <span>Age:${student.age}</span>
+                              <span>Rm:${student.room_no || '-'}</span>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+              `;
+          }).join('');
+
+          const iframe = document.createElement('iframe');
+          iframe.style.position = 'absolute';
+          iframe.style.width = '0px';
+          iframe.style.height = '0px';
+          iframe.style.border = 'none';
+          document.body.appendChild(iframe);
+          const doc = iframe.contentWindow.document;
+          doc.open();
+          doc.write(`
+              <html>
+              <head>
+                  <title>Bulk Tokens</title>
+                  <style>
+                      @page { size: 58mm 40mm; margin: 0; }
+                      body { margin: 0; padding: 0; font-family: Arial, sans-serif; text-align: center; }
+                      .token-wrapper { padding: 5px; page-break-after: always; }
+                      .token-wrapper:last-child { page-break-after: avoid; }
+                      .token-box { border: 2px solid black; padding: 5px; border-radius: 8px; height: 38mm; box-sizing: border-box; display: flex; flexDirection: column; justify-content: space-between; }
+                      h2 { margin: 0; font-size: 16px; font-weight: 900; text-transform: uppercase; }
+                      .seat { font-size: 36px; font-weight: 900; margin: 2px 0; }
+                      .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+                  </style>
+              </head>
+              <body>${tokensHtml}</body>
+              </html>
+          `);
+          doc.close();
+          iframe.contentWindow.focus();
+          setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 3000); }, 1000);
       }
   };
 
