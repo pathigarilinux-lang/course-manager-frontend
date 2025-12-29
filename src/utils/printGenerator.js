@@ -9,8 +9,8 @@ const getCat = (conf) => {
 
 /**
  * ✅ 1. INDIVIDUAL TOKEN PRINT
- * - Header: DHAMMA SEAT
- * - Content: Name | Cell | Cat | Age | Room
+ * - CSS: STRICTLY restored from your original reference code.
+ * - Content: Updated to DHAMMA SEAT format.
  */
 export const printStudentToken = (student) => {
     if (!student) return;
@@ -29,51 +29,44 @@ export const printStudentToken = (student) => {
         <head>
             <title>Token-${student.conf_no}</title>
             <style>
+                /* ✅ ORIGINAL CSS RESTORATION */
                 @page { size: 58mm 40mm; margin: 0; }
                 body { 
                     margin: 0; 
-                    padding: 2px 5px; 
+                    padding: 5px; 
                     font-family: Arial, sans-serif; 
                     text-align: center; 
-                    width: 48mm;
                 }
                 .token-box { 
                     border: 2px solid black; 
                     padding: 5px; 
                     border-radius: 8px; 
-                    height: 38mm; 
-                    box-sizing: border-box; 
-                    display: flex; 
-                    flex-direction: column; 
-                    justify-content: space-between; 
+                    height: 38mm; /* Fixed height from original */
+                    box-sizing: border-box;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
                 }
-                h2 { 
-                    margin: 0; 
-                    font-size: 16px; 
-                    font-weight: 900; 
-                    text-transform: uppercase; 
-                    border-bottom: 2px solid black; 
-                    padding-bottom: 2px; 
-                }
-                .seat { font-size: 36px; font-weight: 900; margin: 2px 0; line-height: 1; }
-                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
-                .details { 
-                    font-size: 10px; 
-                    font-weight: bold; 
-                    display: flex; 
-                    justify-content: space-between; 
-                    margin-top: 2px; 
-                }
+                h2 { margin: 0; font-size: 16px; text-transform: uppercase; font-weight: 900; }
+                .divider { border-bottom: 2px solid black; margin: 2px 0; }
+                .seat { font-size: 36px; font-weight: 900; margin: 2px 0; }
+                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
             </style>
         </head>
         <body>
             <div class="token-box">
-                <h2>DHAMMA SEAT</h2>
+                <div>
+                    <h2>DHAMMA SEAT</h2>
+                    <div class="divider"></div>
+                </div>
+                
                 <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
+                
                 <div>
                     <div class="name">${student.full_name}</div>
                     <div class="details">
-                        <span>${student.pagoda_cell_no ? `P:${student.pagoda_cell_no}` : '-'}</span>
+                        <span>${student.pagoda_cell_no ? `P:${student.pagoda_cell_no}` : ''}</span>
                         <span>${getCat(student.conf_no)}</span>
                         <span>Age:${student.age}</span>
                         <span>Rm:${student.room_no || '-'}</span>
@@ -94,8 +87,8 @@ export const printStudentToken = (student) => {
 
 /**
  * ✅ 2. BULK TOKEN PRINT
- * - Continuous print job.
- * - Same layout as Individual.
+ * - Uses the exact same structure as above.
+ * - Adds page-break-after for continuous printing.
  */
 export const printBulkTokens = (students) => {
     if (!students || students.length === 0) return;
@@ -112,12 +105,15 @@ export const printBulkTokens = (students) => {
     const tokensHtml = students.map(student => `
         <div class="token-wrapper">
             <div class="token-box">
-                <h2>DHAMMA SEAT</h2>
+                <div>
+                    <h2>DHAMMA SEAT</h2>
+                    <div class="divider"></div>
+                </div>
                 <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
                 <div>
                     <div class="name">${student.full_name}</div>
                     <div class="details">
-                        <span>${student.pagoda_cell_no ? `P:${student.pagoda_cell_no}` : '-'}</span>
+                        <span>${student.pagoda_cell_no ? `P:${student.pagoda_cell_no}` : ''}</span>
                         <span>${getCat(student.conf_no)}</span>
                         <span>Age:${student.age}</span>
                         <span>Rm:${student.room_no || '-'}</span>
@@ -133,52 +129,41 @@ export const printBulkTokens = (students) => {
         <head>
             <title>Bulk Tokens</title>
             <style>
+                /* ✅ ORIGINAL CSS RESTORATION */
                 @page { size: 58mm 40mm; margin: 0; }
                 body { 
                     margin: 0; 
                     padding: 0; 
                     font-family: Arial, sans-serif; 
                     text-align: center; 
-                    width: 48mm;
                 }
-                .token-wrapper { 
-                    padding: 2px 5px; 
-                    page-break-after: always; 
-                    display: flex;
-                    justify-content: center;
+                .token-wrapper {
+                    padding: 5px;
+                    page-break-after: always;
                 }
-                .token-wrapper:last-child { page-break-after: avoid; }
+                .token-wrapper:last-child {
+                    page-break-after: avoid;
+                }
                 .token-box { 
                     border: 2px solid black; 
                     padding: 5px; 
                     border-radius: 8px; 
                     height: 38mm; 
-                    width: 100%;
-                    box-sizing: border-box; 
-                    display: flex; 
-                    flex-direction: column; 
-                    justify-content: space-between; 
+                    box-sizing: border-box;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
                 }
-                h2 { 
-                    margin: 0; 
-                    font-size: 16px; 
-                    font-weight: 900; 
-                    text-transform: uppercase; 
-                    border-bottom: 2px solid black; 
-                    padding-bottom: 2px; 
-                }
+                h2 { margin: 0; font-size: 16px; text-transform: uppercase; font-weight: 900; }
+                .divider { border-bottom: 2px solid black; margin: 2px 0; }
                 .seat { font-size: 36px; font-weight: 900; margin: 2px 0; }
-                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
-                .details { 
-                    font-size: 10px; 
-                    font-weight: bold; 
-                    display: flex; 
-                    justify-content: space-between; 
-                    margin-top: 2px; 
-                }
+                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
             </style>
         </head>
-        <body>${tokensHtml}</body>
+        <body>
+            ${tokensHtml}
+        </body>
         </html>
     `);
     doc.close();
@@ -186,11 +171,11 @@ export const printBulkTokens = (students) => {
     iframe.contentWindow.focus();
     setTimeout(() => {
         iframe.contentWindow.print();
-        setTimeout(() => document.body.removeChild(iframe), 3000);
+        setTimeout(() => document.body.removeChild(iframe), 2000); // 2s delay for bulk
     }, 1000);
 };
 
-// ... (printArrivalPass, printList, printCombinedList remain exactly as they were) ...
+// ... (Rest of the file: printArrivalPass, printList, printCombinedList - Keep as is) ...
 export const printArrivalPass = (data) => {
     if (!data) return;
     const iframe = document.createElement('iframe');
