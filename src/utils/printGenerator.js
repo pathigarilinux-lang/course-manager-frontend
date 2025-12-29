@@ -1,182 +1,204 @@
 // src/utils/printGenerator.js
 
-// --- CONFIGURATION ---
-const CENTER_NAME = "DHAMMA NAGAJJUNA";
-const CENTER_SUB = "Vipassana International Meditation Center";
-
-// --- CSS STYLES ---
-const STYLES = {
-  thermal: `
-    @page { size: 72mm auto; margin: 0; }
-    body { font-family: 'Helvetica', 'Arial', sans-serif; margin: 0; padding: 5px; color: black; }
-    .ticket { width: 70mm; margin: 0 auto; text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
-    .header { font-size: 16px; font-weight: bold; margin-bottom: 2px; }
-    .sub-header { font-size: 10px; margin-bottom: 8px; text-transform: uppercase; }
-    .divider { border-bottom: 2px solid #000; margin: 5px 0; }
-    .big-label { font-size: 10px; font-weight: bold; text-transform: uppercase; margin-top: 5px; }
-    .big-value { font-size: 42px; font-weight: 900; line-height: 1; margin: 2px 0; }
-    .med-value { font-size: 24px; font-weight: bold; margin: 2px 0; }
-    .grid { display: flex; justify-content: space-between; margin-top: 5px; border: 1px solid #000; }
-    .cell { flex: 1; border-right: 1px solid #000; padding: 2px; }
-    .cell:last-child { border-right: none; }
-    .cell-label { font-size: 8px; font-weight: bold; text-transform: uppercase; }
-    .cell-val { font-size: 14px; font-weight: bold; }
-    .name { font-size: 14px; font-weight: bold; margin: 8px 0; word-wrap: break-word; line-height: 1.2; text-transform: uppercase; }
-    .conf { font-size: 12px; font-weight: bold; background: #000; color: #fff; display: inline-block; padding: 2px 6px; border-radius: 4px; }
-    .footer { font-size: 9px; font-style: italic; margin-top: 10px; }
-  `,
-  a4: `
-    @page { size: A4 landscape; margin: 10mm; }
-    body { font-family: 'Segoe UI', sans-serif; font-size: 11pt; }
-    table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
-    tr { page-break-inside: avoid; page-break-after: auto; }
-    th, td { border: 1px solid #000; padding: 6px; text-align: left; }
-    th { background: #f0f0f0; text-transform: uppercase; font-size: 10pt; font-weight: bold; }
-    h1 { text-align: center; margin: 0 0 5px 0; font-size: 16pt; text-transform: uppercase; }
-    h2 { text-align: center; margin: 0 0 10px 0; font-size: 14pt; color: #555; }
-    .meta { display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: bold; border-bottom: 2px solid black; padding-bottom: 5px; }
-    .page-break { page-break-before: always; }
-  `
-};
-
-// --- HELPER: PRINT IFRAME ---
-const triggerPrint = (htmlContent) => {
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    
-    document.body.appendChild(iframe);
-    
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(htmlContent);
-    doc.close();
-    
-    iframe.onload = () => {
-        try {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-        } catch (e) {
-            console.error("Print Error", e);
-        }
-        setTimeout(() => {
-            if (document.body.contains(iframe)) {
-                document.body.removeChild(iframe);
-            }
-        }, 5000);
-    };
-};
-
-// --- GENERATORS ---
-
-// 1. INDIVIDUAL STUDENT TOKEN (Thermal)
+// ✅ 1. RESTORED TOKEN PRINT LOGIC (Matches ParticipantList(3).jsx exactly)
 export const printStudentToken = (student, courseName) => {
-    const s = student;
-    const cleanCourse = courseName ? courseName.split('/')[0] : '';
-    
-    const html = `
-    <html>
-    <head><style>${STYLES.thermal}</style></head>
-    <body>
-        <div class="ticket">
-            <div class="header">${CENTER_NAME}</div>
-            <div class="sub-header">${CENTER_SUB}</div>
-            <div class="divider"></div>
-            <div style="margin: 10px 0;">
-                <div class="conf">${s.conf_no || '---'}</div>
+    if (!student) return;
+
+    // Create a hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+
+    // EXACT HTML STRUCTURE FROM PREVIOUS VERSION
+    doc.open();
+    doc.write(`
+        <html>
+        <head>
+            <title>Token-${student.conf_no}</title>
+            <style>
+                @page { size: 58mm 40mm; margin: 0; }
+                body { 
+                    margin: 0; 
+                    padding: 5px; 
+                    font-family: Arial, sans-serif; 
+                    text-align: center; 
+                }
+                .token-box { 
+                    border: 2px solid black; 
+                    padding: 5px; 
+                    border-radius: 8px; 
+                    height: 38mm; /* Fixed height for label */
+                    box-sizing: border-box;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                }
+                h2 { margin: 0; font-size: 16px; text-transform: uppercase; }
+                .seat { font-size: 36px; font-weight: 900; margin: 2px 0; }
+                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
+                .footer { font-size: 8px; margin-top: 2px; }
+            </style>
+        </head>
+        <body>
+            <div class="token-box">
+                <div>
+                    <h2>${courseName || 'DHAMMA COURSE'}</h2>
+                    <div style="border-bottom: 1px solid black; margin: 2px 0;"></div>
+                </div>
+                
+                <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
+                
+                <div>
+                    <div class="name">${student.full_name}</div>
+                    <div class="details">
+                        <span>${student.conf_no}</span>
+                        <span>${student.gender}</span>
+                    </div>
+                </div>
             </div>
-            <div class="name">${s.full_name}</div>
-            <div style="font-size: 10px;">${cleanCourse}</div>
-            <div class="divider"></div>
-            <div class="big-label">Room Allocation</div>
-            <div class="big-value">${s.room_no || '-'}</div>
-            <div class="grid" style="margin-top: 10px;">
-                <div class="cell"><div class="cell-label">Dining Seat</div><div class="med-value">${s.dining_seat_no || '-'}</div></div>
-                <div class="cell"><div class="cell-label">Pagoda</div><div class="med-value">${s.pagoda_cell_no || '-'}</div></div>
-            </div>
-            <div class="grid">
-                <div class="cell"><div class="cell-label">Mobile Lock</div><div class="cell-val">${s.mobile_locker_no || '-'}</div></div>
-                <div class="cell"><div class="cell-label">Valuables</div><div class="cell-val">${s.valuables_locker_no || '-'}</div></div>
-                <div class="cell"><div class="cell-label">Laundry</div><div class="cell-val">${s.laundry_token_no || '-'}</div></div>
-            </div>
-            <div class="footer">Please keep silence • Be happy</div>
-        </div>
-    </body>
-    </html>
-    `;
-    triggerPrint(html);
+        </body>
+        </html>
+    `);
+    doc.close();
+
+    // Print and Cleanup
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+        iframe.contentWindow.print();
+        // Remove iframe after print dialog closes (approximate delay)
+        setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 500);
 };
 
-// 2. HELPER: Generate Table HTML
-const generateTableHtml = (title, students, courseName) => {
-    const rows = students.map((s, i) => `
+// ✅ 2. RESTORED LIST PRINT LOGIC (Matches ParticipantList(3).jsx exactly)
+export const printList = (title, list, courseName) => {
+    if (!list || list.length === 0) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert("Popup blocked. Please allow popups.");
+
+    const headers = `
         <tr>
-            <td>${i + 1}</td>
-            <td style="font-weight:bold">${s.dining_seat_no || '-'}</td>
-            <td style="font-weight:bold">${s.full_name}</td>
-            <td>${s.conf_no || ''}</td>
-            <td>${s.gender || ''}</td>
-            <td>${s.age || ''}</td>
-            <td style="font-weight:bold">${s.room_no || '-'}</td>
-            <td>${s.pagoda_cell_no || '-'}</td>
-            <td>${s.mobile_locker_no || '-'}</td>
-            <td>${s.medical_info ? '⚠️' : ''}</td>
+            <th style="width: 5%;">S.N.</th>
+            <th style="width: 10%;">Seat</th>
+            <th style="width: 35%;">Name</th>
+            <th style="width: 10%;">Conf</th>
+            <th style="width: 10%;">Gen</th>
+            <th style="width: 10%;">Room</th>
+            <th style="width: 10%;">Pagoda</th>
+            <th style="width: 10%;">Status</th>
+        </tr>
+    `;
+
+    const rows = list.map((p, i) => `
+        <tr>
+            <td style="text-align: center;">${i + 1}</td>
+            <td style="text-align: center; font-weight: bold;">${p.dhamma_hall_seat_no || p.dining_seat_no || p.pagoda_cell_no || '-'}</td>
+            <td style="padding-left: 5px;">${p.full_name}</td>
+            <td style="text-align: center;">${p.conf_no}</td>
+            <td style="text-align: center;">${p.gender ? p.gender.charAt(0) : '-'}</td>
+            <td style="text-align: center;">${p.room_no || '-'}</td>
+            <td style="text-align: center;">${p.pagoda_cell_no || '-'}</td>
+            <td style="text-align: center;">${p.status === 'Attending' ? '✔️' : '❌'}</td>
         </tr>
     `).join('');
 
-    return `
-        <h1>${CENTER_NAME}</h1>
-        <h2>${title}</h2>
-        <div class="meta">
-            <span>Course: ${courseName}</span>
-            <span>Date: ${new Date().toLocaleDateString()}</span>
-            <span>Total: ${students.length}</span>
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th width="30">SN</th>
-                    <th width="50">Seat</th>
-                    <th>Name</th>
-                    <th width="60">ID</th>
-                    <th width="50">Sex</th>
-                    <th width="40">Age</th>
-                    <th width="60">Room</th>
-                    <th width="60">Pagoda</th>
-                    <th width="60">Mob</th>
-                    <th width="30">Med</th>
-                </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-        </table>
-    `;
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>${title} - ${courseName}</title>
+            <style>
+                @page { size: A4; margin: 10mm; }
+                body { font-family: Arial, sans-serif; font-size: 12px; }
+                h1 { text-align: center; margin-bottom: 5px; font-size: 18px; }
+                h3 { text-align: center; margin-top: 0; font-size: 14px; color: #555; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th, td { border: 1px solid black; padding: 4px; }
+                th { background-color: #f0f0f0; text-transform: uppercase; font-size: 10px; }
+                tr:nth-child(even) { background-color: #f9f9f9; }
+            </style>
+        </head>
+        <body>
+            <h1>${title} LIST</h1>
+            <h3>${courseName}</h3>
+            <table>
+                <thead>${headers}</thead>
+                <tbody>${rows}</tbody>
+            </table>
+            <div style="margin-top: 10px; font-size: 10px; text-align: right;">
+                Printed on: ${new Date().toLocaleString()} | Total: ${list.length}
+            </div>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
 };
 
-// 3. SINGLE LIST PRINT (A4)
-export const printList = (title, students, courseName) => {
-    const content = generateTableHtml(title, students, courseName);
-    const html = `<html><head><style>${STYLES.a4}</style></head><body>${content}</body></html>`;
-    triggerPrint(html);
-};
+// ✅ 3. COMBINED LIST PRINT (New helper, kept simple and consistent)
+export const printCombinedList = (type, males, females, courseName) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert("Popup blocked.");
 
-// 4. COMBINED LIST PRINT (Male + Female on separate pages)
-export const printCombinedList = (titleBase, maleStudents, femaleStudents, courseName) => {
-    const maleContent = generateTableHtml(`MALE ${titleBase}`, maleStudents, courseName);
-    const femaleContent = generateTableHtml(`FEMALE ${titleBase}`, femaleStudents, courseName);
-    
-    const html = `
-    <html>
-    <head><style>${STYLES.a4}</style></head>
-    <body>
-        ${maleContent}
-        <div class="page-break"></div>
-        ${femaleContent}
-    </body>
-    </html>
-    `;
-    triggerPrint(html);
+    const renderTable = (list, title) => {
+        if (!list || list.length === 0) return '';
+        const rows = list.map((p, i) => `
+            <tr>
+                <td style="text-align: center;">${i + 1}</td>
+                <td style="text-align: center; font-weight: bold;">${type === 'PAGODA' ? p.pagoda_cell_no : p.dining_seat_no}</td>
+                <td style="padding-left: 5px;">${p.full_name}</td>
+                <td style="text-align: center;">${p.conf_no}</td>
+                <td style="text-align: center;">${p.room_no || '-'}</td>
+            </tr>
+        `).join('');
+        
+        return `
+            <div style="flex: 1; padding: 10px;">
+                <h3 style="text-align: center; border-bottom: 2px solid black; padding-bottom: 5px;">${title} (${list.length})</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 10%;">SN</th>
+                            <th style="width: 15%;">${type === 'PAGODA' ? 'Cell' : 'Seat'}</th>
+                            <th style="width: 45%;">Name</th>
+                            <th style="width: 15%;">Conf</th>
+                            <th style="width: 15%;">Room</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        `;
+    };
+
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>${type} Master List</title>
+            <style>
+                @page { size: A4 landscape; margin: 10mm; }
+                body { font-family: Arial, sans-serif; font-size: 11px; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #ccc; padding: 4px; }
+                th { background-color: #eee; font-size: 10px; }
+                h1 { text-align: center; margin: 0 0 10px 0; }
+            </style>
+        </head>
+        <body>
+            <h1>${type} MASTER LIST - ${courseName}</h1>
+            <div style="display: flex; gap: 20px;">
+                ${renderTable(males, "MALE STUDENTS")}
+                ${renderTable(females, "FEMALE STUDENTS")}
+            </div>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
 };
