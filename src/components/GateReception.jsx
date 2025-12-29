@@ -79,8 +79,8 @@ export default function GateReception({ courses, refreshCourses }) {
   // --- 3. FILTERING & SORTING ---
   const processedList = useMemo(() => {
       let data = participants.filter(p => {
-          // ✅ CORRECT FIELD: 'phone_number'
-          const mobile = p.phone_number || '';
+          // ✅ SAFE CHECK: Try 'phone_number' first (DB), then 'mobile' (Old/Fallback)
+          const mobile = p.phone_number || p.mobile || '';
           
           const searchLower = searchQuery.toLowerCase();
           const matchesSearch = 
@@ -106,8 +106,8 @@ export default function GateReception({ courses, refreshCourses }) {
               let bValue = '';
 
               if (sortConfig.key === 'phone_number') {
-                  aValue = (a.phone_number || '').replace(/\D/g, '');
-                  bValue = (b.phone_number || '').replace(/\D/g, '');
+                  aValue = (a.phone_number || a.mobile || '').replace(/\D/g, '');
+                  bValue = (b.phone_number || b.mobile || '').replace(/\D/g, '');
               } else {
                   aValue = a[sortConfig.key] || '';
                   bValue = b[sortConfig.key] || '';
@@ -280,8 +280,10 @@ export default function GateReception({ courses, refreshCourses }) {
                           <tr>
                               <th onClick={() => handleSort('status')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Status <SortIcon column="status"/></th>
                               <th onClick={() => handleSort('full_name')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Name / ID <SortIcon column="full_name"/></th>
-                              {/* ✅ SORT BY PHONE_NUMBER */}
-                              <th onClick={() => handleSort('phone_number')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Contact <SortIcon column="phone_number"/></th>
+                              
+                              {/* ✅ UPDATED HEADER: 'PHONE' */}
+                              <th onClick={() => handleSort('phone_number')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Phone <SortIcon column="phone_number"/></th>
+                              
                               <th onClick={() => handleSort('gender')} style={{textAlign:'left', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase', cursor:'pointer', userSelect:'none'}}>Gender <SortIcon column="gender"/></th>
                               <th style={{textAlign:'right', padding:'12px', color:'#666', fontSize:'11px', textTransform:'uppercase'}}>Action</th>
                           </tr>
@@ -290,8 +292,9 @@ export default function GateReception({ courses, refreshCourses }) {
                           {processedList.map(p => {
                               const isCheckedIn = p.status === 'Gate Check-In' || p.status === 'Attending';
                               const isCancelled = p.status === 'Cancelled' || p.status === 'No-Show';
-                              // ✅ USE CORRECT FIELD
-                              const phoneNum = p.phone_number || '';
+                              
+                              // ✅ ROBUST CHECK: 'phone_number' (DB) > 'mobile' (Fallback)
+                              const phoneNum = p.phone_number || p.mobile || '';
 
                               return (
                                   <tr key={p.participant_id} style={{borderBottom:'1px solid #f0f0f0', background: isCheckedIn ? '#f0fff4' : (isCancelled ? '#fff5f5' : 'white')}}>
