@@ -2,7 +2,9 @@
 
 /**
  * ✅ 1. INDIVIDUAL TOKEN PRINT (58mm - Portrait)
- * Adjusted to match original ParticipantList(3).jsx layout perfectly.
+ * - Restored to match original layout logic.
+ * - Forces Portrait by using 'auto' height.
+ * - Ensures single page per token.
  */
 export const printStudentToken = (student, courseName) => {
     if (!student) return;
@@ -25,15 +27,16 @@ export const printStudentToken = (student, courseName) => {
                 @page { size: 58mm auto; margin: 0; }
                 body { 
                     margin: 0; 
-                    padding: 2px 5px; /* Slight padding tweak */
+                    padding: 5px; 
                     font-family: Arial, sans-serif; 
                     text-align: center; 
-                    width: 48mm; /* Safe print area */
+                    width: 48mm; /* Safe print width for 58mm paper */
                 }
                 .token-box { 
                     border: 2px solid black; 
                     padding: 5px; 
                     border-radius: 8px; 
+                    /* Use min-height to ensure consistent size without forcing landscape */
                     min-height: 38mm; 
                     box-sizing: border-box;
                     display: flex;
@@ -41,11 +44,11 @@ export const printStudentToken = (student, courseName) => {
                     justify-content: space-between;
                     page-break-inside: avoid;
                 }
-                h2 { margin: 0; font-size: 14px; text-transform: uppercase; font-weight: bold; } /* Slightly smaller header */
-                .divider { border-bottom: 2px solid black; margin: 3px 0; } /* Thicker divider */
-                .seat { font-size: 40px; font-weight: 900; margin: 2px 0; line-height: 1; } /* Bigger seat number */
-                .name { font-size: 11px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-                .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 4px; font-weight: bold; }
+                h2 { margin: 0; font-size: 16px; text-transform: uppercase; font-weight: bold; }
+                .divider { border-bottom: 1px solid black; margin: 2px 0; }
+                .seat { font-size: 36px; font-weight: 900; margin: 2px 0; line-height: 1; }
+                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+                .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
             </style>
         </head>
         <body>
@@ -79,6 +82,9 @@ export const printStudentToken = (student, courseName) => {
 
 /**
  * ✅ 2. BULK TOKEN PRINT (Continuous Portrait)
+ * - Prints all tokens in ONE job.
+ * - Uses page-break-after to separate tokens.
+ * - Forces Portrait orientation.
  */
 export const printBulkTokens = (students, courseName) => {
     if (!students || students.length === 0) return;
@@ -126,7 +132,7 @@ export const printBulkTokens = (students, courseName) => {
                     width: 48mm;
                 }
                 .token-wrapper {
-                    padding: 2px 5px; /* Consistent padding */
+                    padding: 5px;
                     page-break-after: always;
                 }
                 .token-wrapper:last-child {
@@ -142,11 +148,11 @@ export const printBulkTokens = (students, courseName) => {
                     flex-direction: column;
                     justify-content: space-between;
                 }
-                h2 { margin: 0; font-size: 14px; text-transform: uppercase; font-weight: bold; }
-                .divider { border-bottom: 2px solid black; margin: 3px 0; }
-                .seat { font-size: 40px; font-weight: 900; margin: 2px 0; line-height: 1; }
-                .name { font-size: 11px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-                .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 4px; font-weight: bold; }
+                h2 { margin: 0; font-size: 16px; text-transform: uppercase; font-weight: bold; }
+                .divider { border-bottom: 1px solid black; margin: 2px 0; }
+                .seat { font-size: 36px; font-weight: 900; margin: 2px 0; line-height: 1; }
+                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+                .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
             </style>
         </head>
         <body>
