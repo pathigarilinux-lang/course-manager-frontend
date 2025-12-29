@@ -1,8 +1,7 @@
 // src/utils/printGenerator.js
 
 /**
- * ✅ 1. INDIVIDUAL TOKEN PRINT (58mm)
- * Restored exactly from previous ParticipantList.jsx logic.
+ * ✅ 1. INDIVIDUAL TOKEN PRINT (58mm - Portrait)
  */
 export const printStudentToken = (student, courseName) => {
     if (!student) return;
@@ -21,25 +20,29 @@ export const printStudentToken = (student, courseName) => {
         <head>
             <title>Token-${student.conf_no}</title>
             <style>
-                @page { size: 58mm 40mm; margin: 0; }
+                /* ✅ PORTRAIT FIX: Use 'auto' height to prevent landscape rotation */
+                @page { size: 58mm auto; margin: 0; }
                 body { 
                     margin: 0; 
                     padding: 5px; 
                     font-family: Arial, sans-serif; 
                     text-align: center; 
+                    width: 48mm; /* Safe print width */
                 }
                 .token-box { 
                     border: 2px solid black; 
                     padding: 5px; 
                     border-radius: 8px; 
-                    height: 38mm; 
+                    /* Min-height ensures consistent label size without forcing rotation */
+                    min-height: 38mm; 
                     box-sizing: border-box;
                     display: flex;
                     flex-direction: column;
                     justify-content: space-between;
+                    page-break-inside: avoid;
                 }
                 h2 { margin: 0; font-size: 16px; text-transform: uppercase; }
-                .seat { font-size: 36px; font-weight: 900; margin: 2px 0; }
+                .seat { font-size: 36px; font-weight: 900; margin: 5px 0; }
                 .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
                 .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
             </style>
@@ -72,8 +75,94 @@ export const printStudentToken = (student, courseName) => {
 };
 
 /**
- * ✅ 2. ARRIVAL PASS / RECEIPT PRINT (72mm)
- * Moved from ParticipantList.jsx inline logic to here for isolation.
+ * ✅ 2. BULK TOKEN PRINT (Continuous Portrait)
+ * Prints all tokens in ONE job, separated by page breaks.
+ */
+export const printBulkTokens = (students, courseName) => {
+    if (!students || students.length === 0) return;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    
+    // Generate HTML for ALL students
+    const tokensHtml = students.map(student => `
+        <div class="token-wrapper">
+            <div class="token-box">
+                <div>
+                    <h2>${courseName || 'DHAMMA COURSE'}</h2>
+                    <div style="border-bottom: 1px solid black; margin: 2px 0;"></div>
+                </div>
+                <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
+                <div>
+                    <div class="name">${student.full_name}</div>
+                    <div class="details">
+                        <span>${student.conf_no}</span>
+                        <span>${student.gender}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    doc.open();
+    doc.write(`
+        <html>
+        <head>
+            <title>Bulk Tokens</title>
+            <style>
+                @page { size: 58mm auto; margin: 0; }
+                body { 
+                    margin: 0; 
+                    padding: 0; 
+                    font-family: Arial, sans-serif; 
+                    text-align: center; 
+                    width: 48mm;
+                }
+                .token-wrapper {
+                    padding: 5px;
+                    page-break-after: always; /* ✅ Forces cut/new page after each token */
+                }
+                .token-wrapper:last-child {
+                    page-break-after: avoid;
+                }
+                .token-box { 
+                    border: 2px solid black; 
+                    padding: 5px; 
+                    border-radius: 8px; 
+                    min-height: 38mm; 
+                    box-sizing: border-box;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                }
+                h2 { margin: 0; font-size: 16px; text-transform: uppercase; }
+                .seat { font-size: 36px; font-weight: 900; margin: 5px 0; }
+                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            ${tokensHtml}
+        </body>
+        </html>
+    `);
+    doc.close();
+
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+        iframe.contentWindow.print();
+        setTimeout(() => document.body.removeChild(iframe), 3000); // Longer timeout for bulk data
+    }, 1000);
+};
+
+/**
+ * ✅ 3. ARRIVAL PASS / RECEIPT PRINT (72mm)
  */
 export const printArrivalPass = (data) => {
     if (!data) return;
@@ -142,7 +231,7 @@ export const printArrivalPass = (data) => {
 };
 
 /**
- * ✅ 3. STANDARD LIST PRINT (A4)
+ * ✅ 4. STANDARD LIST PRINT (A4)
  */
 export const printList = (title, list, courseName) => {
     if (!list || list.length === 0) return;
@@ -178,7 +267,7 @@ export const printList = (title, list, courseName) => {
 };
 
 /**
- * ✅ 4. COMBINED LIST PRINT (A4 Landscape)
+ * ✅ 5. COMBINED LIST PRINT (A4 Landscape)
  */
 export const printCombinedList = (type, males, females, courseName) => {
     const printWindow = window.open('', '_blank');
