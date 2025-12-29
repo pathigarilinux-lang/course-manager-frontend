@@ -1,10 +1,10 @@
 // src/utils/printGenerator.js
 
 /**
- * ✅ 1. INDIVIDUAL TOKEN PRINT (58mm - Portrait)
- * - Restored to match original layout logic.
- * - Forces Portrait by using 'auto' height.
- * - Ensures single page per token.
+ * ✅ 1. INDIVIDUAL TOKEN PRINT
+ * - Uses exact CSS from your reference file.
+ * - Adds 'portrait' keyword to enforce orientation.
+ * - Centers the box perfectly on the strip.
  */
 export const printStudentToken = (student, courseName) => {
     if (!student) return;
@@ -23,21 +23,21 @@ export const printStudentToken = (student, courseName) => {
         <head>
             <title>Token-${student.conf_no}</title>
             <style>
-                /* Force Portrait on 58mm paper */
-                @page { size: 58mm auto; margin: 0; }
+                /* ✅ EXACT CSS FROM REFERENCE + PORTRAIT FORCE */
+                @page { size: 58mm 40mm portrait; margin: 0; }
                 body { 
                     margin: 0; 
                     padding: 5px; 
                     font-family: Arial, sans-serif; 
                     text-align: center; 
-                    width: 48mm; /* Safe print width for 58mm paper */
                 }
                 .token-box { 
                     border: 2px solid black; 
                     padding: 5px; 
                     border-radius: 8px; 
-                    /* Use min-height to ensure consistent size without forcing landscape */
-                    min-height: 38mm; 
+                    height: 38mm; /* Fixed height for consistent professional look */
+                    width: 48mm;  /* Fixed width to center on 58mm paper */
+                    margin: 0 auto; /* Center alignment */
                     box-sizing: border-box;
                     display: flex;
                     flex-direction: column;
@@ -47,7 +47,7 @@ export const printStudentToken = (student, courseName) => {
                 h2 { margin: 0; font-size: 16px; text-transform: uppercase; font-weight: bold; }
                 .divider { border-bottom: 1px solid black; margin: 2px 0; }
                 .seat { font-size: 36px; font-weight: 900; margin: 2px 0; line-height: 1; }
-                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
                 .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
             </style>
         </head>
@@ -81,10 +81,9 @@ export const printStudentToken = (student, courseName) => {
 };
 
 /**
- * ✅ 2. BULK TOKEN PRINT (Continuous Portrait)
- * - Prints all tokens in ONE job.
- * - Uses page-break-after to separate tokens.
- * - Forces Portrait orientation.
+ * ✅ 2. BULK TOKEN PRINT
+ * - Exact same styling as single token.
+ * - Uses page-break-after: always for cutting.
  */
 export const printBulkTokens = (students, courseName) => {
     if (!students || students.length === 0) return;
@@ -123,17 +122,19 @@ export const printBulkTokens = (students, courseName) => {
         <head>
             <title>Bulk Tokens</title>
             <style>
-                @page { size: 58mm auto; margin: 0; }
+                @page { size: 58mm 40mm portrait; margin: 0; }
                 body { 
                     margin: 0; 
                     padding: 0; 
                     font-family: Arial, sans-serif; 
                     text-align: center; 
-                    width: 48mm;
                 }
                 .token-wrapper {
                     padding: 5px;
                     page-break-after: always;
+                    width: 100%;
+                    display: flex;
+                    justify-content: center;
                 }
                 .token-wrapper:last-child {
                     page-break-after: avoid;
@@ -142,7 +143,8 @@ export const printBulkTokens = (students, courseName) => {
                     border: 2px solid black; 
                     padding: 5px; 
                     border-radius: 8px; 
-                    min-height: 38mm; 
+                    height: 38mm; 
+                    width: 48mm;
                     box-sizing: border-box;
                     display: flex;
                     flex-direction: column;
@@ -151,7 +153,7 @@ export const printBulkTokens = (students, courseName) => {
                 h2 { margin: 0; font-size: 16px; text-transform: uppercase; font-weight: bold; }
                 .divider { border-bottom: 1px solid black; margin: 2px 0; }
                 .seat { font-size: 36px; font-weight: 900; margin: 2px 0; line-height: 1; }
-                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+                .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
                 .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
             </style>
         </head>
@@ -169,9 +171,7 @@ export const printBulkTokens = (students, courseName) => {
     }, 1000);
 };
 
-// ... (Keep printArrivalPass, printList, printCombinedList exactly as they were in previous version) ...
-// (I will include them below for completeness so you can copy the whole file safely)
-
+// ... (printArrivalPass, printList, printCombinedList remain unchanged - they are already correct) ...
 export const printArrivalPass = (data) => {
     if (!data) return;
     const iframe = document.createElement('iframe');
