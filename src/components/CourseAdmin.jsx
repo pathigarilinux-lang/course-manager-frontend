@@ -32,8 +32,13 @@ const thPrint = {
 const extractPhoneNumber = (rawStr) => {
     if (!rawStr) return '';
     const str = String(rawStr);
+    
+    // 1. Remove Email Addresses
     const withoutEmail = str.replace(/\S+@\S+\.\S+/g, '');
+    
+    // 2. Remove non-digit characters (keep +)
     const cleanNumber = withoutEmail.replace(/[^0-9+]/g, '');
+    
     return cleanNumber.trim();
 };
 
@@ -86,12 +91,14 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
   const handleEditClick = (c) => {
       if (!c.course_id) return alert("Error: Invalid ID");
       const shortName = c.course_name ? c.course_name.split('/')[0].trim() : 'Unknown';
+      
       setNewCourseData({
           name: shortName,
           teacher: c.teacher_name || '',
           startDate: c.start_date ? c.start_date.split('T')[0] : '',
           endDate: c.end_date ? c.end_date.split('T')[0] : ''
       });
+      
       setEditingId(c.course_id);
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -235,7 +242,11 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
         name: getIndex(['Student', 'Name', 'Sadhaka']), 
         age: getIndex(['Age']), 
         gender: getIndex(['Gender', 'Sex']), 
-        phone: getIndex(['Phone', 'Mobile', 'Contact', 'Cell']), // Scan for any phone header
+        
+        // ✅ REFINED PRIORITY: Look for exact mobile/phone headers first
+        // Removed generic 'Contact' to avoid matching 'Contact Person' (names)
+        phone: getIndex(['Mobile', 'Cell', 'Phone', 'Contact No', 'Contact Num']), 
+        
         generic: getIndex(['Courses', 'History', 'Old/New']), 
         c10: getIndex(['10d']), cstp: getIndex(['STP', 'Satipatthana']), ctsc: getIndex(['TSC', 'Teen', 'Service']),
         c20: getIndex(['20d']), c30: getIndex(['30d']), c45: getIndex(['45d', '40d']), c60: getIndex(['60d']),
@@ -352,7 +363,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
                 gender: s.gender, 
                 courses: s.courses_info, 
                 
-                // ✅ CRITICAL FIX: MAP TO 'phone_number' (Database Column Name)
+                // ✅ CRITICAL: MAP TO 'phone_number' (Database Column)
                 phone_number: s.mobile 
             }))
         };
@@ -599,7 +610,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
                       <div><strong>Conf No:</strong> {mappingReport.conf || <span style={{color:'red'}}>Missing</span>}</div>
                       <div><strong>Gender:</strong> {mappingReport.gender ? <span style={{color:'#007bff'}}>{mappingReport.gender}</span> : <span style={{color:'red'}}>Missing</span>}</div>
                       
-                      {/* ✅ PHONE CHECK */}
+                      {/* ✅ SHOW WHICH COLUMN WAS PICKED */}
                       <div><strong>Phone:</strong> {mappingReport.phone}</div>
                       
                       <div><strong>Courses:</strong> {mappingReport.courses_generic}</div>
