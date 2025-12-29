@@ -1,13 +1,12 @@
 // src/utils/printGenerator.js
 
 /**
- * Prints a single student token on a 58mm thermal printer.
- * Logic extracted directly from ParticipantList.jsx (Original Version).
+ * ✅ 1. INDIVIDUAL TOKEN PRINT (58mm)
+ * Restored exactly from previous ParticipantList.jsx logic.
  */
 export const printStudentToken = (student, courseName) => {
     if (!student) return;
 
-    // 1. Create a hidden iframe
     const iframe = document.createElement('iframe');
     iframe.style.position = 'absolute';
     iframe.style.width = '0px';
@@ -15,7 +14,6 @@ export const printStudentToken = (student, courseName) => {
     iframe.style.border = 'none';
     document.body.appendChild(iframe);
 
-    // 2. Write the exact HTML & CSS structure
     const doc = iframe.contentWindow.document;
     doc.open();
     doc.write(`
@@ -34,7 +32,7 @@ export const printStudentToken = (student, courseName) => {
                     border: 2px solid black; 
                     padding: 5px; 
                     border-radius: 8px; 
-                    height: 38mm; /* Fixed height to fit label */
+                    height: 38mm; 
                     box-sizing: border-box;
                     display: flex;
                     flex-direction: column;
@@ -44,7 +42,6 @@ export const printStudentToken = (student, courseName) => {
                 .seat { font-size: 36px; font-weight: 900; margin: 2px 0; }
                 .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
                 .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
-                .footer { font-size: 8px; margin-top: 2px; }
             </style>
         </head>
         <body>
@@ -53,9 +50,7 @@ export const printStudentToken = (student, courseName) => {
                     <h2>${courseName || 'DHAMMA COURSE'}</h2>
                     <div style="border-bottom: 1px solid black; margin: 2px 0;"></div>
                 </div>
-                
                 <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
-                
                 <div>
                     <div class="name">${student.full_name}</div>
                     <div class="details">
@@ -69,37 +64,90 @@ export const printStudentToken = (student, courseName) => {
     `);
     doc.close();
 
-    // 3. Trigger Print & Cleanup
     iframe.contentWindow.focus();
     setTimeout(() => {
         iframe.contentWindow.print();
-        // Remove iframe after a short delay to allow print dialog to open
         setTimeout(() => document.body.removeChild(iframe), 1000);
     }, 500);
 };
 
 /**
- * Prints a standard list (A4 size).
- * Kept consistent with previous logic.
+ * ✅ 2. ARRIVAL PASS / RECEIPT PRINT (72mm)
+ * Moved from ParticipantList.jsx inline logic to here for isolation.
+ */
+export const printArrivalPass = (data) => {
+    if (!data) return;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
+        <html>
+        <head>
+            <title>Pass-${data.confNo}</title>
+            <style>
+                @page { size: 72mm auto; margin: 0; }
+                body { margin: 0; padding: 5px; font-family: Helvetica, Arial, sans-serif; color: black; width: 70mm; }
+                .container { padding: 5px; border: 3px solid black; border-radius: 8px; box-sizing: border-box; }
+                .header { text-align: center; font-weight: bold; margin-bottom: 5px; }
+                .divider { border-bottom: 2px solid black; margin: 5px 0; }
+                table { width: 100%; font-size: 11px; margin-bottom: 5px; line-height: 1.3; border-collapse: collapse; }
+                .main-seat { font-size: 45px; font-weight: 900; line-height: 1; margin: 5px 0; }
+                .info-table td { border: 1px solid black; padding: 4px; font-size: 11px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div style="font-size:16px">VIPASSANA</div>
+                    <div style="font-size:10px">International Meditation Center</div>
+                    <div style="font-size:12px">Dhamma Nagajjuna 2</div>
+                </div>
+                <div class="divider"></div>
+                <table>
+                    <tr><td style="font-weight:bold; width:50px; vertical-align:top">Course:</td><td>${data.courseName}</td></tr>
+                    <tr><td style="font-weight:bold; width:50px; vertical-align:top">Teacher:</td><td>${data.teacherName}</td></tr>
+                    <tr><td style="font-weight:bold; width:50px; vertical-align:top">Date:</td><td>${data.from} to ${data.to}</td></tr>
+                </table>
+                <div class="divider"></div>
+                <div style="text-align:center">
+                    <div style="font-size:14px; font-weight:900; text-transform:uppercase; margin:5px 0">CHECK-IN PASS</div>
+                    <div class="main-seat">${data.roomNo || '-'}</div>
+                    <div style="font-size:14px; font-weight:bold; margin:5px 0; word-wrap:break-word; line-height:1.2">${data.studentName}</div>
+                    <div style="font-size:12px; font-weight:bold">${data.confNo}</div>
+                </div>
+                <table class="info-table" style="margin-top:10px; border:2px solid black">
+                    <tr><td style="width:50%">Dining: <strong>${data.seatNo || '-'}</strong></td><td style="width:50%">Mobile: <strong>${data.mobile}</strong></td></tr>
+                    <tr><td>Valuables: <strong>${data.valuables}</strong></td><td>Lang: <strong>${data.language}</strong></td></tr>
+                    ${(data.laundry || data.pagoda) ? `<tr><td colspan="2" style="font-weight:bold; text-align:center; background:#f0f0f0">${data.laundry ? `Laundry: ${data.laundry} ` : ''} ${data.pagoda ? `Pagoda: ${data.pagoda}` : ''}</td></tr>` : ''}
+                </table>
+                <div style="text-align:center; font-size:9px; font-style:italic; margin-top:5px">*** Student Copy ***</div>
+            </div>
+        </body>
+        </html>
+    `);
+    doc.close();
+
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+        iframe.contentWindow.print();
+        setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 500);
+};
+
+/**
+ * ✅ 3. STANDARD LIST PRINT (A4)
  */
 export const printList = (title, list, courseName) => {
     if (!list || list.length === 0) return;
-
     const printWindow = window.open('', '_blank');
-    if (!printWindow) return alert("Popup blocked. Please allow popups.");
-
-    const headers = `
-        <tr>
-            <th style="width: 5%;">S.N.</th>
-            <th style="width: 10%;">Seat</th>
-            <th style="width: 35%;">Name</th>
-            <th style="width: 10%;">Conf</th>
-            <th style="width: 10%;">Gen</th>
-            <th style="width: 10%;">Room</th>
-            <th style="width: 10%;">Pagoda</th>
-            <th style="width: 10%;">Status</th>
-        </tr>
-    `;
+    if (!printWindow) return alert("Popup blocked.");
 
     const rows = list.map((p, i) => `
         <tr>
@@ -115,39 +163,22 @@ export const printList = (title, list, courseName) => {
     `).join('');
 
     printWindow.document.write(`
-        <html>
-        <head>
-            <title>${title} - ${courseName}</title>
-            <style>
-                @page { size: A4; margin: 10mm; }
-                body { font-family: Arial, sans-serif; font-size: 12px; }
-                h1 { text-align: center; margin-bottom: 5px; font-size: 18px; }
-                h3 { text-align: center; margin-top: 0; font-size: 14px; color: #555; }
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                th, td { border: 1px solid black; padding: 4px; }
-                th { background-color: #f0f0f0; text-transform: uppercase; font-size: 10px; }
-                tr:nth-child(even) { background-color: #f9f9f9; }
-            </style>
-        </head>
-        <body>
-            <h1>${title} LIST</h1>
-            <h3>${courseName}</h3>
-            <table>
-                <thead>${headers}</thead>
-                <tbody>${rows}</tbody>
-            </table>
-            <div style="margin-top: 10px; font-size: 10px; text-align: right;">
-                Printed on: ${new Date().toLocaleString()} | Total: ${list.length}
-            </div>
-        </body>
-        </html>
+        <html><head><title>${title}</title>
+        <style>
+            @page { size: A4; margin: 10mm; } body { font-family: Arial, sans-serif; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; } th, td { border: 1px solid black; padding: 4px; }
+            th { background-color: #f0f0f0; }
+        </style></head><body>
+        <h1 style="text-align:center">${title} LIST - ${courseName}</h1>
+        <table><thead><tr><th>SN</th><th>Seat</th><th>Name</th><th>Conf</th><th>Gen</th><th>Room</th><th>Pagoda</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+        </body></html>
     `);
     printWindow.document.close();
     printWindow.print();
 };
 
 /**
- * Prints a combined list (Male & Female side-by-side).
+ * ✅ 4. COMBINED LIST PRINT (A4 Landscape)
  */
 export const printCombinedList = (type, males, females, courseName) => {
     const printWindow = window.open('', '_blank');
@@ -155,57 +186,11 @@ export const printCombinedList = (type, males, females, courseName) => {
 
     const renderTable = (list, title) => {
         if (!list || list.length === 0) return '';
-        const rows = list.map((p, i) => `
-            <tr>
-                <td style="text-align: center;">${i + 1}</td>
-                <td style="text-align: center; font-weight: bold;">${type === 'PAGODA' ? p.pagoda_cell_no : p.dining_seat_no}</td>
-                <td style="padding-left: 5px;">${p.full_name}</td>
-                <td style="text-align: center;">${p.conf_no}</td>
-                <td style="text-align: center;">${p.room_no || '-'}</td>
-            </tr>
-        `).join('');
-        
-        return `
-            <div style="flex: 1; padding: 10px;">
-                <h3 style="text-align: center; border-bottom: 2px solid black; padding-bottom: 5px;">${title} (${list.length})</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="width: 10%;">SN</th>
-                            <th style="width: 15%;">${type === 'PAGODA' ? 'Cell' : 'Seat'}</th>
-                            <th style="width: 45%;">Name</th>
-                            <th style="width: 15%;">Conf</th>
-                            <th style="width: 15%;">Room</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rows}</tbody>
-                </table>
-            </div>
-        `;
+        const rows = list.map((p, i) => `<tr><td style="text-align:center">${i+1}</td><td style="text-align:center;font-weight:bold">${type==='PAGODA'?p.pagoda_cell_no:p.dining_seat_no}</td><td style="padding-left:5px">${p.full_name}</td><td style="text-align:center">${p.conf_no}</td><td style="text-align:center">${p.room_no||'-'}</td></tr>`).join('');
+        return `<div style="flex:1; padding:10px;"><h3>${title} (${list.length})</h3><table style="width:100%; border-collapse:collapse; font-size:11px;"><thead><tr style="background:#eee"><th style="border:1px solid #ccc; padding:4px">SN</th><th style="border:1px solid #ccc; padding:4px">${type==='PAGODA'?'Cell':'Seat'}</th><th style="border:1px solid #ccc; padding:4px">Name</th><th style="border:1px solid #ccc; padding:4px">Conf</th><th style="border:1px solid #ccc; padding:4px">Room</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     };
 
-    printWindow.document.write(`
-        <html>
-        <head>
-            <title>${type} Master List</title>
-            <style>
-                @page { size: A4 landscape; margin: 10mm; }
-                body { font-family: Arial, sans-serif; font-size: 11px; }
-                table { width: 100%; border-collapse: collapse; }
-                th, td { border: 1px solid #ccc; padding: 4px; }
-                th { background-color: #eee; font-size: 10px; }
-                h1 { text-align: center; margin: 0 0 10px 0; }
-            </style>
-        </head>
-        <body>
-            <h1>${type} MASTER LIST - ${courseName}</h1>
-            <div style="display: flex; gap: 20px;">
-                ${renderTable(males, "MALE STUDENTS")}
-                ${renderTable(females, "FEMALE STUDENTS")}
-            </div>
-        </body>
-        </html>
-    `);
+    printWindow.document.write(`<html><head><title>${type} Master</title><style>@page { size: A4 landscape; margin: 10mm; } body { font-family: Arial; }</style></head><body><h1 style="text-align:center">${type} MASTER LIST - ${courseName}</h1><div style="display:flex; gap:20px;">${renderTable(males, "MALE")}${renderTable(females, "FEMALE")}</div></body></html>`);
     printWindow.document.close();
     printWindow.print();
 };
