@@ -3,8 +3,7 @@ import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Min
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
-// We keep these for the big lists, but TOKENS are now handled LOCALLY as per your reference
-import { printList, printCombinedList, printArrivalPass } from '../utils/printGenerator';
+
 
 // --- DATA HELPERS ---
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
