@@ -3,8 +3,8 @@ import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Min
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
-// ✅ Import the new Bulk Print function
-import { printStudentToken, printList, printCombinedList, printArrivalPass, printBulkTokens } from '../utils/printGenerator';
+// We will use printList and printCombinedList from generator, but restore TOKEN logic inline
+import { printList, printCombinedList, printArrivalPass } from '../utils/printGenerator';
 
 // --- DATA HELPERS ---
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
@@ -118,8 +118,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const [showSummaryReport, setShowSummaryReport] = useState(false);
   const [showPrintSettings, setShowPrintSettings] = useState(false);
   const [showVisualHall, setShowVisualHall] = useState(false); 
-  const [printReceiptData, setPrintReceiptData] = useState(null);
-
+  
   const defaultConfig = { mCols: 10, mRows: 10, mChowky: 2, fCols: 7, fRows: 10, fChowky: 2 };
   const [seatingConfig, setSeatingConfig] = useState(defaultConfig);
   const [printConfig, setPrintConfig] = useState({ scale: 0.9, orientation: 'landscape', paper: 'A3' });
@@ -165,9 +164,45 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
 
   const getCourseName = () => { return courses.find(c => String(c.course_id) === String(courseId))?.course_name || 'Dhamma Course'; };
 
-  const handleSingleToken = (student) => { 
-      if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first."); 
-      printStudentToken(student, getCourseName()); 
+  // ✅ 1. RESTORED INLINE SINGLE TOKEN PRINT
+  const handleSingleToken = (student) => {
+      if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first.");
+      
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.width = '0px';
+      iframe.style.height = '0px';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentWindow.document;
+      
+      doc.open();
+      doc.write(`
+          <html>
+          <head>
+              <title>Token-${student.conf_no}</title>
+              <style>
+                  @page { size: 58mm 40mm; margin: 0; }
+                  body { margin: 0; padding: 5px; font-family: Arial, sans-serif; text-align: center; }
+                  .token-box { border: 2px solid black; padding: 5px; border-radius: 8px; height: 38mm; box-sizing: border-box; display: flex; flexDirection: column; justify-content: space-between; }
+                  h2 { margin: 0; font-size: 16px; text-transform: uppercase; }
+                  .seat { font-size: 36px; font-weight: 900; margin: 2px 0; }
+                  .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                  .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
+              </style>
+          </head>
+          <body>
+              <div class="token-box">
+                  <div><h2>${getCourseName()}</h2><div style="border-bottom: 1px solid black; margin: 2px 0;"></div></div>
+                  <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
+                  <div><div class="name">${student.full_name}</div><div class="details"><span>${student.conf_no}</span><span>${student.gender}</span></div></div>
+              </div>
+          </body>
+          </html>
+      `);
+      doc.close();
+      iframe.contentWindow.focus();
+      setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 1000); }, 500);
   };
 
   const handlePrintPass = (student) => {
@@ -186,7 +221,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       printArrivalPass(data);
   };
 
-  // ✅ UPDATED: USE NEW BULK PRINT FUNCTION
+  // ✅ 2. RESTORED INLINE BULK TOKEN PRINT
   const handleBulkPrint = (filter) => { 
       let valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
       if (filter === 'Male') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('m')); 
@@ -195,9 +230,50 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       
       const sortedStudents = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true}));
       
-      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens in ONE continuous job?`)) { 
-          const cName = courses.find(c => c.course_id == courseId)?.course_name || '';
-          printBulkTokens(sortedStudents, cName); 
+      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens?`)) { 
+          const cName = getCourseName();
+          
+          // GENERATE HTML FOR ALL TOKENS
+          const tokensHtml = sortedStudents.map(student => `
+              <div class="token-wrapper">
+                  <div class="token-box">
+                      <div><h2>${cName}</h2><div style="border-bottom: 1px solid black; margin: 2px 0;"></div></div>
+                      <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
+                      <div><div class="name">${student.full_name}</div><div class="details"><span>${student.conf_no}</span><span>${student.gender}</span></div></div>
+                  </div>
+              </div>
+          `).join('');
+
+          const iframe = document.createElement('iframe');
+          iframe.style.position = 'absolute';
+          iframe.style.width = '0px';
+          iframe.style.height = '0px';
+          iframe.style.border = 'none';
+          document.body.appendChild(iframe);
+          const doc = iframe.contentWindow.document;
+          doc.open();
+          doc.write(`
+              <html>
+              <head>
+                  <title>Bulk Tokens</title>
+                  <style>
+                      @page { size: 58mm 40mm; margin: 0; }
+                      body { margin: 0; padding: 0; font-family: Arial, sans-serif; text-align: center; }
+                      .token-wrapper { padding: 5px; page-break-after: always; }
+                      .token-wrapper:last-child { page-break-after: avoid; }
+                      .token-box { border: 2px solid black; padding: 5px; border-radius: 8px; height: 38mm; box-sizing: border-box; display: flex; flexDirection: column; justify-content: space-between; }
+                      h2 { margin: 0; font-size: 16px; text-transform: uppercase; }
+                      .seat { font-size: 36px; font-weight: 900; margin: 2px 0; }
+                      .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                      .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
+                  </style>
+              </head>
+              <body>${tokensHtml}</body>
+              </html>
+          `);
+          doc.close();
+          iframe.contentWindow.focus();
+          setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 3000); }, 1000);
       }
   };
 
@@ -323,11 +399,10 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const fSpec = generateChowkyLabels(seatingConfig.fCols, seatingConfig.fChowky);
   const fOrdered = [...fSpec.reverse(), 'GAP', ...fReg.reverse()];
 
-  // ... (Remaining code including renderDiningTable, renderPagodaTable, and renderSeatingTable is identical to master) ...
-  // (Included in full file block above)
+  // ... (Keep the rest of the View Modes exactly as they were in the previous version) ...
+  // (Included in full file above)
   
   if (viewMode === 'dining') { 
-      // ... (Same as master) ...
       const arrived = participants.filter(p => p.status==='Attending'); 
       const renderDiningTable = (list, title, color) => {
         const sortedList = sortParticipants(list, diningSort.key, diningSort.direction);
@@ -338,7 +413,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   }
   
   if (viewMode === 'pagoda') { 
-      // ... (Same as master) ...
       const assigned = participants.filter(p => p.status==='Attending' && p.pagoda_cell_no); 
       const renderPagodaTable = (list, title, color) => {
         const sortedList = sortParticipants(list, pagodaSort.key, pagodaSort.direction);
@@ -349,7 +423,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   }
   
   if (viewMode === 'seating') { 
-      // ... (Same as master) ...
       const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.status!=='Cancelled'); 
       const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.status!=='Cancelled'); 
       const mM = {}; males.forEach(p=>mM[p.dhamma_hall_seat_no]=p); 
@@ -420,7 +493,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   // --- DEFAULT LIST VIEW ---
   return (
     <div style={styles.card}>
-      {/* ... (Keep Header and Filters exactly as they are) ... */}
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center'}}>
          <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><User size={24}/> Students</h2>
