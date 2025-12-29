@@ -6,6 +6,8 @@ import MaleBlockLayout from './MaleBlockLayout';
 import FemaleBlockLayout from './FemaleBlockLayout'; 
 import { API_URL, LANGUAGES, styles } from '../config';
 
+// ✅ REMOVED: import { printArrivalPass } ... (This was the broken link)
+
 const NUMBER_OPTIONS = Array.from({ length: 200 }, (_, i) => String(i + 1));
 
 // Helper: Extract Suffix (e.g. "45-Day" -> "-45D")
@@ -40,7 +42,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       confNo: '', specialSeating: 'None', seatType: 'Chair', dhammaSeat: '' 
   });
   
-  const [printReceiptData, setPrintReceiptData] = useState(null);
+  // ✅ REMOVED: printReceiptData state (Not needed here anymore)
   const [showVisualRoom, setShowVisualRoom] = useState(false);
   const [showVisualDining, setShowVisualDining] = useState(false);
   const [showVisualPagoda, setShowVisualPagoda] = useState(false);
@@ -191,22 +193,8 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       setShowVisualPagoda(false); 
   };
 
-  const prepareReceipt = () => {
-      const courseObj = courses.find(c => c.course_id == formData.courseId);
-      let rawName = courseObj?.course_name || 'Unknown';
-      let shortName = rawName.match(/(\d+)\s*-?\s*Day/i) ? `${rawName.match(/(\d+)\s*-?\s*Day/i)[1]}-Day Course` : rawName;
-      setPrintReceiptData({ 
-          courseName: shortName, teacherName: courseObj?.teacher_name || 'Teacher', 
-          from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', 
-          to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', 
-          studentName: selectedStudent?.full_name, confNo: formData.confNo, roomNo: formData.roomNo, seatNo: formData.seatNo, 
-          mobile: formData.mobileLocker || '-', valuables: formData.valuablesLocker || '-', laundry: formData.laundryToken, 
-          language: formData.language, pagoda: (formData.pagodaCell && formData.pagodaCell !== 'None') ? formData.pagodaCell : null, 
-          special: (formData.specialSeating && formData.specialSeating !== 'None') ? formData.specialSeating : null
-      });
-  };
-
-  const triggerReprint = () => { if (!selectedStudent) return; prepareReceipt(); setTimeout(() => window.print(), 500); };
+  // ✅ REMOVED: prepareReceipt function
+  // ✅ REMOVED: triggerReprint function
 
   const handleSubmit = async (e) => { 
       e.preventDefault();
@@ -230,8 +218,9 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           }
 
           await fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
-          prepareReceipt(); 
-          setTimeout(() => window.print(), 500); 
+          
+          // ✅ REMOVED: prepareReceipt() and window.print() calls
+          
           setStatus('✅ Success!'); 
           
           setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' }));
@@ -356,7 +345,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
                           {/* ACTIONS */}
                           <div style={{marginTop:'20px', textAlign:'right', display:'flex', justifyContent:'flex-end', gap:'10px'}}>
-                              <button type="button" onClick={triggerReprint} disabled={!selectedStudent} style={{...styles.btn(false), background:'white', border:'1px solid #ccc', color:'#555', display:'flex', alignItems:'center', gap:'6px', padding:'10px 15px', fontSize:'13px'}}><Printer size={16}/> Reprint</button>
+                              {/* ✅ REMOVED: Reprint button */}
                               <button type="submit" disabled={!selectedStudent} style={{...styles.btn(true), background: selectedStudent ? 'linear-gradient(45deg, #28a745, #218838)' : '#e0e0e0', color: selectedStudent ? 'white' : '#999', padding:'10px 30px', fontSize:'14px', borderRadius:'25px', boxShadow: selectedStudent ? '0 3px 10px rgba(40,167,69,0.2)' : 'none', cursor: selectedStudent ? 'pointer' : 'not-allowed', display:'flex', alignItems:'center', gap:'8px'}}><CheckCircle size={18}/> Check-In</button>
                           </div>
                       </div>
@@ -398,8 +387,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           
           {showVisualRoom && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:2000, display:'flex', flexDirection:'column', padding:'20px'}}><div style={{background:'white', borderRadius:'8px', flex:1, display:'flex', flexDirection:'column', overflow:'hidden', maxWidth:'1200px', margin:'0 auto', width:'100%'}}><div style={{padding:'15px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}><h3 style={{margin:0}}>📍 Select Bed for {selectedStudent ? selectedStudent.full_name : 'Student'} ({isFemale ? 'Female' : 'Male'})</h3><button onClick={()=>setShowVisualRoom(false)} style={{background:'red', color:'white', border:'none', borderRadius:'4px', padding:'5px 15px', cursor:'pointer'}}>Close</button></div><div style={{flex:1, overflowY:'auto', padding:'20px', background:'#f0f2f5'}}>{isFemale ? (<FemaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomSelect} />) : (<MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomSelect} />)}</div></div></div>)}
           
-          {/* PRINT AREA */}
-          {printReceiptData && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}><button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button><div id="receipt-print-area" style={{padding:'5px', border:'3px solid black', borderRadius:'8px', fontFamily:'Helvetica, Arial, sans-serif', color:'black', width:'70mm', margin:'0 auto', boxSizing:'border-box'}}><div style={{textAlign:'center', fontWeight:'bold', marginBottom:'5px'}}><div style={{fontSize:'16px'}}>VIPASSANA</div><div style={{fontSize:'10px'}}>International Meditation Center</div><div style={{fontSize:'12px'}}>Dhamma Nagajjuna 2</div></div><div style={{borderBottom:'2px solid black', margin:'5px 0'}}></div><table style={{width:'100%', fontSize:'11px', marginBottom:'5px', lineHeight:'1.3'}}><tbody><tr><td style={{fontWeight:'bold', width:'50px', verticalAlign:'top'}}>Course:</td><td>{printReceiptData.courseName}</td></tr><tr><td style={{fontWeight:'bold', width:'50px', verticalAlign:'top'}}>Teacher:</td><td>{printReceiptData.teacherName}</td></tr><tr><td style={{fontWeight:'bold', width:'50px', verticalAlign:'top'}}>Date:</td><td>{printReceiptData.from} to {printReceiptData.to}</td></tr></tbody></table><div style={{borderBottom:'2px solid black', margin:'5px 0'}}></div><div style={{textAlign:'center'}}><div style={{fontSize:'14px', fontWeight:'900', textTransform:'uppercase', margin:'5px 0'}}>CHECK-IN PASS</div><div style={{fontSize:'45px', fontWeight:'900', lineHeight:'1', margin:'5px 0'}}>{printReceiptData.roomNo || '-'}</div><div style={{fontSize:'14px', fontWeight:'bold', margin:'5px 0', wordWrap:'break-word', lineHeight:'1.2'}}>{printReceiptData.studentName}</div><div style={{fontSize:'12px', fontWeight:'bold'}}>{printReceiptData.confNo}</div></div><table style={{width:'100%', borderCollapse:'collapse', marginTop:'10px', border:'2px solid black'}}><tbody><tr><td style={{border:'1px solid black', padding:'4px', width:'50%', fontSize:'11px'}}>Dining: <strong>{printReceiptData.seatNo || '-'}</strong></td><td style={{border:'1px solid black', padding:'4px', width:'50%', fontSize:'11px'}}>Mobile: <strong>{printReceiptData.mobile}</strong></td></tr><tr><td style={{border:'1px solid black', padding:'4px', fontSize:'11px'}}>Valuables: <strong>{printReceiptData.valuables}</strong></td><td style={{border:'1px solid black', padding:'4px', fontSize:'11px'}}>Lang: <strong>{printReceiptData.language}</strong></td></tr>{(printReceiptData.laundry || printReceiptData.pagoda) && (<tr><td colSpan="2" style={{border:'1px solid black', padding:'4px', fontSize:'11px', fontWeight:'bold', textAlign:'center', background:'#f0f0f0'}}>{printReceiptData.laundry && <span style={{marginRight:'10px'}}>Laundry: {printReceiptData.laundry}</span>}{printReceiptData.pagoda && <span>Pagoda: {printReceiptData.pagoda}</span>}</td></tr>)}</tbody></table><div style={{textAlign:'center', fontSize:'9px', fontStyle:'italic', marginTop:'5px'}}>*** Student Copy ***</div></div><div className="no-print" style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={() => window.print()} style={{flex:1, padding:'12px', background:'#007bff', color:'white', border:'none', borderRadius:'6px'}}>PRINT</button></div></div><style>{`@media print { @page { size: 72mm auto; margin: 0; } html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; } body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none; page-break-after: avoid; } }`}</style></div>)}
           <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }`}</style>
       </div> 
   );
