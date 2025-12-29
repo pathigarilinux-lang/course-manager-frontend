@@ -3,18 +3,20 @@ import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Min
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
-// ✅ Import the new Print Engine
-import { printStudentToken, printList } from '../utils/printGenerator';
+// ✅ Import all print functions
+import { printStudentToken, printList, printCombinedList, printArrivalPass } from '../utils/printGenerator';
 
-// --- 1. DATA HELPERS ---
+// --- DATA HELPERS ---
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
 const getStatusColor = (s) => { if (s === 'Attending') return '#28a745'; if (s === 'Gate Check-In') return '#ffc107'; if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; return '#6c757d'; };
+
+// ... (Keep existing helpers: getStudentStats, calculatePriorityScore, getAlphabetRange, generateChowkyLabels) ...
 const getStudentStats = (p) => { if (!p) return { cat: '', s: 0, l: 0, age: '' }; const conf = (p.conf_no || '').toUpperCase(); const isOld = conf.startsWith('O') || conf.startsWith('S'); const cat = isOld ? '(O)' : '(N)'; const sMatch = (p.courses_info || '').match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = (p.courses_info || '').match(/L\s*[:=-]?\s*(\d+)/i); const s = sMatch ? sMatch[1] : '0'; const l = lMatch ? lMatch[1] : '0'; return { cat, s, l, age: p.age || '?' }; };
 const calculatePriorityScore = (p) => { const stats = getStudentStats(p); let score = 0; if (stats.cat === '(O)') score += 10000; score += (parseInt(stats.s) * 100); score += (parseInt(stats.l) * 500); score += (parseInt(stats.age) || 0); return score; };
 const getAlphabetRange = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count);
 const generateChowkyLabels = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count).map(l => `CW-${l}`);
 
-// --- 2. SUB-COMPONENTS (Visual Grid) ---
+// ... (Keep renderCell and SeatingSheet components exactly as they are) ...
 const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
     const shouldShow = p && (p.gender||'').toLowerCase().startsWith(gender.toLowerCase().charAt(0));
     const displayP = shouldShow ? p : null;
@@ -42,8 +44,11 @@ const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
 };
 
 const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, setSpecCols, gender, selectedSeat, handleSeatClick, courseId, courses, participants, seatingConfig }) => {
+    // ... (Keep existing logic) ...
     const courseObj = courses.find(c=>c.course_id==courseId);
+    const courseName = courseObj ? courseObj.course_name : 'COURSE';
     const dateRange = courseObj ? `${new Date(courseObj.start_date).toLocaleDateString()} to ${new Date(courseObj.end_date).toLocaleDateString()}` : '';
+    
     const genderKey = gender.toLowerCase().charAt(0);
     const studentsOnSide = participants.filter(p => p.status === 'Attending' && (p.gender||'').toLowerCase().startsWith(genderKey));
     const oldCnt = studentsOnSide.filter(p => getCategory(p.conf_no)==='OLD').length;
@@ -61,7 +66,6 @@ const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, 
         return g; 
     };
 
-    // Helper for visual print of the grid (cannot use printGenerator for this complex layout)
     const printVisualGrid = () => {
         const css = `@media print { @page { size: A3 landscape; margin: 5mm; } html, body { height: 100%; margin: 0; padding: 0; } body * { visibility: hidden; } #${id}, #${id} * { visibility: visible; } #${id} { position: fixed; left: 0; top: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; transform: scale(0.9); transform-origin: center top; } .no-print { display: none !important; } .seat-grid { border-top: 2px solid black; border-left: 2px solid black; } .seat-box { border-right: 2px solid black; border-bottom: 2px solid black; } }`;
         const style = document.createElement('style');
@@ -93,7 +97,7 @@ const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, 
             <div style={{textAlign:'center', marginBottom:'20px'}}> 
                 <h1 style={{margin:'0 0 5px 0', fontSize:'28px', fontWeight:'bold', textTransform:'uppercase'}}>SEATING PLAN - {title}</h1> 
                 <div style={{fontSize:'16px', fontWeight:'bold', color:'#333', marginBottom:'5px'}}>Old: {oldCnt} + New: {newCnt} = Total: {oldCnt + newCnt}</div>
-                <h3 style={{margin:0, fontSize:'16px', fontWeight:'bold'}}>30-DAY / {dateRange}</h3> 
+                <h3 style={{margin:0, fontSize:'16px', fontWeight:'bold'}}>{courseName} / {dateRange}</h3> 
             </div> 
             <div style={{display:'flex', justifyContent:'center'}}> <div className="seat-grid" style={{width:'fit-content', borderTop:'2px solid black', borderLeft:'2px solid black'}}> {renderGrid()} </div> </div> 
             <div style={{display:'flex', justifyContent:'center', marginTop:'40px'}}> <div style={{textAlign:'center', width:'100%'}}> <div style={{border:'2px dashed black', padding:'15px', fontWeight:'900', fontSize:'32px', letterSpacing:'2px', textTransform:'uppercase', margin:'0 auto', maxWidth:'600px', background:'white'}}>{gender.toUpperCase()} TEACHER</div></div> </div> 
@@ -101,7 +105,6 @@ const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, 
     );
 };
 
-// --- MAIN COMPONENT ---
 export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
@@ -120,11 +123,13 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const [showPrintSettings, setShowPrintSettings] = useState(false);
   const [showVisualHall, setShowVisualHall] = useState(false); 
   
+  // ✅ STATE FOR RECEIPT PRINTING
+  const [printReceiptData, setPrintReceiptData] = useState(null);
+
   const defaultConfig = { mCols: 10, mRows: 10, mChowky: 2, fCols: 7, fRows: 10, fChowky: 2 };
   const [seatingConfig, setSeatingConfig] = useState(defaultConfig);
   const [printConfig, setPrintConfig] = useState({ scale: 0.9, orientation: 'landscape', paper: 'A3' });
 
-  // --- LOADING ---
   useEffect(() => { 
       if (courseId) {
           fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(data => setParticipants(Array.isArray(data) ? data : []));
@@ -141,7 +146,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       } 
   }, [courseId]);
 
-  // --- MEMOS & ACTIONS ---
   const processedList = useMemo(() => { 
       let items = [...participants]; 
       if (filterType !== 'ALL') { items = items.filter(p => { const cat = getCategory(p.conf_no); if (filterType === 'OLD') return cat === 'OLD'; if (filterType === 'NEW') return cat === 'NEW'; if (filterType === 'MED') return (p.medical_info && p.medical_info.trim() !== ''); if (filterType === 'MALE') return (p.gender||'').toLowerCase().startsWith('m'); if (filterType === 'FEMALE') return (p.gender||'').toLowerCase().startsWith('f'); return true; }); }
@@ -165,53 +169,75 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   const sortParticipants = (list, key, dir) => { return [...list].sort((a, b) => { let valA = a[key] || ''; let valB = b[key] || ''; if (key === 'category') { valA = getCategory(a.conf_no); valB = getCategory(b.conf_no); } if (key === 'dining_seat_no' || key === 'pagoda_cell_no') { return dir === 'asc' ? String(valA).localeCompare(String(valB), undefined, { numeric: true }) : String(valB).localeCompare(String(valA), undefined, { numeric: true }); } if (valA < valB) return dir === 'asc' ? -1 : 1; if (valA > valB) return dir === 'asc' ? 1 : -1; return 0; }); };
 
-  // --- PRINTING ACTIONS ---
-  
-  // ✅ 1. Single Token
-  const handleSingleToken = (student) => { 
-      if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first."); 
-      const cName = courses.find(c => c.course_id == student.course_id)?.course_name || '';
-      printStudentToken(student, cName); 
+  const getCourseName = () => {
+      return courses.find(c => String(c.course_id) === String(courseId))?.course_name || 'Dhamma Course';
   };
 
-  // ✅ 2. Bulk Tokens
+  const handleSingleToken = (student) => { 
+      if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first."); 
+      printStudentToken(student, getCourseName()); 
+  };
+
+  // ✅ PREPARE DATA FOR PASS PRINTING
+  const handlePrintPass = (student) => {
+      const courseObj = courses.find(c => String(c.course_id) === String(courseId));
+      let rawName = courseObj?.course_name || 'Unknown';
+      let shortName = rawName.match(/(\d+)\s*-?\s*Day/i) ? `${rawName.match(/(\d+)\s*-?\s*Day/i)[1]}-Day Course` : rawName;
+      
+      const data = { 
+          courseName: shortName, 
+          teacherName: courseObj?.teacher_name || 'Teacher', 
+          from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', 
+          to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', 
+          studentName: student.full_name, 
+          confNo: student.conf_no, 
+          roomNo: student.room_no, 
+          seatNo: student.dining_seat_no, 
+          mobile: student.mobile_locker_no || '-', 
+          valuables: student.valuables_locker_no || '-', 
+          laundry: student.laundry_token_no, 
+          language: student.discourse_language, 
+          pagoda: (student.pagoda_cell_no && student.pagoda_cell_no !== 'None') ? student.pagoda_cell_no : null
+      };
+      // Instead of showing a modal, trigger print directly via generator
+      printArrivalPass(data);
+  };
+
   const handleBulkPrint = (filter) => { 
       let valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
       if (filter === 'Male') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('m')); 
       if (filter === 'Female') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('f')); 
-      
       if (valid.length === 0) return alert("No students found."); 
-      
       const sortedStudents = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true}));
-      
-      // We loop the printStudentToken functionality into a single stream for the utility
-      // NOTE: For true bulk printing, sending 50 jobs is bad. 
-      // Ideally, update 'printGenerator.js' to accept an array.
-      // For now, we iterate safely with a small delay to prevent browser locking
       let i = 0;
       const printNext = () => {
-          if (i >= sortedStudents.length) {
-              alert("Bulk Print Sent!");
-              return;
-          }
+          if (i >= sortedStudents.length) { alert("Bulk Print Sent!"); return; }
           const cName = courses.find(c => c.course_id == sortedStudents[i].course_id)?.course_name || '';
           printStudentToken(sortedStudents[i], cName);
           i++;
-          setTimeout(printNext, 500); // 0.5s delay between tickets
+          setTimeout(printNext, 500); 
       };
-      
-      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens?\nMake sure your thermal printer is ready.`)) {
-          printNext();
+      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens?\nMake sure your thermal printer is ready.`)) { printNext(); }
+  };
+
+  const handlePrintList = (list, title) => { printList(title, list, getCourseName()); };
+  
+  const handlePrintCombined = (type) => {
+      const active = participants.filter(p => p.status === 'Attending');
+      let males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
+      let females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
+      if (type === 'PAGODA') {
+          males = males.filter(p => p.pagoda_cell_no); females = females.filter(p => p.pagoda_cell_no);
+          const sorter = (a,b) => String(a.pagoda_cell_no).localeCompare(String(b.pagoda_cell_no), undefined, {numeric:true});
+          males.sort(sorter); females.sort(sorter);
+      } else {
+          const sorter = (a,b) => String(a.dining_seat_no).localeCompare(String(b.dining_seat_no), undefined, {numeric:true});
+          males.sort(sorter); females.sort(sorter);
       }
+      printCombinedList(type, males, females, getCourseName());
   };
 
-  // ✅ 3. Lists (Dining / Pagoda)
-  const handlePrintList = (list, title) => {
-      const cName = courses.find(c => c.course_id == courseId)?.course_name || 'Course List';
-      printList(title, list, cName);
-  };
-
-  const saveLayoutConfig = () => { localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig)); alert("✅ Layout Configuration Saved!"); };
+  const saveLayoutConfig = () => { localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig)); alert("✅ Layout Configuration Saved for this course!"); };
   const handleEditSave = async (e) => { e.preventDefault(); await fetch(`${API_URL}/participants/${editingStudent.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(editingStudent) }); setEditingStudent(null); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); };
   const handleDelete = async (id) => { if (window.confirm("Delete?")) { await fetch(`${API_URL}/participants/${id}`, { method: 'DELETE' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
   const handleResetCourse = async () => { if (window.confirm("⚠️ RESET: Delete ALL students?")) { await fetch(`${API_URL}/courses/${courseId}/reset`, { method: 'DELETE' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); } };
@@ -219,7 +245,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); };
   const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
   
-  // EXCEL EXPORT
   const handleExport = () => { 
       if (participants.length === 0) return alert("No data to export.");
       const courseObj = courses.find(c => String(c.course_id) === String(courseId));
@@ -274,6 +299,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       if (!window.confirm("⚠️ This will overwrite unlocked seats based on Seniority Logic. Continue?")) return;
       setIsAssigning(true);
       setShowAutoAssignModal(false);
+      localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig));
       try {
           const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
           const allP = await res.json();
@@ -302,7 +328,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
           if (allUpdates.length === 0) { alert("✅ No new assignments needed."); setIsAssigning(false); return; }
           const BATCH_SIZE = 5;
           for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) { await Promise.all(allUpdates.slice(i, i + BATCH_SIZE).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }))); }
-          alert(`✅ Assigned seats to ${allUpdates.length} students.`);
+          alert(`✅ Assigned seats to ${allUpdates.length} students.\nConfig Auto-Saved.`);
           const finalRes = await fetch(`${API_URL}/courses/${courseId}/participants`);
           setParticipants(await finalRes.json());
       } catch (err) { console.error(err); alert("❌ Error during auto-assign."); }
@@ -316,28 +342,16 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const fSpec = generateChowkyLabels(seatingConfig.fCols, seatingConfig.fChowky);
   const fOrdered = [...fSpec.reverse(), 'GAP', ...fReg.reverse()];
 
-  // ✅ SUMMARY REPORT
-  if (showSummaryReport) {
-      const arrived = participants.filter(p => p.status === 'Attending');
-      const getCount = (gender, type) => arrived.filter(p => { const g = (p.gender || '').toLowerCase().startsWith(gender); const c = (p.conf_no || '').toUpperCase(); if (type === 'OLD') return g && (c.startsWith('O') || c.startsWith('S')); if (type === 'NEW') return g && c.startsWith('N'); return false; }).length;
-      return ( <div style={styles.card}> <div className="no-print"><button onClick={() => setShowSummaryReport(false)} style={styles.btn(false)}>← Back</button><button onClick={() => window.print()} style={{...styles.toolBtn('#007bff'), marginLeft:'10px'}}>Print PDF</button></div> <div className="print-area" id="print-summary" style={{padding:'20px'}}> <h2 style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px'}}>COURSE SUMMARY REPORT</h2> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><div><strong>Centre Name:</strong> Dhamma Nagajjuna 2</div><div><strong>Course Date:</strong> {courses.find(c=>c.course_id==courseId)?.start_date}</div></div> <h3 style={{background:'#eee', padding:'5px'}}>COURSE DETAILS</h3> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', marginBottom:'20px'}}><thead><tr style={{background:'#f0f0f0'}}><th rowSpan="2" style={{padding:'10px',border:'1px solid black'}}>Category</th><th colSpan="2" style={{padding:'10px',border:'1px solid black'}}>INDIAN</th><th colSpan="2" style={{padding:'10px',border:'1px solid black'}}>FOREIGNER</th><th rowSpan="2" style={{padding:'10px',border:'1px solid black'}}>TOTAL</th></tr><tr style={{background:'#f0f0f0'}}><th style={{padding:'10px',border:'1px solid black'}}>OLD</th><th style={{padding:'10px',border:'1px solid black'}}>NEW</th><th style={{padding:'10px',border:'1px solid black'}}>OLD</th><th style={{padding:'10px',border:'1px solid black'}}>NEW</th></tr></thead><tbody><tr><td style={{padding:'10px',border:'1px solid black'}}>MALE</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'OLD')}</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'NEW')}</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}><strong>{getCount('m', 'OLD') + getCount('m', 'NEW')}</strong></td></tr><tr><td style={{padding:'10px',border:'1px solid black'}}>FEMALE</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('f', 'OLD')}</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('f', 'NEW')}</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}><strong>{getCount('f', 'OLD') + getCount('f', 'NEW')}</strong></td></tr><tr style={{background:'#f0f0f0', fontWeight:'bold'}}><td style={{padding:'10px',border:'1px solid black'}}>TOTAL</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'OLD') + getCount('f', 'OLD')}</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'NEW') + getCount('f', 'NEW')}</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>{arrived.length}</td></tr></tbody></table> </div> </div> );
-  }
-
+  // ... (Keep Dining & Pagoda View Blocks as they are) ...
   // ✅ DINING VIEW
   if (viewMode === 'dining') { 
       const arrived = participants.filter(p => p.status==='Attending'); 
       const renderDiningTable = (list, title, color) => {
         const sortedList = sortParticipants(list, diningSort.key, diningSort.direction);
         const handleSortClick = (key) => { const dir = (diningSort.key === key && diningSort.direction === 'asc') ? 'desc' : 'asc'; setDiningSort({ key, direction: dir }); };
-        return ( <div style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> 
-            <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> 
-                {/* ✅ New Print Call */}
-                <button onClick={() => handlePrintList(list, `${title} DINING`)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>🖨️ Print {title} List (A4)</button> 
-            </div> 
-            <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Dining List</h2> 
-            <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}> <thead> <tr style={{background:'#f0f0f0'}}> <th style={{padding:'10px', border:'1px solid black'}}>S.N.</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('dining_seat_no')}>SEAT {diningSort.key==='dining_seat_no' && (diningSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Name</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('category')}>CAT {diningSort.key==='category' && (diningSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Room</th> <th style={{padding:'10px', border:'1px solid black'}}>Pagoda</th> </tr> </thead> <tbody> {sortedList.map((p,i)=>( <tr key={p.participant_id}> <td style={{padding:'10px', border:'1px solid black'}}>{i+1}</td> <td style={{padding:'10px', border:'1px solid black', fontWeight:'bold'}}>{p.dining_seat_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.full_name}</td> <td style={{padding:'10px', border:'1px solid black'}}>{getCategory(p.conf_no)}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.room_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.pagoda_cell_no}</td> </tr> ))} </tbody> </table> </div> );
+        return ( <div style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> <button onClick={() => handlePrintList(list, `${title} DINING`)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>🖨️ Print {title} List (A4)</button> </div> <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Dining List</h2> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}> <thead> <tr style={{background:'#f0f0f0'}}> <th style={{padding:'10px', border:'1px solid black'}}>S.N.</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('dining_seat_no')}>SEAT {diningSort.key==='dining_seat_no' && (diningSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Name</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('category')}>CAT {diningSort.key==='category' && (diningSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Room</th> <th style={{padding:'10px', border:'1px solid black'}}>Pagoda</th> </tr> </thead> <tbody> {sortedList.map((p,i)=>( <tr key={p.participant_id}> <td style={{padding:'10px', border:'1px solid black'}}>{i+1}</td> <td style={{padding:'10px', border:'1px solid black', fontWeight:'bold'}}>{p.dining_seat_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.full_name}</td> <td style={{padding:'10px', border:'1px solid black'}}>{getCategory(p.conf_no)}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.room_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.pagoda_cell_no}</td> </tr> ))} </tbody> </table> </div> );
       };
-      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <button onClick={handleDiningExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Dining CSV</button> </div> {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff")} {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63")} </div> ); 
+      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <div style={{display:'flex', gap:'10px'}}><button onClick={() => handlePrintCombined('DINING')} style={{...styles.quickBtn(true), background:'#6610f2', color:'white'}}>🖨️ Print Complete List (Male & Female)</button><button onClick={handleDiningExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Dining CSV</button></div> </div> {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff")} {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63")} </div> ); 
   }
   
   // ✅ PAGODA VIEW
@@ -346,15 +360,9 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       const renderPagodaTable = (list, title, color) => {
         const sortedList = sortParticipants(list, pagodaSort.key, pagodaSort.direction);
         const handleSortClick = (key) => { const dir = (pagodaSort.key === key && pagodaSort.direction === 'asc') ? 'desc' : 'asc'; setPagodaSort({ key, direction: dir }); };
-        return ( <div style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> 
-            <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> 
-                {/* ✅ New Print Call */}
-                <button onClick={() => handlePrintList(list, `${title} PAGODA`)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>🖨️ Print {title} List (A4)</button> 
-            </div> 
-            <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Pagoda Cell List</h2> 
-            <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}> <thead> <tr style={{background:'#f0f0f0'}}> <th style={{padding:'10px', border:'1px solid black'}}>S.N.</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('pagoda_cell_no')}>CELL {pagodaSort.key==='pagoda_cell_no' && (pagodaSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Name</th> <th style={{padding:'10px', border:'1px solid black'}}>Cat</th> <th style={{padding:'10px', border:'1px solid black'}}>Room</th> <th style={{padding:'10px', border:'1px solid black'}}>Dining</th> </tr> </thead> <tbody> {sortedList.map((p,i)=>( <tr key={p.participant_id}> <td style={{padding:'10px', border:'1px solid black'}}>{i+1}</td> <td style={{padding:'10px', border:'1px solid black', fontWeight:'bold'}}>{p.pagoda_cell_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.full_name}</td> <td style={{padding:'10px', border:'1px solid black'}}>{getCategory(p.conf_no)}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.room_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.dining_seat_no}</td> </tr> ))} </tbody> </table> </div> );
+        return ( <div style={{marginBottom:'40px', padding:'20px', border:`1px solid ${color}`}}> <div className="no-print" style={{textAlign:'right', marginBottom:'10px'}}> <button onClick={() => handlePrintList(list, `${title} PAGODA`)} style={{...styles.toolBtn(color), marginLeft:'10px'}}>🖨️ Print {title} List (A4)</button> </div> <h2 style={{color:color, textAlign:'center', marginBottom:'5px'}}>{title} Pagoda Cell List</h2> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid #000'}}> <thead> <tr style={{background:'#f0f0f0'}}> <th style={{padding:'10px', border:'1px solid black'}}>S.N.</th> <th style={{padding:'10px', border:'1px solid black', cursor:'pointer'}} onClick={()=>handleSortClick('pagoda_cell_no')}>CELL {pagodaSort.key==='pagoda_cell_no' && (pagodaSort.direction==='asc' ? '▲' : '▼')}</th> <th style={{padding:'10px', border:'1px solid black'}}>Name</th> <th style={{padding:'10px', border:'1px solid black'}}>Cat</th> <th style={{padding:'10px', border:'1px solid black'}}>Room</th> <th style={{padding:'10px', border:'1px solid black'}}>Dining</th> </tr> </thead> <tbody> {sortedList.map((p,i)=>( <tr key={p.participant_id}> <td style={{padding:'10px', border:'1px solid black'}}>{i+1}</td> <td style={{padding:'10px', border:'1px solid black', fontWeight:'bold'}}>{p.pagoda_cell_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.full_name}</td> <td style={{padding:'10px', border:'1px solid black'}}>{getCategory(p.conf_no)}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.room_no}</td> <td style={{padding:'10px', border:'1px solid black'}}>{p.dining_seat_no}</td> </tr> ))} </tbody> </table> </div> );
       };
-      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <button onClick={handlePagodaExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Pagoda CSV</button> </div> {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff")} {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63")} </div> ); 
+      return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <div style={{display:'flex', gap:'10px'}}><button onClick={() => handlePrintCombined('PAGODA')} style={{...styles.quickBtn(true), background:'#6610f2', color:'white'}}>🖨️ Print Complete List (Male & Female)</button><button onClick={handlePagodaExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Pagoda CSV</button></div> </div> {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff")} {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63")} </div> ); 
   }
   
   // ✅ SEATING VIEW
@@ -370,6 +378,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
                   <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> 
                   <div style={{display:'flex', gap:'10px', alignItems:'center'}}> 
                       <button onClick={saveLayoutConfig} style={styles.toolBtn('#17a2b8')}><Save size={16}/> Store Seat Changes</button> 
+                      <button onClick={() => setShowPrintSettings(true)} style={styles.toolBtn('#6c757d')}><Settings size={16}/> Settings</button> 
                       <button onClick={handleSeatingExport} style={{...styles.quickBtn(true), background:'#6c757d', color:'white'}}>CSV</button> 
                       <button onClick={()=>setShowAutoAssignModal(true)} style={{...styles.btn(true), background:'#ff9800', color:'white'}}><Settings size={16}/> Auto-Assign</button> 
                   </div> 
@@ -402,6 +411,9 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
               </div> 
               {showPrintSettings && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:3000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'300px'}}><h3>🖨️ Print Settings</h3><div style={{marginBottom:'15px'}}><label style={styles.label}>Paper Size</label><select style={styles.input} value={printConfig.paper} onChange={e=>setPrintConfig({...printConfig, paper:e.target.value})}><option>A4</option><option>A3</option><option>Letter</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Orientation</label><select style={styles.input} value={printConfig.orientation} onChange={e=>setPrintConfig({...printConfig, orientation:e.target.value})}><option>landscape</option><option>portrait</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Scale (Zoom)</label><input type="range" min="0.5" max="1.5" step="0.1" value={printConfig.scale} onChange={e=>setPrintConfig({...printConfig, scale:e.target.value})} style={{width:'100%'}}/><div style={{textAlign:'center', fontSize:'12px'}}>{Math.round(printConfig.scale*100)}%</div></div><div style={{textAlign:'right'}}><button onClick={()=>setShowPrintSettings(false)} style={styles.btn(true)}>Done</button></div></div></div>)} 
               {showAutoAssignModal && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'600px', maxHeight:'90vh', overflowY:'auto'}}><h3>🛠️ Auto-Assign Configuration</h3>
+                  <div style={{marginBottom:'15px', color:'#555', fontSize:'14px', fontStyle:'italic'}}>
+                      Configuring for: <strong>{courses.find(c=>c.course_id == courseId)?.course_name || 'Selected Course'}</strong>
+                  </div>
                   <div style={{background:'#f0f8ff', padding:'15px', borderRadius:'8px', marginBottom:'20px', border:'1px solid #cce5ff'}}>
                       <h4 style={{margin:'0 0 10px 0', fontSize:'14px', color:'#0056b3'}}>Requirements Overview (Live)</h4>
                       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
@@ -493,7 +505,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
                           {/* ✅ INDIVIDUAL TOKEN BUTTON */}
                           <button onClick={() => handleSingleToken(p)} title="Print Seat Token" style={{padding:'6px', background:'white', border:'1px solid #ddd', borderRadius:'6px', cursor:'pointer', color:'#e65100'}}><Tag size={14}/></button>
                           
-                          <button onClick={() => handleSingleToken(p)} title="Print Pass" style={{padding:'6px', background:'white', border:'1px solid #ddd', borderRadius:'6px', cursor:'pointer', color:'#007bff'}}><Printer size={14}/></button>
+                          <button onClick={() => handlePrintPass(p)} title="Print Pass" style={{padding:'6px', background:'white', border:'1px solid #ddd', borderRadius:'6px', cursor:'pointer', color:'#007bff'}}><Printer size={14}/></button>
                           <button onClick={() => handleDelete(p.participant_id)} title="Delete" style={{padding:'6px', background:'white', border:'1px solid #ffcdd2', borderRadius:'6px', cursor:'pointer', color:'#d32f2f'}}><Trash2 size={14}/></button>
                        </div>
                     </td>
@@ -518,6 +530,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
              )}
           </div>
       )}
+      {/* ... (Keep Visual Hall & Bulk Modal logic) ... */}
       {showVisualHall && (
           <DhammaHallLayout 
               participants={participants}
