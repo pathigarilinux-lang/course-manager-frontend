@@ -3,20 +3,18 @@ import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Min
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
-// ✅ Import all print functions
-import { printStudentToken, printList, printCombinedList, printArrivalPass } from '../utils/printGenerator';
+// ✅ Import the new Bulk Print function
+import { printStudentToken, printList, printCombinedList, printArrivalPass, printBulkTokens } from '../utils/printGenerator';
 
 // --- DATA HELPERS ---
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
 const getStatusColor = (s) => { if (s === 'Attending') return '#28a745'; if (s === 'Gate Check-In') return '#ffc107'; if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; return '#6c757d'; };
-
-// ... (Keep existing helpers: getStudentStats, calculatePriorityScore, getAlphabetRange, generateChowkyLabels) ...
 const getStudentStats = (p) => { if (!p) return { cat: '', s: 0, l: 0, age: '' }; const conf = (p.conf_no || '').toUpperCase(); const isOld = conf.startsWith('O') || conf.startsWith('S'); const cat = isOld ? '(O)' : '(N)'; const sMatch = (p.courses_info || '').match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = (p.courses_info || '').match(/L\s*[:=-]?\s*(\d+)/i); const s = sMatch ? sMatch[1] : '0'; const l = lMatch ? lMatch[1] : '0'; return { cat, s, l, age: p.age || '?' }; };
 const calculatePriorityScore = (p) => { const stats = getStudentStats(p); let score = 0; if (stats.cat === '(O)') score += 10000; score += (parseInt(stats.s) * 100); score += (parseInt(stats.l) * 500); score += (parseInt(stats.age) || 0); return score; };
 const getAlphabetRange = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count);
 const generateChowkyLabels = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count).map(l => `CW-${l}`);
 
-// ... (Keep renderCell and SeatingSheet components exactly as they are) ...
+// --- SUB-COMPONENTS ---
 const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
     const shouldShow = p && (p.gender||'').toLowerCase().startsWith(gender.toLowerCase().charAt(0));
     const displayP = shouldShow ? p : null;
@@ -44,11 +42,9 @@ const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
 };
 
 const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, setSpecCols, gender, selectedSeat, handleSeatClick, courseId, courses, participants, seatingConfig }) => {
-    // ... (Keep existing logic) ...
     const courseObj = courses.find(c=>c.course_id==courseId);
     const courseName = courseObj ? courseObj.course_name : 'COURSE';
     const dateRange = courseObj ? `${new Date(courseObj.start_date).toLocaleDateString()} to ${new Date(courseObj.end_date).toLocaleDateString()}` : '';
-    
     const genderKey = gender.toLowerCase().charAt(0);
     const studentsOnSide = participants.filter(p => p.status === 'Attending' && (p.gender||'').toLowerCase().startsWith(genderKey));
     const oldCnt = studentsOnSide.filter(p => getCategory(p.conf_no)==='OLD').length;
@@ -122,8 +118,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const [showSummaryReport, setShowSummaryReport] = useState(false);
   const [showPrintSettings, setShowPrintSettings] = useState(false);
   const [showVisualHall, setShowVisualHall] = useState(false); 
-  
-  // ✅ STATE FOR RECEIPT PRINTING
   const [printReceiptData, setPrintReceiptData] = useState(null);
 
   const defaultConfig = { mCols: 10, mRows: 10, mChowky: 2, fCols: 7, fRows: 10, fChowky: 2 };
@@ -169,55 +163,42 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
   const sortParticipants = (list, key, dir) => { return [...list].sort((a, b) => { let valA = a[key] || ''; let valB = b[key] || ''; if (key === 'category') { valA = getCategory(a.conf_no); valB = getCategory(b.conf_no); } if (key === 'dining_seat_no' || key === 'pagoda_cell_no') { return dir === 'asc' ? String(valA).localeCompare(String(valB), undefined, { numeric: true }) : String(valB).localeCompare(String(valA), undefined, { numeric: true }); } if (valA < valB) return dir === 'asc' ? -1 : 1; if (valA > valB) return dir === 'asc' ? 1 : -1; return 0; }); };
 
-  const getCourseName = () => {
-      return courses.find(c => String(c.course_id) === String(courseId))?.course_name || 'Dhamma Course';
-  };
+  const getCourseName = () => { return courses.find(c => String(c.course_id) === String(courseId))?.course_name || 'Dhamma Course'; };
 
   const handleSingleToken = (student) => { 
       if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first."); 
       printStudentToken(student, getCourseName()); 
   };
 
-  // ✅ PREPARE DATA FOR PASS PRINTING
   const handlePrintPass = (student) => {
       const courseObj = courses.find(c => String(c.course_id) === String(courseId));
       let rawName = courseObj?.course_name || 'Unknown';
       let shortName = rawName.match(/(\d+)\s*-?\s*Day/i) ? `${rawName.match(/(\d+)\s*-?\s*Day/i)[1]}-Day Course` : rawName;
-      
       const data = { 
-          courseName: shortName, 
-          teacherName: courseObj?.teacher_name || 'Teacher', 
+          courseName: shortName, teacherName: courseObj?.teacher_name || 'Teacher', 
           from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', 
           to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', 
-          studentName: student.full_name, 
-          confNo: student.conf_no, 
-          roomNo: student.room_no, 
-          seatNo: student.dining_seat_no, 
-          mobile: student.mobile_locker_no || '-', 
-          valuables: student.valuables_locker_no || '-', 
-          laundry: student.laundry_token_no, 
-          language: student.discourse_language, 
-          pagoda: (student.pagoda_cell_no && student.pagoda_cell_no !== 'None') ? student.pagoda_cell_no : null
+          studentName: student.full_name, confNo: student.conf_no, roomNo: student.room_no, 
+          seatNo: student.dining_seat_no, mobile: student.mobile_locker_no || '-', 
+          valuables: student.valuables_locker_no || '-', laundry: student.laundry_token_no, 
+          language: student.discourse_language, pagoda: (student.pagoda_cell_no && student.pagoda_cell_no !== 'None') ? student.pagoda_cell_no : null
       };
-      // Instead of showing a modal, trigger print directly via generator
       printArrivalPass(data);
   };
 
+  // ✅ UPDATED: USE NEW BULK PRINT FUNCTION
   const handleBulkPrint = (filter) => { 
       let valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
       if (filter === 'Male') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('m')); 
       if (filter === 'Female') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('f')); 
       if (valid.length === 0) return alert("No students found."); 
+      
       const sortedStudents = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true}));
-      let i = 0;
-      const printNext = () => {
-          if (i >= sortedStudents.length) { alert("Bulk Print Sent!"); return; }
-          const cName = courses.find(c => c.course_id == sortedStudents[i].course_id)?.course_name || '';
-          printStudentToken(sortedStudents[i], cName);
-          i++;
-          setTimeout(printNext, 500); 
-      };
-      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens?\nMake sure your thermal printer is ready.`)) { printNext(); }
+      
+      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens in ONE continuous job?`)) { 
+          const cName = courses.find(c => c.course_id == courseId)?.course_name || '';
+          printBulkTokens(sortedStudents, cName); 
+      }
   };
 
   const handlePrintList = (list, title) => { printList(title, list, getCourseName()); };
@@ -342,9 +323,11 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const fSpec = generateChowkyLabels(seatingConfig.fCols, seatingConfig.fChowky);
   const fOrdered = [...fSpec.reverse(), 'GAP', ...fReg.reverse()];
 
-  // ... (Keep Dining & Pagoda View Blocks as they are) ...
-  // ✅ DINING VIEW
+  // ... (Remaining code including renderDiningTable, renderPagodaTable, and renderSeatingTable is identical to master) ...
+  // (Included in full file block above)
+  
   if (viewMode === 'dining') { 
+      // ... (Same as master) ...
       const arrived = participants.filter(p => p.status==='Attending'); 
       const renderDiningTable = (list, title, color) => {
         const sortedList = sortParticipants(list, diningSort.key, diningSort.direction);
@@ -354,8 +337,8 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <div style={{display:'flex', gap:'10px'}}><button onClick={() => handlePrintCombined('DINING')} style={{...styles.quickBtn(true), background:'#6610f2', color:'white'}}>🖨️ Print Complete List (Male & Female)</button><button onClick={handleDiningExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Dining CSV</button></div> </div> {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff")} {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63")} </div> ); 
   }
   
-  // ✅ PAGODA VIEW
   if (viewMode === 'pagoda') { 
+      // ... (Same as master) ...
       const assigned = participants.filter(p => p.status==='Attending' && p.pagoda_cell_no); 
       const renderPagodaTable = (list, title, color) => {
         const sortedList = sortParticipants(list, pagodaSort.key, pagodaSort.direction);
@@ -365,8 +348,8 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <div style={{display:'flex', gap:'10px'}}><button onClick={() => handlePrintCombined('PAGODA')} style={{...styles.quickBtn(true), background:'#6610f2', color:'white'}}>🖨️ Print Complete List (Male & Female)</button><button onClick={handlePagodaExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Pagoda CSV</button></div> </div> {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff")} {renderPagodaTable(assigned.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63")} </div> ); 
   }
   
-  // ✅ SEATING VIEW
   if (viewMode === 'seating') { 
+      // ... (Same as master) ...
       const males = participants.filter(p => (p.gender||'').toLowerCase().startsWith('m') && p.status!=='Cancelled'); 
       const females = participants.filter(p => (p.gender||'').toLowerCase().startsWith('f') && p.status!=='Cancelled'); 
       const mM = {}; males.forEach(p=>mM[p.dhamma_hall_seat_no]=p); 
@@ -437,6 +420,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   // --- DEFAULT LIST VIEW ---
   return (
     <div style={styles.card}>
+      {/* ... (Keep Header and Filters exactly as they are) ... */}
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center'}}>
          <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><User size={24}/> Students</h2>
