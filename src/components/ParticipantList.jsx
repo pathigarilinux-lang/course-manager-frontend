@@ -12,44 +12,13 @@ const calculatePriorityScore = (p) => { const stats = getStudentStats(p); let sc
 const getAlphabetRange = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count);
 const generateChowkyLabels = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count).map(l => `CW-${l}`);
 
-// --- 2. PRINTING HELPERS (Restored from Master & Tuned for 58mm) ---
-// Note: Changed 72mm -> 58mm to fix your landscape issue. Kept 'auto' height.
-const THERMAL_CSS = `
-<style>
-    @page { size: 58mm auto; margin: 0; } 
-    body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; width: 58mm; text-align: center; } 
-    .ticket-container { width: 100%; margin: 0 auto; padding-top: 2mm; padding-bottom: 2mm; page-break-after: always; display: flex; justify-content: center; } 
-    .ticket-container:last-child { page-break-after: auto; } 
-    .ticket-box { border: 3px solid #000; border-radius: 8px; padding: 5px; width: 52mm; margin: 0 auto; text-align: center; box-sizing: border-box; } 
-    .header { font-size: 16px; font-weight: 900; margin-bottom: 5px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; } 
-    .seat { font-size: 45px; font-weight: 900; line-height: 1; margin: 5px 0; } 
-    .name { font-size: 14px; font-weight: bold; margin: 5px 0; word-wrap: break-word; line-height: 1.2; } 
-    .footer { display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; } 
-</style>`;
+// --- 2. PRINTING HELPERS ---
+const THERMAL_CSS = `<style>@page { size: 72mm auto; margin: 0; } body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; } .ticket-container { width: 70mm; margin: 0 auto; padding-top: 5mm; padding-bottom: 5mm; page-break-after: always; } .ticket-container:last-child { page-break-after: auto; } .ticket-box { border: 3px solid #000; border-radius: 8px; padding: 10px; width: 64mm; margin: 0 auto; text-align: center; box-sizing: border-box; } .header { font-size: 14px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; } .seat { font-size: 55px; font-weight: 900; line-height: 1; margin: 5px 0; } .name { font-size: 15px; font-weight: bold; margin: 5px 0; word-wrap: break-word; line-height: 1.2; } .conf { font-size: 12px; color: #333; margin-bottom: 10px; } .footer { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; } .stats { font-size: 10px; margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px; display: flex; justify-content: space-between; } </style>`;
 
-// Updated Content: DHAMMA SEAT | Name | Cell | Cat | Age | Room
 const getTokenHtml = (student) => {
-    const seat = student.dhamma_hall_seat_no || '-';
-    const name = student.full_name;
-    const cat = getCategory(student.conf_no) === 'OLD' ? 'OLD' : 'NEW';
-    const cell = student.pagoda_cell_no || '-';
-    const room = student.room_no || '-';
-    const age = student.age || '-';
-
-    return `
-    <div class="ticket-container">
-        <div class="ticket-box">
-            <div class="header">DHAMMA SEAT</div>
-            <div class="seat">${seat}</div>
-            <div class="name">${name}</div>
-            <div class="footer">
-                <span>P:${cell}</span>
-                <span>${cat}</span>
-                <span>Age:${age}</span>
-                <span>Rm:${room}</span>
-            </div>
-        </div>
-    </div>`;
+    const t = { seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no || '-', room: student.room_no || '-' };
+    const s = getStudentStats(student);
+    return `<div class="ticket-container"><div class="ticket-box"><div class="header">DHAMMA SEAT</div><div class="seat">${t.seat}</div><div class="name">${t.name}</div><div class="conf">${t.conf}</div><div class="footer"><span>Cell: ${t.cell}</span><span>Room: ${t.room}</span></div><div class="stats"><span>${s.cat}</span><span>S:${s.s} L:${s.l}</span><span>Age: ${s.age}</span></div></div></div>`;
 };
 
 const printViaIframe = (fullHtml) => {
@@ -72,7 +41,7 @@ const printCurrentView = (cssStyles) => {
     document.head.removeChild(style);
 };
 
-// --- 3. SUB-COMPONENTS ---
+// --- 3. SUB-COMPONENTS (Moved outside to prevent re-render bugs) ---
 
 const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
     const shouldShow = p && (p.gender||'').toLowerCase().startsWith(gender.toLowerCase().charAt(0));
@@ -247,7 +216,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); };
   const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
   
-  // EXCEL EXPORT (Restored exactly as requested)
+  // EXCEL EXPORT
   const handleExport = () => { 
       if (participants.length === 0) return alert("No data to export.");
       const courseObj = courses.find(c => String(c.course_id) === String(courseId));
@@ -442,7 +411,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   // --- DEFAULT LIST VIEW ---
   return (
     <div style={styles.card}>
-      {/* ... (Header, Filters, Table - Keep existing) ... */}
       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px', alignItems:'center'}}>
          <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
              <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}><User size={24}/> Students</h2>
@@ -521,7 +489,21 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
           </tbody>
         </table>
       </div>
-      {/* ... (Keep Visual Hall & Bulk Modal logic) ... */}
+      {courseId && (
+          <div style={{marginTop:'20px', borderTop:'1px solid #eee', paddingTop:'20px', display:'flex', gap:'15px', justifyContent:'flex-end'}}>
+             <button onClick={handleExport} style={{...styles.quickBtn(false), fontSize:'12px', display:'flex', alignItems:'center', gap:'5px'}}><Download size={14}/> Export Master Data (Excel)</button>
+             <button onClick={handleAutoNoShow} style={{...styles.quickBtn(false), fontSize:'12px'}}>🚫 Auto-Flag No-Shows</button>
+             <button onClick={handleSendReminders} style={{...styles.quickBtn(false), fontSize:'12px'}}>📢 Send Reminders</button>
+             <div style={{width:'1px', background:'#ccc', margin:'0 10px'}}></div>
+             {/* ✅ HIDE DANGEROUS BUTTONS FOR STAFF */}
+             {userRole === 'admin' && (
+                 <>
+                     <button onClick={handleResetCourse} style={{...styles.quickBtn(false), color:'#d32f2f', border:'1px solid #d32f2f', fontSize:'12px'}}>⚠️ Reset Student List</button>
+                     <button onClick={handleDeleteCourse} style={{...styles.quickBtn(false), background:'#d32f2f', color:'white', fontSize:'12px'}}>🗑️ Delete Course</button>
+                 </>
+             )}
+          </div>
+      )}
       {showVisualHall && (
           <DhammaHallLayout 
               participants={participants}
