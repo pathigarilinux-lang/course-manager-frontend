@@ -3,8 +3,8 @@ import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Min
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
-// ✅ Use the strict original-style generator
-import { printStudentToken, printList, printCombinedList, printArrivalPass, printBulkTokens } from '../utils/printGenerator';
+// We keep these for the big lists, but TOKENS are now handled LOCALLY as per your reference
+import { printList, printCombinedList, printArrivalPass } from '../utils/printGenerator';
 
 // --- DATA HELPERS ---
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
@@ -118,8 +118,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const [showSummaryReport, setShowSummaryReport] = useState(false);
   const [showPrintSettings, setShowPrintSettings] = useState(false);
   const [showVisualHall, setShowVisualHall] = useState(false); 
-  const [printReceiptData, setPrintReceiptData] = useState(null);
-
+  
   const defaultConfig = { mCols: 10, mRows: 10, mChowky: 2, fCols: 7, fRows: 10, fChowky: 2 };
   const [seatingConfig, setSeatingConfig] = useState(defaultConfig);
   const [printConfig, setPrintConfig] = useState({ scale: 0.9, orientation: 'landscape', paper: 'A3' });
@@ -165,31 +164,147 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
 
   const getCourseName = () => { return courses.find(c => String(c.course_id) === String(courseId))?.course_name || 'Dhamma Course'; };
 
-  // ✅ DELEGATE PRINTING TO GENERATOR
-  const handleSingleToken = (student) => { 
-      if (!student.dhamma_hall_seat_no) return alert("No seat assigned."); 
-      printStudentToken(student); 
-  };
-
-  const handleBulkPrint = (filter) => { 
-      let valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
-      if (filter === 'Male') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('m')); 
-      if (filter === 'Female') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('f')); 
-      if (valid.length === 0) return alert("No students found."); 
-      const sortedStudents = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true}));
-      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens?`)) { printBulkTokens(sortedStudents); }
+  // -----------------------------------------------------------
+  // ✅ RESTORED TOKEN PRINT LOGIC FROM YOUR REFERENCE FILE
+  // -----------------------------------------------------------
+  
+  // ✅ 1. SINGLE TOKEN - INLINE LOGIC
+  const handleSingleToken = (student) => {
+      if (!student.dhamma_hall_seat_no) return alert("No seat assigned. Assign a seat in the column first.");
+      
+      const cat = getCategory(student.conf_no);
+      
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.width = '0px';
+      iframe.style.height = '0px';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentWindow.document;
+      
+      doc.open();
+      // ✅ "auto" height forces Portrait Mode on thermal printers
+      doc.write(`
+          <html>
+          <head>
+              <title>Token-${student.conf_no}</title>
+              <style>
+                  @page { size: 58mm auto; margin: 0; }
+                  body { margin: 0; padding: 5px; font-family: Arial, sans-serif; text-align: center; width: 48mm; }
+                  .token-box { border: 2px solid black; padding: 5px; border-radius: 8px; min-height: 38mm; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; }
+                  h2 { margin: 0; font-size: 16px; font-weight: 900; text-transform: uppercase; }
+                  .seat { font-size: 36px; font-weight: 900; margin: 2px 0; }
+                  .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                  .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
+              </style>
+          </head>
+          <body>
+              <div class="token-box">
+                  <div><h2>DHAMMA SEAT</h2><div style="border-bottom: 2px solid black; margin: 2px 0;"></div></div>
+                  <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
+                  <div>
+                      <div class="name">${student.full_name}</div>
+                      <div class="details">
+                          <span>${student.pagoda_cell_no ? `P:${student.pagoda_cell_no}` : ''}</span>
+                          <span>${cat}</span>
+                          <span>Age:${student.age}</span>
+                          <span>Rm:${student.room_no || '-'}</span>
+                      </div>
+                  </div>
+              </div>
+          </body>
+          </html>
+      `);
+      doc.close();
+      iframe.contentWindow.focus();
+      setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 1000); }, 500);
   };
 
   const handlePrintPass = (student) => {
       const courseObj = courses.find(c => String(c.course_id) === String(courseId));
       let rawName = courseObj?.course_name || 'Unknown';
       let shortName = rawName.match(/(\d+)\s*-?\s*Day/i) ? `${rawName.match(/(\d+)\s*-?\s*Day/i)[1]}-Day Course` : rawName;
-      const data = { courseName: shortName, teacherName: courseObj?.teacher_name, from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', studentName: student.full_name, confNo: student.conf_no, roomNo: student.room_no, seatNo: student.dining_seat_no, mobile: student.mobile_locker_no, valuables: student.valuables_locker_no, laundry: student.laundry_token_no, language: student.discourse_language, pagoda: student.pagoda_cell_no };
+      const data = { 
+          courseName: shortName, teacherName: courseObj?.teacher_name || 'Teacher', 
+          from: courseObj ? new Date(courseObj.start_date).toLocaleDateString() : '', 
+          to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', 
+          studentName: student.full_name, confNo: student.conf_no, roomNo: student.room_no, 
+          seatNo: student.dining_seat_no, mobile: student.mobile_locker_no || '-', 
+          valuables: student.valuables_locker_no || '-', laundry: student.laundry_token_no, 
+          language: student.discourse_language, pagoda: (student.pagoda_cell_no && student.pagoda_cell_no !== 'None') ? student.pagoda_cell_no : null
+      };
       printArrivalPass(data);
   };
 
+  // ✅ 2. BULK TOKEN - INLINE LOGIC (Matches Single Token Look + Continuous Print)
+  const handleBulkPrint = (filter) => { 
+      let valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
+      if (filter === 'Male') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('m')); 
+      if (filter === 'Female') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('f')); 
+      if (valid.length === 0) return alert("No students found."); 
+      
+      const sortedStudents = valid.sort((a,b) => a.dhamma_hall_seat_no.localeCompare(b.dhamma_hall_seat_no, undefined, {numeric:true}));
+      
+      if(window.confirm(`🖨️ Ready to print ${sortedStudents.length} tokens?`)) { 
+          
+          const tokensHtml = sortedStudents.map(student => {
+              const cat = getCategory(student.conf_no);
+              return `
+              <div class="token-wrapper">
+                  <div class="token-box">
+                      <div><h2>DHAMMA SEAT</h2><div style="border-bottom: 2px solid black; margin: 2px 0;"></div></div>
+                      <div class="seat">${student.dhamma_hall_seat_no || '-'}</div>
+                      <div>
+                          <div class="name">${student.full_name}</div>
+                          <div class="details">
+                              <span>${student.pagoda_cell_no ? `P:${student.pagoda_cell_no}` : ''}</span>
+                              <span>${cat}</span>
+                              <span>Age:${student.age}</span>
+                              <span>Rm:${student.room_no || '-'}</span>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+              `;
+          }).join('');
+
+          const iframe = document.createElement('iframe');
+          iframe.style.position = 'absolute';
+          iframe.style.width = '0px';
+          iframe.style.height = '0px';
+          iframe.style.border = 'none';
+          document.body.appendChild(iframe);
+          const doc = iframe.contentWindow.document;
+          doc.open();
+          // ✅ "auto" height to prevent Landscape rotation
+          doc.write(`
+              <html>
+              <head>
+                  <title>Bulk Tokens</title>
+                  <style>
+                      @page { size: 58mm auto; margin: 0; }
+                      body { margin: 0; padding: 0; font-family: Arial, sans-serif; text-align: center; width: 48mm; }
+                      .token-wrapper { padding: 5px; page-break-after: always; }
+                      .token-wrapper:last-child { page-break-after: avoid; }
+                      .token-box { border: 2px solid black; padding: 5px; border-radius: 8px; min-height: 38mm; box-sizing: border-box; display: flex; flexDirection: column; justify-content: space-between; }
+                      h2 { margin: 0; font-size: 16px; font-weight: 900; text-transform: uppercase; }
+                      .seat { font-size: 36px; font-weight: 900; margin: 2px 0; }
+                      .name { font-size: 12px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                      .details { font-size: 10px; display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; }
+                  </style>
+              </head>
+              <body>${tokensHtml}</body>
+              </html>
+          `);
+          doc.close();
+          iframe.contentWindow.focus();
+          setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 1000); }, 1000);
+      }
+  };
+
   const handlePrintList = (list, title) => { printList(title, list, getCourseName()); };
-  const handlePrintCombined = (type) => { 
+  
+  const handlePrintCombined = (type) => {
       const active = participants.filter(p => p.status === 'Attending');
       let males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
       let females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
@@ -212,7 +327,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const handleAutoNoShow = async () => { if (!window.confirm("🚫 Auto-Flag No-Show?")) return; await fetch(`${API_URL}/courses/${courseId}/auto-noshow`, { method: 'POST' }); const res = await fetch(`${API_URL}/courses/${courseId}/participants`); setParticipants(await res.json()); };
   const handleSendReminders = async () => { if (!window.confirm("📢 Send Reminders?")) return; await fetch(`${API_URL}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'reminder_all' }) }); };
   
-  // ✅ EXACT EXPORT LOGIC FROM YOUR SNIPPET
+  // ✅ YOUR EXACT EXPORT SNIPPET
   const handleExport = () => { 
       if (participants.length === 0) return alert("No data to export.");
       const courseObj = courses.find(c => String(c.course_id) === String(courseId));
@@ -228,12 +343,90 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       XLSX.writeFile(wb, fileName);
   };
 
-  // ... (View Modes - Keep existing) ...
+  const handleDiningExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Type", "Name", "Gender", "Room", "Pagoda Cell", "Lang"]; const rows = arrived.map(p => [p.dining_seat_no || '', p.dining_seat_type || '', `"${p.full_name || ''}"`, p.gender || '', p.room_no || '', p.pagoda_cell_no || '', p.discourse_language || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `dining_${courseId}.csv`); document.body.appendChild(link); link.click(); };
+  const handlePagodaExport = () => { const assigned = participants.filter(p => p.status === 'Attending' && p.pagoda_cell_no); if (assigned.length === 0) return alert("No pagoda assignments found."); const headers = ["Cell", "Name", "Conf", "Gender", "Room", "Dining Seat"]; const rows = assigned.sort((a,b) => String(a.pagoda_cell_no).localeCompare(String(b.pagoda_cell_no), undefined, {numeric:true})).map(p => [p.pagoda_cell_no, `"${p.full_name || ''}"`, p.conf_no, p.gender, p.room_no, p.dining_seat_no || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `pagoda_${courseId}.csv`); document.body.appendChild(link); link.click(); };
+  const handleSeatingExport = () => { const arrived = participants.filter(p => p.status === 'Attending'); if (arrived.length === 0) return alert("No data."); const headers = ["Seat", "Name", "Conf", "Gender", "Pagoda", "Room"]; const rows = arrived.map(p => [p.dhamma_hall_seat_no || '', `"${p.full_name || ''}"`, p.conf_no || '', p.gender || '', p.pagoda_cell_no || '', p.room_no || '']); const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n"); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `seating_${courseId}.csv`); document.body.appendChild(link); link.click(); };
+  
+  const handleSeatClick = async (seatLabel, student, genderContext) => { 
+      if (!selectedSeat) { 
+          if(student) {
+              const studentGender = (student.gender || '').toLowerCase();
+              if(genderContext && !studentGender.startsWith(genderContext.toLowerCase().charAt(0))) {
+                  return alert(`⛔ Cannot pick a ${student.gender} student from the ${genderContext} seating plan.`);
+              }
+          }
+          setSelectedSeat({ label: seatLabel, p: student, gender: genderContext }); 
+          return; 
+      } 
+      const source = selectedSeat; 
+      const target = { label: seatLabel, p: student }; 
+      setSelectedSeat(null); 
+      if(genderContext && source.gender && genderContext !== source.gender) {
+          return alert("⛔ Invalid Swap: Cannot move student between Male and Female sides.");
+      }
+      if (source.label === target.label) return; 
+      if (window.confirm(`Swap ${source.label} ↔️ ${target.label}?`)) { 
+          if (source.p && !target.p) { await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); } 
+          else if (!source.p && target.p) { await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); }
+          else if (source.p && target.p) { 
+              await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: 'TEMP', is_seat_locked: true}) }); 
+              await fetch(`${API_URL}/participants/${target.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...target.p, dhamma_hall_seat_no: source.label, is_seat_locked: true}) }); 
+              await fetch(`${API_URL}/participants/${source.p.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...source.p, dhamma_hall_seat_no: target.label, is_seat_locked: true}) }); 
+          } 
+          const res = await fetch(`${API_URL}/courses/${courseId}/participants`); 
+          setParticipants(await res.json()); 
+      } 
+  };
+
+  const handleAutoAssign = async () => {
+      if (!window.confirm("⚠️ This will overwrite unlocked seats based on Seniority Logic. Continue?")) return;
+      setIsAssigning(true);
+      setShowAutoAssignModal(false);
+      localStorage.setItem(`layout_${courseId}`, JSON.stringify(seatingConfig));
+      try {
+          const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
+          const allP = await res.json();
+          const active = allP.filter(p => p.status === 'Attending' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre)));
+          const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
+          const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
+          const genSeats = (cols, rows) => { let s = []; if(!cols || !Array.isArray(cols)) return []; for(let r=1; r<=rows; r++) { cols.forEach(c => s.push(c + r)); } return s; };
+          const mRegSeats = genSeats(getAlphabetRange(0, seatingConfig.mCols), seatingConfig.mRows);
+          const mSpecSeats = genSeats(generateChowkyLabels(seatingConfig.mCols, seatingConfig.mChowky), seatingConfig.mRows);
+          const fRegSeats = genSeats(getAlphabetRange(0, seatingConfig.fCols), seatingConfig.fRows);
+          const fSpecSeats = genSeats(generateChowkyLabels(seatingConfig.fCols, seatingConfig.fChowky), seatingConfig.fRows);
+          const assignGroup = (students, regSeats, specSeats) => {
+              const updates = [];
+              const lockedSeats = new Set();
+              students.forEach(p => { if (p.is_seat_locked && p.dhamma_hall_seat_no) lockedSeats.add(p.dhamma_hall_seat_no); });
+              const availReg = regSeats.filter(s => !lockedSeats.has(s));
+              const availSpec = specSeats.filter(s => !lockedSeats.has(s));
+              const toAssign = students.filter(p => !p.is_seat_locked).sort((a,b) => calculatePriorityScore(b) - calculatePriorityScore(a));
+              const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating));
+              const normalGroup = toAssign.filter(p => !specGroup.includes(p));
+              specGroup.forEach(p => { if (availSpec.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availSpec.shift() }); else if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); });
+              normalGroup.forEach(p => { if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); });
+              return updates;
+          };
+          const allUpdates = [...assignGroup(males, mRegSeats, mSpecSeats), ...assignGroup(females, fRegSeats, fSpecSeats)];
+          if (allUpdates.length === 0) { alert("✅ No new assignments needed."); setIsAssigning(false); return; }
+          const BATCH_SIZE = 5;
+          for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) { await Promise.all(allUpdates.slice(i, i + BATCH_SIZE).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }))); }
+          alert(`✅ Assigned seats to ${allUpdates.length} students.\nConfig Auto-Saved.`);
+          const finalRes = await fetch(`${API_URL}/courses/${courseId}/participants`);
+          setParticipants(await finalRes.json());
+      } catch (err) { console.error(err); alert("❌ Error during auto-assign."); }
+      setIsAssigning(false);
+  };
+
+  const mReg = getAlphabetRange(0, seatingConfig.mCols);
+  const mSpec = generateChowkyLabels(seatingConfig.mCols, seatingConfig.mChowky);
+  const mOrdered = [...mReg, 'GAP', ...mSpec];
+  const fReg = getAlphabetRange(0, seatingConfig.fCols);
+  const fSpec = generateChowkyLabels(seatingConfig.fCols, seatingConfig.fChowky);
+  const fOrdered = [...fSpec.reverse(), 'GAP', ...fReg.reverse()];
+
+  // ... (View Modes remain the same) ...
   if (viewMode === 'dining') { 
-      // ... (Keep existing implementation)
-      // I am abbreviating this part to fit the character limit, BUT YOU SHOULD KEEP THE EXISTING CODE for view modes.
-      // If you need me to paste the full view mode code again, just ask. 
-      // Assuming you can keep the previous view mode blocks.
       const arrived = participants.filter(p => p.status==='Attending'); 
       const renderDiningTable = (list, title, color) => {
         const sortedList = sortParticipants(list, diningSort.key, diningSort.direction);
@@ -403,7 +596,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
           </tbody>
         </table>
       </div>
-      {/* ... (Rest of component - Keep existing) ... */}
       {/* ... (Keep Visual Hall & Bulk Modal logic) ... */}
       {showVisualHall && (
           <DhammaHallLayout 
