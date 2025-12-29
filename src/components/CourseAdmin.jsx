@@ -37,6 +37,7 @@ const extractPhoneNumber = (rawStr) => {
     const withoutEmail = str.replace(/\S+@\S+\.\S+/g, '');
     
     // 2. Remove non-digit characters (keep +)
+    // We allow 0-9 and + (for country codes)
     const cleanNumber = withoutEmail.replace(/[^0-9+]/g, '');
     
     return cleanNumber.trim();
@@ -243,9 +244,8 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
         age: getIndex(['Age']), 
         gender: getIndex(['Gender', 'Sex']), 
         
-        // ✅ REFINED PRIORITY: Look for exact mobile/phone headers first
-        // Removed generic 'Contact' to avoid matching 'Contact Person' (names)
-        phone: getIndex(['Mobile', 'Cell', 'Phone', 'Contact No', 'Contact Num']), 
+        // ✅ PRIORITY SEARCH: Specific terms first, then generic 'Contact'
+        phone: getIndex(['Mobile', 'Cell', 'Phone', 'Contact No', 'Contact Num', 'Contact']), 
         
         generic: getIndex(['Courses', 'History', 'Old/New']), 
         c10: getIndex(['10d']), cstp: getIndex(['STP', 'Satipatthana']), ctsc: getIndex(['TSC', 'Teen', 'Service']),
@@ -273,6 +273,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
     const parsedStudents = [];
     let currentSectionGender = null;
     let droppedCount = 0; 
+    let phoneCount = 0;
 
     for(let i=0; i<headerRowIndex; i++) {
         const rowStr = rows[i].map(c => String(c).toUpperCase()).join(' ');
@@ -309,6 +310,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
         // ✅ PHONE EXTRACT & CLEAN
         const rawPhone = map.phone > -1 ? row[map.phone] : '';
         const cleanPhone = extractPhoneNumber(rawPhone);
+        if(cleanPhone) phoneCount++;
 
         let coursesStr = "0"; 
         let specificParts = [];
@@ -344,7 +346,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
     setStudents(parsedStudents);
     setUploadStatus({ 
         type: 'success', 
-        msg: `✅ Found ${parsedStudents.length} valid students. (Dropped ${droppedCount} invalid rows)` 
+        msg: `✅ Found ${parsedStudents.length} students. (${phoneCount} have phone numbers). Dropped ${droppedCount} invalid rows.` 
     });
   };
 
@@ -363,8 +365,12 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
                 gender: s.gender, 
                 courses: s.courses_info, 
                 
-                // ✅ CRITICAL: MAP TO 'phone_number' (Database Column)
-                phone_number: s.mobile 
+                // ✅ SHOTGUN APPROACH: SEND ALL POSSIBLE KEYS
+                // This ensures the backend catches it regardless of what parameter it expects
+                phone_number: s.mobile,
+                phone: s.mobile,
+                mobile: s.mobile,
+                contact_number: s.mobile
             }))
         };
         
