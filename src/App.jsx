@@ -77,7 +77,8 @@ function App() {
       { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin', 'staff', 'at'] }, 
       { id: 'admin', label: 'Course Admin', icon: <Database size={20}/>, roles: ['admin', 'staff'] }, 
       { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin', 'staff'] }, 
-      { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin'] }, 
+      // ✅ UPDATED: Added 'staff' to roles
+      { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin', 'staff'] }, 
   ];
 
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
@@ -101,7 +102,6 @@ function App() {
           <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #334155', whiteSpace:'nowrap' }}>
               <div style={{ minWidth: '35px', height: '35px', borderRadius: '8px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>DN</div>
               <div>
-                  {/* ✅ RENAMED SIDEBAR TITLE */}
                   <div style={{ fontWeight: 'bold', fontSize: '16px' }}>Dhamma Nagajjuna</div>
                   <div style={{ fontSize: '11px', color: '#94a3b8' }}>{user.username} ({user.role})</div>
               </div>
@@ -165,7 +165,6 @@ function App() {
                   <button onClick={() => setSidebarOpen(!isSidebarOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
                       {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
                   </button>
-                  {/* ✅ RENAMED HEADER TITLE */}
                   <div style={{ fontSize: '14px', color: '#64748b', fontWeight: '600' }}>
                       {MENU_ITEMS.find(i => i.id === activeTab)?.label || 'Dhamma Nagajjuna'}
                   </div>
@@ -187,7 +186,9 @@ function App() {
               {activeTab === 'at' && <ATPanel courses={courses} />}
               {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               {activeTab === 'seva' && <SevaBoard courses={courses} />}
-              {user.role === 'admin' && activeTab === 'store' && <ExpenseTracker courses={courses} />}
+              
+              {/* ✅ UPDATED: Render Store for Admin AND Staff */}
+              {(user.role === 'admin' || user.role === 'staff') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
           </div>
       </main>
     </div>
