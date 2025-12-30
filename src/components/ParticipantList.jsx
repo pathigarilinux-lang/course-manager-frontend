@@ -8,33 +8,57 @@ import DhammaHallLayout from './DhammaHallLayout';
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
 const getStatusColor = (s) => { if (s === 'Attending') return '#28a745'; if (s === 'Gate Check-In') return '#ffc107'; if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; return '#6c757d'; };
 
-// ✅ LOGIC: STRICT WATERFALL HIERARCHY
+// ✅ REVISED: STRICT SCORING (No Default '1')
 const parseCourseScore = (infoStr) => {
     if (!infoStr) return 0;
-    let c60 = 0, c45 = 0, c30 = 0, c20 = 0, cSTP = 0, c10 = 0, cTSC = 0;
-    const regex = /([A-Z0-9]+)\s*[:=-]\s*(\d+)/gi;
-    const matches = [...infoStr.matchAll(regex)];
+    
+    // Normalize: Upper case, remove special chars except numbers/letters
+    const cleanStr = infoStr.toUpperCase().replace(/[^A-Z0-9\s\-\:]/g, ' '); 
 
-    matches.forEach(match => {
-        const type = match[1].toUpperCase();
-        const count = parseInt(match[2]) || 1;
-        if (type.includes('60D')) c60 += count;
-        else if (type.includes('45D')) c45 += count;
-        else if (type.includes('30D')) c30 += count;
-        else if (type.includes('20D')) c20 += count;
-        else if (type.includes('STP') || type.includes('SAT')) cSTP += count;
-        else if (type.includes('10D')) c10 += count;
-        else if (type.includes('TSC') || type.includes('SVC')) cTSC += count;
-    });
+    // WEIGHTS (Hierarchy)
+    const WEIGHTS = {
+        '60D': 1_000_000_000_000, 
+        '45D':     10_000_000_000,   
+        '30D':        100_000_000,     
+        '20D':          1_000_000,       
+        'STP':             10_000,         
+        '10D':                100,           
+        'TSC':                  1             
+    };
 
     let score = 0;
-    score += c60  * 1000000000000; 
-    score += c45  * 10000000000;   
-    score += c30  * 100000000;     
-    score += c20  * 1000000;       
-    score += cSTP * 10000;         
-    score += c10  * 100;           
-    score += cTSC * 1;             
+
+    // Helper: ONLY returns a count if a number is explicitly found
+    const getCount = (keyword) => {
+        // Pattern A: "10D: 5" or "10D-5" or "10D 5"
+        const regexA = new RegExp(`${keyword}\\s*[:=-]?\\s*(\\d+)`, 'i');
+        const matchA = cleanStr.match(regexA);
+        if (matchA) return parseInt(matchA[1]);
+
+        // Pattern B: "5 x 10D" or "5 10D"
+        const regexB = new RegExp(`(\\d+)\\s*[xX]?\\s*${keyword}`, 'i');
+        const matchB = cleanStr.match(regexB);
+        if (matchB) return parseInt(matchB[1]);
+
+        // ❌ REMOVED: The fallback that returned 1 if just keyword existed.
+        // Now, "10-Day Course" returns 0.
+        return 0;
+    };
+
+    score += getCount('60D') * WEIGHTS['60D'];
+    score += getCount('45D') * WEIGHTS['45D'];
+    score += getCount('30D') * WEIGHTS['30D'];
+    score += getCount('20D') * WEIGHTS['20D'];
+    
+    let stpCount = getCount('STP') || getCount('SAT') || getCount('SATI');
+    score += stpCount * WEIGHTS['STP'];
+
+    let tenCount = getCount('10D') || getCount('10-DAY') || getCount('TEN');
+    score += tenCount * WEIGHTS['10D'];
+
+    let tscCount = getCount('TSC') || getCount('SVC') || getCount('SERV');
+    score += tscCount * WEIGHTS['TSC'];
+
     return score;
 };
 
