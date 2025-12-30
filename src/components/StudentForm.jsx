@@ -45,11 +45,12 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const [showVisualDining, setShowVisualDining] = useState(false);
   const [showVisualPagoda, setShowVisualPagoda] = useState(false);
 
+  // Initial Room Load (Static Structure)
   useEffect(() => { 
       fetch(`${API_URL}/rooms`).then(res=>res.json()).then(setRooms); 
-      fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(setOccupancy); 
   }, []);
 
+  // Pre-selection Logic
   useEffect(() => { 
       if (preSelectedRoom) { 
           setFormData(prev => ({ ...prev, roomNo: preSelectedRoom })); 
@@ -60,17 +61,39 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
       } 
   }, [preSelectedRoom, courses]);
 
-  // FETCH DATA & CONFLICTS
+  // ✅ THE FIX: AUTO-SYNC DATA ENGINE
+  // This replaces the old static fetch. It runs every 5 seconds.
   useEffect(() => { 
       if (formData.courseId) {
-          fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants);
-          
-          fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`)
-            .then(res => res.json())
-            .then(data => setGlobalOccupied(data))
-            .catch(err => console.error("Conflict fetch error", err));
+          const syncData = () => {
+              // 1. Fetch Participants (Dining/Pagoda Local Conflicts)
+              fetch(`${API_URL}/courses/${formData.courseId}/participants`)
+                  .then(res => res.json())
+                  .then(data => { if(Array.isArray(data)) setParticipants(data); })
+                  .catch(console.error);
+              
+              // 2. Fetch Global Occupied (Dining/Pagoda Global Conflicts)
+              fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`)
+                  .then(res => res.json())
+                  .then(data => setGlobalOccupied(data))
+                  .catch(console.error);
 
+              // 3. Fetch Room Occupancy (Bed Conflicts)
+              fetch(`${API_URL}/rooms/occupancy`)
+                  .then(res => res.json())
+                  .then(setOccupancy)
+                  .catch(console.error);
+          };
+
+          // Initial Load
+          syncData();
           setSearchTerm(''); 
+
+          // ❤️ HEARTBEAT: Poll every 5 seconds
+          const interval = setInterval(syncData, 5000);
+
+          // Cleanup
+          return () => clearInterval(interval);
       }
   }, [formData.courseId]);
 
@@ -92,7 +115,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
   const currentGenderLabel = isMale ? 'Male' : (isFemale ? 'Female' : 'Male');
   const themeColor = isMale ? '#007bff' : (isFemale ? '#e91e63' : '#6c757d');
 
-  // --- 🔒 CONFLICT MAP GENERATION ---
+  // --- 🔒 CONFLICT MAP GENERATION (Auto-Updates with Polling) ---
   const diningMap = new Map();
   const pagodaMap = new Map();
 
@@ -239,6 +262,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           setSearchTerm(''); 
           clearRoom(); 
           
+          // Force Immediate Refresh
           fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(setParticipants); 
           fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(setOccupancy); 
           fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`).then(res => res.json()).then(setGlobalOccupied);
