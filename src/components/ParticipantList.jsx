@@ -8,14 +8,43 @@ import DhammaHallLayout from './DhammaHallLayout';
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
 const getStatusColor = (s) => { if (s === 'Attending') return '#28a745'; if (s === 'Gate Check-In') return '#ffc107'; if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; return '#6c757d'; };
 
-// ✅ REVISED: STRICT SCORING (No Default '1')
-const parseCourseScore = (infoStr) => {
+// ✅ UPGRADED SCORING ENGINE (Handles both 10-Day & Long Courses)
+const parseCourseScore = (infoStr, isTenDayMode = false) => {
     if (!infoStr) return 0;
     
-    // Normalize: Upper case, remove special chars except numbers/letters
-    const cleanStr = infoStr.toUpperCase().replace(/[^A-Z0-9\s\-\:]/g, ' '); 
+    // Clean string: upper case, remove everything except letters, numbers, spaces, -, :
+    const cleanStr = infoStr.toString().toUpperCase().replace(/[^A-Z0-9\s\-\:]/g, ' '); 
 
-    // WEIGHTS (Hierarchy)
+    // --- MODE A: 10-DAY COURSE (Total Count Logic) ---
+    if (isTenDayMode) {
+        // 1. If it's a raw number (e.g., "27"), return it directly
+        // This handles cases where Excel import only gave the Total Count
+        if (!isNaN(cleanStr.trim()) && cleanStr.trim().length > 0) {
+            return parseInt(cleanStr.trim());
+        }
+
+        // 2. If it's a detail string (e.g., "10D:16, STP:6"), SUM all numbers
+        let totalCount = 0;
+        const keywords = ['10D', 'STP', 'SAT', '20D', '30D', '45D', '60D', 'TSC', 'SVC', 'OLD'];
+        
+        keywords.forEach(kw => {
+            // Pattern 1: "10D: 5" or "10D-5"
+            const regexA = new RegExp(`${kw}\\s*[:=-]?\\s*(\\d+)`, 'i');
+            // Pattern 2: "5 x 10D" or "5 10D"
+            const regexB = new RegExp(`(\\d+)\\s*[xX]?\\s*${kw}`, 'i');
+            
+            const matchA = cleanStr.match(regexA);
+            const matchB = cleanStr.match(regexB);
+            
+            if (matchA) totalCount += parseInt(matchA[1]);
+            else if (matchB) totalCount += parseInt(matchB[1]);
+        });
+        
+        return totalCount;
+    }
+
+    // --- MODE B: LONG COURSE (Strict Waterfall Hierarchy) ---
+    // (Used for 20D, 30D, 45D, 60D courses where hierarchy matters more than count)
     const WEIGHTS = {
         '60D': 1_000_000_000_000, 
         '45D':     10_000_000_000,   
@@ -27,21 +56,15 @@ const parseCourseScore = (infoStr) => {
     };
 
     let score = 0;
-
-    // Helper: ONLY returns a count if a number is explicitly found
     const getCount = (keyword) => {
-        // Pattern A: "10D: 5" or "10D-5" or "10D 5"
         const regexA = new RegExp(`${keyword}\\s*[:=-]?\\s*(\\d+)`, 'i');
         const matchA = cleanStr.match(regexA);
         if (matchA) return parseInt(matchA[1]);
 
-        // Pattern B: "5 x 10D" or "5 10D"
         const regexB = new RegExp(`(\\d+)\\s*[xX]?\\s*${keyword}`, 'i');
         const matchB = cleanStr.match(regexB);
         if (matchB) return parseInt(matchB[1]);
 
-        // ❌ REMOVED: The fallback that returned 1 if just keyword existed.
-        // Now, "10-Day Course" returns 0.
         return 0;
     };
 
@@ -49,42 +72,33 @@ const parseCourseScore = (infoStr) => {
     score += getCount('45D') * WEIGHTS['45D'];
     score += getCount('30D') * WEIGHTS['30D'];
     score += getCount('20D') * WEIGHTS['20D'];
-    
-    let stpCount = getCount('STP') || getCount('SAT') || getCount('SATI');
-    score += stpCount * WEIGHTS['STP'];
-
-    let tenCount = getCount('10D') || getCount('10-DAY') || getCount('TEN');
-    score += tenCount * WEIGHTS['10D'];
-
-    let tscCount = getCount('TSC') || getCount('SVC') || getCount('SERV');
-    score += tscCount * WEIGHTS['TSC'];
+    score += (getCount('STP') || getCount('SAT')) * WEIGHTS['STP'];
+    score += (getCount('10D') || getCount('10-DAY')) * WEIGHTS['10D'];
+    score += (getCount('TSC') || getCount('SVC')) * WEIGHTS['TSC'];
 
     return score;
 };
 
-const getStudentStats = (p) => { 
+const getStudentStats = (p, isTenDayMode) => { 
     if (!p) return { cat: '', s: 0, l: 0, age: '' }; 
     const conf = (p.conf_no || '').toUpperCase(); 
     const isOld = conf.startsWith('O') || conf.startsWith('S'); 
     const cat = isOld ? '(O)' : '(N)'; 
-    const sMatch = (p.courses_info || '').match(/S\s*[:=-]?\s*(\d+)/i); 
-    const lMatch = (p.courses_info || '').match(/L\s*[:=-]?\s*(\d+)/i); 
-    const score = parseCourseScore(p.courses_info);
-    const s = sMatch ? sMatch[1] : (score > 1000000 ? 'M' : '-'); 
-    const l = lMatch ? lMatch[1] : '-'; 
-    return { cat, s, l, age: p.age || '?' }; 
+    const score = parseCourseScore(p.courses_info, isTenDayMode);
+    return { cat, s: score, age: p.age || '?' }; 
 };
 
-const calculatePriorityScore = (p) => { 
-    let score = parseCourseScore(p.courses_info);
+const calculatePriorityScore = (p, isTenDayMode) => { 
+    let score = parseCourseScore(p.courses_info, isTenDayMode);
+    
+    // Bonus for Old Student Status (Ensures Old > New even if count is low)
     const cat = getCategory(p.conf_no);
     if (cat === 'OLD') score += 50; 
+    
+    // Tie-Breaker: Age (Decimal)
     score += (parseInt(p.age) || 0) / 100; 
     return score; 
 };
-
-const getAlphabetRange = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count);
-const generateChowkyLabels = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count).map(l => `CW-${l}`);
 
 // --- 2. PRINTING HELPERS ---
 const THERMAL_CSS = `<style>@page { size: 72mm auto; margin: 0; } body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; } .ticket-container { width: 70mm; margin: 0 auto; padding-top: 5mm; padding-bottom: 5mm; page-break-after: always; } .ticket-container:last-child { page-break-after: auto; } .ticket-box { border: 3px solid #000; border-radius: 8px; padding: 10px; width: 64mm; margin: 0 auto; text-align: center; box-sizing: border-box; } .header { font-size: 14px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; } .seat { font-size: 55px; font-weight: 900; line-height: 1; margin: 5px 0; } .name { font-size: 15px; font-weight: bold; margin: 5px 0; word-wrap: break-word; line-height: 1.2; } .conf { font-size: 12px; color: #333; margin-bottom: 10px; } .footer { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; } .stats { font-size: 10px; margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px; display: flex; justify-content: space-between; } </style>`;
@@ -92,7 +106,7 @@ const THERMAL_CSS = `<style>@page { size: 72mm auto; margin: 0; } body { font-fa
 const getTokenHtml = (student) => {
     const t = { seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no || '-', room: student.room_no || '-' };
     const s = getStudentStats(student);
-    return `<div class="ticket-container"><div class="ticket-box"><div class="header">DHAMMA SEAT</div><div class="seat">${t.seat}</div><div class="name">${t.name}</div><div class="conf">${t.conf}</div><div class="footer"><span>Cell: ${t.cell}</span><span>Room: ${t.room}</span></div><div class="stats"><span>${s.cat}</span><span>S:${s.s} L:${s.l}</span><span>Age: ${s.age}</span></div></div></div>`;
+    return `<div class="ticket-container"><div class="ticket-box"><div class="header">DHAMMA SEAT</div><div class="seat">${t.seat}</div><div class="name">${t.name}</div><div class="conf">${t.conf}</div><div class="footer"><span>Cell: ${t.cell}</span><span>Room: ${t.room}</span></div><div class="stats"><span>${s.cat}</span><span>Score:${s.s}</span><span>Age: ${s.age}</span></div></div></div>`;
 };
 
 const printViaIframe = (fullHtml) => {
@@ -116,12 +130,14 @@ const printCurrentView = (cssStyles) => {
 };
 
 // --- 3. SUB-COMPONENTS ---
-
 const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
     const shouldShow = p && (p.gender||'').toLowerCase().startsWith(gender.toLowerCase().charAt(0));
     const displayP = shouldShow ? p : null;
-    const stats = getStudentStats(displayP); 
     const isSel = selectedSeat?.label === id;
+    // We don't have access to isTenDayMode here easily without prop drilling, 
+    // but visuals are less critical than sorting. We can default to false or pass it if needed.
+    const stats = getStudentStats(displayP, false); 
+
     return (
         <div key={id} onClick={()=>handleSeatClick(id, displayP, gender)} className="seat-box" style={{ border: '2px solid black', background: displayP ? (isSel ? '#ffeb3b' : 'white') : 'white', width: '130px', height: '95px', fontSize: '10px', overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', boxSizing: 'border-box' }}>
             <div style={{display:'flex', justifyContent:'space-between', fontWeight:'bold', fontSize:'14px', padding:'2px 5px', background: isSel?'#fdd835':'white', borderBottom:'1px solid black'}}>
@@ -135,7 +151,7 @@ const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
             )}
             {displayP ? (
                 <div style={{fontSize:'10px', padding:'2px 5px', fontWeight:'bold', whiteSpace:'nowrap', display:'flex', justifyContent:'space-between', borderTop:'1px solid black', background:'white'}}>
-                    <span>{stats.cat}</span><span>S:{stats.s} L:{stats.l}</span><span>Age:({stats.age})</span>
+                    <span>{stats.cat}</span><span>Sc:{stats.s}</span><span>Age:({stats.age})</span>
                 </div>
             ) : ( <div style={{flex:1}}></div> )}
             {displayP && displayP.is_seat_locked && <div style={{position:'absolute', bottom:'25px', left:'2px', fontSize:'10px'}}>🔒</div>}
@@ -194,6 +210,8 @@ const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, 
         </div> 
     );
 };
+const getAlphabetRange = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count);
+const generateChowkyLabels = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count).map(l => `CW-${l}`);
 
 // --- MAIN COMPONENT ---
 export default function ParticipantList({ courses, refreshCourses, userRole }) {
@@ -221,9 +239,16 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const defaultConfig = { mCols: 10, mRows: 10, mChowky: 2, fCols: 7, fRows: 10, fChowky: 2 };
   const [seatingConfig, setSeatingConfig] = useState(defaultConfig);
   const [printConfig, setPrintConfig] = useState({ scale: 0.9, orientation: 'landscape', paper: 'A3' });
-
-  // ✅ DRAFT STATE FOR MODAL
   const [draftConfig, setDraftConfig] = useState(null);
+
+  // --- DERIVE 10-DAY MODE ---
+  const selectedCourse = courses.find(c => String(c.course_id) === String(courseId));
+  const isTenDayCourse = useMemo(() => {
+      if (!selectedCourse) return false;
+      const name = (selectedCourse.course_name || '').toUpperCase();
+      // Check if it contains "10" AND ("Day" or "D")
+      return name.includes('10-DAY') || name.includes('10 DAY') || name.includes('10D');
+  }, [selectedCourse]);
 
   // --- LOADING & AUTO-SYNC ---
   useEffect(() => { 
@@ -262,7 +287,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
 
   // --- OPEN MODAL (Load current config into draft) ---
   const openAutoAssignModal = () => {
-      setDraftConfig({ ...seatingConfig }); // Clone current config to draft
+      setDraftConfig({ ...seatingConfig }); 
       setShowAutoAssignModal(true);
   };
 
@@ -291,8 +316,9 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
                   valB = parseInt(b[sortConfig.key]) || 0; 
               } 
               else if (sortConfig.key === 'courses_info') {
-                  valA = parseCourseScore(a.courses_info);
-                  valB = parseCourseScore(b.courses_info);
+                  // ✅ Use correct mode for sorting
+                  valA = parseCourseScore(a.courses_info, isTenDayCourse);
+                  valB = parseCourseScore(b.courses_info, isTenDayCourse);
                   if (sortConfig.direction === 'asc') return valA - valB; 
                   else return valB - valA;
               }
@@ -306,7 +332,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
           }); 
       } 
       return items; 
-  }, [participants, sortConfig, search, filterType]);
+  }, [participants, sortConfig, search, filterType, isTenDayCourse]);
 
   const seatingStats = useMemo(() => {
       const stats = { m: { chowky: 0, std: 0 }, f: { chowky: 0, std: 0 } };
@@ -416,26 +442,19 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       } 
   };
 
-  // ✅ AUTO-SIZE GRID (REQUIREMENT AWARE - PRE-FILLS DRAFT ONLY)
   const handleAutoScaleGrid = () => {
-      const { m, f } = seatingStats; // { chowky: X, std: Y }
-
-      // 1. Determine Row Count (Hall Depth) based on Total Load
+      const { m, f } = seatingStats; 
       const maxStudents = Math.max(m.chowky + m.std, f.chowky + f.std);
       let calculatedRows = Math.ceil(maxStudents / 8); 
       if (calculatedRows < 8) calculatedRows = 8;      
       if (calculatedRows > 14) calculatedRows = 14;    
 
-      // 2. Calculate Exact Columns Needed based on Requirements
       const calcCols = (need) => Math.ceil(need / calculatedRows);
-
-      const mChowkyCols = calcCols(m.chowky) || 1; // Min 1 to show section
-      const mStdCols = calcCols(m.std) + 1;        // +1 Buffer
-
+      const mChowkyCols = calcCols(m.chowky) || 1; 
+      const mStdCols = calcCols(m.std) + 1;        
       const fChowkyCols = calcCols(f.chowky) || 1;
       const fStdCols = calcCols(f.std) + 1;
 
-      // 3. Update DRAFT State Only (Inputs update, background does NOT)
       setDraftConfig({
           ...draftConfig,
           mRows: calculatedRows, mChowky: mChowkyCols, mCols: mStdCols,
@@ -444,11 +463,12 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   };
 
   const handleAutoAssign = async () => {
-      if (!window.confirm("⚠️ This will overwrite unlocked seats based on Seniority Logic. Continue?")) return;
+      // ✅ Updated Alert Message based on mode
+      const modeText = isTenDayCourse ? "10-DAY MODE (Score Sum)" : "LONG COURSE MODE (Hierarchy)";
+      if (!window.confirm(`⚠️ Auto-Assigning in ${modeText}. This will overwrite unlocked seats. Continue?`)) return;
       
-      // ✅ APPLY DRAFT CONFIG TO REAL CONFIG NOW
       setSeatingConfig(draftConfig);
-      localStorage.setItem(`layout_${courseId}`, JSON.stringify(draftConfig)); // Auto-save new layout
+      localStorage.setItem(`layout_${courseId}`, JSON.stringify(draftConfig));
 
       setIsAssigning(true);
       setShowAutoAssignModal(false);
@@ -459,7 +479,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
           const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
           const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
           
-          // Use DRAFT config for calculation (since state update might be async)
           const cfg = draftConfig; 
 
           const genSeats = (cols, rows) => { let s = []; if(!cols || !Array.isArray(cols)) return []; for(let r=1; r<=rows; r++) { cols.forEach(c => s.push(c + r)); } return s; };
@@ -475,7 +494,9 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
               let availReg = regSeats.filter(s => !lockedSeats.has(s));
               let availSpec = specSeats.filter(s => !lockedSeats.has(s));
               
-              const toAssign = students.filter(p => !p.is_seat_locked).sort((a,b) => calculatePriorityScore(b) - calculatePriorityScore(a));
+              // ✅ Updated Sorting Logic using "isTenDayCourse"
+              const toAssign = students.filter(p => !p.is_seat_locked)
+                 .sort((a,b) => calculatePriorityScore(b, isTenDayCourse) - calculatePriorityScore(a, isTenDayCourse));
               
               const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating));
               const normalGroup = toAssign.filter(p => !specGroup.includes(p));
@@ -493,7 +514,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
                   if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); 
               });
 
-              // Re-Sort for New Students
               availReg.sort((a, b) => {
                   const colA = a.replace(/[0-9]/g, '');
                   const colB = b.replace(/[0-9]/g, '');
@@ -603,7 +623,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
               </div> 
               {showPrintSettings && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:3000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'300px'}}><h3>🖨️ Print Settings</h3><div style={{marginBottom:'15px'}}><label style={styles.label}>Paper Size</label><select style={styles.input} value={printConfig.paper} onChange={e=>setPrintConfig({...printConfig, paper:e.target.value})}><option>A4</option><option>A3</option><option>Letter</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Orientation</label><select style={styles.input} value={printConfig.orientation} onChange={e=>setPrintConfig({...printConfig, orientation:e.target.value})}><option>landscape</option><option>portrait</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Scale (Zoom)</label><input type="range" min="0.5" max="1.5" step="0.1" value={printConfig.scale} onChange={e=>setPrintConfig({...printConfig, scale:e.target.value})} style={{width:'100%'}}/><div style={{textAlign:'center', fontSize:'12px'}}>{Math.round(printConfig.scale*100)}%</div></div><div style={{textAlign:'right'}}><button onClick={()=>setShowPrintSettings(false)} style={styles.btn(true)}>Done</button></div></div></div>)} 
               
-              {/* ✅ FLOATING MODAL (Allows Background Scroll) */}
               {showAutoAssignModal && draftConfig && (
                   <div style={{position:'fixed', top:'80px', right:'20px', width:'350px', background:'white', boxShadow:'0 10px 30px rgba(0,0,0,0.2)', border:'2px solid #333', borderRadius:'12px', zIndex:5000, padding:'20px', maxHeight:'80vh', overflowY:'auto'}}>
                       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
@@ -665,7 +684,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       <div style={{background:'white', padding:'15px', borderRadius:'12px', marginBottom:'20px', border:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:'0 2px 8px rgba(0,0,0,0.03)'}}>
           <div style={{display:'flex', gap:'8px', alignItems:'center'}}>
               <span style={{fontSize:'12px', fontWeight:'bold', color:'#666', marginRight:'5px'}}>FILTER:</span>
-              {/* ✅ ADDED 'COURSE' TO FILTER LIST */}
               {['ALL', 'OLD', 'NEW', 'MALE', 'FEMALE', 'MED', 'COURSE'].map(type => (
                   <button key={type} onClick={()=>setFilterType(type)} style={{...styles.quickBtn(filterType===type), fontSize:'11px', padding:'6px 12px', borderRadius:'20px', border: filterType===type ? 'none' : '1px solid #ddd', background: filterType===type ? '#333' : 'white', color: filterType===type ? 'white' : '#555'}}>{type}</button>
               ))}
@@ -678,7 +696,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
         <table style={{width:'100%', fontSize:'13px', borderCollapse:'collapse'}}>
           <thead style={{position:'sticky', top:0, zIndex:10}}>
             <tr style={{background:'#f8f9fa', textAlign:'left', borderBottom:'2px solid #e0e0e0', color:'#555', textTransform:'uppercase', fontSize:'11px'}}>
-              {/* ✅ ADDED 'COURSES' COLUMN */}
               {['S.N.', 'FULL_NAME','CONF_NO','COURSES','AGE','GENDER','ROOM','DINING','PAGODA','DH_SEAT', 'LAUNDRY', 'STATUS'].map(k=><th key={k} style={{padding:'15px', fontWeight:'bold', cursor:'pointer', whiteSpace:'nowrap'}} onClick={()=>handleSort(k.toLowerCase())}>{k.replace(/_/g,' ')}</th>)}
               <th style={{padding:'15px', fontWeight:'bold'}}>ACTIONS</th>
             </tr>
@@ -699,7 +716,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
                     <td style={{padding:'15px'}}>
                         <span style={{background: cat==='OLD'?'#e3f2fd':'#fff3cd', color: cat==='OLD'?'#0d47a1':'#856404', padding:'4px 8px', borderRadius:'6px', fontSize:'11px', fontWeight:'bold', display:'inline-block', minWidth:'40px', textAlign:'center'}}>{p.conf_no}</span>
                     </td>
-                    {/* ✅ NEW COLUMN DATA FOR COURSES */}
                     <td style={{padding:'15px', color:'#888', fontSize:'11px', fontWeight:'bold'}}>{p.courses_info || '-'}</td>
                     <td style={{padding:'15px', color:'#555'}}>{p.age}</td>
                     <td style={{padding:'15px'}}><span style={{color: (p.gender||'').startsWith('M') ? '#007bff' : '#e91e63', fontWeight:'bold'}}>{p.gender}</span></td>
@@ -749,7 +765,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
               onSeatClick={handleSeatClick} 
           />
       )}
-      {/* ✅ FIXED: Professional 4px Border Box Grid for ID Card */}
       {printReceiptData && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}><button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button><div id="receipt-print-area" style={{padding:'15px', border:'4px solid black', fontFamily:'Helvetica, Arial, sans-serif', color:'black', margin:'0 auto', maxWidth:'300px'}}><div style={{textAlign:'center', fontWeight:'bold', marginBottom:'10px'}}><div style={{fontSize:'18px', textTransform:'uppercase'}}>VIPASSANA</div><div style={{fontSize:'11px'}}>International Meditation Center</div><div style={{fontSize:'13px', marginTop:'2px'}}>Dhamma Nagajjuna 2</div></div><div style={{borderBottom:'2px solid black', margin:'5px 0'}}></div><div style={{fontSize:'12px', marginBottom:'10px', lineHeight:'1.4'}}><div><strong>Course:</strong> {printReceiptData.courseName}</div><div><strong>Teacher:</strong> {printReceiptData.teacherName}</div><div><strong>Dates:</strong> {printReceiptData.from} to {printReceiptData.to}</div></div><div style={{borderBottom:'2px solid black', margin:'5px 0'}}></div><div style={{fontSize:'16px', fontWeight:'bold', margin:'10px 0', textTransform:'uppercase'}}><div>{printReceiptData.studentName}</div><div style={{fontSize:'13px', fontWeight:'normal'}}>ID: {printReceiptData.confNo}</div></div><table style={{width:'100%', fontSize:'14px', border:'2px solid black', borderCollapse:'collapse', marginTop:'10px'}}><tbody><tr><td style={{border:'2px solid black', padding:'6px', background:'#f0f0f0'}}>Room</td><td style={{border:'2px solid black', padding:'6px', fontWeight:'bold', textAlign:'center', fontSize:'16px'}}>{printReceiptData.roomNo}</td></tr><tr><td style={{border:'2px solid black', padding:'6px', background:'#f0f0f0'}}>Dining</td><td style={{border:'2px solid black', padding:'6px', fontWeight:'bold', textAlign:'center', fontSize:'16px'}}>{printReceiptData.seatNo}</td></tr><tr><td style={{border:'2px solid black', padding:'6px', background:'#f0f0f0'}}>Lockers</td><td style={{border:'2px solid black', padding:'6px', fontWeight:'bold', textAlign:'center'}}>{printReceiptData.lockers}</td></tr><tr><td style={{border:'2px solid black', padding:'6px', background:'#f0f0f0'}}>Lang</td><td style={{border:'2px solid black', padding:'6px', fontWeight:'bold', textAlign:'center'}}>{printReceiptData.language}</td></tr>{printReceiptData.pagoda && <tr><td style={{border:'2px solid black', padding:'6px', background:'#f0f0f0'}}>Pagoda</td><td style={{border:'2px solid black', padding:'6px', fontWeight:'bold', textAlign:'center'}}>{printReceiptData.pagoda}</td></tr>}{printReceiptData.special && <tr><td style={{border:'2px solid black', padding:'6px', background:'#f0f0f0'}}>Special</td><td style={{border:'2px solid black', padding:'6px', fontWeight:'bold', textAlign:'center'}}>{printReceiptData.special}</td></tr>}</tbody></table><div style={{textAlign:'center', fontSize:'10px', fontStyle:'italic', marginTop:'10px'}}>*** Student Copy ***</div></div><div className="no-print" style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={() => window.print()} style={{flex:1, padding:'12px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', fontWeight:'bold'}}>PRINT ID CARD</button></div></div><style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none; } @page { size: 80mm auto; margin: 0; } }`}</style></div>}
       {showBulkModal && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'400px', textAlign:'center'}}><h2 style={{marginTop:0}}>🖨️ Print Tokens</h2><p style={{color:'#666', marginBottom:'30px'}}>Select which group to print on Thermal Printer.</p><div style={{display:'flex', flexDirection:'column', gap:'15px'}}><button onClick={()=>handleBulkPrint('ALL')} style={{padding:'15px', background:'#28a745', color:'white', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer', fontSize:'16px'}}>PRINT ALL</button><div style={{display:'flex', gap:'15px'}}><button onClick={()=>handleBulkPrint('Male')} style={{flex:1, padding:'15px', background:'#007bff', color:'white', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>MALES ONLY</button><button onClick={()=>handleBulkPrint('Female')} style={{flex:1, padding:'15px', background:'#e91e63', color:'white', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>FEMALES ONLY</button></div></div><button onClick={()=>setShowBulkModal(false)} style={{marginTop:'30px', background:'none', border:'none', color:'#999', textDecoration:'underline', cursor:'pointer'}}>Cancel</button></div></div>)}
       {editingStudent && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'30px', width:'600px', borderRadius:'10px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave}><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'15px'}}><div><label>Full Name</label><input style={styles.input} value={editingStudent.full_name} onChange={e=>setEditingStudent({...editingStudent, full_name:e.target.value})} /></div><div><label>Conf No</label><input style={styles.input} value={editingStudent.conf_no||''} onChange={e=>setEditingStudent({...editingStudent, conf_no:e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'15px'}}><div><label>Room No</label><input style={styles.input} value={editingStudent.room_no||''} onChange={e=>setEditingStudent({...editingStudent, room_no:e.target.value})} /></div><div><label>Dining Seat</label><input style={styles.input} value={editingStudent.dining_seat_no||''} onChange={e=>setEditingStudent({...editingStudent, dining_seat_no:e.target.value})} /></div><div><label>Pagoda Cell</label><input style={styles.input} value={editingStudent.pagoda_cell_no||''} onChange={e=>setEditingStudent({...editingStudent, pagoda_cell_no:e.target.value})} /></div></div><div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}><h4 style={{marginTop:0}}>Manual Locker Override</h4><div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}><div><label>Mobile</label><input style={styles.input} value={editingStudent.mobile_locker_no||''} onChange={e=>setEditingStudent({...editingStudent, mobile_locker_no:e.target.value})} /></div><div><label>Valuables</label><input style={styles.input} value={editingStudent.valuables_locker_no||''} onChange={e=>setEditingStudent({...editingStudent, valuables_locker_no:e.target.value})} /></div><div><label>Laundry</label><input style={styles.input} value={editingStudent.laundry_token_no||''} onChange={e=>setEditingStudent({...editingStudent, laundry_token_no:e.target.value})} /></div><div><label>Dhamma Hall Seat</label><input style={styles.input} value={editingStudent.dhamma_hall_seat_no||''} onChange={e=>setEditingStudent({...editingStudent, dhamma_hall_seat_no:e.target.value})} /></div></div></div><div style={{textAlign:'right'}}><button onClick={()=>setEditingStudent(null)} style={{marginRight:'10px', padding:'8px 16px', border:'1px solid #ccc', background:'white', borderRadius:'5px', cursor:'pointer'}}>Cancel</button><button type="submit" style={{padding:'8px 16px', background:'#007bff', color:'white', border:'none', borderRadius:'5px', cursor:'pointer'}}>Save Changes</button></div></form></div></div>)}
