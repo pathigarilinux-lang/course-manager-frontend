@@ -9,10 +9,12 @@ export default function Login({ onLogin }) {
   const [showHint, setShowHint] = useState(false); 
   const [showUserList, setShowUserList] = useState(false); 
 
+  // ✅ UPDATED TO MATCH YOUR REAL DATABASE USERS
   const availableUsers = [
-    { role: 'Admin / Trustee', code: '0', hint: 'Full Control' },
-    { role: 'Gate / Check-In', code: '1', hint: 'Registration' },
-    { role: 'AT (Teacher)',    code: '2', hint: 'Course Mgr' },
+    { role: 'Admin (Full Access)', code: '11111', hint: 'Super User' },
+    { role: 'Reg Staff (Ops)',     code: '55555', hint: 'Master List' },
+    { role: 'Gate Reception',      code: '00000', hint: 'Check-In' },
+    { role: 'AT Panel',            code: '22222', hint: 'Teacher' },
   ];
 
   const handleLogin = async (e) => {
@@ -55,7 +57,7 @@ export default function Login({ onLogin }) {
       display: 'flex', 
       justifyContent: 'center', 
       alignItems: 'center', 
-      // ✅ RICH UI BACKGROUND: Animated Deep Gradient
+      // Rich Animated Background
       background: 'linear-gradient(-45deg, #0F2027, #203A43, #2C5364, #1e3c72, #2a5298)',
       backgroundSize: '400% 400%',
       animation: 'gradientBG 15s ease infinite',
@@ -64,7 +66,7 @@ export default function Login({ onLogin }) {
       overflow: 'hidden'
     }}>
       
-      {/* ✅ RICH UI: Floating Glowing Orbs */}
+      {/* Floating Orbs */}
       <div className="orb orb-1"></div>
       <div className="orb orb-2"></div>
       <div className="orb orb-3"></div>
