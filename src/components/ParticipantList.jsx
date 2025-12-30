@@ -161,7 +161,7 @@ const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
 
 const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, setSpecCols, gender, selectedSeat, handleSeatClick, courseId, courses, participants, seatingConfig, onOpenSettings }) => {
     const courseObj = courses.find(c=>c.course_id==courseId);
-    const courseName = courseObj ? courseObj.course_name : 'COURSE';
+    const courseName = courseObj ? courseObj.course_name.split('/')[0].trim() : 'COURSE';
     const dateRange = courseObj ? `${new Date(courseObj.start_date).toLocaleDateString()} to ${new Date(courseObj.end_date).toLocaleDateString()}` : '';
     const genderKey = gender.toLowerCase().charAt(0);
     const studentsOnSide = participants.filter(p => p.status === 'Attending' && (p.gender||'').toLowerCase().startsWith(genderKey));
