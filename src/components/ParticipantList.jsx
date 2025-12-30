@@ -8,15 +8,15 @@ import DhammaHallLayout from './DhammaHallLayout';
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
 const getStatusColor = (s) => { if (s === 'Attending') return '#28a745'; if (s === 'Gate Check-In') return '#ffc107'; if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; return '#6c757d'; };
 
-// ✅ NEW LOGIC: STRICT HIERARCHY (Waterfall Sort)
-// 60D > 45D > 30D > 20D > STP > 10D > TSC
+// ✅ NEW LOGIC: STRICT WATERFALL HIERARCHY
+// Uses Trillion/Billion multipliers to ensure a higher course ALWAYS beats a lower course
 const parseCourseScore = (infoStr) => {
     if (!infoStr) return 0;
     
     // Initialize Counts
     let c60 = 0, c45 = 0, c30 = 0, c20 = 0, cSTP = 0, c10 = 0, cTSC = 0;
 
-    // Regex to find all "Type:Count" patterns (e.g. 10D:12, STP-1)
+    // Robust Regex: Finds "60D:5" or "45D-2" even in strings like "30D:2:45D:1"
     const regex = /([A-Z0-9]+)\s*[:=-]\s*(\d+)/gi;
     const matches = [...infoStr.matchAll(regex)];
 
@@ -33,40 +33,51 @@ const parseCourseScore = (infoStr) => {
         else if (type.includes('TSC') || type.includes('SVC')) cTSC += count;
     });
 
-    // EXPONENTIAL SCORING to ensure strict hierarchy
-    // (A higher tier always beats any realistic amount of a lower tier)
+    // SCORING: Base 100 System
+    // This guarantees that 1x 60D > 99x 45D
     let score = 0;
-    score += c60  * 1000000000000; // Tier 1: Trillions
-    score += c45  * 10000000000;   // Tier 2: Billions
-    score += c30  * 100000000;     // Tier 3: 100 Millions
-    score += c20  * 1000000;       // Tier 4: Millions
-    score += cSTP * 10000;         // Tier 5: 10 Thousands
-    score += c10  * 100;           // Tier 6: Hundreds
-    score += cTSC * 1;             // Tier 7: Ones
+    score += c60  * 1000000000000; // 1 Trillion
+    score += c45  * 10000000000;   // 10 Billion
+    score += c30  * 100000000;     // 100 Million
+    score += c20  * 1000000;       // 1 Million
+    score += cSTP * 10000;         // 10 Thousand
+    score += c10  * 100;           // 100
+    score += cTSC * 1;             // 1
 
     return score;
 };
 
+// Updated Stats Display to calculate Total Sittings (S) and Long Courses (L) dynamically if not explicitly set
 const getStudentStats = (p) => { 
     if (!p) return { cat: '', s: 0, l: 0, age: '' }; 
     const conf = (p.conf_no || '').toUpperCase(); 
     const isOld = conf.startsWith('O') || conf.startsWith('S'); 
     const cat = isOld ? '(O)' : '(N)'; 
+    
+    // Parse Display Strings
     const sMatch = (p.courses_info || '').match(/S\s*[:=-]?\s*(\d+)/i); 
     const lMatch = (p.courses_info || '').match(/L\s*[:=-]?\s*(\d+)/i); 
-    const s = sMatch ? sMatch[1] : (parseCourseScore(p.courses_info) > 100 ? 'M' : '-'); 
-    const l = lMatch ? lMatch[1] : '-'; 
+    
+    // If we have a huge score but no explicit S/L tags, show 'High'
+    const score = parseCourseScore(p.courses_info);
+    const s = sMatch ? sMatch[1] : (score > 1000000 ? 'High' : '-'); 
+    const l = lMatch ? lMatch[1] : (score > 1000000 ? 'Yes' : '-'); 
+    
     return { cat, s, l, age: p.age || '?' }; 
 };
 
-// Priority Score combines Course Score + Age
+// Priority Score combines Course Score + Category + Age (Tie-Breaker)
 const calculatePriorityScore = (p) => { 
     let score = parseCourseScore(p.courses_info);
+    
     const cat = getCategory(p.conf_no);
-    // Base boost for Old Students (so 10D:1 Old beats 10D:0 New)
+    // Tiny boost for Old Students (Tie-Breaker for equal courses)
     if (cat === 'OLD') score += 50; 
-    // Tie-Breaker: Age (Decimal value)
+    
+    // Tiny boost for Age (Tie-Breaker)
+    // We divide by 100 so Age never overrides a Course count
     score += (parseInt(p.age) || 0) / 100; 
+    
     return score; 
 };
 
