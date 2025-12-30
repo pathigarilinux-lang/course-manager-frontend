@@ -11,10 +11,10 @@ export default function Login({ onLogin }) {
 
   // ✅ UPDATED TO MATCH YOUR REAL DATABASE USERS
   const availableUsers = [
-    { role: 'Admin (Full Access)', code: '11111', hint: 'Super User' },
-    { role: 'Reg Staff (Ops)',     code: '55555', hint: 'Master List' },
-    { role: 'Gate Reception',      code: '00000', hint: 'Check-In' },
-    { role: 'AT Panel',            code: '22222', hint: 'Teacher' },
+    { role: 'Admin (Full Access)', code: '1', hint: 'Super User' },
+    { role: 'Reg Staff (Ops)',     code: '5', hint: 'Master List' },
+    { role: 'Gate Reception',      code: '0', hint: 'Check-In' },
+    { role: 'AT Panel',            code: '2', hint: 'Teacher' },
   ];
 
   const handleLogin = async (e) => {
