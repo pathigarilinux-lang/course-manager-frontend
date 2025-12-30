@@ -253,12 +253,13 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const searchResults = participants.filter(p => {
       if (!searchTerm) return false;
+      // ✅ FIX: Removed check for 'Cancelled' so they appear in search
       if (p.status === 'Attending') return false; 
       const term = searchTerm.toLowerCase();
       return p.full_name.toLowerCase().includes(term) || (p.conf_no || '').toLowerCase().includes(term);
   });
 
-   return ( 
+  return ( 
       <div style={styles.card}> 
           {/* COMPACT HEADER */}
           <div className="no-print" style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
