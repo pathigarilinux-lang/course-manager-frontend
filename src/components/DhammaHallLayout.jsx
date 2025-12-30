@@ -13,7 +13,7 @@ export default function DhammaHallLayout({
 
   // --- SAFETY CHECK ---
   if (!maleCols.length || !femaleCols.length) {
-      return null; // Don't render until config is ready
+      return null; 
   }
 
   // --- DATA PREPARATION ---
@@ -35,77 +35,136 @@ export default function DhammaHallLayout({
     const student = getStudentAtSeat(id, sideGender);
     const isOccupied = !!student;
     const category = student ? getCategory(student.conf_no) : null;
-    const isTeacher = id === 'TEACHER';
-
+    const isChowky = id.startsWith('CW'); // ✅ 3. Identify Chowky
+    
+    // Theme Colors
+    const isFemaleSide = sideGender === 'Female';
+    const baseColor = isFemaleSide ? '#e91e63' : '#007bff'; // Pink vs Blue
+    
     let bg = 'white';
     let border = '1px solid #ccc';
     let shadow = 'none';
     let labelColor = '#999';
 
-    if (isTeacher) {
-      bg = '#6f42c1'; border = '2px solid #5a32a3'; labelColor = 'white'; 
-    } else if (isOccupied) {
+    if (isOccupied) {
+      // ✅ 1. Female Highlight Logic
       if (category === 'O') {
-        bg = '#e3f2fd'; border = '1px solid #90caf9'; labelColor = '#0d47a1'; 
+        // Old Student: Darker Shade
+        bg = isFemaleSide ? '#fce4ec' : '#e3f2fd'; 
+        border = `1px solid ${isFemaleSide ? '#f48fb1' : '#90caf9'}`; 
+        labelColor = isFemaleSide ? '#880e4f' : '#0d47a1'; 
       } else {
-        bg = '#fff9c4'; border = '1px solid #ffe082'; labelColor = '#856404'; 
+        // New Student: Lighter Shade / Yellowish mix
+        bg = isFemaleSide ? '#fff0f6' : '#fff9c4'; 
+        border = `1px solid ${isFemaleSide ? '#f8bbd0' : '#ffe082'}`; 
+        labelColor = isFemaleSide ? '#c2185b' : '#856404'; 
       }
       shadow = '0 2px 4px rgba(0,0,0,0.1)';
     }
 
+    // ✅ 3. Chowky Distinct Color (Override background if it's a Chowky)
+    if (isChowky) {
+        border = `2px solid ${isFemaleSide ? '#d81b60' : '#e65100'}`; // Thicker border
+        if (!isOccupied) bg = '#fff8e1'; // Light cream for empty chowky
+    }
+
     return (
       <div 
-        onClick={() => !isTeacher && onSeatClick && onSeatClick(id, student, sideGender)}
+        onClick={() => onSeatClick && onSeatClick(id, student, sideGender)}
         onMouseEnter={() => setHoveredSeat(student)}
         onMouseLeave={() => setHoveredSeat(null)}
         style={{
-          width: isTeacher ? '200px' : '40px',
-          height: isTeacher ? '60px' : '40px',
+          width: '40px',
+          height: '40px',
           margin: '3px',
           background: bg,
           border: border,
-          borderRadius: isTeacher ? '8px' : '4px',
+          borderRadius: isChowky ? '8px' : '4px', // Rounded for Chowky (Chair-like)
           boxShadow: shadow,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          cursor: isTeacher ? 'default' : 'pointer',
+          cursor: 'pointer',
           position: 'relative',
           transition: 'transform 0.1s',
         }}
-        onMouseOver={(e) => { if(!isTeacher) e.currentTarget.style.transform = 'scale(1.1)'; }}
-        onMouseOut={(e) => { if(!isTeacher) e.currentTarget.style.transform = 'scale(1)'; }}
+        onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+        onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
       >
-        <div style={{ fontSize: isTeacher ? '14px' : '10px', fontWeight: 'bold', color: labelColor }}>
-          {isTeacher ? 'TEACHER' : id}
+        <div style={{ fontSize: '9px', fontWeight: 'bold', color: labelColor }}>
+          {id.replace('CW-', '')} {/* Hide CW prefix for cleaner look */}
         </div>
-        {isOccupied && !isTeacher && (
+        
+        {/* Status Dot */}
+        {isOccupied && (
           <div style={{
             width:'6px', height:'6px', borderRadius:'50%', 
-            background: category === 'O' ? '#007bff' : '#ffc107',
+            background: category === 'O' ? baseColor : '#ffc107',
             marginTop: '2px'
           }}></div>
         )}
+        
+        {/* Chowky Indicator Icon (Optional) */}
+        {isChowky && !isOccupied && <div style={{fontSize:'8px', color:'#ccc'}}>🪑</div>}
       </div>
     );
   };
 
   const SeatGrid = ({ title, cols, rowsCount, color, gender }) => {
     const gridRows = [];
+    
+    // Prepare columns with Visual Gaps
+    // ✅ 2. PATHWAY LOGIC (Inject Gaps visually)
+    // Male: Gap after 'D' and 'H'. Female: Gap after 'C' and 'F'.
+    const renderRowSeats = (r) => {
+        return cols.map((c, idx) => {
+            if(c === 'GAP') return <div key={`gap-${r}-${idx}`} style={{width:'30px'}}></div>;
+            
+            const seatComp = <Seat key={`${c}${r}`} id={`${c}${r}`} sideGender={gender} />;
+            
+            // Inject Margin After Specific Columns
+            const isMale = gender === 'Male';
+            const colLetter = c.replace('CW-', ''); // Handle CW-A as A
+            
+            let extraMargin = 0;
+            if (isMale && (colLetter === 'D' || colLetter === 'H')) extraMargin = 30;
+            if (!isMale && (colLetter === 'C' || colLetter === 'F')) extraMargin = 30;
+
+            if (extraMargin > 0) {
+                return <div key={`${c}${r}-wrap`} style={{display:'flex', marginRight:`${extraMargin}px`}}>{seatComp}</div>;
+            }
+            return seatComp;
+        });
+    };
+
     for (let r = rowsCount; r >= 1; r--) {
-      const rowSeats = cols.map((c, idx) => {
-          if(c === 'GAP') return <div key={`gap-${r}-${idx}`} style={{width:'30px', writingMode:'vertical-rl', fontSize:'9px', color:'#ccc', display:'flex', alignItems:'center', justifyContent:'center'}}>{r===Math.ceil(rowsCount/2) && "PATHWAY"}</div>;
-          return <Seat key={`${c}${r}`} id={`${c}${r}`} sideGender={gender} />;
-      });
       gridRows.push(
-        <div key={r} style={{ display: 'flex', justifyContent: 'center' }}>{rowSeats}</div>
+        <div key={r} style={{ display: 'flex', justifyContent: 'center' }}>{renderRowSeats(r)}</div>
       );
     }
+
     return (
-      <div style={{ padding: '20px', background: `${color}08`, borderRadius: '12px', border: `1px solid ${color}30`, display:'flex', flexDirection:'column', height:'100%' }}>
+      <div style={{ padding: '20px', background: `${color}08`, borderRadius: '12px', border: `1px solid ${color}30`, display:'flex', flexDirection:'column', height:'100%', alignItems:'center' }}>
         <h4 style={{ textAlign: 'center', margin: '0 0 10px 0', color: color, textTransform: 'uppercase', fontSize: '12px', letterSpacing:'1px' }}>{title}</h4>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex:1, justifyContent:'flex-end' }}>{gridRows}</div>
+        
+        {/* ✅ 1. TEACHER SEAT (Centered inside the grid container) */}
+        <div style={{ 
+            marginTop: '30px', 
+            border: `2px dashed ${color}`, 
+            background: `${color}10`, // Very light tint
+            color: color, 
+            padding: '15px 30px', 
+            borderRadius: '8px', 
+            fontWeight: '900', 
+            fontSize: '14px', 
+            letterSpacing: '1px', 
+            minWidth: '180px', 
+            textAlign: 'center' 
+        }}>
+            {gender.toUpperCase()} TEACHER
+        </div>
       </div>
     );
   };
@@ -118,6 +177,7 @@ export default function DhammaHallLayout({
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: '#e3f2fd', border: '1px solid #90caf9' }}></div> Old</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: '#fff9c4', border: '1px solid #ffe082' }}></div> New</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: 'white', border: '1px solid #ccc' }}></div> Free</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: '#fff8e1', border: '1px solid #e65100', borderRadius:'4px' }}></div> Chowky</div>
         </div>
         <button onClick={onClose} style={{ background: '#f8f9fa', border: '1px solid #ccc', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={20} color="#333" /></button>
       </div>
@@ -126,16 +186,21 @@ export default function DhammaHallLayout({
         <div style={{ display: 'flex', gap: '100px', marginBottom: '20px', fontWeight: 'bold', fontSize: '12px', color: '#999', textTransform:'uppercase' }}>
            <div>← Female Entrance</div><div>Male Entrance →</div>
         </div>
-        <div style={{ display: 'flex', gap: '60px', alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}><SeatGrid title="Female Side" cols={femaleCols} rowsCount={rows} color="#e91e63" gender="Female" /></div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}><SeatGrid title="Male Side" cols={maleCols} rowsCount={rows} color="#007bff" gender="Male" /></div>
-        </div>
-        <div style={{ marginTop: '40px', display: 'flex', gap: '60px', width: '100%', justifyContent: 'center' }}>
-            <div style={{ border: '2px dashed #e91e63', background: '#fce4ec', color: '#880e4f', padding: '15px 40px', borderRadius: '8px', fontWeight: '900', fontSize: '14px', letterSpacing: '1px', minWidth: '200px', textAlign: 'center' }}>FEMALE TEACHER</div>
-            <div style={{ border: '2px dashed #007bff', background: '#e3f2fd', color: '#0d47a1', padding: '15px 40px', borderRadius: '8px', fontWeight: '900', fontSize: '14px', letterSpacing: '1px', minWidth: '200px', textAlign: 'center' }}>MALE TEACHER</div>
+        
+        {/* Main Hall Layout */}
+        <div style={{ display: 'flex', gap: '40px', alignItems: 'flex-start' }}>
+          {/* Female Side */}
+          <SeatGrid title="Female Side" cols={femaleCols} rowsCount={rows} color="#e91e63" gender="Female" />
+          
+          {/* Divider */}
+          <div style={{width:'2px', background:'#ddd', alignSelf:'stretch'}}></div>
+
+          {/* Male Side */}
+          <SeatGrid title="Male Side" cols={maleCols} rowsCount={rows} color="#007bff" gender="Male" />
         </div>
       </div>
 
+      {/* Footer Info Panel */}
       <div style={{ background: 'white', borderTop: '1px solid #ddd', padding: '15px 30px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {hoveredSeat ? (
           <div style={{ display: 'flex', gap: '30px', alignItems: 'center', animation: 'slideUp 0.2s' }}>
