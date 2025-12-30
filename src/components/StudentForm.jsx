@@ -253,7 +253,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
 
   const searchResults = participants.filter(p => {
       if (!searchTerm) return false;
-      // ✅ FIX: Removed check for 'Cancelled' so they appear in search
       if (p.status === 'Attending') return false; 
       const term = searchTerm.toLowerCase();
       return p.full_name.toLowerCase().includes(term) || (p.conf_no || '').toLowerCase().includes(term);
@@ -313,32 +312,36 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                                   <div style={{marginBottom:'10px'}}>
                                       <button type="button" onClick={() => setShowVisualRoom(true)} style={{...styles.input, textAlign:'left', padding:'8px', fontSize:'13px', background: formData.roomNo ? '#e3f2fd' : 'white', color: formData.roomNo ? '#0d47a1' : '#555', borderColor: formData.roomNo ? '#90caf9' : '#ddd', fontWeight: formData.roomNo ? 'bold' : 'normal', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center'}}>{formData.roomNo || "Select Room"}{formData.roomNo && <CheckCircle size={14} color="#28a745"/>}</button>
                                   </div>
-                                  <div>
-                                      {/* AUTO-FILLED LAUNDRY TOKEN */}
-                                      <div style={{position:'relative'}}>
-                                          <input style={{...styles.input, padding:'8px 8px 8px 30px', fontSize:'13px', background:'#f0f8ff', fontWeight:'bold', color:'#0d47a1'}} value={formData.laundryToken} onChange={e=>setFormData({...formData, laundryToken:e.target.value})} placeholder="Laundry Token" />
-                                          <Briefcase size={14} color="#0d47a1" style={{position:'absolute', left:'10px', top:'10px'}}/>
-                                      </div>
-                                  </div>
                               </div>
                               
                               {/* DINING & LOCKERS (Updated with Headers) */}
                               <div style={{border:'1px solid #eee', borderRadius:'8px', padding:'12px', boxShadow:'0 2px 5px rgba(0,0,0,0.01)'}}>
-                                  <h5 style={{margin:'0 0 10px 0', color:'#555', display:'flex', alignItems:'center', gap:'6px', borderBottom:'1px solid #f0f0f0', paddingBottom:'5px'}}><Coffee size={14} color="#e91e63"/> Dining & Lockers</h5>
+                                  <h5 style={{margin:'0 0 10px 0', color:'#555', display:'flex', alignItems:'center', gap:'6px', borderBottom:'1px solid #f0f0f0', paddingBottom:'5px'}}><Coffee size={14} color="#e91e63"/> Dining, Lockers & Laundry</h5>
                                   <div style={{marginBottom:'10px', display:'flex', gap:'5px'}}>
                                       <select style={{...styles.input, width:'70px', padding:'8px', fontSize:'12px'}} value={formData.seatType} onChange={e=>setFormData({...formData, seatType:e.target.value})}><option>Chair</option><option>Floor</option></select>
                                       <button type="button" onClick={() => setShowVisualDining(true)} style={{...styles.input, textAlign:'left', padding:'8px', fontSize:'13px', flex:1, background: formData.seatNo ? '#e3f2fd' : 'white', color: formData.seatNo ? '#0d47a1' : '#555', fontWeight: formData.seatNo ? 'bold' : 'normal', cursor:'pointer'}}>{formData.seatNo || "Seat"}</button>
                                   </div>
                                   
-                                  {/* LABELS FOR LOCKERS */}
-                                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'5px'}}>
+                                  {/* ✅ UNIFIED 3-COLUMN GRID FOR ALL LOCKER ITEMS */}
+                                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'5px'}}>
                                       <div>
                                           <label style={{fontSize:'10px', fontWeight:'bold', color:'#777', display:'block', marginBottom:'2px'}}>Mobile</label>
-                                          <select style={{...styles.input, padding:'6px', fontSize:'12px'}} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">None</option>{availableMobiles.map(n => <option key={n} value={n}>{n}</option>)}</select>
+                                          <select style={{...styles.input, padding:'6px', fontSize:'12px', width:'100%', boxSizing:'border-box'}} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">None</option>{availableMobiles.map(n => <option key={n} value={n}>{n}</option>)}</select>
                                       </div>
                                       <div>
                                           <label style={{fontSize:'10px', fontWeight:'bold', color:'#777', display:'block', marginBottom:'2px'}}>Valuables</label>
-                                          <select style={{...styles.input, padding:'6px', fontSize:'12px'}} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">None</option>{availableValuables.map(n => <option key={n} value={n}>{n}</option>)}</select>
+                                          <select style={{...styles.input, padding:'6px', fontSize:'12px', width:'100%', boxSizing:'border-box'}} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">None</option>{availableValuables.map(n => <option key={n} value={n}>{n}</option>)}</select>
+                                      </div>
+                                      
+                                      {/* ✅ LAUNDRY INPUT MOVED HERE */}
+                                      <div>
+                                          <label style={{fontSize:'10px', fontWeight:'bold', color:'#777', display:'block', marginBottom:'2px'}}>Laundry</label>
+                                          <input 
+                                              style={{...styles.input, padding:'6px', fontSize:'12px', width:'100%', boxSizing:'border-box', background:'#f0f8ff', fontWeight:'bold', color:'#0d47a1'}} 
+                                              value={formData.laundryToken} 
+                                              onChange={e=>setFormData({...formData, laundryToken:e.target.value})} 
+                                              placeholder="Token" 
+                                          />
                                       </div>
                                   </div>
                               </div>
