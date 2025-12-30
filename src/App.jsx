@@ -16,7 +16,6 @@ import ExpenseTracker from './components/ExpenseTracker';
 import CourseAdmin from './components/CourseAdmin';
 import SevaBoard from './components/SevaBoard'; 
 import GateReception from './components/GateReception';
-import GatekeeperPanel from './components/GatekeeperPanel';
 import ATPanel from './components/ATPanel';
 
 function App() {
@@ -179,7 +178,6 @@ function App() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
               {activeTab === 'dashboard' && <CourseDashboard courses={courses} stats={stats} />}
               {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} />}
-              {activeTab === 'gatekeeper' && <GatekeeperPanel courses={courses} />}
               {activeTab === 'checkin' && <StudentForm courses={courses} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} />}
               {activeTab === 'students' && <ParticipantList courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               {activeTab === 'accommodation' && <GlobalAccommodationManager />}
