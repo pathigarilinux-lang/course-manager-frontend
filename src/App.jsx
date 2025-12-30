@@ -69,7 +69,6 @@ function App() {
   const MENU_ITEMS = [
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff'] },
       { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate'] },
-      { id: 'gatekeeper', label: 'Gatekeeper View', icon: <Shield size={20}/>, roles: ['admin', 'staff'] },
       { id: 'checkin', label: 'Onboarding', icon: <UserPlus size={20}/>, roles: ['admin', 'staff'] },
       { id: 'students', label: 'Manage Students', icon: <Users size={20}/>, roles: ['admin', 'staff'] },
       { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={20}/>, roles: ['admin', 'staff'] },
