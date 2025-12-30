@@ -19,11 +19,33 @@ import GateReception from './components/GateReception';
 import ATPanel from './components/ATPanel';
 
 function App() {
-  const [user, setUser] = useState(null); 
+  // ✅ CHANGE 1: Initialize User from Local Storage (Persist Login)
+  const [user, setUser] = useState(() => {
+      try {
+          const savedUser = localStorage.getItem('dhammaUser');
+          return savedUser ? JSON.parse(savedUser) : null;
+      } catch (e) {
+          return null;
+      }
+  });
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [courses, setCourses] = useState([]);
   const [stats, setStats] = useState({});
+
+  // ✅ CHANGE 2: Handle Login & Save to Storage
+  const handleLogin = (userData) => {
+      setUser(userData);
+      localStorage.setItem('dhammaUser', JSON.stringify(userData));
+  };
+
+  // ✅ CHANGE 3: Handle Logout & Clear Storage
+  const handleLogout = () => {
+      setUser(null);
+      localStorage.removeItem('dhammaUser');
+      setActiveTab('dashboard'); // Reset tab
+  };
 
   const fetchCourses = async () => {
       try {
@@ -56,14 +78,19 @@ function App() {
               setActiveTab('at');
               setSidebarOpen(false);
           } else {
-              setActiveTab('dashboard');
-              setSidebarOpen(true);
+              // Only reset to dashboard if we are not already on a valid tab
+              // This keeps the user on the same tab if they refresh
+              if (activeTab === 'gate' || activeTab === 'at') {
+                   setActiveTab('dashboard');
+                   setSidebarOpen(true);
+              }
           }
       }
   }, [user]);
 
+  // ✅ Pass handleLogin instead of inline function
   if (!user) {
-      return <Login onLogin={(u) => setUser(u)} />;
+      return <Login onLogin={handleLogin} />;
   }
 
   const MENU_ITEMS = [
@@ -74,9 +101,9 @@ function App() {
       { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={20}/>, roles: ['admin', 'staff'] },
       { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin', 'staff', 'at'] }, 
       { id: 'admin', label: 'Course Admin', icon: <Database size={20}/>, roles: ['admin', 'staff'] }, 
+      { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin', 'staff'] },
       { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin', 'staff'] }, 
-      // ✅ UPDATED: Added 'staff' to roles
-      { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin', 'staff'] }, 
+       
   ];
 
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
@@ -134,7 +161,7 @@ function App() {
 
           <div style={{ padding: '15px', borderTop: '1px solid #334155' }}>
               <button 
-                  onClick={() => setUser(null)}
+                  onClick={handleLogout} // ✅ Use the wrapper function
                   style={{
                       width: '100%',
                       display: 'flex',
@@ -168,7 +195,7 @@ function App() {
                   </div>
               </div>
               {!isSidebarOpen && (
-                  <button onClick={() => setUser(null)} style={{background:'#ffebee', color:'#c62828', border:'none', borderRadius:'50%', width:'35px', height:'35px', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer'}}>
+                  <button onClick={handleLogout} style={{background:'#ffebee', color:'#c62828', border:'none', borderRadius:'50%', width:'35px', height:'35px', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer'}}>
                       <LogOut size={16}/>
                   </button>
               )}
@@ -184,7 +211,7 @@ function App() {
               {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               {activeTab === 'seva' && <SevaBoard courses={courses} />}
               
-              {/* ✅ UPDATED: Render Store for Admin AND Staff */}
+              {/* ✅ Render Store for Admin AND Staff */}
               {(user.role === 'admin' || user.role === 'staff') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
           </div>
       </main>
