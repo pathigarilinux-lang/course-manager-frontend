@@ -6,6 +6,15 @@ import Dashboard from './Dashboard';
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
 const tdPrint = { padding: '8px', border: '1px solid #000', fontSize:'12px', verticalAlign:'middle' };
 
+// ✅ SAFETY FIX: Force input to String before casing
+const getCategory = (conf) => { 
+    if(!conf) return '-'; 
+    const s = String(conf).toUpperCase(); 
+    if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; 
+    if (s.startsWith('N')) return 'NEW'; 
+    return 'Other'; 
+};
+
 export default function ATPanel({ courses }) {
   const [courseId, setCourseId] = useState('');
   const [participants, setParticipants] = useState([]);
@@ -20,11 +29,11 @@ export default function ATPanel({ courses }) {
           fetch(`${API_URL}/courses/${courseId}/participants`)
             .then(res => res.json())
             .then(data => {
-                // ✅ SAFETY CHECK: Ensure data is an array before setting state
+                // ✅ CRASH PREVENTION: Always ensure array
                 setParticipants(Array.isArray(data) ? data : []);
             })
             .catch(err => {
-                console.error("Error fetching participants:", err);
+                console.error("Fetch error:", err);
                 setParticipants([]);
             });
       } else {
@@ -43,11 +52,13 @@ export default function ATPanel({ courses }) {
           None: { total: 0, m: 0, f: 0 }
       };
       
-      // ✅ SAFETY CHECK: (participants || [])
+      // ✅ CRASH PREVENTION: Handle nulls/undefined safely
       (participants || []).forEach(p => {
           if (p.status !== 'Attending') return;
+          
           const type = p.special_seating || 'None';
-          const gender = (p.gender || '').toLowerCase();
+          // Fix: Ensure gender is string before lowercasing
+          const gender = String(p.gender || '').toLowerCase();
           const isMale = gender.startsWith('m');
           
           if (!stats[type]) stats[type] = { total: 0, m: 0, f: 0 };
@@ -60,7 +71,6 @@ export default function ATPanel({ courses }) {
 
   // ✅ UPDATED FILTER LOGIC: Search by Name OR Conf No
   const filteredList = useMemo(() => {
-      // ✅ SAFETY CHECK
       if (!Array.isArray(participants)) return [];
 
       let list = participants.filter(p => p.status === 'Attending');
@@ -72,8 +82,8 @@ export default function ATPanel({ courses }) {
       if (searchTerm) {
           const lower = searchTerm.toLowerCase();
           list = list.filter(p => 
-              (p.full_name || '').toLowerCase().includes(lower) || 
-              (p.conf_no || '').toLowerCase().includes(lower)
+              String(p.full_name || '').toLowerCase().includes(lower) || 
+              String(p.conf_no || '').toLowerCase().includes(lower) // ✅ Fix: Handle numeric Conf No
           );
       }
       return list;
@@ -87,7 +97,6 @@ export default function ATPanel({ courses }) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(editingStudent)
           });
-          // Refresh list
           const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
           const data = await res.json();
           setParticipants(Array.isArray(data) ? data : []);
@@ -110,10 +119,10 @@ export default function ATPanel({ courses }) {
       const active = participants.filter(p => p.status === 'Attending');
       return {
           total: active.length,
-          m: active.filter(p => (p.gender||'').toLowerCase().startsWith('m')).length,
-          f: active.filter(p => (p.gender||'').toLowerCase().startsWith('f')).length,
-          old: active.filter(p => (p.conf_no||'').toUpperCase().startsWith('O')).length,
-          new: active.filter(p => (p.conf_no||'').toUpperCase().startsWith('N')).length,
+          m: active.filter(p => String(p.gender||'').toLowerCase().startsWith('m')).length,
+          f: active.filter(p => String(p.gender||'').toLowerCase().startsWith('f')).length,
+          old: active.filter(p => String(p.conf_no||'').toUpperCase().startsWith('O')).length,
+          new: active.filter(p => String(p.conf_no||'').toUpperCase().startsWith('N')).length,
       };
   };
 
@@ -240,7 +249,7 @@ export default function ATPanel({ courses }) {
       {/* STUDENT GRID */}
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:'15px'}}>
           {filteredList.map(p => (
-              <div key={p.participant_id} onClick={() => setEditingStudent(p)} style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'15px', cursor:'pointer', transition:'all 0.2s', boxShadow:'0 2px 5px rgba(0,0,0,0.02)', position:'relative', borderLeft: `4px solid ${p.gender === 'Male' ? '#007bff' : '#e91e63'}`}}>
+              <div key={p.participant_id} onClick={() => setEditingStudent(p)} style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'15px', cursor:'pointer', transition:'all 0.2s', boxShadow:'0 2px 5px rgba(0,0,0,0.02)', position:'relative', borderLeft: `4px solid ${String(p.gender).startsWith('M') ? '#007bff' : '#e91e63'}`}}>
                   <div style={{display:'flex', justifyContent:'space-between', marginBottom:'5px'}}>
                       <span style={{fontWeight:'bold', fontSize:'14px'}}>{p.full_name}</span>
                       <span style={{fontSize:'11px', background:'#eee', padding:'2px 6px', borderRadius:'4px'}}>{p.conf_no}</span>
