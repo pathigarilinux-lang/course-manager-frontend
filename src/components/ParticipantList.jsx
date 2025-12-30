@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, Tag, Download, Database, Wand2 } from 'lucide-react';
+import { Edit, Trash2, Printer, Settings, AlertTriangle, Filter, Save, Plus, Minus, User, Tag, Download, Database, Wand2, X } from 'lucide-react';
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
@@ -62,7 +62,7 @@ const calculatePriorityScore = (p) => {
 const getAlphabetRange = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count);
 const generateChowkyLabels = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count).map(l => `CW-${l}`);
 
-// --- 2. PRINTING HELPERS (THERMAL) ---
+// --- 2. PRINTING HELPERS ---
 const THERMAL_CSS = `<style>@page { size: 72mm auto; margin: 0; } body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; } .ticket-container { width: 70mm; margin: 0 auto; padding-top: 5mm; padding-bottom: 5mm; page-break-after: always; } .ticket-container:last-child { page-break-after: auto; } .ticket-box { border: 3px solid #000; border-radius: 8px; padding: 10px; width: 64mm; margin: 0 auto; text-align: center; box-sizing: border-box; } .header { font-size: 14px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 5px; } .seat { font-size: 55px; font-weight: 900; line-height: 1; margin: 5px 0; } .name { font-size: 15px; font-weight: bold; margin: 5px 0; word-wrap: break-word; line-height: 1.2; } .conf { font-size: 12px; color: #333; margin-bottom: 10px; } .footer { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; } .stats { font-size: 10px; margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px; display: flex; justify-content: space-between; } </style>`;
 
 const getTokenHtml = (student) => {
@@ -195,6 +195,9 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const [seatingConfig, setSeatingConfig] = useState(defaultConfig);
   const [printConfig, setPrintConfig] = useState({ scale: 0.9, orientation: 'landscape', paper: 'A3' });
 
+  // ✅ DRAFT STATE FOR MODAL (Allows editing before applying)
+  const [draftConfig, setDraftConfig] = useState(null);
+
   // --- LOADING ---
   useEffect(() => { 
       if (courseId) {
@@ -211,6 +214,12 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
           } catch(e) { setSeatingConfig(defaultConfig); }
       } 
   }, [courseId]);
+
+  // --- OPEN MODAL (Load current config into draft) ---
+  const openAutoAssignModal = () => {
+      setDraftConfig({ ...seatingConfig }); // Clone current config to draft
+      setShowAutoAssignModal(true);
+  };
 
   // --- MEMOS & ACTIONS ---
   const processedList = useMemo(() => { 
@@ -362,7 +371,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       } 
   };
 
-  // ✅ AUTO-SIZE GRID (REQUIREMENT AWARE - PRE-FILLS INPUTS)
+  // ✅ AUTO-SIZE GRID (REQUIREMENT AWARE - PRE-FILLS DRAFT ONLY)
   const handleAutoScaleGrid = () => {
       const { m, f } = seatingStats; // { chowky: X, std: Y }
 
@@ -381,17 +390,21 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       const fChowkyCols = calcCols(f.chowky) || 1;
       const fStdCols = calcCols(f.std) + 1;
 
-      // 3. Just Update State (User is already in the modal seeing the inputs)
-      setSeatingConfig({
-          ...seatingConfig,
+      // 3. Update DRAFT State Only (Inputs update, background does NOT)
+      setDraftConfig({
+          ...draftConfig,
           mRows: calculatedRows, mChowky: mChowkyCols, mCols: mStdCols,
           fRows: calculatedRows, fChowky: fChowkyCols, fCols: fStdCols
       });
-      // No Alert - instant update!
   };
 
   const handleAutoAssign = async () => {
       if (!window.confirm("⚠️ This will overwrite unlocked seats based on Seniority Logic. Continue?")) return;
+      
+      // ✅ APPLY DRAFT CONFIG TO REAL CONFIG NOW
+      setSeatingConfig(draftConfig);
+      localStorage.setItem(`layout_${courseId}`, JSON.stringify(draftConfig)); // Auto-save new layout
+
       setIsAssigning(true);
       setShowAutoAssignModal(false);
       try {
@@ -400,11 +413,16 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
           const active = allP.filter(p => p.status === 'Attending' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre)));
           const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
           const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
+          
+          // Use DRAFT config for calculation (since state update might be async)
+          const cfg = draftConfig; 
+
           const genSeats = (cols, rows) => { let s = []; if(!cols || !Array.isArray(cols)) return []; for(let r=1; r<=rows; r++) { cols.forEach(c => s.push(c + r)); } return s; };
-          const mRegSeats = genSeats(getAlphabetRange(0, seatingConfig.mCols), seatingConfig.mRows);
-          const mSpecSeats = genSeats(generateChowkyLabels(seatingConfig.mCols, seatingConfig.mChowky), seatingConfig.mRows);
-          const fRegSeats = genSeats(getAlphabetRange(0, seatingConfig.fCols), seatingConfig.fRows);
-          const fSpecSeats = genSeats(generateChowkyLabels(seatingConfig.fCols, seatingConfig.fChowky), seatingConfig.fRows);
+          const mRegSeats = genSeats(getAlphabetRange(0, cfg.mCols), cfg.mRows);
+          const mSpecSeats = genSeats(generateChowkyLabels(cfg.mCols, cfg.mChowky), cfg.mRows);
+          const fRegSeats = genSeats(getAlphabetRange(0, cfg.fCols), cfg.fRows);
+          const fSpecSeats = genSeats(generateChowkyLabels(cfg.fCols, cfg.fChowky), cfg.fRows);
+          
           const assignGroup = (students, regSeats, specSeats) => {
               const updates = [];
               const lockedSeats = new Set();
@@ -507,7 +525,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
                   <div style={{display:'flex', gap:'10px', alignItems:'center'}}> 
                       <button onClick={saveLayoutConfig} style={styles.toolBtn('#17a2b8')}><Save size={16}/> Store Seat Changes</button> 
                       <button onClick={handleSeatingExport} style={{...styles.quickBtn(true), background:'#6c757d', color:'white'}}>CSV</button> 
-                      <button onClick={()=>setShowAutoAssignModal(true)} style={{...styles.btn(true), background:'#ff9800', color:'white'}}><Settings size={16}/> Auto-Assign</button> 
+                      <button onClick={openAutoAssignModal} style={{...styles.btn(true), background:'#ff9800', color:'white'}}><Settings size={16}/> Auto-Assign</button> 
                   </div> 
               </div> 
               <div className="print-area" style={{display:'flex', flexDirection:'column', gap:'100px'}}> 
@@ -539,26 +557,44 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
                   /> 
               </div> 
               {showPrintSettings && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:3000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'300px'}}><h3>🖨️ Print Settings</h3><div style={{marginBottom:'15px'}}><label style={styles.label}>Paper Size</label><select style={styles.input} value={printConfig.paper} onChange={e=>setPrintConfig({...printConfig, paper:e.target.value})}><option>A4</option><option>A3</option><option>Letter</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Orientation</label><select style={styles.input} value={printConfig.orientation} onChange={e=>setPrintConfig({...printConfig, orientation:e.target.value})}><option>landscape</option><option>portrait</option></select></div><div style={{marginBottom:'15px'}}><label style={styles.label}>Scale (Zoom)</label><input type="range" min="0.5" max="1.5" step="0.1" value={printConfig.scale} onChange={e=>setPrintConfig({...printConfig, scale:e.target.value})} style={{width:'100%'}}/><div style={{textAlign:'center', fontSize:'12px'}}>{Math.round(printConfig.scale*100)}%</div></div><div style={{textAlign:'right'}}><button onClick={()=>setShowPrintSettings(false)} style={styles.btn(true)}>Done</button></div></div></div>)} 
-              {showAutoAssignModal && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:2000}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'600px', maxHeight:'90vh', overflowY:'auto'}}><h3>🛠️ Auto-Assign Configuration</h3>
-                  <div style={{background:'#f0f8ff', padding:'15px', borderRadius:'8px', marginBottom:'20px', border:'1px solid #cce5ff'}}>
-                      <h4 style={{margin:'0 0 10px 0', fontSize:'14px', color:'#0056b3'}}>Requirements Overview (Live)</h4>
-                      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
-                          <div>
-                              <div style={{fontWeight:'bold', color:'#007bff'}}>MALE</div>
-                              <div style={{fontSize:'12px'}}>Chowky Need: <strong>{seatingStats.m.chowky}</strong></div>
-                              <div style={{fontSize:'12px'}}>Cushion Need: <strong>{seatingStats.m.std}</strong></div>
-                          </div>
-                          <div>
-                              <div style={{fontWeight:'bold', color:'#e91e63'}}>FEMALE</div>
-                              <div style={{fontSize:'12px'}}>Chowky Need: <strong>{seatingStats.f.chowky}</strong></div>
-                              <div style={{fontSize:'12px'}}>Cushion Need: <strong>{seatingStats.f.std}</strong></div>
+              
+              {/* ✅ FLOATING MODAL (Allows Background Scroll) */}
+              {showAutoAssignModal && draftConfig && (
+                  <div style={{position:'fixed', top:'80px', right:'20px', width:'350px', background:'white', boxShadow:'0 10px 30px rgba(0,0,0,0.2)', border:'2px solid #333', borderRadius:'12px', zIndex:5000, padding:'20px', maxHeight:'80vh', overflowY:'auto'}}>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
+                          <h3 style={{margin:0}}>🛠️ Auto-Assign</h3>
+                          <button onClick={()=>setShowAutoAssignModal(false)} style={{background:'none', border:'none', cursor:'pointer'}}><X size={20}/></button>
+                      </div>
+                      
+                      <div style={{background:'#f0f8ff', padding:'15px', borderRadius:'8px', marginBottom:'20px', border:'1px solid #cce5ff'}}>
+                          <h4 style={{margin:'0 0 10px 0', fontSize:'14px', color:'#0056b3'}}>Requirements Overview</h4>
+                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
+                              <div><div style={{fontWeight:'bold', color:'#007bff', fontSize:'12px'}}>MALE</div><div style={{fontSize:'11px'}}>Chowky: {seatingStats.m.chowky}</div><div style={{fontSize:'11px'}}>Std: {seatingStats.m.std}</div></div>
+                              <div><div style={{fontWeight:'bold', color:'#e91e63', fontSize:'12px'}}>FEMALE</div><div style={{fontSize:'11px'}}>Chowky: {seatingStats.f.chowky}</div><div style={{fontSize:'11px'}}>Std: {seatingStats.f.std}</div></div>
                           </div>
                       </div>
+
+                      <div style={{marginBottom:'20px'}}>
+                          <div style={{marginBottom:'15px', paddingBottom:'15px', borderBottom:'1px dashed #ddd'}}>
+                              <h4 style={{margin:'0 0 5px 0', color:'#007bff'}}>Male Side</h4>
+                              <div style={{display:'flex', gap:'5px', marginBottom:'5px'}}><label style={{...styles.label, flex:1}}>Std Cols</label><input type="number" style={{...styles.input, width:'60px'}} value={draftConfig.mCols} onChange={e=>setDraftConfig({...draftConfig, mCols: parseInt(e.target.value)||0})} /></div>
+                              <div style={{display:'flex', gap:'5px', marginBottom:'5px'}}><label style={{...styles.label, flex:1}}>Chowky Cols</label><input type="number" style={{...styles.input, width:'60px'}} value={draftConfig.mChowky} onChange={e=>setDraftConfig({...draftConfig, mChowky: parseInt(e.target.value)||0})} /></div>
+                              <div style={{display:'flex', gap:'5px'}}><label style={{...styles.label, flex:1}}>Rows</label><input type="number" style={{...styles.input, width:'60px'}} value={draftConfig.mRows} onChange={e=>setDraftConfig({...draftConfig, mRows: parseInt(e.target.value)||0})} /></div>
+                          </div>
+                          <div>
+                              <h4 style={{margin:'0 0 5px 0', color:'#e91e63'}}>Female Side</h4>
+                              <div style={{display:'flex', gap:'5px', marginBottom:'5px'}}><label style={{...styles.label, flex:1}}>Std Cols</label><input type="number" style={{...styles.input, width:'60px'}} value={draftConfig.fCols} onChange={e=>setDraftConfig({...draftConfig, fCols: parseInt(e.target.value)||0})} /></div>
+                              <div style={{display:'flex', gap:'5px', marginBottom:'5px'}}><label style={{...styles.label, flex:1}}>Chowky Cols</label><input type="number" style={{...styles.input, width:'60px'}} value={draftConfig.fChowky} onChange={e=>setDraftConfig({...draftConfig, fChowky: parseInt(e.target.value)||0})} /></div>
+                              <div style={{display:'flex', gap:'5px'}}><label style={{...styles.label, flex:1}}>Rows</label><input type="number" style={{...styles.input, width:'60px'}} value={draftConfig.fRows} onChange={e=>setDraftConfig({...draftConfig, fRows: parseInt(e.target.value)||0})} /></div>
+                          </div>
+                      </div>
+
+                      <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                          <button onClick={handleAutoScaleGrid} style={{background:'#6f42c1', color:'white', border:'none', padding:'10px', borderRadius:'5px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'5px', fontWeight:'bold'}}><Wand2 size={16}/> Auto-Size Grid (Draft)</button>
+                          <button onClick={handleAutoAssign} style={isAssigning ? styles.btn(false) : {...styles.btn(true), background:'#28a745', color:'white', justifyContent:'center', padding:'12px'}} disabled={isAssigning}>{isAssigning ? 'Processing...' : 'APPLY & RUN'}</button>
+                      </div>
                   </div>
-                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px', marginBottom:'20px'}}><div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#007bff'}}>Male Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.mCols} onChange={e=>setSeatingConfig({...seatingConfig, mCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.mChowky} onChange={e=>setSeatingConfig({...seatingConfig, mChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.mRows} onChange={e=>setSeatingConfig({...seatingConfig, mRows: parseInt(e.target.value)||0})} /></div><div style={{border:'1px solid #ddd', padding:'10px', borderRadius:'5px'}}><h4 style={{marginTop:0, color:'#e91e63'}}>Female Side</h4><label style={styles.label}>Standard Cols</label><input type="number" style={styles.input} value={seatingConfig.fCols} onChange={e=>setSeatingConfig({...seatingConfig, fCols: parseInt(e.target.value)||0})} /><label style={styles.label}>Chowky Cols</label><input type="number" style={styles.input} value={seatingConfig.fChowky} onChange={e=>setSeatingConfig({...seatingConfig, fChowky: parseInt(e.target.value)||0})} /><label style={styles.label}>Total Rows</label><input type="number" style={styles.input} value={seatingConfig.fRows} onChange={e=>setSeatingConfig({...seatingConfig, fRows: parseInt(e.target.value)||0})} /></div></div><div style={{display:'flex', gap:'10px', justifyContent:'flex-end'}}>
-                  {/* ✅ AUTO-SCALE BUTTON (NO ALERT, DIRECT FILL) */}
-                  <button onClick={handleAutoScaleGrid} style={{marginRight:'auto', background:'#6f42c1', color:'white', border:'none', padding:'8px 15px', borderRadius:'5px', cursor:'pointer', display:'flex', alignItems:'center', gap:'5px'}}><Wand2 size={16}/> Auto-Size Grid</button>
-                  <button onClick={()=>setShowAutoAssignModal(false)} style={styles.btn(false)}>Cancel</button><button onClick={handleAutoAssign} style={isAssigning ? styles.btn(false) : {...styles.btn(true), background:'#28a745', color:'white'}} disabled={isAssigning}>{isAssigning ? 'Processing...' : 'RUN ASSIGNMENT'}</button></div></div></div>)} 
+              )}
           </div> 
       ); 
   }
@@ -670,7 +706,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       )}
       {/* ✅ FIXED: Professional 4px Border Box Grid for ID Card */}
       {printReceiptData && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:9999}}><div style={{background:'white', padding:'20px', borderRadius:'10px', width:'350px'}}><button onClick={()=>setPrintReceiptData(null)} style={{float:'right', background:'red', color:'white', border:'none', borderRadius:'50%', width:'30px', height:'30px', cursor:'pointer'}}>X</button><div id="receipt-print-area" style={{padding:'15px', border:'4px solid black', fontFamily:'Helvetica, Arial, sans-serif', color:'black', margin:'0 auto', maxWidth:'300px'}}><div style={{textAlign:'center', fontWeight:'bold', marginBottom:'10px'}}><div style={{fontSize:'18px', textTransform:'uppercase'}}>VIPASSANA</div><div style={{fontSize:'11px'}}>International Meditation Center</div><div style={{fontSize:'13px', marginTop:'2px'}}>Dhamma Nagajjuna 2</div></div><div style={{borderBottom:'2px solid black', margin:'5px 0'}}></div><div style={{fontSize:'12px', marginBottom:'10px', lineHeight:'1.4'}}><div><strong>Course:</strong> {printReceiptData.courseName}</div><div><strong>Teacher:</strong> {printReceiptData.teacherName}</div><div><strong>Dates:</strong> {printReceiptData.from} to {printReceiptData.to}</div></div><div style={{borderBottom:'2px solid black', margin:'5px 0'}}></div><div style={{fontSize:'16px', fontWeight:'bold', margin:'10px 0', textTransform:'uppercase'}}><div>{printReceiptData.studentName}</div><div style={{fontSize:'13px', fontWeight:'normal'}}>ID: {printReceiptData.confNo}</div></div><table style={{width:'100%', fontSize:'14px', border:'2px solid black', borderCollapse:'collapse', marginTop:'10px'}}><tbody><tr><td style={{border:'2px solid black', padding:'6px', background:'#f0f0f0'}}>Room</td><td style={{border:'2px solid black', padding:'6px', fontWeight:'bold', textAlign:'center', fontSize:'16px'}}>{printReceiptData.roomNo}</td></tr><tr><td style={{border:'2px solid black', padding:'6px', background:'#f0f0f0'}}>Dining</td><td style={{border:'2px solid black', padding:'6px', fontWeight:'bold', textAlign:'center', fontSize:'16px'}}>{printReceiptData.seatNo}</td></tr><tr><td style={{border:'2px solid black', padding:'6px', background:'#f0f0f0'}}>Lockers</td><td style={{border:'2px solid black', padding:'6px', fontWeight:'bold', textAlign:'center'}}>{printReceiptData.lockers}</td></tr><tr><td style={{border:'2px solid black', padding:'6px', background:'#f0f0f0'}}>Lang</td><td style={{border:'2px solid black', padding:'6px', fontWeight:'bold', textAlign:'center'}}>{printReceiptData.language}</td></tr>{printReceiptData.pagoda && <tr><td style={{border:'2px solid black', padding:'6px', background:'#f0f0f0'}}>Pagoda</td><td style={{border:'2px solid black', padding:'6px', fontWeight:'bold', textAlign:'center'}}>{printReceiptData.pagoda}</td></tr>}{printReceiptData.special && <tr><td style={{border:'2px solid black', padding:'6px', background:'#f0f0f0'}}>Special</td><td style={{border:'2px solid black', padding:'6px', fontWeight:'bold', textAlign:'center'}}>{printReceiptData.special}</td></tr>}</tbody></table><div style={{textAlign:'center', fontSize:'10px', fontStyle:'italic', marginTop:'10px'}}>*** Student Copy ***</div></div><div className="no-print" style={{marginTop:'20px', display:'flex', gap:'10px'}}><button onClick={() => window.print()} style={{flex:1, padding:'12px', background:'#007bff', color:'white', border:'none', borderRadius:'6px', fontWeight:'bold'}}>PRINT ID CARD</button></div></div><style>{`@media print { body * { visibility: hidden; } #receipt-print-area, #receipt-print-area * { visibility: visible; } #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; border: none; } @page { size: 80mm auto; margin: 0; } }`}</style></div>}
-      {showBulkModal && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:9999, display:'flex', justifyContent:'center', alignItems:'center'}}><div style={{background:'white', padding:'30px', borderRadius:'10px', width:'400px', textAlign:'center'}}><h2 style={{marginTop:0}}>🖨️ Print Tokens</h2><p style={{color:'#666', marginBottom:'30px'}}>Select which group to print on Thermal Printer.</p><div style={{display:'flex', flexDirection:'column', gap:'15px'}}><button onClick={()=>handleBulkPrint('ALL')} style={{padding:'15px', background:'#28a745', color:'white', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer', fontSize:'16px'}}>PRINT ALL</button><div style={{display:'flex', gap:'15px'}}><button onClick={()=>handleBulkPrint('Male')} style={{flex:1, padding:'15px', background:'#007bff', color:'white', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>MALES ONLY</button><button onClick={()=>handleBulkPrint('Female')} style={{flex:1, padding:'15px', background:'#e91e63', color:'white', border:'none', borderRadius:'8px', fontWeight:'bold', cursor:'pointer'}}>FEMALES ONLY</button></div></div><button onClick={()=>setShowBulkModal(false)} style={{marginTop:'30px', background:'none', border:'none', color:'#999', textDecoration:'underline', cursor:'pointer'}}>Cancel</button></div></div>)}
       {editingStudent && (<div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}><div style={{background:'white', padding:'30px', width:'600px', borderRadius:'10px'}}><h3>Edit Student</h3><form onSubmit={handleEditSave}><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'15px'}}><div><label>Full Name</label><input style={styles.input} value={editingStudent.full_name} onChange={e=>setEditingStudent({...editingStudent, full_name:e.target.value})} /></div><div><label>Conf No</label><input style={styles.input} value={editingStudent.conf_no||''} onChange={e=>setEditingStudent({...editingStudent, conf_no:e.target.value})} /></div></div><div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'15px', marginBottom:'15px'}}><div><label>Room No</label><input style={styles.input} value={editingStudent.room_no||''} onChange={e=>setEditingStudent({...editingStudent, room_no:e.target.value})} /></div><div><label>Dining Seat</label><input style={styles.input} value={editingStudent.dining_seat_no||''} onChange={e=>setEditingStudent({...editingStudent, dining_seat_no:e.target.value})} /></div><div><label>Pagoda Cell</label><input style={styles.input} value={editingStudent.pagoda_cell_no||''} onChange={e=>setEditingStudent({...editingStudent, pagoda_cell_no:e.target.value})} /></div></div><div style={{background:'#f9f9f9', padding:'10px', borderRadius:'5px', marginBottom:'15px'}}><h4 style={{marginTop:0}}>Manual Locker Override</h4><div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px'}}><div><label>Mobile</label><input style={styles.input} value={editingStudent.mobile_locker_no||''} onChange={e=>setEditingStudent({...editingStudent, mobile_locker_no:e.target.value})} /></div><div><label>Valuables</label><input style={styles.input} value={editingStudent.valuables_locker_no||''} onChange={e=>setEditingStudent({...editingStudent, valuables_locker_no:e.target.value})} /></div><div><label>Laundry</label><input style={styles.input} value={editingStudent.laundry_token_no||''} onChange={e=>setEditingStudent({...editingStudent, laundry_token_no:e.target.value})} /></div><div><label>Dhamma Hall Seat</label><input style={styles.input} value={editingStudent.dhamma_hall_seat_no||''} onChange={e=>setEditingStudent({...editingStudent, dhamma_hall_seat_no:e.target.value})} /></div></div></div><div style={{textAlign:'right'}}><button onClick={()=>setEditingStudent(null)} style={{marginRight:'10px', padding:'8px 16px', border:'1px solid #ccc', background:'white', borderRadius:'5px', cursor:'pointer'}}>Cancel</button><button type="submit" style={{padding:'8px 16px', background:'#007bff', color:'white', border:'none', borderRadius:'5px', cursor:'pointer'}}>Save Changes</button></div></form></div></div>)}
     </div>
   );
