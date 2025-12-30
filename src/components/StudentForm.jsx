@@ -351,7 +351,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px', fontSize:'12px'}}>
                               <div><label style={{fontWeight:'bold', color:'#777'}}>Lang</label><select style={{...styles.input, padding:'6px'}} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>{LANGUAGES.map(l=><option key={l}>{l}</option>)}</select></div>
                               <div><label style={{fontWeight:'bold', color:'#777'}}>Pagoda</label><button type="button" onClick={() => setShowVisualPagoda(true)} style={{...styles.input, padding:'6px', textAlign:'left', cursor:'pointer'}}>{formData.pagodaCell || "None"}</button></div>
-                              <div><label style={{fontWeight:'bold', color:'#777'}}>Special</label><select style={{...styles.input, padding:'6px'}} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option value="Chowky">Chowky</option><option value="Chair">Chair</option><option value="BackRest">BackRest</option></select></div>
+                              <div><label style={{fontWeight:'bold', color:'#777'}}>Special</label><select style={{...styles.input, padding:'6px'}} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option value="Chowky">Chowky</option><option value="Chair">Chair</option></select></div>
                           </div>
 
                           {/* ACTIONS */}
