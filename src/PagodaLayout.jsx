@@ -1,124 +1,118 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { Grid, RefreshCw, Lock } from 'lucide-react';
+import { API_URL, styles } from '../config';
 
-export default function PagodaLayout({ gender, occupiedMap, selected, onSelect, onClose }) {
-  const isFemale = (gender || '').toLowerCase().startsWith('f');
-  const currentGender = isFemale ? 'Female' : 'Male';
-  const themeColor = isFemale ? '#e91e63' : '#007bff';
+export default function PagodaLayout({ courseId, onAssign }) {
+  const [assignments, setAssignments] = useState({}); // CellID -> Student
+  const [loading, setLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const MALE_CIRCLES = [
-    { name: 'Circle G (Outer)', range: [124, 128] },
-    { name: 'Circle G (Outer)', range: [113, 123] },
-    { name: 'Circle F (Outer)', range: [101, 112] },
-    { name: 'Circle E', range: [89, 100] },
-    { name: 'Circle D', range: [49, 64] },
-    { name: 'Circle C', range: [31, 40] },
-    { name: 'Circle B', manual: [9, 10, 11, 12, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30] },
-    { name: 'Circle A', manual: [1, 2, 6, 7, 8] } 
-  ];
+  // Total Cells Configuration (Adjust as per your center)
+  const TOTAL_CELLS = 100; 
 
-  const FEMALE_CIRCLES = [
-    { name: 'Circle F (Outer)', range: [130, 140] },
-    { name: 'Circle E', range: [65, 76] },
-    { name: 'Circle D', range: [77, 88] },
-    { name: 'Circle C', range: [41, 48] },
-    { name: 'Circle B', range: [13, 20] }, 
-    { name: 'Circle A', manual: [3, 4, 5] } 
-  ];
+  // --- DATA SYNC ENGINE ---
+  useEffect(() => {
+    if (!courseId) return;
 
-  const currentConfig = isFemale ? FEMALE_CIRCLES : MALE_CIRCLES;
+    const fetchPagodaData = async (isBackground = false) => {
+        if (!isBackground) setLoading(true);
+        else setIsSyncing(true);
 
-  const isTeacherCell = (num) => {
-      if (isFemale) return [3, 4, 5].includes(num);
-      return [1, 2].includes(num);
-  };
+        try {
+            const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
+            const data = await res.json();
+            
+            if (Array.isArray(data)) {
+                const map = {};
+                data.forEach(p => {
+                    // Only map if they have a cell assigned and are not cancelled
+                    if (p.pagoda_cell_no && p.status !== 'Cancelled') {
+                        map[p.pagoda_cell_no] = p;
+                    }
+                });
+                setAssignments(map);
+            }
+        } catch (e) {
+            console.error("Pagoda Sync Error:", e);
+        } finally {
+            setLoading(false);
+            setIsSyncing(false);
+        }
+    };
 
-  const getNumbers = (config) => {
-    if (config.manual) return config.manual;
-    const [start, end] = config.range;
-    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+    fetchPagodaData();
+    
+    // ✅ POLL EVERY 5 SECONDS
+    const interval = setInterval(() => fetchPagodaData(true), 5000);
+    return () => clearInterval(interval);
+
+  }, [courseId]);
+
+  // --- RENDER CELL ---
+  const renderCell = (cellId) => {
+      const student = assignments[cellId];
+      const isOccupied = !!student;
+
+      return (
+          <div 
+              key={cellId}
+              onClick={() => onAssign && onAssign(cellId, student)}
+              style={{
+                  width: '50px', height: '50px',
+                  background: isOccupied ? '#ffebee' : '#e8f5e9',
+                  border: isOccupied ? '1px solid #ef5350' : '1px solid #66bb6a',
+                  borderRadius: '6px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', position: 'relative',
+                  fontSize: '10px',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                  transition: 'transform 0.1s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+              title={isOccupied ? `Occupied by: ${student.full_name}` : `Cell ${cellId} Empty`}
+          >
+              <div style={{fontWeight:'bold', color: isOccupied?'#c62828':'#2e7d32', fontSize:'12px'}}>{cellId}</div>
+              
+              {isOccupied ? (
+                  <div style={{fontSize:'8px', textAlign:'center', overflow:'hidden', whiteSpace:'nowrap', width:'100%', padding:'0 2px'}}>
+                      {student.full_name.split(' ')[0]}
+                  </div>
+              ) : (
+                  <div style={{fontSize:'8px', color:'#a5d6a7'}}>Free</div>
+              )}
+          </div>
+      );
   };
 
   return (
-    <div style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(3px)'}}>
-      <div style={{ background: 'white', padding: '0', borderRadius: '16px', width: '95%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', display:'flex', flexDirection:'column' }}>
-        
-        <div style={{ padding: '20px', background: `linear-gradient(135deg, ${themeColor}, ${isFemale?'#ff80ab':'#4fc3f7'})`, color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-              <h2 style={{ margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>🛖 Pagoda Map</h2>
-              <div style={{ fontSize: '13px', opacity: 0.9, marginTop: '2px' }}>{currentGender} Side • Select a Cell</div>
+      <div style={styles.card}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px', paddingBottom:'10px', borderBottom:'1px solid #eee'}}>
+             <h3 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}>🛖 Pagoda Allocation</h3>
+             <div style={{textAlign:'right'}}>
+                 <div style={{fontSize:'11px', color: isSyncing ? '#ff9800' : '#28a745', fontWeight:'bold', display:'flex', alignItems:'center', gap:'5px', justifyContent:'flex-end'}}>
+                    {isSyncing ? <RefreshCw size={10} className="spin"/> : <div style={{width:'8px', height:'8px', borderRadius:'50%', background:'#28a745'}}></div>}
+                    {isSyncing ? 'Syncing...' : 'Live'}
+                 </div>
+                 <div style={{fontSize:'10px', color:'#666', marginTop:'2px'}}>
+                     Occupied: <strong>{Object.keys(assignments).length}</strong> / {TOTAL_CELLS}
+                 </div>
+             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', width:'32px', height:'32px', borderRadius: '50%', cursor: 'pointer', fontWeight: 'bold', fontSize:'16px', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
-        </div>
 
-        <div style={{ display: 'flex', gap: '20px', padding: '15px', background: '#f8f9fa', borderBottom: '1px solid #eee', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', color: '#555' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '16px', height: '16px', borderRadius: '4px', background: '#d32f2f'}}></div> Other</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '16px', height: '16px', borderRadius: '4px', background: '#bbdefb', border: '1px solid #90caf9', color: '#0d47a1', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px' }}>O</div> Old</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '16px', height: '16px', borderRadius: '4px', background: '#fff9c4', border: '1px solid #ffe082', color: '#856404', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'9px' }}>N</div> New</div>
-        </div>
-
-        <div style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
-          {currentConfig.map((circle, idx) => (
-            <div key={idx} style={{ position: 'relative', borderTop: '1px dashed #ddd', paddingTop: '15px' }}>
-              <div style={{ position: 'absolute', top: '-10px', left: '10px', background: 'white', padding: '0 10px', fontSize: '12px', fontWeight: 'bold', color: themeColor, textTransform: 'uppercase', letterSpacing: '1px' }}>{circle.name}</div>
-              
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'flex-start' }}>
-                {getNumbers(circle).map(num => {
-                  const sNum = String(num);
-                  // ✅ CHECK MAP
-                  const occupiedData = occupiedMap.get(sNum);
-                  const isOcc = !!occupiedData;
-                  const isSel = String(selected) === sNum;
-                  const isTeacher = isTeacherCell(num);
-                  
-                  let bg = 'white'; let border = '2px solid #e0e0e0'; let color = '#555';
-                  let shadow = 'inset 0 -3px 0 rgba(0,0,0,0.05)'; let cursor = 'pointer';
-                  let transform = 'none';
-                  let tagLabel = '';
-                  let badgeBg = null;
-
-                  if (isTeacher) { bg = '#f3e5f5'; border = '2px solid #ab47bc'; color = '#6a1b9a'; }
-
-                  if (isSel) {
-                      bg = 'white'; border = `3px solid ${themeColor}`; color = themeColor; shadow = `0 0 0 4px ${themeColor}20`; transform = 'scale(1.1)';
-                  } else if (isOcc) {
-                      cursor = 'not-allowed';
-                      tagLabel = occupiedData.tag;
-                      if (occupiedData.type === 'Global') { badgeBg = '#d32f2f'; bg = '#ffebee'; }
-                      else if (tagLabel === 'O') { bg = '#e3f2fd'; border = '2px solid #90caf9'; color = '#0d47a1'; badgeBg = '#007bff'; }
-                      else { bg = '#fff9c4'; border = '2px solid #ffe082'; color = '#f57f17'; badgeBg = '#ffc107'; }
-                  }
-
-                  return (
-                    <button key={num} type="button" onClick={() => !isOcc && onSelect(num)} disabled={isOcc}
-                      style={{
-                        width: '48px', height: '48px', borderRadius: '50%', border: border, background: bg, color: color,
-                        fontWeight: '800', fontSize: '14px', cursor: cursor, boxShadow: shadow, transform: transform,
-                        transition: 'all 0.2s', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', position: 'relative'
-                      }}
-                    >
-                      {num}
-                      {/* Teacher Badge */}
-                      {isTeacher && !isOcc && <span style={{fontSize:'8px', lineHeight:'1', marginTop:'-2px', fontWeight:'bold'}}>TCHR</span>}
-                      
-                      {/* Occupant Badge (Global or Local) */}
-                      {isOcc && tagLabel && (
-                          <span style={{
-                              position: 'absolute', top: '-5px', right: '-5px',
-                              background: badgeBg, color: 'white', padding: '2px 4px', 
-                              borderRadius: '6px', fontSize: '9px', fontWeight: 'bold',
-                              border: '1px solid white', zIndex: 10
-                          }}>
-                              {tagLabel}
-                          </span>
-                      )}
-                    </button>
-                  );
-                })}
+          {loading ? <div style={{textAlign:'center', padding:'30px', color:'#999'}}>Loading Pagoda Map...</div> : (
+              <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(50px, 1fr))',
+                  gap: '10px',
+                  maxHeight: '500px',
+                  overflowY: 'auto',
+                  padding: '5px'
+              }}>
+                  {Array.from({ length: TOTAL_CELLS }, (_, i) => renderCell(i + 1))}
               </div>
-            </div>
-          ))}
-        </div>
+          )}
+          <style>{`.spin { animation: spin 1s linear infinite; } @keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
       </div>
-    </div>
   );
 }
