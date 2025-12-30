@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Home, Utensils, BookOpen, AlertCircle, CheckCircle, Clock, Activity, TrendingUp, UserCheck, Shield, Armchair, Headphones, AlertTriangle } from 'lucide-react';
+import { Users, Shield, Armchair, Headphones, AlertTriangle, CheckCircle, Activity, AlertCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
 
@@ -188,31 +188,37 @@ export default function Dashboard({ courses }) {
 
       {stats && !loading && (
           <>
-              {/* ✅ MOVED UP: SEATING PLAN VISUALIZER */}
-              <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)', marginBottom:'30px'}}>
-                  <h4 style={{marginTop:0, marginBottom:'20px', color:'#555', display:'flex', alignItems:'center', gap:'8px', fontSize:'16px'}}>
-                      <Armchair size={20}/> Seating Plan Overview (Total)
-                  </h4>
-                  <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'15px'}}>
-                      {['Chowky','Chair','BackRest','Floor'].map(type => {
+              {/* ✅ NEW SINGLE-BOX SEATING PLAN (Moved to Top) */}
+              <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'25px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)', marginBottom:'30px'}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+                      <h4 style={{margin:0, color:'#333', display:'flex', alignItems:'center', gap:'10px', fontSize:'18px', fontWeight:'700'}}>
+                          <Armchair size={24} color="#007bff"/> Seating Plan Overview (Total)
+                      </h4>
+                      <div style={{fontSize:'12px', color:'#666'}}>*Live updates based on 'Attending' status</div>
+                  </div>
+                  
+                  {/* UNIFIED SINGLE ROW BOX */}
+                  <div style={{display:'flex', border:'1px solid #e0e0e0', borderRadius:'10px', overflow:'hidden', background:'#f8f9fa'}}>
+                      {['Chowky','Chair','BackRest','Floor'].map((type, index) => {
                           const s = stats.seatingStats[type];
-                          const total = s.t || 1; // avoid divide by zero
+                          const total = s.t || 1; 
                           const mPct = (s.m / total) * 100;
                           const fPct = (s.f / total) * 100;
-                          const color = type === 'Floor' ? '#4caf50' : (type === 'Chowky' ? '#ff9800' : '#2196f3');
-                          
+                          const color = type === 'Floor' ? '#28a745' : (type === 'Chowky' ? '#ff9800' : '#2196f3');
+                          const isLast = index === 3;
+
                           return (
-                              <div key={type} style={{background:'#f8f9fa', borderRadius:'8px', padding:'15px', borderTop: `4px solid ${color}`, textAlign:'center'}}>
-                                  <div style={{fontSize:'12px', textTransform:'uppercase', color:'#888', fontWeight:'bold', marginBottom:'5px'}}>{type}</div>
-                                  <div style={{fontSize:'32px', fontWeight:'900', color:'#333', lineHeight:'1'}}>{s.t}</div>
+                              <div key={type} style={{flex:1, padding:'20px', borderRight: isLast ? 'none' : '1px solid #e0e0e0', textAlign:'center', position:'relative'}}>
+                                  <div style={{fontSize:'12px', textTransform:'uppercase', color:'#888', fontWeight:'bold', letterSpacing:'1px', marginBottom:'8px'}}>{type}</div>
+                                  <div style={{fontSize:'36px', fontWeight:'900', color:color, lineHeight:'1', marginBottom:'10px'}}>{s.t}</div>
                                   
-                                  {/* Visual Split Bar */}
-                                  <div style={{display:'flex', height:'6px', borderRadius:'3px', overflow:'hidden', margin:'10px 0', background:'#e0e0e0'}}>
+                                  {/* Split Bar */}
+                                  <div style={{display:'flex', height:'8px', width:'80%', margin:'0 auto 10px auto', borderRadius:'4px', overflow:'hidden', background:'#e0e0e0'}}>
                                       <div style={{width:`${mPct}%`, background: COLORS.male}}></div>
                                       <div style={{width:`${fPct}%`, background: COLORS.female}}></div>
                                   </div>
                                   
-                                  <div style={{display:'flex', justifyContent:'space-between', fontSize:'11px', fontWeight:'600'}}>
+                                  <div style={{display:'flex', justifyContent:'center', gap:'15px', fontSize:'12px', fontWeight:'600'}}>
                                       <span style={{color:COLORS.male}}>M: {s.m}</span>
                                       <span style={{color:COLORS.female}}>F: {s.f}</span>
                                   </div>
@@ -222,15 +228,16 @@ export default function Dashboard({ courses }) {
                   </div>
               </div>
 
-              {/* PROGRESS BAR (Visualizing Arrival) */}
-              <div style={{background:'#e9ecef', height:'8px', borderRadius:'4px', marginBottom:'20px', overflow:'hidden', display:'flex'}}>
+              {/* ARRIVAL PROGRESS */}
+              <div style={{background:'#e9ecef', height:'8px', borderRadius:'4px', marginBottom:'10px', overflow:'hidden', display:'flex'}}>
                   <div style={{width:`${(stats.fullyCheckedIn / stats.validCount) * 100}%`, background:'#28a745', transition:'width 1s'}}></div>
                   <div style={{width:`${(stats.gateStats.total / stats.validCount) * 100}%`, background:'#ff9800', transition:'width 1s'}}></div>
               </div>
-              <div style={{textAlign:'right', fontSize:'11px', color:'#666', marginBottom:'20px'}}>
+              <div style={{textAlign:'right', fontSize:'11px', color:'#666', marginBottom:'30px'}}>
                   Arrival Progress: <strong>{Math.round(((stats.fullyCheckedIn + stats.gateStats.total) / stats.validCount) * 100)}%</strong> (Green: Done, Orange: Gate)
               </div>
 
+              {/* MAIN STATS GRID */}
               <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'20px', marginBottom:'30px'}}>
                   <div style={{background:'#e3f2fd', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.male}`}}>
                       <div style={{fontSize:'12px', fontWeight:'bold', color:'#0d47a1', textTransform:'uppercase'}}>Expected Total</div>
@@ -238,16 +245,10 @@ export default function Dashboard({ courses }) {
                           {stats.total}
                           <span style={{fontSize:'14px', fontWeight:'normal', color:'#555'}}>(M: <span style={{color: COLORS.male, fontWeight:'bold'}}>{stats.totalMale}</span> | F: <span style={{color: COLORS.female, fontWeight:'bold'}}>{stats.totalFemale}</span>)</span>
                       </div>
-                      
                       <div style={{fontSize:'10px', color:'#555', marginTop:'4px', background:'rgba(255,255,255,0.5)', padding:'3px', borderRadius:'4px'}}>
-                          <div style={{display:'flex', gap:'8px'}}>
-                              <span style={{color:'#007bff', fontWeight:'bold'}}>M:</span> OM:{stats.expectedMix.om} NM:{stats.expectedMix.nm} SM:{stats.expectedMix.sm}
-                          </div>
-                          <div style={{display:'flex', gap:'8px'}}>
-                              <span style={{color:'#e91e63', fontWeight:'bold'}}>F:</span> OF:{stats.expectedMix.of} NF:{stats.expectedMix.nf} SF:{stats.expectedMix.sf}
-                          </div>
+                          <div style={{display:'flex', gap:'8px'}}><span style={{color:'#007bff', fontWeight:'bold'}}>M:</span> OM:{stats.expectedMix.om} NM:{stats.expectedMix.nm} SM:{stats.expectedMix.sm}</div>
+                          <div style={{display:'flex', gap:'8px'}}><span style={{color:'#e91e63', fontWeight:'bold'}}>F:</span> OF:{stats.expectedMix.of} NF:{stats.expectedMix.nf} SF:{stats.expectedMix.sf}</div>
                       </div>
-
                       <div style={{marginTop:'5px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'rgba(255,255,255,0.6)', padding:'4px', borderRadius:'4px'}}>
                           <span style={{fontSize:'11px', color:'#d32f2f', fontWeight:'bold', display:'flex', alignItems:'center', gap:'4px'}}><AlertCircle size={12}/> Cancelled: {stats.cancelledCount}</span>
                           <span style={{fontSize:'11px', color:'#1b5e20', fontWeight:'bold'}}>Active: {stats.validCount}</span>
@@ -259,11 +260,13 @@ export default function Dashboard({ courses }) {
                   <div style={{background:'#fce4ec', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.female}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#880e4f', textTransform:'uppercase'}}>Pending Arrival</div><div style={{fontSize:'32px', fontWeight:'900', color:'#c2185b'}}>{stats.pendingStats.total}</div><BreakdownGrid data={stats.pendingStats} /></div>
               </div>
 
+              {/* CHARTS */}
               <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'20px', marginBottom:'30px'}}>
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}><h4 style={{marginTop:0, color:'#555', display:'flex', alignItems:'center', gap:'8px'}}><Users size={18}/> Expected Age Distribution</h4><div style={{height:'250px', width:'100%'}}><ResponsiveContainer><BarChart data={stats.ageData} margin={{top: 20, right: 30, left: 0, bottom: 5}}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><Tooltip cursor={{fill: 'transparent'}} /><Legend /><Bar dataKey="Male" fill={COLORS.male} radius={[4, 4, 0, 0]} /><Bar dataKey="Female" fill={COLORS.female} radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></div>
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)'}}><h4 style={{marginTop:0, color:'#555'}}>Student Mix</h4><div style={{height:'200px', width:'100%'}}><ResponsiveContainer><PieChart><Pie data={stats.catData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={2} dataKey="value">{stats.catData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}</Pie><Tooltip /></PieChart></ResponsiveContainer></div><div style={{display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'8px', marginTop:'5px'}}>{stats.catData.map(d => (<div key={d.name} style={{fontSize:'10px', display:'flex', alignItems:'center', gap:'4px'}}><div style={{width:'8px', height:'8px', borderRadius:'50%', background:d.color}}></div><span style={{color:'#555', fontWeight:'bold'}}>{d.code}: {d.value}</span></div>))}</div></div>
               </div>
 
+              {/* DISCOURSE TABLE */}
               <div style={{display:'grid', gridTemplateColumns:'1fr', gap:'20px', marginBottom:'20px'}}>
                   <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'20px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)', maxHeight:'300px', overflowY:'auto'}}><h4 style={{marginTop:0, marginBottom:'15px', color:'#555', display:'flex', alignItems:'center', gap:'8px'}}><Headphones size={18}/> Live Discourse Req. (Checked-In)</h4><table style={{width:'100%', borderCollapse:'collapse', fontSize:'13px'}}><thead style={{background:'#f8f9fa', position:'sticky', top:0}}><tr><th style={{textAlign:'left', padding:'8px', borderBottom:'2px solid #ddd'}}>Lang</th><th style={{textAlign:'center', padding:'8px', borderBottom:'2px solid #ddd', color:COLORS.male}}>Male</th><th style={{textAlign:'center', padding:'8px', borderBottom:'2px solid #ddd', color:COLORS.female}}>Female</th><th style={{textAlign:'right', padding:'8px', borderBottom:'2px solid #ddd'}}>Total</th></tr></thead><tbody>{stats.discourseData.length > 0 ? stats.discourseData.map((row, i) => (<tr key={row.lang} style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'8px', fontWeight:'bold'}}>{row.lang}</td><td style={{padding:'8px', textAlign:'center'}}><span style={{color:COLORS.old, fontWeight:'bold'}}>{row.om} O</span> <span style={{color:'#ccc'}}>|</span> <span style={{color:COLORS.new, fontWeight:'bold'}}>{row.nm} N</span></td><td style={{padding:'8px', textAlign:'center'}}><span style={{color:COLORS.old, fontWeight:'bold'}}>{row.of} O</span> <span style={{color:'#ccc'}}>|</span> <span style={{color:COLORS.new, fontWeight:'bold'}}>{row.nf} N</span></td><td style={{padding:'8px', textAlign:'right', fontWeight:'bold'}}>{row.tot}</td></tr>)) : <tr><td colSpan="4" style={{padding:'20px', textAlign:'center', color:'#999'}}>No check-ins yet.</td></tr>}</tbody></table><div style={{fontSize:'10px', color:'#999', marginTop:'5px', textAlign:'center'}}>* Excludes Servers (SM/SF)</div></div>
               </div>
