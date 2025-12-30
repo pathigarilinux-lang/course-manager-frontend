@@ -5,6 +5,7 @@ import { API_URL, styles } from '../config';
 
 const COLORS = { male: '#007bff', female: '#e91e63', arrived: '#28a745', pending: '#ffc107', gate: '#ff9800', old: '#6f42c1', new: '#20c997' };
 const MIX_COLORS = { OM: '#0d47a1', NM: '#64b5f6', OF: '#880e4f', NF: '#f06292', SM: '#2e7d32', SF: '#69f0ae' };
+const SEAT_COLORS = { Floor: '#4caf50', Chowky: '#ff9800', Chair: '#2196f3', BackRest: '#9c27b0' };
 
 export default function Dashboard({ courses }) {
   const [courseId, setCourseId] = useState('');
@@ -148,7 +149,14 @@ export default function Dashboard({ courses }) {
           seatingStats[cat].t++; seatingStats[cat][k]++;
       });
 
-      return { total: totalCount, totalMale, totalFemale, cancelledCount, validCount, expectedMix, fullyCheckedIn: fullyCheckedIn.length, gateStats, arrivedStats, pendingStats, ageData, catData, discourseData, criticalPendingList, criticalStats, seatingStats }; 
+      // Pie Data for Seating
+      const seatPieData = Object.keys(seatingStats).map(key => ({
+          name: key,
+          value: seatingStats[key].t,
+          color: SEAT_COLORS[key]
+      })).filter(i => i.value > 0);
+
+      return { total: totalCount, totalMale, totalFemale, cancelledCount, validCount, expectedMix, fullyCheckedIn: fullyCheckedIn.length, gateStats, arrivedStats, pendingStats, ageData, catData, discourseData, criticalPendingList, criticalStats, seatingStats, seatPieData }; 
   }, [participants]);
 
   const selectedCourse = courses.find(c => c.course_id == courseId);
@@ -188,46 +196,6 @@ export default function Dashboard({ courses }) {
 
       {stats && !loading && (
           <>
-              {/* ✅ NEW SINGLE-BOX SEATING PLAN (Moved to Top) */}
-              <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'25px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)', marginBottom:'30px'}}>
-                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-                      <h4 style={{margin:0, color:'#333', display:'flex', alignItems:'center', gap:'10px', fontSize:'18px', fontWeight:'700'}}>
-                          <Armchair size={24} color="#007bff"/> Seating Plan Overview (Total)
-                      </h4>
-                      <div style={{fontSize:'12px', color:'#666'}}>*Live updates based on 'Attending' status</div>
-                  </div>
-                  
-                  {/* UNIFIED SINGLE ROW BOX */}
-                  <div style={{display:'flex', border:'1px solid #e0e0e0', borderRadius:'10px', overflow:'hidden', background:'#f8f9fa'}}>
-                      {['Chowky','Chair','BackRest','Floor'].map((type, index) => {
-                          const s = stats.seatingStats[type];
-                          const total = s.t || 1; 
-                          const mPct = (s.m / total) * 100;
-                          const fPct = (s.f / total) * 100;
-                          const color = type === 'Floor' ? '#28a745' : (type === 'Chowky' ? '#ff9800' : '#2196f3');
-                          const isLast = index === 3;
-
-                          return (
-                              <div key={type} style={{flex:1, padding:'20px', borderRight: isLast ? 'none' : '1px solid #e0e0e0', textAlign:'center', position:'relative'}}>
-                                  <div style={{fontSize:'12px', textTransform:'uppercase', color:'#888', fontWeight:'bold', letterSpacing:'1px', marginBottom:'8px'}}>{type}</div>
-                                  <div style={{fontSize:'36px', fontWeight:'900', color:color, lineHeight:'1', marginBottom:'10px'}}>{s.t}</div>
-                                  
-                                  {/* Split Bar */}
-                                  <div style={{display:'flex', height:'8px', width:'80%', margin:'0 auto 10px auto', borderRadius:'4px', overflow:'hidden', background:'#e0e0e0'}}>
-                                      <div style={{width:`${mPct}%`, background: COLORS.male}}></div>
-                                      <div style={{width:`${fPct}%`, background: COLORS.female}}></div>
-                                  </div>
-                                  
-                                  <div style={{display:'flex', justifyContent:'center', gap:'15px', fontSize:'12px', fontWeight:'600'}}>
-                                      <span style={{color:COLORS.male}}>M: {s.m}</span>
-                                      <span style={{color:COLORS.female}}>F: {s.f}</span>
-                                  </div>
-                              </div>
-                          );
-                      })}
-                  </div>
-              </div>
-
               {/* ARRIVAL PROGRESS */}
               <div style={{background:'#e9ecef', height:'8px', borderRadius:'4px', marginBottom:'10px', overflow:'hidden', display:'flex'}}>
                   <div style={{width:`${(stats.fullyCheckedIn / stats.validCount) * 100}%`, background:'#28a745', transition:'width 1s'}}></div>
@@ -258,6 +226,52 @@ export default function Dashboard({ courses }) {
                   <div style={{background:'#fff3e0', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.gate}`}}><div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#e65100', textTransform:'uppercase'}}>At Gate</div><Shield size={16} color="#ef6c00"/></div><div style={{fontSize:'32px', fontWeight:'900', color:'#333'}}>{stats.gateStats.total}</div><BreakdownGrid data={stats.gateStats} /></div>
                   <div style={{background:'#e8f5e9', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.arrived}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#1b5e20', textTransform:'uppercase'}}>Checked-In (Onboarded)</div><div style={{fontSize:'32px', fontWeight:'900', color:'#333'}}>{stats.fullyCheckedIn}</div><BreakdownGrid data={stats.arrivedStats} /></div>
                   <div style={{background:'#fce4ec', padding:'20px', borderRadius:'12px', borderLeft:`5px solid ${COLORS.female}`}}><div style={{fontSize:'12px', fontWeight:'bold', color:'#880e4f', textTransform:'uppercase'}}>Pending Arrival</div><div style={{fontSize:'32px', fontWeight:'900', color:'#c2185b'}}>{stats.pendingStats.total}</div><BreakdownGrid data={stats.pendingStats} /></div>
+              </div>
+
+              {/* ✅ SEATING PLAN (PIE CHART) MOVED DOWN & VISUALIZED */}
+              <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', padding:'25px', boxShadow:'0 4px 6px rgba(0,0,0,0.02)', marginBottom:'30px'}}>
+                  <h4 style={{marginTop:0, marginBottom:'20px', color:'#555', display:'flex', alignItems:'center', gap:'8px', fontSize:'16px'}}>
+                      <Armchair size={20} color="#007bff"/> Seating Plan Overview (Total)
+                  </h4>
+                  <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'30px', alignItems:'center'}}>
+                      
+                      {/* DONUT CHART */}
+                      <div style={{height:'220px', position:'relative'}}>
+                          <ResponsiveContainer>
+                              <PieChart>
+                                  <Pie data={stats.seatPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={3} dataKey="value">
+                                      {stats.seatPieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}
+                                  </Pie>
+                                  <Tooltip />
+                              </PieChart>
+                          </ResponsiveContainer>
+                          {/* Center Text */}
+                          <div style={{position:'absolute', top:'50%', left:'50%', transform:'translate(-50%, -50%)', textAlign:'center'}}>
+                              <div style={{fontSize:'24px', fontWeight:'900', color:'#333'}}>{stats.validCount}</div>
+                              <div style={{fontSize:'12px', color:'#888'}}>Seats</div>
+                          </div>
+                      </div>
+
+                      {/* DETAILED LEGEND TABLE */}
+                      <div style={{display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'15px'}}>
+                          {['Chowky','Chair','BackRest','Floor'].map(type => {
+                              const s = stats.seatingStats[type];
+                              const color = SEAT_COLORS[type];
+                              return (
+                                  <div key={type} style={{background:'#f9f9f9', padding:'12px', borderRadius:'8px', borderLeft:`4px solid ${color}`, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                      <div>
+                                          <div style={{fontSize:'11px', fontWeight:'bold', color:color, textTransform:'uppercase'}}>{type}</div>
+                                          <div style={{fontSize:'20px', fontWeight:'900', color:'#333'}}>{s.t}</div>
+                                      </div>
+                                      <div style={{textAlign:'right', fontSize:'11px', color:'#666'}}>
+                                          <div>M: <strong style={{color:COLORS.male}}>{s.m}</strong></div>
+                                          <div>F: <strong style={{color:COLORS.female}}>{s.f}</strong></div>
+                                      </div>
+                                  </div>
+                              );
+                          })}
+                      </div>
+                  </div>
               </div>
 
               {/* CHARTS */}
