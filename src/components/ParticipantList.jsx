@@ -4,18 +4,19 @@ import * as XLSX from 'xlsx';
 import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
 
-// --- 1. DATA HELPERS (UPDATED WITH SMART LOGIC) ---
+// --- 1. DATA HELPERS ---
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
 const getStatusColor = (s) => { if (s === 'Attending') return '#28a745'; if (s === 'Gate Check-In') return '#ffc107'; if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; return '#6c757d'; };
 
-// ✅ NEW: Robust Parsing (Handles "30D:2:45D:1" format correctly)
+// ✅ NEW LOGIC: STRICT HIERARCHY (Waterfall Sort)
+// 60D > 45D > 30D > 20D > STP > 10D > TSC
 const parseCourseScore = (infoStr) => {
     if (!infoStr) return 0;
-    let score = 0;
     
-    // Regex finds patterns like "10D:12" or "60D-5" or "STP=1" globally
-    // Capture Group 1: Course Type (e.g. 10D)
-    // Capture Group 2: Count (e.g. 12)
+    // Initialize Counts
+    let c60 = 0, c45 = 0, c30 = 0, c20 = 0, cSTP = 0, c10 = 0, cTSC = 0;
+
+    // Regex to find all "Type:Count" patterns (e.g. 10D:12, STP-1)
     const regex = /([A-Z0-9]+)\s*[:=-]\s*(\d+)/gi;
     const matches = [...infoStr.matchAll(regex)];
 
@@ -23,42 +24,49 @@ const parseCourseScore = (infoStr) => {
         const type = match[1].toUpperCase();
         const count = parseInt(match[2]) || 1;
 
-        // WEIGHTED HIERARCHY (Depth > Quantity)
-        if (type.includes('60D')) score += count * 100000;      // Massive weight
-        else if (type.includes('45D')) score += count * 50000;  // High weight
-        else if (type.includes('30D')) score += count * 10000;  // Medium weight
-        else if (type.includes('20D')) score += count * 5000;
-        else if (type.includes('STP') || type.includes('SAT')) score += count * 1000;
-        else if (type.includes('10D')) score += count * 10;
-        else if (type.includes('TSC') || type.includes('SVC')) score += count * 5;
+        if (type.includes('60D')) c60 += count;
+        else if (type.includes('45D')) c45 += count;
+        else if (type.includes('30D')) c30 += count;
+        else if (type.includes('20D')) c20 += count;
+        else if (type.includes('STP') || type.includes('SAT')) cSTP += count;
+        else if (type.includes('10D')) c10 += count;
+        else if (type.includes('TSC') || type.includes('SVC')) cTSC += count;
     });
-    
+
+    // EXPONENTIAL SCORING to ensure strict hierarchy
+    // (A higher tier always beats any realistic amount of a lower tier)
+    let score = 0;
+    score += c60  * 1000000000000; // Tier 1: Trillions
+    score += c45  * 10000000000;   // Tier 2: Billions
+    score += c30  * 100000000;     // Tier 3: 100 Millions
+    score += c20  * 1000000;       // Tier 4: Millions
+    score += cSTP * 10000;         // Tier 5: 10 Thousands
+    score += c10  * 100;           // Tier 6: Hundreds
+    score += cTSC * 1;             // Tier 7: Ones
+
     return score;
 };
 
-// Updated Stats Display to calculate Total Sittings (S) and Long Courses (L) dynamically if not explicitly set
 const getStudentStats = (p) => { 
     if (!p) return { cat: '', s: 0, l: 0, age: '' }; 
     const conf = (p.conf_no || '').toUpperCase(); 
     const isOld = conf.startsWith('O') || conf.startsWith('S'); 
     const cat = isOld ? '(O)' : '(N)'; 
-    
-    // Try to parse explicit S/L tags first, otherwise calculate from score
     const sMatch = (p.courses_info || '').match(/S\s*[:=-]?\s*(\d+)/i); 
     const lMatch = (p.courses_info || '').match(/L\s*[:=-]?\s*(\d+)/i); 
-    
-    const s = sMatch ? sMatch[1] : (parseCourseScore(p.courses_info) > 50 ? 'Many' : '-'); 
+    const s = sMatch ? sMatch[1] : (parseCourseScore(p.courses_info) > 100 ? 'M' : '-'); 
     const l = lMatch ? lMatch[1] : '-'; 
-    
     return { cat, s, l, age: p.age || '?' }; 
 };
 
-// Updated Priority Score to use the detailed Course Score + Age + Category
+// Priority Score combines Course Score + Age
 const calculatePriorityScore = (p) => { 
     let score = parseCourseScore(p.courses_info);
     const cat = getCategory(p.conf_no);
-    if (cat === 'OLD') score += 5000; // Base boost for Old Students
-    score += (parseInt(p.age) || 0); // Tie-breaker: Age
+    // Base boost for Old Students (so 10D:1 Old beats 10D:0 New)
+    if (cat === 'OLD') score += 50; 
+    // Tie-Breaker: Age (Decimal value)
+    score += (parseInt(p.age) || 0) / 100; 
     return score; 
 };
 
