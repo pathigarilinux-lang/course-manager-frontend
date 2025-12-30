@@ -16,6 +16,7 @@ import ExpenseTracker from './components/ExpenseTracker';
 import CourseAdmin from './components/CourseAdmin';
 import SevaBoard from './components/SevaBoard'; 
 import GateReception from './components/GateReception';
+import GatekeeperPanel from './components/GatekeeperPanel';
 import ATPanel from './components/ATPanel';
 
 function App() {
@@ -69,14 +70,14 @@ function App() {
   const MENU_ITEMS = [
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff'] },
       { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate'] },
+      { id: 'gatekeeper', label: 'Gatekeeper View', icon: <Shield size={20}/>, roles: ['admin', 'staff'] },
       { id: 'checkin', label: 'Onboarding', icon: <UserPlus size={20}/>, roles: ['admin', 'staff'] },
       { id: 'students', label: 'Manage Students', icon: <Users size={20}/>, roles: ['admin', 'staff'] },
       { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={20}/>, roles: ['admin', 'staff'] },
       { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin', 'staff', 'at'] }, 
       { id: 'admin', label: 'Course Admin', icon: <Database size={20}/>, roles: ['admin', 'staff'] }, 
       { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin', 'staff'] }, 
-      // ✅ UPDATED: Added 'staff' to roles
-      { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin', 'staff'] }, 
+      { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin'] }, 
   ];
 
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
@@ -100,6 +101,7 @@ function App() {
           <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #334155', whiteSpace:'nowrap' }}>
               <div style={{ minWidth: '35px', height: '35px', borderRadius: '8px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>DN</div>
               <div>
+                  {/* ✅ RENAMED SIDEBAR TITLE */}
                   <div style={{ fontWeight: 'bold', fontSize: '16px' }}>Dhamma Nagajjuna</div>
                   <div style={{ fontSize: '11px', color: '#94a3b8' }}>{user.username} ({user.role})</div>
               </div>
@@ -163,6 +165,7 @@ function App() {
                   <button onClick={() => setSidebarOpen(!isSidebarOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
                       {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
                   </button>
+                  {/* ✅ RENAMED HEADER TITLE */}
                   <div style={{ fontSize: '14px', color: '#64748b', fontWeight: '600' }}>
                       {MENU_ITEMS.find(i => i.id === activeTab)?.label || 'Dhamma Nagajjuna'}
                   </div>
@@ -177,15 +180,14 @@ function App() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
               {activeTab === 'dashboard' && <CourseDashboard courses={courses} stats={stats} />}
               {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} />}
+              {activeTab === 'gatekeeper' && <GatekeeperPanel courses={courses} />}
               {activeTab === 'checkin' && <StudentForm courses={courses} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} />}
               {activeTab === 'students' && <ParticipantList courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               {activeTab === 'accommodation' && <GlobalAccommodationManager />}
               {activeTab === 'at' && <ATPanel courses={courses} />}
               {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               {activeTab === 'seva' && <SevaBoard courses={courses} />}
-              
-              {/* ✅ UPDATED: Render Store for Admin AND Staff */}
-              {(user.role === 'admin' || user.role === 'staff') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
+              {user.role === 'admin' && activeTab === 'store' && <ExpenseTracker courses={courses} />}
           </div>
       </main>
     </div>
