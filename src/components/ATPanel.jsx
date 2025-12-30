@@ -16,7 +16,20 @@ export default function ATPanel({ courses }) {
   const [showDashboard, setShowDashboard] = useState(false); 
 
   useEffect(() => { 
-      if (courseId) fetch(`${API_URL}/courses/${courseId}/participants`).then(res => res.json()).then(setParticipants); 
+      if (courseId) {
+          fetch(`${API_URL}/courses/${courseId}/participants`)
+            .then(res => res.json())
+            .then(data => {
+                // ✅ SAFETY CHECK: Ensure data is an array before setting state
+                setParticipants(Array.isArray(data) ? data : []);
+            })
+            .catch(err => {
+                console.error("Error fetching participants:", err);
+                setParticipants([]);
+            });
+      } else {
+          setParticipants([]);
+      }
   }, [courseId]);
 
   // --- SEATING STATS ENGINE ---
@@ -30,7 +43,8 @@ export default function ATPanel({ courses }) {
           None: { total: 0, m: 0, f: 0 }
       };
       
-      participants.forEach(p => {
+      // ✅ SAFETY CHECK: (participants || [])
+      (participants || []).forEach(p => {
           if (p.status !== 'Attending') return;
           const type = p.special_seating || 'None';
           const gender = (p.gender || '').toLowerCase();
@@ -46,6 +60,9 @@ export default function ATPanel({ courses }) {
 
   // ✅ UPDATED FILTER LOGIC: Search by Name OR Conf No
   const filteredList = useMemo(() => {
+      // ✅ SAFETY CHECK
+      if (!Array.isArray(participants)) return [];
+
       let list = participants.filter(p => p.status === 'Attending');
       
       if (activeFilter === 'medical') list = list.filter(p => p.medical_info);
@@ -56,7 +73,7 @@ export default function ATPanel({ courses }) {
           const lower = searchTerm.toLowerCase();
           list = list.filter(p => 
               (p.full_name || '').toLowerCase().includes(lower) || 
-              (p.conf_no || '').toLowerCase().includes(lower) // ✅ Added Conf No Search
+              (p.conf_no || '').toLowerCase().includes(lower)
           );
       }
       return list;
@@ -70,8 +87,10 @@ export default function ATPanel({ courses }) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(editingStudent)
           });
+          // Refresh list
           const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
-          setParticipants(await res.json());
+          const data = await res.json();
+          setParticipants(Array.isArray(data) ? data : []);
           setEditingStudent(null);
       } catch (err) { alert("Failed to save"); }
   };
@@ -87,7 +106,7 @@ export default function ATPanel({ courses }) {
   };
 
   const getStats = () => {
-      if (!courseId) return null;
+      if (!courseId || !Array.isArray(participants)) return null;
       const active = participants.filter(p => p.status === 'Attending');
       return {
           total: active.length,
@@ -101,7 +120,7 @@ export default function ATPanel({ courses }) {
   const stats = getStats();
 
   if (showKitchenReport) {
-      const kitchenList = participants.filter(p => p.status === 'Attending' && (p.food_allergy || (p.dining_seat_type && p.dining_seat_type !== 'Floor')));
+      const kitchenList = (participants || []).filter(p => p.status === 'Attending' && (p.food_allergy || (p.dining_seat_type && p.dining_seat_type !== 'Floor')));
       return (
           <div style={styles.card}>
               <div className="no-print" style={{marginBottom:'20px'}}>
@@ -209,7 +228,6 @@ export default function ATPanel({ courses }) {
           </div>
           <div style={{position:'relative', width:'300px'}}>
               <Search size={16} style={{position:'absolute', left:'10px', top:'10px', color:'#999'}}/>
-              {/* ✅ UPDATED PLACEHOLDER */}
               <input 
                   style={{...styles.input, paddingLeft:'35px', width:'100%'}} 
                   placeholder="Search Name or Conf No..." 
