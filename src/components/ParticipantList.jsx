@@ -402,34 +402,97 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
           const res = await fetch(`${API_URL}/courses/${courseId}/participants`);
           const allP = await res.json();
           const active = allP.filter(p => p.status === 'Attending' && !['SM','SF'].some(pre => (p.conf_no||'').toUpperCase().startsWith(pre)));
+          
           const males = active.filter(p => (p.gender||'').toLowerCase().startsWith('m'));
           const females = active.filter(p => (p.gender||'').toLowerCase().startsWith('f'));
-          const genSeats = (cols, rows) => { let s = []; if(!cols || !Array.isArray(cols)) return []; for(let r=1; r<=rows; r++) { cols.forEach(c => s.push(c + r)); } return s; };
+          
+          // Helper to generate seats Row-Major (A1, B1, C1...)
+          const genSeats = (cols, rows) => { 
+              let s = []; 
+              if(!cols || !Array.isArray(cols)) return []; 
+              for(let r=1; r<=rows; r++) { 
+                  cols.forEach(c => s.push(c + r)); 
+              } 
+              return s; 
+          };
+
           const mRegSeats = genSeats(getAlphabetRange(0, seatingConfig.mCols), seatingConfig.mRows);
           const mSpecSeats = genSeats(generateChowkyLabels(seatingConfig.mCols, seatingConfig.mChowky), seatingConfig.mRows);
           const fRegSeats = genSeats(getAlphabetRange(0, seatingConfig.fCols), seatingConfig.fRows);
           const fSpecSeats = genSeats(generateChowkyLabels(seatingConfig.fCols, seatingConfig.fChowky), seatingConfig.fRows);
+
+          // ✅ NEW HYBRID ASSIGNMENT LOGIC
           const assignGroup = (students, regSeats, specSeats) => {
               const updates = [];
               const lockedSeats = new Set();
+              
+              // 1. Identify Locked Seats
               students.forEach(p => { if (p.is_seat_locked && p.dhamma_hall_seat_no) lockedSeats.add(p.dhamma_hall_seat_no); });
-              const availReg = regSeats.filter(s => !lockedSeats.has(s));
-              const availSpec = specSeats.filter(s => !lockedSeats.has(s));
-              // ✅ UPDATED AUTO-ASSIGN: Use the new CalculatePriorityScore
+              
+              // 2. Prepare Available Pools
+              // Initially sorted Row-Major (A1, B1, C1...) for Old Students
+              let availReg = regSeats.filter(s => !lockedSeats.has(s));
+              let availSpec = specSeats.filter(s => !lockedSeats.has(s));
+              
+              // 3. Sort Students by Priority (Highest First)
               const toAssign = students.filter(p => !p.is_seat_locked).sort((a,b) => calculatePriorityScore(b) - calculatePriorityScore(a));
+              
+              // 4. Split Groups
               const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating));
               const normalGroup = toAssign.filter(p => !specGroup.includes(p));
-              specGroup.forEach(p => { if (availSpec.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availSpec.shift() }); else if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); });
-              normalGroup.forEach(p => { if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); });
+
+              // 5. Assign Special Needs (Always prioritize need over specific logic)
+              specGroup.forEach(p => { 
+                  if (availSpec.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availSpec.shift() }); 
+                  else if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); 
+              });
+
+              // 6. Assign Normal Old Students (Row-Major: A3, B3, C3...)
+              const oldStudents = normalGroup.filter(p => getCategory(p.conf_no) === 'OLD');
+              const newStudents = normalGroup.filter(p => getCategory(p.conf_no) !== 'OLD');
+
+              oldStudents.forEach(p => { 
+                  if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); 
+              });
+
+              // ✅ 7. RE-SORT REMAINING SEATS FOR NEW STUDENTS (Column-Major: A3, A4, A5...)
+              availReg.sort((a, b) => {
+                  // Extract Letter (Col) and Number (Row)
+                  // e.g. "A10" -> Col "A", Row 10
+                  const colA = a.replace(/[0-9]/g, '');
+                  const colB = b.replace(/[0-9]/g, '');
+                  const rowA = parseInt(a.replace(/[^\d]/g, ''));
+                  const rowB = parseInt(b.replace(/[^\d]/g, ''));
+
+                  // Sort by Column Letter first, then Row Number
+                  if (colA < colB) return -1;
+                  if (colA > colB) return 1;
+                  return rowA - rowB;
+              });
+
+              // 8. Assign New Students to Re-sorted Seats
+              newStudents.forEach(p => { 
+                  if (availReg.length > 0) updates.push({ ...p, dhamma_hall_seat_no: availReg.shift() }); 
+              });
+
               return updates;
           };
+
           const allUpdates = [...assignGroup(males, mRegSeats, mSpecSeats), ...assignGroup(females, fRegSeats, fSpecSeats)];
+          
           if (allUpdates.length === 0) { alert("✅ No new assignments needed."); setIsAssigning(false); return; }
+          
           const BATCH_SIZE = 5;
-          for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) { await Promise.all(allUpdates.slice(i, i + BATCH_SIZE).map(p => fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) }))); }
+          for (let i = 0; i < allUpdates.length; i += BATCH_SIZE) { 
+              await Promise.all(allUpdates.slice(i, i + BATCH_SIZE).map(p => 
+                  fetch(`${API_URL}/participants/${p.participant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) })
+              )); 
+          }
+          
           alert(`✅ Assigned seats to ${allUpdates.length} students.`);
           const finalRes = await fetch(`${API_URL}/courses/${courseId}/participants`);
           setParticipants(await finalRes.json());
+
       } catch (err) { console.error(err); alert("❌ Error during auto-assign."); }
       setIsAssigning(false);
   };
