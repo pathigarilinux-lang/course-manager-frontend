@@ -7,13 +7,13 @@ export default function Login({ onLogin }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showHint, setShowHint] = useState(false); 
-  const [showUserList, setShowUserList] = useState(false); // ✅ Toggle for User List
+  const [showUserList, setShowUserList] = useState(false); 
 
-  // 📝 DEMO USER DATA (You can customize this list)
+  // ✅ UPDATED USER LIST (0=Admin, 1=Gate, 2=Teacher)
   const availableUsers = [
-    { role: 'Admin / Trustee', code: '123456', hint: 'Full Access' },
-    { role: 'AT (Teacher)',    code: '998877', hint: 'Course Mgr' },
-    { role: 'Server / Vol.',   code: '555555', hint: 'View Only' },
+    { role: 'Admin / Trustee', code: '0', hint: 'Full Control' },
+    { role: 'Gate / Check-In', code: '1', hint: 'Registration' },
+    { role: 'AT (Teacher)',    code: '2', hint: 'Course Mgr' },
   ];
 
   const handleLogin = async (e) => {
@@ -43,7 +43,6 @@ export default function Login({ onLogin }) {
     }
   };
 
-  // Helper to auto-fill passcode from list
   const autoFill = (code) => {
     setPasscode(code);
     setShowUserList(false);
@@ -63,7 +62,6 @@ export default function Login({ onLogin }) {
       overflow: 'hidden'
     }}>
       
-      {/* Background Decor */}
       <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '500px', height: '500px', background: 'radial-gradient(circle, rgba(72,169,254,0.15) 0%, rgba(0,0,0,0) 70%)', borderRadius: '50%' }}></div>
 
       <div style={{ 
@@ -126,7 +124,6 @@ export default function Login({ onLogin }) {
               autoFocus 
             />
             
-            {/* 💡 Hint Toggle (Right side of input) */}
             <button
               type="button"
               onClick={() => { setShowHint(!showHint); setShowUserList(false); }}
@@ -148,7 +145,6 @@ export default function Login({ onLogin }) {
             </button>
           </div>
 
-          {/* Simple Text Hint */}
           {showHint && (
             <div style={{ 
               background: 'rgba(255,255,255,0.1)', 
@@ -161,7 +157,7 @@ export default function Login({ onLogin }) {
               border: '1px dashed rgba(255,255,255,0.2)',
               animation: 'fadeIn 0.3s ease'
             }}>
-              <strong>💡 Hint:</strong> Contact Center Manager for access.
+              <strong>💡 Hint:</strong> Ask the Center Manager for access.
             </div>
           )}
 
@@ -169,7 +165,8 @@ export default function Login({ onLogin }) {
 
           <button 
             type="submit" 
-            disabled={loading || passcode.length < 3}
+            // ✅ CHANGED: Allow length >= 1 (so "0", "1", "2" work)
+            disabled={loading || passcode.length < 1}
             style={{ 
               width: '100%', 
               padding: '16px', 
@@ -179,8 +176,8 @@ export default function Login({ onLogin }) {
               fontWeight: '800',
               borderRadius: '12px',
               border: 'none',
-              cursor: (loading || passcode.length < 3) ? 'not-allowed' : 'pointer',
-              opacity: (loading || passcode.length < 3) ? 0.6 : 1,
+              cursor: (loading || passcode.length < 1) ? 'not-allowed' : 'pointer',
+              opacity: (loading || passcode.length < 1) ? 0.6 : 1,
               transition: 'all 0.2s',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
             }}
@@ -190,7 +187,6 @@ export default function Login({ onLogin }) {
           </button>
         </form>
         
-        {/* 👥 User List Toggle Button */}
         <div style={{ marginTop: '20px' }}>
             <button 
                 onClick={() => { setShowUserList(!showUserList); setShowHint(false); }}
@@ -217,13 +213,12 @@ export default function Login({ onLogin }) {
         </div>
       </div>
 
-      {/* 📋 SLIDING USER CREDENTIALS PANEL */}
       {showUserList && (
           <div style={{
               position: 'absolute',
               top: '50%',
               left: '50%',
-              transform: 'translate(190px, -50%)', // Positions it to the RIGHT of the main box
+              transform: 'translate(190px, -50%)',
               background: 'rgba(255, 255, 255, 0.95)',
               backdropFilter: 'blur(10px)',
               padding: '20px',
@@ -275,10 +270,9 @@ export default function Login({ onLogin }) {
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideIn { from { opacity: 0; transform: translate(150px, -50%); } to { opacity: 1; transform: translate(190px, -50%); } }
         
-        /* Mobile adjustment for sliding panel */
         @media (max-width: 800px) {
             div[style*="translate(190px"] {
-                transform: translate(-50%, -50%) !important; /* Center it */
+                transform: translate(-50%, -50%) !important; 
                 top: 50% !important;
                 left: 50% !important;
                 z-index: 20 !important;
