@@ -8,27 +8,31 @@ import DhammaHallLayout from './DhammaHallLayout';
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
 const getStatusColor = (s) => { if (s === 'Attending') return '#28a745'; if (s === 'Gate Check-In') return '#ffc107'; if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; return '#6c757d'; };
 
-// ✅ NEW: Smart Parsing of Course History String
+// ✅ NEW: Robust Parsing (Handles "30D:2:45D:1" format correctly)
 const parseCourseScore = (infoStr) => {
     if (!infoStr) return 0;
     let score = 0;
-    // Split by comma, clean whitespace, uppercase
-    const parts = infoStr.split(',').map(s => s.trim().toUpperCase());
     
-    parts.forEach(part => {
-        // Extract count (e.g. "10D:12" -> type="10D", count=12)
-        const [type, countStr] = part.split(/[:=-]/); 
-        const count = parseInt(countStr) || 1; // Default to 1 if no number provided
+    // Regex finds patterns like "10D:12" or "60D-5" or "STP=1" globally
+    // Capture Group 1: Course Type (e.g. 10D)
+    // Capture Group 2: Count (e.g. 12)
+    const regex = /([A-Z0-9]+)\s*[:=-]\s*(\d+)/gi;
+    const matches = [...infoStr.matchAll(regex)];
 
-        // WEIGHTED HIERARCHY
-        if (type.includes('60D')) score += count * 100000;
-        else if (type.includes('45D')) score += count * 50000;
-        else if (type.includes('30D')) score += count * 10000;
+    matches.forEach(match => {
+        const type = match[1].toUpperCase();
+        const count = parseInt(match[2]) || 1;
+
+        // WEIGHTED HIERARCHY (Depth > Quantity)
+        if (type.includes('60D')) score += count * 100000;      // Massive weight
+        else if (type.includes('45D')) score += count * 50000;  // High weight
+        else if (type.includes('30D')) score += count * 10000;  // Medium weight
         else if (type.includes('20D')) score += count * 5000;
         else if (type.includes('STP') || type.includes('SAT')) score += count * 1000;
         else if (type.includes('10D')) score += count * 10;
         else if (type.includes('TSC') || type.includes('SVC')) score += count * 5;
     });
+    
     return score;
 };
 
