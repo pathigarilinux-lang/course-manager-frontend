@@ -4,11 +4,60 @@ import * as XLSX from 'xlsx';
 import { API_URL, styles } from '../config';
 import DhammaHallLayout from './DhammaHallLayout'; 
 
-// --- 1. DATA HELPERS ---
+// --- 1. DATA HELPERS (UPDATED WITH SMART LOGIC) ---
 const getCategory = (conf) => { if(!conf) return '-'; const s = conf.toUpperCase(); if (s.startsWith('O') || s.startsWith('S')) return 'OLD'; if (s.startsWith('N')) return 'NEW'; return 'Other'; };
 const getStatusColor = (s) => { if (s === 'Attending') return '#28a745'; if (s === 'Gate Check-In') return '#ffc107'; if (s === 'Cancelled' || s === 'No-Show') return '#dc3545'; return '#6c757d'; };
-const getStudentStats = (p) => { if (!p) return { cat: '', s: 0, l: 0, age: '' }; const conf = (p.conf_no || '').toUpperCase(); const isOld = conf.startsWith('O') || conf.startsWith('S'); const cat = isOld ? '(O)' : '(N)'; const sMatch = (p.courses_info || '').match(/S\s*[:=-]?\s*(\d+)/i); const lMatch = (p.courses_info || '').match(/L\s*[:=-]?\s*(\d+)/i); const s = sMatch ? sMatch[1] : '0'; const l = lMatch ? lMatch[1] : '0'; return { cat, s, l, age: p.age || '?' }; };
-const calculatePriorityScore = (p) => { const stats = getStudentStats(p); let score = 0; if (stats.cat === '(O)') score += 10000; score += (parseInt(stats.s) * 100); score += (parseInt(stats.l) * 500); score += (parseInt(stats.age) || 0); return score; };
+
+// ✅ NEW: Smart Parsing of Course History String
+const parseCourseScore = (infoStr) => {
+    if (!infoStr) return 0;
+    let score = 0;
+    // Split by comma, clean whitespace, uppercase
+    const parts = infoStr.split(',').map(s => s.trim().toUpperCase());
+    
+    parts.forEach(part => {
+        // Extract count (e.g. "10D:12" -> type="10D", count=12)
+        const [type, countStr] = part.split(/[:=-]/); 
+        const count = parseInt(countStr) || 1; // Default to 1 if no number provided
+
+        // WEIGHTED HIERARCHY
+        if (type.includes('60D')) score += count * 100000;
+        else if (type.includes('45D')) score += count * 50000;
+        else if (type.includes('30D')) score += count * 10000;
+        else if (type.includes('20D')) score += count * 5000;
+        else if (type.includes('STP') || type.includes('SAT')) score += count * 1000;
+        else if (type.includes('10D')) score += count * 10;
+        else if (type.includes('TSC') || type.includes('SVC')) score += count * 5;
+    });
+    return score;
+};
+
+// Updated Stats Display to calculate Total Sittings (S) and Long Courses (L) dynamically if not explicitly set
+const getStudentStats = (p) => { 
+    if (!p) return { cat: '', s: 0, l: 0, age: '' }; 
+    const conf = (p.conf_no || '').toUpperCase(); 
+    const isOld = conf.startsWith('O') || conf.startsWith('S'); 
+    const cat = isOld ? '(O)' : '(N)'; 
+    
+    // Try to parse explicit S/L tags first, otherwise calculate from score
+    const sMatch = (p.courses_info || '').match(/S\s*[:=-]?\s*(\d+)/i); 
+    const lMatch = (p.courses_info || '').match(/L\s*[:=-]?\s*(\d+)/i); 
+    
+    const s = sMatch ? sMatch[1] : (parseCourseScore(p.courses_info) > 50 ? 'Many' : '-'); 
+    const l = lMatch ? lMatch[1] : '-'; 
+    
+    return { cat, s, l, age: p.age || '?' }; 
+};
+
+// Updated Priority Score to use the detailed Course Score + Age + Category
+const calculatePriorityScore = (p) => { 
+    let score = parseCourseScore(p.courses_info);
+    const cat = getCategory(p.conf_no);
+    if (cat === 'OLD') score += 5000; // Base boost for Old Students
+    score += (parseInt(p.age) || 0); // Tie-breaker: Age
+    return score; 
+};
+
 const getAlphabetRange = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count);
 const generateChowkyLabels = (startIdx, count) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').slice(startIdx, startIdx + count).map(l => `CW-${l}`);
 
@@ -41,7 +90,7 @@ const printCurrentView = (cssStyles) => {
     document.head.removeChild(style);
 };
 
-// --- 3. SUB-COMPONENTS (Moved outside to prevent re-render bugs) ---
+// --- 3. SUB-COMPONENTS ---
 
 const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
     const shouldShow = p && (p.gender||'').toLowerCase().startsWith(gender.toLowerCase().charAt(0));
@@ -164,6 +213,8 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   // --- MEMOS & ACTIONS ---
   const processedList = useMemo(() => { 
       let items = [...participants]; 
+      
+      // Filter Logic
       if (filterType !== 'ALL') { items = items.filter(p => { 
           const cat = getCategory(p.conf_no); 
           if (filterType === 'OLD') return cat === 'OLD'; 
@@ -171,18 +222,43 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
           if (filterType === 'MED') return (p.medical_info && p.medical_info.trim() !== ''); 
           if (filterType === 'MALE') return (p.gender||'').toLowerCase().startsWith('m'); 
           if (filterType === 'FEMALE') return (p.gender||'').toLowerCase().startsWith('f'); 
-          // ✅ NEW: Filter for COURSE data
           if (filterType === 'COURSE') return (p.courses_info && p.courses_info.trim() !== '');
           return true; 
       }); }
       
+      // Search Logic
       if (search) items = items.filter(p => (p.full_name || '').toLowerCase().includes(search.toLowerCase()) || (p.conf_no || '').toLowerCase().includes(search.toLowerCase()));
       
-      if (sortConfig.key) { items.sort((a, b) => { let valA = a[sortConfig.key] || '', valB = b[sortConfig.key] || ''; 
-      if (['age', 'dining_seat_no', 'pagoda_cell_no', 'laundry_token_no'].includes(sortConfig.key)) { valA = parseInt(valA) || 0; valB = parseInt(valB) || 0; } 
-      else { valA = valA.toString().toLowerCase(); valB = valB.toString().toLowerCase(); } 
-      if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; 
-      if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; return 0; }); } return items; 
+      // ✅ SMART SORTING LOGIC
+      if (sortConfig.key) { 
+          items.sort((a, b) => { 
+              let valA, valB;
+
+              // Special numeric sorting
+              if (['age', 'dining_seat_no', 'pagoda_cell_no', 'laundry_token_no'].includes(sortConfig.key)) { 
+                  valA = parseInt(a[sortConfig.key]) || 0; 
+                  valB = parseInt(b[sortConfig.key]) || 0; 
+              } 
+              // ✅ SPECIAL COURSE SORTING (Based on Weighted Score)
+              else if (sortConfig.key === 'courses_info') {
+                  valA = parseCourseScore(a.courses_info);
+                  valB = parseCourseScore(b.courses_info);
+                  // Default High->Low for seniority
+                  if (sortConfig.direction === 'asc') return valA - valB; 
+                  else return valB - valA;
+              }
+              // Standard String sorting
+              else { 
+                  valA = (a[sortConfig.key] || '').toString().toLowerCase(); 
+                  valB = (b[sortConfig.key] || '').toString().toLowerCase(); 
+              } 
+
+              if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1; 
+              if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1; 
+              return 0; 
+          }); 
+      } 
+      return items; 
   }, [participants, sortConfig, search, filterType]);
 
   const seatingStats = useMemo(() => {
@@ -198,7 +274,17 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       return stats;
   }, [participants]);
 
-  const handleSort = (key) => { let direction = 'asc'; if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc'; setSortConfig({ key, direction }); };
+  const handleSort = (key) => { 
+      // Default to DESC (High to Low) for Course Info
+      let direction = 'asc'; 
+      if(key === 'courses_info') direction = 'desc'; 
+
+      if (sortConfig.key === key && sortConfig.direction === direction) {
+          direction = direction === 'asc' ? 'desc' : 'asc';
+      }
+      setSortConfig({ key, direction }); 
+  };
+
   const sortParticipants = (list, key, dir) => { return [...list].sort((a, b) => { let valA = a[key] || ''; let valB = b[key] || ''; if (key === 'category') { valA = getCategory(a.conf_no); valB = getCategory(b.conf_no); } if (key === 'dining_seat_no' || key === 'pagoda_cell_no') { return dir === 'asc' ? String(valA).localeCompare(String(valB), undefined, { numeric: true }) : String(valB).localeCompare(String(valA), undefined, { numeric: true }); } if (valA < valB) return dir === 'asc' ? -1 : 1; if (valA > valB) return dir === 'asc' ? 1 : -1; return 0; }); };
 
   // --- ACTIONS ---
@@ -306,6 +392,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
               students.forEach(p => { if (p.is_seat_locked && p.dhamma_hall_seat_no) lockedSeats.add(p.dhamma_hall_seat_no); });
               const availReg = regSeats.filter(s => !lockedSeats.has(s));
               const availSpec = specSeats.filter(s => !lockedSeats.has(s));
+              // ✅ UPDATED AUTO-ASSIGN: Use the new CalculatePriorityScore
               const toAssign = students.filter(p => !p.is_seat_locked).sort((a,b) => calculatePriorityScore(b) - calculatePriorityScore(a));
               const specGroup = toAssign.filter(p => p.special_seating && ['Chowky','Chair','BackRest'].includes(p.special_seating));
               const normalGroup = toAssign.filter(p => !specGroup.includes(p));
