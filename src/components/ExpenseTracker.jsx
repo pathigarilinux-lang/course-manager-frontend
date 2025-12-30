@@ -87,8 +87,8 @@ export default function ExpenseTracker({ courses }) {
           const qty = parseInt(qtyStr);
           if (isNaN(qty) || qty <= 0) return alert("Invalid Quantity");
 
-          // C. Get Rate (Default 25)
-          const rateStr = prompt("💰 Enter Rate per Cloth (₹):", "25");
+          // C. Get Rate (Default 20)
+          const rateStr = prompt("💰 Enter Rate per Cloth (₹):", "20");
           if (rateStr === null) return; // Cancelled
           const rate = parseFloat(rateStr);
           if (isNaN(rate) || rate < 0) return alert("Invalid Rate");
