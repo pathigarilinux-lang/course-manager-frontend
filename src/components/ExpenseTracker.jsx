@@ -15,7 +15,7 @@ const PRODUCTS = [
 
 const thPrint = { textAlign: 'left', padding: '8px', border: '1px solid #000', fontSize:'12px', color:'#000', textTransform:'uppercase', background:'#f0f0f0' };
 
-export default function ExpenseTracker({ courses }) {
+export default function ExpenseTracker({ courses, userRole }) {
   const [courseId, setCourseId] = useState(''); 
   const [participants, setParticipants] = useState([]); 
   const [selectedStudentId, setSelectedStudentId] = useState(''); 
@@ -154,6 +154,9 @@ export default function ExpenseTracker({ courses }) {
   };
 
   const handleDeleteExpense = async (id) => {
+      // ✅ Optional Safety: Check userRole here if you want to restrict staff in future
+      // if (userRole !== 'admin') return alert("Only Admin can delete.");
+      
       if (!window.confirm("Delete this record?")) return;
       await fetch(`${API_URL}/expenses/${id}`, { method: 'DELETE' });
       const histRes = await fetch(`${API_URL}/participants/${selectedStudentId}/expenses`); 
