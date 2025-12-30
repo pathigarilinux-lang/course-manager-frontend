@@ -106,7 +106,7 @@ const THERMAL_CSS = `<style>@page { size: 72mm auto; margin: 0; } body { font-fa
 const getTokenHtml = (student) => {
     const t = { seat: student.dhamma_hall_seat_no, name: student.full_name, conf: student.conf_no, cell: student.pagoda_cell_no || '-', room: student.room_no || '-' };
     const s = getStudentStats(student);
-    return `<div class="ticket-container"><div class="ticket-box"><div class="header">DHAMMA SEAT</div><div class="seat">${t.seat}</div><div class="name">${t.name}</div><div class="conf">${t.conf}</div><div class="footer"><span>Cell: ${t.cell}</span><span>Room: ${t.room}</span></div><div class="stats"><span>${s.cat}</span><span>Score:${s.s}</span><span>Age: ${s.age}</span></div></div></div>`;
+    return `<div class="ticket-container"><div class="ticket-box"><div class="header">DHAMMA SEAT</div><div class="seat">${t.seat}</div><div class="name">${t.name}</div><div class="conf">${t.conf}</div><div class="footer"><span>Cell: ${t.cell}</span><span>Room: ${t.room}</span></div><div class="stats"><span>${s.cat}</span><span>Age: ${s.age}</span></div></div></div>`;
 };
 
 const printViaIframe = (fullHtml) => {
