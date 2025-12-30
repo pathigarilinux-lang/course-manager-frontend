@@ -9,7 +9,6 @@ export default function Login({ onLogin }) {
   const [showHint, setShowHint] = useState(false); 
   const [showUserList, setShowUserList] = useState(false); 
 
-  // ✅ UPDATED USER LIST (0=Admin, 1=Gate, 2=Teacher)
   const availableUsers = [
     { role: 'Admin / Trustee', code: '0', hint: 'Full Control' },
     { role: 'Gate / Check-In', code: '1', hint: 'Registration' },
@@ -56,35 +55,41 @@ export default function Login({ onLogin }) {
       display: 'flex', 
       justifyContent: 'center', 
       alignItems: 'center', 
-      background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)', 
+      // ✅ RICH UI BACKGROUND: Animated Deep Gradient
+      background: 'linear-gradient(-45deg, #0F2027, #203A43, #2C5364, #1e3c72, #2a5298)',
+      backgroundSize: '400% 400%',
+      animation: 'gradientBG 15s ease infinite',
       fontFamily: '"Inter", "Segoe UI", sans-serif',
       position: 'relative',
       overflow: 'hidden'
     }}>
       
-      <div style={{ position: 'absolute', top: '-10%', left: '-10%', width: '500px', height: '500px', background: 'radial-gradient(circle, rgba(72,169,254,0.15) 0%, rgba(0,0,0,0) 70%)', borderRadius: '50%' }}></div>
+      {/* ✅ RICH UI: Floating Glowing Orbs */}
+      <div className="orb orb-1"></div>
+      <div className="orb orb-2"></div>
+      <div className="orb orb-3"></div>
 
       <div style={{ 
-        background: 'rgba(255, 255, 255, 0.1)', 
-        backdropFilter: 'blur(25px)',
+        background: 'rgba(255, 255, 255, 0.08)', 
+        backdropFilter: 'blur(20px)',
         padding: '50px 40px', 
         borderRadius: '24px', 
-        boxShadow: '0 20px 60px rgba(0,0,0,0.4)', 
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', 
         width: '100%', 
         maxWidth: '380px', 
         textAlign: 'center',
-        border: '1px solid rgba(255,255,255,0.2)',
+        border: '1px solid rgba(255,255,255,0.15)',
         position: 'relative',
         zIndex: 10
       }}>
         
         <div style={{ 
           width: '70px', height: '70px', 
-          background: 'linear-gradient(135deg, #00d2ff, #3a7bd5)', 
+          background: 'linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%)', 
           borderRadius: '50%', 
           display: 'flex', alignItems: 'center', justifyContent: 'center', 
           margin: '0 auto 25px auto',
-          boxShadow: '0 0 20px rgba(0,210,255,0.4)'
+          boxShadow: '0 10px 25px rgba(0, 210, 255, 0.3)'
         }}>
           {loading ? (
              <div style={{ width: '24px', height: '24px', border: '3px solid rgba(255,255,255,0.3)', borderTop: '3px solid white', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
@@ -93,8 +98,8 @@ export default function Login({ onLogin }) {
           )}
         </div>
         
-        <h2 style={{ margin: '0', color: 'white', fontSize: '24px', fontWeight: '700', letterSpacing: '0.5px' }}>Dhamma Nagajjuna</h2>
-        <p style={{ margin: '10px 0 30px 0', color: '#b8c6db', fontSize: '13px' }}>Enter Passcode to Access</p>
+        <h2 style={{ margin: '0', color: 'white', fontSize: '26px', fontWeight: '800', letterSpacing: '0.5px', textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>Dhamma Nagajjuna</h2>
+        <p style={{ margin: '10px 0 30px 0', color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: '500' }}>Secure Access Portal</p>
         
         <form onSubmit={handleLogin}>
           <div style={{ position: 'relative', marginBottom: '25px' }}>
@@ -107,11 +112,11 @@ export default function Login({ onLogin }) {
               maxLength={6}
               style={{ 
                 width: '100%', 
-                padding: '15px', 
+                padding: '16px', 
                 paddingRight: '45px',
-                borderRadius: '12px', 
-                border: error ? '2px solid #ef4444' : '2px solid rgba(255,255,255,0.2)', 
-                background: 'rgba(0,0,0,0.2)',
+                borderRadius: '14px', 
+                border: error ? '2px solid #ef4444' : '2px solid rgba(255,255,255,0.15)', 
+                background: 'rgba(0,0,0,0.25)',
                 fontSize: '24px', 
                 fontWeight: 'bold',
                 color: 'white',
@@ -119,7 +124,8 @@ export default function Login({ onLogin }) {
                 letterSpacing: '8px',
                 outline: 'none', 
                 boxSizing: 'border-box',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
+                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)'
               }} 
               autoFocus 
             />
@@ -129,86 +135,109 @@ export default function Login({ onLogin }) {
               onClick={() => { setShowHint(!showHint); setShowUserList(false); }}
               style={{
                 position: 'absolute',
-                right: '10px',
+                right: '12px',
                 top: '50%',
                 transform: 'translateY(-50%)',
-                background: 'none',
+                background: 'rgba(255,255,255,0.1)',
                 border: 'none',
-                color: showHint ? 'white' : 'rgba(255,255,255,0.4)',
+                borderRadius: '50%',
+                width: '28px',
+                height: '28px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: showHint ? 'white' : 'rgba(255,255,255,0.5)',
                 cursor: 'pointer',
-                transition: 'color 0.2s',
-                padding: '5px'
+                transition: 'all 0.2s'
               }}
               title="Help Hint"
             >
-              <HelpCircle size={20} />
+              <HelpCircle size={16} />
             </button>
           </div>
 
           {showHint && (
             <div style={{ 
-              background: 'rgba(255,255,255,0.1)', 
-              borderRadius: '8px', 
+              background: 'rgba(59, 130, 246, 0.15)', 
+              borderRadius: '10px', 
               padding: '12px', 
               marginBottom: '20px', 
-              fontSize: '12px', 
-              color: '#d1d5db',
+              fontSize: '13px', 
+              color: '#93c5fd',
               lineHeight: '1.4',
-              border: '1px dashed rgba(255,255,255,0.2)',
-              animation: 'fadeIn 0.3s ease'
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              animation: 'fadeIn 0.3s ease',
+              textAlign: 'left',
+              display: 'flex', gap: '8px', alignItems: 'center'
             }}>
-              <strong>💡 Hint:</strong> Ask the Center Manager for access.
+              <HelpCircle size={16} style={{ flexShrink: 0 }}/>
+              <span>Ask the Center Manager for access.</span>
             </div>
           )}
 
-          {error && <div style={{ color: '#ef4444', fontSize: '14px', fontWeight: 'bold', marginBottom: '20px', animation: 'shake 0.3s' }}>{error}</div>}
+          {error && <div style={{ 
+              background: 'rgba(239, 68, 68, 0.15)', 
+              color: '#fca5a5', 
+              fontSize: '13px', 
+              fontWeight: '600', 
+              marginBottom: '20px', 
+              padding: '10px', 
+              borderRadius: '10px', 
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              animation: 'shake 0.3s' 
+          }}>{error}</div>}
 
           <button 
             type="submit" 
-            // ✅ CHANGED: Allow length >= 1 (so "0", "1", "2" work)
             disabled={loading || passcode.length < 1}
             style={{ 
               width: '100%', 
               padding: '16px', 
               background: 'white', 
-              color: '#1e293b', 
+              color: '#0f2027', 
               fontSize: '15px', 
               fontWeight: '800',
-              borderRadius: '12px',
+              borderRadius: '14px',
               border: 'none',
               cursor: (loading || passcode.length < 1) ? 'not-allowed' : 'pointer',
-              opacity: (loading || passcode.length < 1) ? 0.6 : 1,
-              transition: 'all 0.2s',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+              opacity: (loading || passcode.length < 1) ? 0.7 : 1,
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1), 0 10px 15px -3px rgba(0,0,0,0.1)'
             }}
+            onMouseEnter={e => !loading && (e.currentTarget.style.transform = 'translateY(-2px)')}
+            onMouseLeave={e => !loading && (e.currentTarget.style.transform = 'translateY(0)')}
           >
             {loading ? 'UNLOCKING...' : 'UNLOCK SYSTEM'} 
             {!loading && <ArrowRight size={18}/>}
           </button>
         </form>
         
-        <div style={{ marginTop: '20px' }}>
+        <div style={{ marginTop: '25px' }}>
             <button 
                 onClick={() => { setShowUserList(!showUserList); setShowHint(false); }}
                 style={{
-                    background: 'transparent', 
-                    border: 'none', 
-                    color: 'rgba(255,255,255,0.5)', 
+                    background: 'rgba(255,255,255,0.05)', 
+                    border: '1px solid rgba(255,255,255,0.1)', 
+                    color: 'rgba(255,255,255,0.7)', 
                     fontSize: '12px', 
+                    fontWeight: '500',
                     cursor: 'pointer',
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center', 
-                    gap: '5px',
+                    gap: '6px',
                     margin: '0 auto',
-                    textDecoration: 'underline'
+                    padding: '8px 16px',
+                    borderRadius: '20px',
+                    transition: 'all 0.2s'
                 }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
             >
-                <Users size={14}/> Show Available Users
+                <Users size={14}/> Login Credentials
             </button>
         </div>
 
-        <div style={{ marginTop: '30px', fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>
+        <div style={{ marginTop: '30px', fontSize: '11px', color: 'rgba(255,255,255,0.3)', letterSpacing: '0.5px' }}>
           Vipassana International Meditation Center
         </div>
       </div>
@@ -218,44 +247,54 @@ export default function Login({ onLogin }) {
               position: 'absolute',
               top: '50%',
               left: '50%',
-              transform: 'translate(190px, -50%)',
-              background: 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(10px)',
-              padding: '20px',
-              borderRadius: '16px',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
-              width: '260px',
+              transform: 'translate(210px, -50%)',
+              background: 'rgba(255, 255, 255, 0.9)',
+              backdropFilter: 'blur(20px)',
+              padding: '24px',
+              borderRadius: '20px',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              width: '280px',
               zIndex: 5,
-              animation: 'slideIn 0.3s ease-out'
+              animation: 'slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+              border: '1px solid rgba(255,255,255,0.5)'
           }}>
-              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px', borderBottom:'1px solid #eee', paddingBottom:'8px'}}>
-                  <h4 style={{margin:0, color:'#333', fontSize:'14px'}}>🔑 Demo Credentials</h4>
-                  <button onClick={() => setShowUserList(false)} style={{background:'none', border:'none', cursor:'pointer', color:'#999'}}><X size={16}/></button>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
+                  <h4 style={{margin:0, color:'#1e293b', fontSize:'15px', fontWeight:'700'}}>🔑 Quick Access</h4>
+                  <button onClick={() => setShowUserList(false)} style={{background:'rgba(0,0,0,0.05)', border:'none', cursor:'pointer', color:'#64748b', borderRadius:'50%', padding:'4px', display:'flex'}}><X size={16}/></button>
               </div>
-              <div style={{display:'flex', flexDirection:'column', gap:'8px'}}>
+              <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
                   {availableUsers.map((u, i) => (
                       <div 
                           key={i} 
                           onClick={() => autoFill(u.code)}
                           style={{
-                              padding: '10px', 
-                              background: '#f8f9fa', 
-                              borderRadius: '8px', 
+                              padding: '12px', 
+                              background: 'white', 
+                              borderRadius: '12px', 
                               cursor: 'pointer', 
-                              border: '1px solid #eee',
-                              transition: 'background 0.2s',
+                              border: '1px solid #e2e8f0',
+                              transition: 'all 0.2s',
                               display: 'flex',
                               justifyContent: 'space-between',
-                              alignItems: 'center'
+                              alignItems: 'center',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#e3f2fd'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = '#f8f9fa'}
+                          onMouseEnter={(e) => {
+                              e.currentTarget.style.borderColor = '#3b82f6';
+                              e.currentTarget.style.transform = 'translateY(-2px)';
+                              e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                              e.currentTarget.style.borderColor = '#e2e8f0';
+                              e.currentTarget.style.transform = 'translateY(0)';
+                              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
+                          }}
                       >
                           <div style={{textAlign:'left'}}>
-                              <div style={{fontSize:'13px', fontWeight:'bold', color:'#333'}}>{u.role}</div>
-                              <div style={{fontSize:'10px', color:'#666'}}>{u.hint}</div>
+                              <div style={{fontSize:'13px', fontWeight:'700', color:'#334155'}}>{u.role}</div>
+                              <div style={{fontSize:'11px', color:'#64748b', marginTop:'2px'}}>{u.hint}</div>
                           </div>
-                          <div style={{fontSize:'12px', fontWeight:'bold', color:'#007bff', background:'white', padding:'2px 6px', borderRadius:'4px', border:'1px solid #ddd'}}>
+                          <div style={{fontSize:'12px', fontWeight:'700', color:'#2563eb', background:'#eff6ff', padding:'4px 8px', borderRadius:'6px'}}>
                               {u.code}
                           </div>
                       </div>
@@ -265,19 +304,41 @@ export default function Login({ onLogin }) {
       )}
 
       <style>{`
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } 
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideIn { from { opacity: 0; transform: translate(150px, -50%); } to { opacity: 1; transform: translate(190px, -50%); } }
+        @keyframes slideIn { from { opacity: 0; transform: translate(170px, -50%); scale: 0.95; } to { opacity: 1; transform: translate(210px, -50%); scale: 1; } }
         
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.6;
+            z-index: 1;
+            animation: float 20s infinite ease-in-out;
+        }
+        .orb-1 { top: -10%; left: -10%; width: 500px; height: 500px; background: #2a5298; animation-delay: 0s; }
+        .orb-2 { bottom: -10%; right: -10%; width: 400px; height: 400px; background: #1e3c72; animation-delay: -5s; }
+        .orb-3 { top: 40%; left: 60%; width: 300px; height: 300px; background: #2C5364; animation-delay: -10s; }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(30px, -30px); }
+        }
+
         @media (max-width: 800px) {
-            div[style*="translate(190px"] {
+            div[style*="translate(210px"] {
                 transform: translate(-50%, -50%) !important; 
                 top: 50% !important;
                 left: 50% !important;
                 z-index: 20 !important;
-                width: 300px !important;
-                border: 2px solid #007bff;
+                width: 320px !important;
+                border: 2px solid #3b82f6;
             }
         }
       `}</style>
