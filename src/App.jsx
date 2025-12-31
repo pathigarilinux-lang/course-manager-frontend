@@ -47,69 +47,47 @@ function App() {
       setActiveTab('dashboard'); // Reset tab
   };
 
+  // --- 1. FETCH & FILTER COURSES ---
   const fetchCourses = async () => {
-    try {
-        const res = await fetch(`${API_URL}/courses`);
-        const allCourses = await res.json();
-        
-        if (!Array.isArray(allCourses)) {
-            setCourses([]);
-            return;
-        }
+      // Safety Check: If no user is logged in, don't fetch anything yet
+      if (!user) return; 
 
-        // 🛡️ SECURITY FILTERING LOGIC
-        let filteredCourses = [];
+      try {
+          const res = await fetch(`${API_URL}/courses`);
+          const allCourses = await res.json();
+          
+          if (!Array.isArray(allCourses)) {
+              setCourses([]);
+              return;
+          }
 
-        if (user?.role === 'admin') {
-            // Admin sees EVERYTHING
-            filteredCourses = allCourses;
-        } 
-        else if (user?.role === 'dn1ops') {
-            // dn1ops sees ONLY courses created by 'dn1ops'
-            filteredCourses = allCourses.filter(c => c.owner_role === 'dn1ops');
-        } 
-        else {
-            // Staff/Gate see EVERYTHING EXCEPT 'dn1ops' courses
-            filteredCourses = allCourses.filter(c => c.owner_role !== 'dn1ops');
-        }
+          // 🛡️ SECURITY FILTERING LOGIC
+          let filteredCourses = [];
 
-        setCourses(filteredCourses);
+          if (user.role === 'admin') {
+              // Admin sees EVERYTHING
+              filteredCourses = allCourses;
+          } 
+          else if (user.role === 'dn1ops') {
+              // dn1ops sees ONLY courses created by 'dn1ops'
+              filteredCourses = allCourses.filter(c => c.owner_role === 'dn1ops');
+          } 
+          else {
+              // Staff sees EVERYTHING EXCEPT 'dn1ops' courses
+              filteredCourses = allCourses.filter(c => c.owner_role !== 'dn1ops');
+          }
 
-    } catch (e) { console.error("Failed to fetch courses", e); }
-};
+          setCourses(filteredCourses);
 
-  const fetchStats = async () => {
-      if(courses.length > 0) {
-          try {
-              const res = await fetch(`${API_URL}/courses/${courses[0].course_id}/stats`);
-              const data = await res.json();
-              setStats(data);
-          } catch(e) { console.error("Failed to fetch stats", e); }
-      }
+      } catch (e) { console.error("Failed to fetch courses", e); }
   };
 
-  useEffect(() => { fetchCourses(); }, []);
-  useEffect(() => { if(courses.length > 0) fetchStats(); }, [courses]);
-
-  // SMART REDIRECT
-  useEffect(() => {
+  // ✅ FIX: Re-run fetchCourses whenever the 'user' changes
+  useEffect(() => { 
       if (user) {
-          if (user.role === 'gate') {
-              setActiveTab('gate');
-              setSidebarOpen(false);
-          } else if (user.role === 'at') {
-              setActiveTab('at');
-              setSidebarOpen(false);
-          } else {
-              // Only reset to dashboard if we are not already on a valid tab
-              // This keeps the user on the same tab if they refresh
-              if (activeTab === 'gate' || activeTab === 'at') {
-                   setActiveTab('dashboard');
-                   setSidebarOpen(true);
-              }
-          }
+          fetchCourses(); 
       }
-  }, [user]);
+  }, [user]); // <--- Adding [user] here fixes the issue!
 
   // ✅ Pass handleLogin instead of inline function
   if (!user) {
