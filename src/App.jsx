@@ -220,7 +220,7 @@ function App() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
               {activeTab === 'dashboard' && <CourseDashboard courses={courses} stats={stats} />}
               {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} />}
-              {activeTab === 'checkin' && <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} />}
+              {activeTab === 'checkin' && <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} userRole={user.role} />}
               {activeTab === 'students' && <ParticipantList courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               {activeTab === 'accommodation' && <GlobalAccommodationManager />}
               {activeTab === 'at' && <ATPanel courses={courses} />}
