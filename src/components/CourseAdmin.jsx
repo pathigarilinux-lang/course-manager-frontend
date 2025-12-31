@@ -138,24 +138,30 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
     e.preventDefault();
     if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
     
-    const courseName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
+    // 1. Prepare the Base Name
+    let finalName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
+    
+    // 2. ✅ ADD SECRET TAG: This triggers the SQL Auto-Corrector
+    // We check for both spellings to be safe
+    if (userRole === 'dn1ops' || userRole === 'DN1 Ops') {
+        finalName += '_OPS';
+    }
     
     try {
         const res = await fetch(`${API_URL}/courses`, { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
             body: JSON.stringify({
-                courseName: courseName,
+                courseName: finalName, // Send the tagged name
                 teacherName: newCourseData.teacher || 'Goenka Ji',
                 startDate: newCourseData.startDate,
                 endDate: newCourseData.endDate,
-                // ✅ CRITICAL FIX: Ensures new course belongs to dn1ops
                 owner_role: userRole 
             }) 
         });
         
         if (res.ok) {
-            alert(`✅ Created: ${courseName}`);
+            alert("✅ Course Created Successfully!");
             refreshCourses(); 
             setNewCourseData({ name: '', teacher: '', startDate: '', endDate: '' });
         }
