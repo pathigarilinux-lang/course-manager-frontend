@@ -11,7 +11,8 @@ import {
     Edit, 
     FileText, 
     CheckCircle, 
-    AlertTriangle 
+    AlertTriangle,
+    X // ✅ Added X icon for Clear button
 } from 'lucide-react';
 import * as XLSX from 'xlsx'; 
 import { API_URL, styles } from '../config';
@@ -138,11 +139,10 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
     e.preventDefault();
     if (!newCourseData.name || !newCourseData.startDate) return alert("Please fill in required fields.");
     
-    // 1. Prepare the Base Name
+    // 1. Prepare Base Name
     let finalName = `${newCourseData.name} / ${newCourseData.startDate} to ${newCourseData.endDate}`;
     
-    // 2. ✅ ADD SECRET TAG: This triggers the SQL Auto-Corrector
-    // We check for both spellings to be safe
+    // 2. ✅ ADD SECRET TAG (Auto-Fixer for Dn1Ops)
     if (userRole === 'dn1ops' || userRole === 'DN1 Ops') {
         finalName += '_OPS';
     }
@@ -152,7 +152,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' }, 
             body: JSON.stringify({
-                courseName: finalName, // Send the tagged name
+                courseName: finalName,
                 teacherName: newCourseData.teacher || 'Goenka Ji',
                 startDate: newCourseData.startDate,
                 endDate: newCourseData.endDate,
@@ -161,7 +161,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
         });
         
         if (res.ok) {
-            alert("✅ Course Created Successfully!");
+            alert(`✅ Created Successfully!`);
             refreshCourses(); 
             setNewCourseData({ name: '', teacher: '', startDate: '', endDate: '' });
         }
@@ -602,9 +602,18 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
               <div style={{background:'white', border:'1px solid #eee', borderRadius:'12px', overflow:'hidden'}}>
                   <div style={{padding:'15px', background:'#f8f9fa', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                       <h4 style={{margin:0}}>Preview Data ({students.length})</h4>
-                      <button onClick={saveToDatabase} style={{...styles.btn(true), background:'#28a745', color:'white', padding:'8px 20px'}}>
-                          <Save size={16}/> Confirm Import
-                      </button>
+                      <div style={{display:'flex', gap:'10px'}}>
+                          {/* ✅ RESTORED CLEAR BUTTON */}
+                          <button 
+                              onClick={() => { setStudents([]); setUploadStatus(null); }} 
+                              style={{...styles.btn(false), background:'white', color:'#d32f2f', border:'1px solid #ffcdd2', padding:'8px 15px', display:'flex', alignItems:'center', gap:'6px'}}
+                          >
+                              <X size={16}/> Clear
+                          </button>
+                          <button onClick={saveToDatabase} style={{...styles.btn(true), background:'#28a745', color:'white', padding:'8px 20px', display:'flex', alignItems:'center', gap:'6px'}}>
+                              <Save size={16}/> Confirm Import
+                          </button>
+                      </div>
                   </div>
                   <div style={{maxHeight:'400px', overflowY:'auto'}}>
                       <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}>
