@@ -36,7 +36,6 @@ const parseCourseScore = (infoStr, isTenDayMode = false) => {
         return 0;
     };
     Object.keys(WEIGHTS).forEach(k => { score += getCount(k) * WEIGHTS[k]; });
-    // Catch aliases
     score += (getCount('10-DAY') || getCount('TEN')) * WEIGHTS['10D'];
     score += (getCount('SAT') || getCount('SATI')) * WEIGHTS['STP'];
     score += (getCount('SVC') || getCount('SERV')) * WEIGHTS['TSC'];
@@ -96,10 +95,10 @@ const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
     const isSel = selectedSeat?.label === id;
     const stats = getStudentStats(displayP, false); 
     
-    // ✅ 1. HIGHLIGHT OLD STUDENTS LOGIC
+    // ✅ HIGHLIGHT OLD STUDENTS
     const isOld = displayP && stats.cat === '(O)';
     const bg = displayP ? (isSel ? '#ffeb3b' : (isOld ? '#e1bee7' : 'white')) : 'white'; // Purple Tint for Old
-    const border = isOld ? '3px solid #7b1fa2' : '1px solid black'; // Thick Purple Border for Old
+    const border = isOld ? '3px solid #7b1fa2' : '1px solid black'; // Thick Purple Border
 
     return (
         <div key={id} onClick={()=>handleSeatClick(id, displayP, gender)} className="seat-box" style={{ border: border, background: bg, width: '130px', height: '95px', fontSize: '10px', overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', boxSizing: 'border-box' }}>
@@ -124,7 +123,6 @@ const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
 
 const SeatingSheet = ({ id, title, map, orderedCols, rows, setRows, setRegCols, setSpecCols, gender, selectedSeat, handleSeatClick, courseId, courses, participants, seatingConfig, onOpenSettings }) => {
     const courseObj = courses.find(c=>c.course_id==courseId);
-    // ✅ Clean Course Name for Print
     const courseName = courseObj ? courseObj.course_name.split('/')[0].trim() : 'COURSE';
     const dateRange = courseObj ? `${new Date(courseObj.start_date).toLocaleDateString()} to ${new Date(courseObj.end_date).toLocaleDateString()}` : '';
     const genderKey = gender.toLowerCase().charAt(0);
@@ -196,10 +194,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const [showSummaryReport, setShowSummaryReport] = useState(false);
   const [showPrintSettings, setShowPrintSettings] = useState(false);
   const [showVisualHall, setShowVisualHall] = useState(false); 
-  
-  // ✅ 2. AUTO-ASSIGN FILTER STATE
-  const [assignFilter, setAssignFilter] = useState('BOTH'); // 'BOTH', 'MALE', 'FEMALE'
-
+  const [assignFilter, setAssignFilter] = useState('BOTH'); 
   const [isSyncing, setIsSyncing] = useState(false);
 
   const defaultConfig = { mCols: 10, mRows: 10, mChowky: 2, fCols: 7, fRows: 10, fChowky: 2 };
@@ -207,7 +202,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const [printConfig, setPrintConfig] = useState({ scale: 0.9, orientation: 'landscape', paper: 'A3' });
   const [draftConfig, setDraftConfig] = useState(null);
 
-  // --- DERIVE 10-DAY MODE ---
   const selectedCourse = courses.find(c => String(c.course_id) === String(courseId));
   const isTenDayCourse = useMemo(() => {
       if (!selectedCourse) return false;
@@ -215,7 +209,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       return name.includes('10-DAY') || name.includes('10 DAY') || name.includes('10D');
   }, [selectedCourse]);
 
-  // --- LOADING & AUTO-SYNC ---
   useEffect(() => { 
       if (courseId) {
           const fetchP = async (background = false) => {
@@ -245,7 +238,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
 
   const openAutoAssignModal = () => {
       setDraftConfig({ ...seatingConfig }); 
-      setAssignFilter('BOTH'); // Reset filter on open
+      setAssignFilter('BOTH'); 
       setShowAutoAssignModal(true);
   };
 
@@ -309,6 +302,8 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       setSortConfig({ key, direction }); 
   };
 
+  const sortParticipants = (list, key, dir) => { return [...list].sort((a, b) => { let valA = a[key] || ''; let valB = b[key] || ''; if (key === 'category') { valA = getCategory(a.conf_no); valB = getCategory(b.conf_no); } if (key === 'dining_seat_no' || key === 'pagoda_cell_no') { return dir === 'asc' ? String(valA).localeCompare(String(valB), undefined, { numeric: true }) : String(valB).localeCompare(String(valA), undefined, { numeric: true }); } if (valA < valB) return dir === 'asc' ? -1 : 1; if (valA > valB) return dir === 'asc' ? 1 : -1; return 0; }); };
+
   const handleBulkPrint = (filter) => { 
       let valid = participants.filter(p => p.status === 'Attending' && p.dhamma_hall_seat_no); 
       if (filter === 'Male') valid = valid.filter(p => (p.gender||'').toLowerCase().startsWith('m')); 
@@ -366,7 +361,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
 
   const handleAutoAssign = async () => {
       const modeText = isTenDayCourse ? "10-DAY MODE (Score Sum)" : "LONG COURSE MODE (Hierarchy)";
-      // ✅ Show Filter Info in Alert
       const filterText = assignFilter === 'BOTH' ? 'ALL Students' : `${assignFilter} Students ONLY`;
       if (!window.confirm(`⚠️ Auto-Assigning in ${modeText} for ${filterText}. This will overwrite unlocked seats. Continue?`)) return;
       
@@ -428,7 +422,6 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
               return updates;
           };
           
-          // ✅ 2. APPLY FILTER LOGIC
           const allUpdates = [];
           if (assignFilter === 'BOTH' || assignFilter === 'MALE') {
               allUpdates.push(...assignGroup(males, mRegSeats, mSpecSeats));
@@ -454,17 +447,13 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
   const fSpec = generateChowkyLabels(seatingConfig.fCols, seatingConfig.fChowky);
   const fOrdered = [...fSpec.reverse(), 'GAP', ...fReg.reverse()];
 
-  // ... (Summary, Dining, Pagoda sections unchanged for brevity, but full component provided)
-  
-  // ✅ RENDER RETURN (Truncated for readability, but fully functional logic provided above)
-  
   if (showSummaryReport) {
-      // ... same code ...
       const arrived = participants.filter(p => p.status === 'Attending');
       const getCount = (gender, type) => arrived.filter(p => { const g = (p.gender || '').toLowerCase().startsWith(gender); const c = (p.conf_no || '').toUpperCase(); if (type === 'OLD') return g && (c.startsWith('O') || c.startsWith('S')); if (type === 'NEW') return g && c.startsWith('N'); return false; }).length;
       return ( <div style={styles.card}> <div className="no-print"><button onClick={() => setShowSummaryReport(false)} style={styles.btn(false)}>← Back</button><button onClick={() => window.print()} style={{...styles.toolBtn('#007bff'), marginLeft:'10px'}}>Print PDF</button></div> <div className="print-area" id="print-summary" style={{padding:'20px'}}> <h2 style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px'}}>COURSE SUMMARY REPORT</h2> <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><div><strong>Centre Name:</strong> Dhamma Nagajjuna 2</div><div><strong>Course Date:</strong> {courses.find(c=>c.course_id==courseId)?.start_date}</div></div> <h3 style={{background:'#eee', padding:'5px'}}>COURSE DETAILS</h3> <table style={{width:'100%', borderCollapse:'collapse', border:'1px solid black', marginBottom:'20px'}}><thead><tr style={{background:'#f0f0f0'}}><th rowSpan="2" style={{padding:'10px',border:'1px solid black'}}>Category</th><th colSpan="2" style={{padding:'10px',border:'1px solid black'}}>INDIAN</th><th colSpan="2" style={{padding:'10px',border:'1px solid black'}}>FOREIGNER</th><th rowSpan="2" style={{padding:'10px',border:'1px solid black'}}>TOTAL</th></tr><tr style={{background:'#f0f0f0'}}><th style={{padding:'10px',border:'1px solid black'}}>OLD</th><th style={{padding:'10px',border:'1px solid black'}}>NEW</th><th style={{padding:'10px',border:'1px solid black'}}>OLD</th><th style={{padding:'10px',border:'1px solid black'}}>NEW</th></tr></thead><tbody><tr><td style={{padding:'10px',border:'1px solid black'}}>MALE</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'OLD')}</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'NEW')}</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}><strong>{getCount('m', 'OLD') + getCount('m', 'NEW')}</strong></td></tr><tr><td style={{padding:'10px',border:'1px solid black'}}>FEMALE</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('f', 'OLD')}</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('f', 'NEW')}</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}><strong>{getCount('f', 'OLD') + getCount('f', 'NEW')}</strong></td></tr><tr style={{background:'#f0f0f0', fontWeight:'bold'}}><td style={{padding:'10px',border:'1px solid black'}}>TOTAL</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'OLD') + getCount('f', 'OLD')}</td><td style={{padding:'10px',border:'1px solid black'}}>{getCount('m', 'NEW') + getCount('f', 'NEW')}</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>0</td><td style={{padding:'10px',border:'1px solid black'}}>{arrived.length}</td></tr></tbody></table> </div> </div> );
   }
 
+  // ✅ FULLY RESTORED DINING VIEW
   if (viewMode === 'dining') { 
       const arrived = participants.filter(p => p.status==='Attending'); 
       const renderDiningTable = (list, title, color, sectionId) => {
@@ -475,6 +464,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
       return ( <div style={styles.card}> <div className="no-print" style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}> <button onClick={() => setViewMode('list')} style={styles.btn(false)}>← Back</button> <button onClick={handleDiningExport} style={{...styles.quickBtn(true), background:'#28a745', color:'white'}}>📥 Export Dining CSV</button> </div> {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('m')), "MALE", "#007bff", "pd-m")} {renderDiningTable(arrived.filter(p=>(p.gender||'').toLowerCase().startsWith('f')), "FEMALE", "#e91e63", "pd-f")} </div> ); 
   }
   
+  // ✅ FULLY RESTORED PAGODA VIEW
   if (viewMode === 'pagoda') { 
       const assigned = participants.filter(p => p.status==='Attending' && p.pagoda_cell_no); 
       const renderPagodaTable = (list, title, color, sectionId) => {
@@ -538,7 +528,7 @@ export default function ParticipantList({ courses, refreshCourses, userRole }) {
                           <button onClick={()=>setShowAutoAssignModal(false)} style={{background:'none', border:'none', cursor:'pointer'}}><X size={20}/></button>
                       </div>
                       
-                      {/* ✅ 3. ADDED FILTER UI IN MODAL */}
+                      {/* ✅ FILTER UI */}
                       <div style={{background:'#e3f2fd', padding:'10px', borderRadius:'8px', marginBottom:'15px', border:'1px solid #90caf9'}}>
                           <label style={{...styles.label, marginBottom:'8px'}}>ASSIGNMENT TARGET:</label>
                           <div style={{display:'flex', gap:'5px'}}>
