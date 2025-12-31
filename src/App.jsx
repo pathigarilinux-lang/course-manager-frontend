@@ -48,12 +48,35 @@ function App() {
   };
 
   const fetchCourses = async () => {
-      try {
-          const res = await fetch(`${API_URL}/courses`);
-          const data = await res.json();
-          setCourses(Array.isArray(data) ? data : []);
-      } catch (e) { console.error("Failed to fetch courses", e); }
-  };
+    try {
+        const res = await fetch(`${API_URL}/courses`);
+        const allCourses = await res.json();
+        
+        if (!Array.isArray(allCourses)) {
+            setCourses([]);
+            return;
+        }
+
+        // 🛡️ SECURITY FILTERING LOGIC
+        let filteredCourses = [];
+
+        if (user?.role === 'admin') {
+            // Admin sees EVERYTHING
+            filteredCourses = allCourses;
+        } 
+        else if (user?.role === 'dn1ops') {
+            // dn1ops sees ONLY courses created by 'dn1ops'
+            filteredCourses = allCourses.filter(c => c.owner_role === 'dn1ops');
+        } 
+        else {
+            // Staff/Gate see EVERYTHING EXCEPT 'dn1ops' courses
+            filteredCourses = allCourses.filter(c => c.owner_role !== 'dn1ops');
+        }
+
+        setCourses(filteredCourses);
+
+    } catch (e) { console.error("Failed to fetch courses", e); }
+};
 
   const fetchStats = async () => {
       if(courses.length > 0) {
