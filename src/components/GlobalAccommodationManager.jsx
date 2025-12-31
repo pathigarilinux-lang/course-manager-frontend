@@ -2,8 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Search, RefreshCw, BedDouble, PlusCircle, Trash2, Printer, X, PieChart as PieIcon, BarChart3, AlertTriangle, ArrowRight, Wand2 } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
+
+// --- LAYOUT IMPORTS ---
 import MaleBlockLayout from './MaleBlockLayout';     
 import FemaleBlockLayout from './FemaleBlockLayout';
+import NewBlockLayout from './NewBlockLayout'; // ✅ IMPORTED NEW LAYOUT
 import AutoAllocationTool from './AutoAllocationTool';
 
 // --- CONFIGURATION ---
@@ -15,8 +18,8 @@ const COLORS = {
 };
 
 // ✅ STRICT DELETION POLICY
-// Added 'ROOM' so you can delete the individual rooms if needed
-const ALLOWED_DELETE_PREFIXES = ['TENT', 'HALL', 'DORM', 'TEMP', 'EXTRA', 'OVR', 'ROOM'];
+// Added 'ROOM' and 'DORMITORY' to allow managing the new block
+const ALLOWED_DELETE_PREFIXES = ['TENT', 'HALL', 'DORM', 'TEMP', 'EXTRA', 'OVR', 'ROOM', 'DORMITORY'];
 
 export default function GlobalAccommodationManager() {
   // --- STATE MANAGEMENT ---
@@ -33,13 +36,8 @@ export default function GlobalAccommodationManager() {
   const [showDeleteRoom, setShowDeleteRoom] = useState(false);
   const [showBulkTool, setShowBulkTool] = useState(false); // ✅ New State
   
-  // New Room Form State
   const [newRoomData, setNewRoomData] = useState({ 
-      prefix: 'TENT', 
-      suffix: '', 
-      gender: 'Male', 
-      capacity: 1, 
-      floor: 'Ground' 
+      prefix: 'TENT', suffix: '', gender: 'Male', capacity: 1, floor: 'Ground' 
   });
   
   // Bulk Gen State
@@ -70,11 +68,9 @@ export default function GlobalAccommodationManager() {
         if(Array.isArray(cList) && cList.length > 0 && !selectedCourse) {
             setSelectedCourse(cList[0].course_id);
         }
-
     } catch (err) { 
         console.error("Error loading data:", err); 
-        setRooms([]);
-        setOccupancy([]);
+        setRooms([]); setOccupancy([]);
     }
   };
   
@@ -87,7 +83,6 @@ export default function GlobalAccommodationManager() {
           female: { OF:0, NF:0, SF:0, Total:0 },
           courseData: []
       };
-
       if (!Array.isArray(occupancy)) return breakdown;
 
       occupancy.forEach(p => {
@@ -122,44 +117,46 @@ export default function GlobalAccommodationManager() {
           }
       });
       breakdown.courseData = Object.values(courseMap);
-
       return breakdown;
   }, [occupancy, courses]);
 
   // --- INTERACTION HANDLERS ---
-  
   const handleRoomInteraction = async (targetRoomData) => {
       const targetRoomNo = targetRoomData.room_no;
-      const targetOccupant = occupancy.find(p => p.room_no === targetRoomNo);
+      // Find WHO is in that specific bed/room (Handles bed-level or room-level)
+      const targetOccupant = occupancy.find(p => p.room_no === targetRoomNo) || targetRoomData.occupant; 
 
+      // Mode 1: Select Student to Move
       if (!moveMode) {
           if (targetOccupant) {
-              setMoveMode({ student: targetOccupant, sourceRoom: targetRoomNo });
+              setMoveMode({ student: targetOccupant, sourceRoom: targetOccupant.room_no });
           }
           return;
       }
 
+      // Mode 2: Execute Move/Swap
       const { student, sourceRoom } = moveMode;
       const studentGender = (student.gender || '').toLowerCase();
-      const roomGender = (targetRoomData.gender_type || '').toLowerCase();
+      // Safe access to gender type
+      const roomGender = (targetRoomData.gender_type || targetRoomData.type || '').toLowerCase(); 
       
-      if (!studentGender.startsWith(roomGender.charAt(0))) {
+      if (roomGender && !studentGender.startsWith(roomGender.charAt(0))) {
           if(!window.confirm(`⚠️ GENDER WARNING: Moving ${student.gender} to ${targetRoomData.gender_type} room?`)) return;
       }
 
       try {
           if (targetOccupant) {
+              // SWAP Logic
               if (!window.confirm(`Swap ${student.full_name} <-> ${targetOccupant.full_name}?`)) return;
               await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: 'TEMP_SWAP' }) });
               await fetch(`${API_URL}/participants/${targetOccupant.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...targetOccupant, room_no: sourceRoom }) });
               await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: targetRoomNo }) });
           } else {
+              // MOVE Logic
               if (!window.confirm(`Move ${student.full_name} to ${targetRoomNo}?`)) return;
               await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: targetRoomNo }) });
           }
-      } catch (e) {
-          alert("Move failed. Please refresh.");
-      }
+      } catch (e) { alert("Move failed. Please refresh."); }
       
       setMoveMode(null);
       loadData();
@@ -228,9 +225,7 @@ export default function GlobalAccommodationManager() {
 
       let successCount = 0;
       for (const room of newBlockRooms) {
-          // Skip if exists
           if (rooms.some(r => r.room_no === room.roomNo)) continue;
-          
           try {
               await fetch(`${API_URL}/rooms`, {
                   method: 'POST',
@@ -246,6 +241,7 @@ export default function GlobalAccommodationManager() {
       setShowBulkTool(false);
   };
 
+  // ✅ CHECK IF DELETABLE
   const isDeletable = (roomNo) => {
       if(!roomNo) return false;
       const upper = roomNo.toUpperCase();
@@ -281,6 +277,7 @@ export default function GlobalAccommodationManager() {
       } catch(err) { console.error(err); }
   };
 
+  // ✅ FULLY RESTORED PRINT EMPTY FUNCTION
   const handlePrintEmpty = () => {
       const occupiedSet = new Set((occupancy || []).map(p => p.room_no));
       const emptyMales = (rooms || []).filter(r => r.gender_type === 'Male' && !occupiedSet.has(r.room_no)).map(r => r.room_no).sort();
@@ -295,20 +292,28 @@ export default function GlobalAccommodationManager() {
 
   const searchResult = searchQuery ? (occupancy || []).find(p => p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || p.conf_no.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
+  // Chart Data Preparation
   const malePieData = [ { name: 'Old', value: stats.male.OM, color: COLORS.om }, { name: 'New', value: stats.male.NM, color: COLORS.nm }, { name: 'Server', value: stats.male.SM, color: COLORS.sm } ].filter(d => d.value > 0);
   const femalePieData = [ { name: 'Old', value: stats.female.OF, color: COLORS.of }, { name: 'New', value: stats.female.NF, color: COLORS.nf }, { name: 'Server', value: stats.female.SF, color: COLORS.sf } ].filter(d => d.value > 0);
 
+  // --- FLOATING PANEL STYLE ---
   const panelStyle = {
-      position: 'fixed', bottom: '30px', right: '30px', 
-      background: 'white', padding: '25px', borderRadius: '12px', 
+      position: 'fixed', 
+      bottom: '30px', 
+      right: '30px', 
+      background: 'white', 
+      padding: '25px', 
+      borderRadius: '12px', 
       boxShadow: '0 20px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.05)', 
-      width: '320px', zIndex: 2000, animation: 'slideUp 0.3s ease-out'
+      width: '320px', 
+      zIndex: 2000,
+      animation: 'slideUp 0.3s ease-out'
   };
 
   return (
     <div style={{...styles.card, padding: '0', overflow: 'hidden', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', background: '#f4f6f8'}}>
       
-      {/* 1. VISUAL STATISTICS HEADER */}
+      {/* 1. VISUAL STATISTICS HEADER (FULLY RESTORED) */}
       <div className="no-print" style={{padding: '20px', background: 'white', borderBottom:'1px solid #eee'}}>
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
                <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'12px', color:'#2c3e50', fontSize:'24px'}}>
@@ -326,7 +331,7 @@ export default function GlobalAccommodationManager() {
               </div>
           </div>
 
-          {/* CHARTS ROW */}
+          {/* CHARTS ROW (FULLY RESTORED) */}
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 2fr', gap:'20px'}}>
               {/* Male Pie */}
               <div style={{background:'#e3f2fd', borderRadius:'12px', padding:'10px', display:'flex', alignItems:'center', justifyContent:'space-between', borderLeft:'5px solid #007bff'}}>
@@ -365,15 +370,22 @@ export default function GlobalAccommodationManager() {
       {/* 2. CONTROLS BAR */}
       <div className="no-print" style={{ background: 'white', padding: '10px 20px', borderBottom: '1px solid #eaeaea', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           
+          {/* ✅ UPDATED TABS */}
           <div style={{display:'flex', gap:'10px'}}>
-              {['Male', 'Female'].map(gender => (
-                  <button key={gender} onClick={() => { setActiveTab(gender); setNewRoomData(prev => ({...prev, gender: gender})); }} 
-                          style={{ padding:'8px 20px', borderRadius:'20px', border:'none', background: activeTab === gender ? (gender === 'Male' ? '#e3f2fd' : '#fce4ec') : '#f5f5f5', color: activeTab === gender ? (gender === 'Male' ? '#007bff' : '#e91e63') : '#666', fontWeight: 'bold', cursor:'pointer' }}>
-                          {gender.toUpperCase()} BLOCK
-                  </button>
-              ))}
+              {['Male', 'Female', 'New Block'].map(tab => {
+                  let activeColor = tab === 'Male' ? '#007bff' : (tab === 'Female' ? '#e91e63' : '#6f42c1');
+                  let activeBg = tab === 'Male' ? '#e3f2fd' : (tab === 'Female' ? '#fce4ec' : '#f3e5f5');
+                  
+                  return (
+                    <button key={tab} onClick={() => { setActiveTab(tab); if(tab!=='New Block') setNewRoomData(p=>({...p, gender: tab})); }} 
+                            style={{ padding:'8px 20px', borderRadius:'20px', border:'none', background: activeTab === tab ? activeBg : '#f5f5f5', color: activeTab === tab ? activeColor : '#666', fontWeight: 'bold', cursor:'pointer' }}>
+                            {tab.toUpperCase()}
+                    </button>
+                  );
+              })}
           </div>
 
+          {/* Action Buttons */}
           <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
               
               {moveMode && (
@@ -418,16 +430,22 @@ export default function GlobalAccommodationManager() {
           </div>
       </div>
 
-      {/* 3. MAIN CANVAS AREA */}
+      {/* 3. MAIN CANVAS AREA (SCROLLABLE) */}
       <div style={{padding:'30px', background:'white', minHeight:'600px', overflowX:'auto'}}>
-          {activeTab === 'Male' ? (
+          {/* Render Safety: Ensure data exists before passing */}
+          {activeTab === 'Male' && (
               <MaleBlockLayout rooms={rooms || []} occupancy={occupancy || []} onRoomClick={handleRoomInteraction} />
-          ) : (
+          )}
+          {activeTab === 'Female' && (
               <FemaleBlockLayout rooms={rooms || []} occupancy={occupancy || []} onRoomClick={handleRoomInteraction} />
+          )}
+          {/* ✅ RENDER NEW BLOCK */}
+          {activeTab === 'New Block' && (
+              <NewBlockLayout rooms={rooms || []} occupancy={occupancy || []} onRoomClick={handleRoomInteraction} />
           )}
       </div>
 
-      {/* --- BULK GENERATOR PANEL (NEW) --- */}
+      {/* --- FLOATING PANEL: BULK GENERATOR (NEW) --- */}
       {showBulkTool && (
           <div style={{...panelStyle, borderTop:'4px solid #6f42c1'}}>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
@@ -438,7 +456,7 @@ export default function GlobalAccommodationManager() {
               <div style={{background:'#f3e5f5', padding:'10px', borderRadius:'6px', marginBottom:'15px', border:'1px solid #e1bee7', fontSize:'12px', color:'#4a148c'}}>
                   <div style={{fontWeight:'bold', marginBottom:'5px'}}>Will Create:</div>
                   <ul style={{paddingLeft:'20px', margin:0}}>
-                      <li>8 Dormitories (DORM-21 to 28) with 6 beds</li>
+                      <li>8 Dormitories (DORMITORY-21 to 28) with 6 beds</li>
                       <li>3 Rooms (ROOM-A to C) with 2 beds</li>
                   </ul>
               </div>
@@ -457,7 +475,7 @@ export default function GlobalAccommodationManager() {
           </div>
       )}
 
-      {/* --- ADD ROOM PANEL --- */}
+      {/* --- FLOATING PANEL: ADD ROOM (SCROLLABLE BACKGROUND) --- */}
       {showAddRoom && (
           <div style={panelStyle}>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
@@ -466,6 +484,7 @@ export default function GlobalAccommodationManager() {
               </div>
               
               <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
+                  {/* Improved Prefix Selector */}
                   <div>
                       <label style={styles.label}>Prefix & Suffix</label>
                       <div style={{display:'flex', gap:'5px'}}>
@@ -513,7 +532,7 @@ export default function GlobalAccommodationManager() {
           </div>
       )}
 
-      {/* --- DELETE ROOM PANEL --- */}
+      {/* --- FLOATING PANEL: DELETE ROOM (WITH PROTECTION) --- */}
       {showDeleteRoom && (
           <div style={{...panelStyle, borderTop:'4px solid #dc3545'}}>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
@@ -544,6 +563,7 @@ export default function GlobalAccommodationManager() {
           </div>
       )}
 
+      {/* Auto Tool Component (Overlay) */}
       <style>{`@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }`}</style>
       
       {showAutoTool && (
