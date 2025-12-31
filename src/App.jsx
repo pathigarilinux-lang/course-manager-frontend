@@ -19,38 +19,35 @@ import GateReception from './components/GateReception';
 import ATPanel from './components/ATPanel';
 
 function App() {
-  // ✅ CHANGE 1: Initialize User from Local Storage (Persist Login)
+  // 1. Initialize User
   const [user, setUser] = useState(() => {
       try {
           const savedUser = localStorage.getItem('dhammaUser');
           return savedUser ? JSON.parse(savedUser) : null;
-      } catch (e) {
-          return null;
-      }
+      } catch (e) { return null; }
   });
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [courses, setCourses] = useState([]);
+  const [courses, setCourses] = useState([]); // ✅ Always initialized as empty array
   const [stats, setStats] = useState({});
 
-  // ✅ CHANGE 2: Handle Login & Save to Storage
+  // 2. Login/Logout Handlers
   const handleLogin = (userData) => {
       setUser(userData);
       localStorage.setItem('dhammaUser', JSON.stringify(userData));
   };
 
-  // ✅ CHANGE 3: Handle Logout & Clear Storage
   const handleLogout = () => {
       setUser(null);
+      setCourses([]); // Clear sensitive data on logout
       localStorage.removeItem('dhammaUser');
-      setActiveTab('dashboard'); // Reset tab
+      setActiveTab('dashboard');
   };
 
-  // --- 1. FETCH & FILTER COURSES ---
+  // 3. Robust Fetch Logic
   const fetchCourses = async () => {
-      // Safety Check: If no user is logged in, don't fetch anything yet
-      if (!user) return; 
+      if (!user) return; // Don't fetch if logged out
 
       try {
           const res = await fetch(`${API_URL}/courses`);
@@ -61,39 +58,58 @@ function App() {
               return;
           }
 
-          // 🛡️ SECURITY FILTERING LOGIC
+          // 🛡️ ROLE-BASED FILTERING
           let filteredCourses = [];
-
           if (user.role === 'admin') {
-              // Admin sees EVERYTHING
               filteredCourses = allCourses;
-          } 
-          else if (user.role === 'dn1ops') {
-              // dn1ops sees ONLY courses created by 'dn1ops'
+          } else if (user.role === 'dn1ops') {
               filteredCourses = allCourses.filter(c => c.owner_role === 'dn1ops');
-          } 
-          else {
-              // Staff sees EVERYTHING EXCEPT 'dn1ops' courses
+          } else {
+              // Staff/Gate/AT see everything EXCEPT dn1ops courses
               filteredCourses = allCourses.filter(c => c.owner_role !== 'dn1ops');
           }
 
           setCourses(filteredCourses);
 
-      } catch (e) { console.error("Failed to fetch courses", e); }
+      } catch (e) { 
+          console.error("Failed to fetch courses", e); 
+          setCourses([]); // Fallback to empty array on error
+      }
   };
 
-  // ✅ FIX: Re-run fetchCourses whenever the 'user' changes
-  useEffect(() => { 
+  // 4. Load Data on Mount & User Change
+  useEffect(() => {
       if (user) {
-          fetchCourses(); 
+          fetchCourses();
       }
-  }, [user]); // <--- Adding [user] here fixes the issue!
+  }, [user]); // ✅ Re-runs whenever user logs in/out
 
-  // ✅ Pass handleLogin instead of inline function
-  if (!user) {
-      return <Login onLogin={handleLogin} />;
-  }
+  const fetchStats = async () => {
+      if(courses.length > 0) {
+          try {
+              const res = await fetch(`${API_URL}/courses/${courses[0].course_id}/stats`);
+              const data = await res.json();
+              setStats(data);
+          } catch(e) { console.error("Stats Error", e); }
+      }
+  };
 
+  useEffect(() => { if(courses.length > 0) fetchStats(); }, [courses]);
+
+  // 5. Role-Based Redirects
+  useEffect(() => {
+      if (user) {
+          if (user.role === 'gate') { setActiveTab('gate'); setSidebarOpen(false); }
+          else if (user.role === 'at') { setActiveTab('at'); setSidebarOpen(false); }
+          else if (['dashboard','gate','at'].includes(activeTab) && !['gate','at'].includes(user.role)) {
+               // Keep current tab unless restricted
+          }
+      }
+  }, [user]);
+
+  if (!user) return <Login onLogin={handleLogin} />;
+
+  // 6. Menu Items
   const MENU_ITEMS = [
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
       { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate', 'dn1ops'] },
@@ -161,7 +177,7 @@ function App() {
 
           <div style={{ padding: '15px', borderTop: '1px solid #334155' }}>
               <button 
-                  onClick={handleLogout} // ✅ Use the wrapper function
+                  onClick={handleLogout}
                   style={{
                       width: '100%',
                       display: 'flex',
@@ -204,7 +220,7 @@ function App() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
               {activeTab === 'dashboard' && <CourseDashboard courses={courses} stats={stats} />}
               {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} />}
-              {activeTab === 'checkin' && <StudentForm courses={courses} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} />}
+              {activeTab === 'checkin' && <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} />}
               {activeTab === 'students' && <ParticipantList courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               {activeTab === 'accommodation' && <GlobalAccommodationManager />}
               {activeTab === 'at' && <ATPanel courses={courses} />}
