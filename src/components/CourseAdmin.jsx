@@ -32,14 +32,8 @@ const thPrint = {
 const extractPhoneNumber = (rawStr) => {
     if (!rawStr) return '';
     const str = String(rawStr);
-    
-    // 1. Remove Email Addresses
     const withoutEmail = str.replace(/\S+@\S+\.\S+/g, '');
-    
-    // 2. Remove non-digit characters (keep +)
-    // We allow 0-9 and + (for country codes)
     const cleanNumber = withoutEmail.replace(/[^0-9+]/g, '');
-    
     return cleanNumber.trim();
 };
 
@@ -155,7 +149,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
                 teacherName: newCourseData.teacher || 'Goenka Ji',
                 startDate: newCourseData.startDate,
                 endDate: newCourseData.endDate,
-                owner_role: userRole
+                owner_role: userRole // ✅ CRITICAL: Assigns the role (dn1ops/staff/admin)
             }) 
         });
         
@@ -244,10 +238,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
         name: getIndex(['Student', 'Name', 'Sadhaka']), 
         age: getIndex(['Age']), 
         gender: getIndex(['Gender', 'Sex']), 
-        
-        // ✅ PRIORITY SEARCH: Specific terms first, then generic 'Contact'
         phone: getIndex(['Mobile', 'Cell', 'Phone', 'Contact No', 'Contact Num', 'Contact']), 
-        
         generic: getIndex(['Courses', 'History', 'Old/New']), 
         c10: getIndex(['10d']), cstp: getIndex(['STP', 'Satipatthana']), ctsc: getIndex(['TSC', 'Teen', 'Service']),
         c20: getIndex(['20d']), c30: getIndex(['30d']), c45: getIndex(['45d', '40d']), c60: getIndex(['60d']),
@@ -308,7 +299,6 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
             else if (gVal.startsWith('f')) pGender = 'Female';
         }
 
-        // ✅ PHONE EXTRACT & CLEAN
         const rawPhone = map.phone > -1 ? row[map.phone] : '';
         const cleanPhone = extractPhoneNumber(rawPhone);
         if(cleanPhone) phoneCount++;
@@ -338,7 +328,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
             age: map.age > -1 ? row[map.age] : '', 
             gender: pGender || 'Unknown', 
             courses_info: coursesStr, 
-            mobile: cleanPhone, // Stored internally as 'mobile'
+            mobile: cleanPhone, 
             notes: map.languages > -1 ? `Lang: ${row[map.languages]}` : '', 
             status: 'Active' 
         });
@@ -365,9 +355,6 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
                 age: s.age, 
                 gender: s.gender, 
                 courses: s.courses_info, 
-                
-                // ✅ SHOTGUN APPROACH: SEND ALL POSSIBLE KEYS
-                // This ensures the backend catches it regardless of what parameter it expects
                 phone_number: s.mobile,
                 phone: s.mobile,
                 mobile: s.mobile,
@@ -420,6 +407,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
   // 3. BACKUP & SEARCH TOOLS
   // ==========================================
 
+  // ✅ RESTORED BACKUP FEATURE
   const handleDownloadBackup = async () => {
       try {
           const response = await fetch(`${API_URL}/backup`);
@@ -462,6 +450,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
       setIsSearching(false);
   };
 
+  // ✅ UPDATED TABS TO INCLUDE BACKUP
   const TABS = [
       { id: 'courses', label: 'Courses', icon: <Calendar size={16}/> },
       { id: 'import', label: 'Import', icon: <Upload size={16}/> },
