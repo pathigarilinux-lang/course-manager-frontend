@@ -13,6 +13,7 @@ export default function Login({ onLogin }) {
   const availableUsers = [
     { role: 'Admin (Full Access)', code: '1', hint: 'Super User' },
     { role: 'Reg Staff (Ops)',     code: '5', hint: 'Master List' },
+    { role: 'DN1 Ops',             code: '4', hint: 'Restricted Ops' },
     { role: 'Gate Reception',      code: '0', hint: 'Check-In' },
     { role: 'AT Panel',            code: '2', hint: 'Teacher' },
   ];
