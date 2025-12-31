@@ -53,7 +53,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
 
   // Initial Room Load (Static Structure)
   useEffect(() => { 
-      fetch(`${API_URL}/rooms`).then(res=>res.json()).then(setRooms); 
+      fetch(`${API_URL}/rooms`).then(res=>res.json()).then(setRooms).catch(() => setRooms([])); 
   }, []);
 
   // Pre-selection Logic
@@ -67,17 +67,45 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
       } 
   }, [preSelectedRoom, courses]);
 
-  // AUTO-SYNC DATA ENGINE
+  // ✅ CRITICAL FIX: SAFETY CHECKS ADDED HERE
   useEffect(() => { 
       if (formData.courseId) {
           const syncData = () => {
+              // 1. Fetch Participants
               fetch(`${API_URL}/courses/${formData.courseId}/participants`)
-                  .then(res => res.json()).then(data => { if(Array.isArray(data)) setParticipants(data); }).catch(console.error);
+                  .then(res => res.json())
+                  .then(data => { 
+                      setParticipants(Array.isArray(data) ? data : []); 
+                  })
+                  .catch(e => { console.error(e); setParticipants([]); });
+
+              // 2. Fetch Global Occupied (Dining/Pagoda)
               fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`)
-                  .then(res => res.json()).then(data => setGlobalOccupied(data)).catch(console.error);
+                  .then(res => res.json())
+                  .then(data => {
+                      // Force structure to prevent crashes
+                      setGlobalOccupied({
+                          dining: Array.isArray(data?.dining) ? data.dining : [],
+                          pagoda: Array.isArray(data?.pagoda) ? data.pagoda : []
+                      });
+                  })
+                  .catch(e => { 
+                      console.error(e); 
+                      setGlobalOccupied({ dining: [], pagoda: [] }); 
+                  });
+
+              // 3. Fetch Room Occupancy
               fetch(`${API_URL}/rooms/occupancy`)
-                  .then(res => res.json()).then(setOccupancy).catch(console.error);
+                  .then(res => res.json())
+                  .then(data => {
+                      setOccupancy(Array.isArray(data) ? data : []);
+                  })
+                  .catch(e => { 
+                      console.error(e); 
+                      setOccupancy([]); 
+                  });
           };
+
           syncData();
           setSearchTerm(''); 
           const interval = setInterval(syncData, 5000);
@@ -107,14 +135,15 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
   const diningMap = new Map();
   const pagodaMap = new Map();
 
-  globalOccupied.dining.forEach(item => {
+  // ✅ SAFELY ITERATE
+  (globalOccupied.dining || []).forEach(item => {
       const itemGender = (item.gender || '').toLowerCase();
       if (!itemGender || itemGender.startsWith(currentGenderRaw.charAt(0))) {
           diningMap.set(item.seat, { blocked: true, tag: item.tag || 'Other', type: 'Global' });
       }
   });
 
-  globalOccupied.pagoda.forEach(item => {
+  (globalOccupied.pagoda || []).forEach(item => {
       const itemGender = (item.gender || '').toLowerCase();
       if (!itemGender || itemGender.startsWith(currentGenderRaw.charAt(0))) {
           pagodaMap.set(item.cell, { blocked: true, tag: item.tag || 'Other', type: 'Global' });
@@ -180,7 +209,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
       const roomObj = bedData.room_no ? bedData : bedData;
       if (roomObj.occupant) return alert("⛔ This bed is already occupied!");
       
-      // Gender warning skipped for dn1ops if needed, or kept strict
       const roomGender = (roomObj.gender_type || bedData.gender || '').toLowerCase();
       const studentGenderChar = (selectedStudent?.gender || '').toLowerCase().charAt(0);
       
@@ -457,7 +485,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
                           <button onClick={() => setShowVisualDining(false)} style={{background:'none', border:'none', cursor:'pointer'}}><X size={24}/></button>
                       </div>
                       <div style={{flex:1, overflow:'auto', padding:'20px'}}>
-                          <DiningLayout onSelect={handleDiningSeatChange} occupied={globalOccupied.dining} currentGender={selectedStudent?.gender} />
+                          <DiningLayout onSelect={handleDiningSeatChange} occupied={globalOccupied.dining || []} currentGender={selectedStudent?.gender} />
                       </div>
                   </div>
               </div>
@@ -472,7 +500,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
                           <button onClick={() => setShowVisualPagoda(false)} style={{background:'none', border:'none', cursor:'pointer'}}><X size={24}/></button>
                       </div>
                       <div style={{flex:1, overflow:'auto', padding:'20px'}}>
-                          <PagodaLayout onSelect={handlePagodaSelect} occupied={globalOccupied.pagoda} currentGender={selectedStudent?.gender} />
+                          <PagodaLayout onSelect={handlePagodaSelect} occupied={globalOccupied.pagoda || []} currentGender={selectedStudent?.gender} />
                       </div>
                   </div>
               </div>
