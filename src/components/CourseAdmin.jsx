@@ -149,7 +149,7 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
                 teacherName: newCourseData.teacher || 'Goenka Ji',
                 startDate: newCourseData.startDate,
                 endDate: newCourseData.endDate,
-                // ✅ CRITICAL FIX: Ensures new course belongs to dn1ops
+                // 👇 THIS IS THE MISSING LINE 👇
                 owner_role: userRole 
             }) 
         });
