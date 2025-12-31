@@ -45,9 +45,9 @@ function App() {
       setActiveTab('dashboard');
   };
 
-  // --- 1. ROBUST FETCH LOGIC ---
+  // 3. Robust Fetch Logic
   const fetchCourses = async () => {
-      if (!user) return; 
+      if (!user) return; // Don't fetch if logged out
 
       try {
           const res = await fetch(`${API_URL}/courses`);
@@ -58,31 +58,31 @@ function App() {
               return;
           }
 
+          // 🛡️ ROLE-BASED FILTERING
           let filteredCourses = [];
-
           if (user.role === 'admin') {
-              // Admin sees EVERYTHING
               filteredCourses = allCourses;
-          } 
-          else if (user.role === 'dn1ops') {
-              // dn1ops sees ONLY explicit 'dn1ops' courses
+          } else if (user.role === 'dn1ops') {
               filteredCourses = allCourses.filter(c => c.owner_role === 'dn1ops');
-          } 
-          else {
-              // Staff/Gate/AT see 'staff' OR 'admin' (but NEVER dn1ops)
-              // We check for owner_role is NULL (legacy) OR 'staff' OR 'admin'
-              filteredCourses = allCourses.filter(c => 
-                  c.owner_role !== 'dn1ops' // Explicitly exclude dn1ops
-              );
+          } else {
+              // Staff/Gate/AT see everything EXCEPT dn1ops courses
+              filteredCourses = allCourses.filter(c => c.owner_role !== 'dn1ops');
           }
 
           setCourses(filteredCourses);
 
       } catch (e) { 
           console.error("Failed to fetch courses", e); 
-          setCourses([]); 
+          setCourses([]); // Fallback to empty array on error
       }
   };
+
+  // 4. Load Data on Mount & User Change
+  useEffect(() => {
+      if (user) {
+          fetchCourses();
+      }
+  }, [user]); // ✅ Re-runs whenever user logs in/out
 
   const fetchStats = async () => {
       if(courses.length > 0) {
