@@ -94,16 +94,15 @@ function App() {
   }
 
   const MENU_ITEMS = [
-      { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff'] },
-      { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate'] },
-      { id: 'checkin', label: 'Onboarding', icon: <UserPlus size={20}/>, roles: ['admin', 'staff'] },
-      { id: 'students', label: 'Manage Students', icon: <Users size={20}/>, roles: ['admin', 'staff'] },
-      { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={20}/>, roles: ['admin', 'staff'] },
-      { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin', 'staff', 'at'] }, 
-      { id: 'admin', label: 'Course Admin', icon: <Database size={20}/>, roles: ['admin', 'staff'] }, 
-      { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin', 'staff'] },
-      { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin', 'staff'] }, 
-       
+      { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate', 'dn1ops'] },
+      { id: 'checkin', label: 'Onboarding', icon: <UserPlus size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'students', label: 'Manage Students', icon: <Users size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin', 'staff', 'at', 'dn1ops'] }, 
+      { id: 'admin', label: 'Course Admin', icon: <Database size={20}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
+      { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
   ];
 
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
@@ -211,8 +210,8 @@ function App() {
               {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               {activeTab === 'seva' && <SevaBoard courses={courses} />}
               
-              {/* ✅ Render Store for Admin AND Staff */}
-              {(user.role === 'admin' || user.role === 'staff') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
+              {/* ✅ Render Store for Admin, Staff AND dn1ops */}
+              {(user.role === 'admin' || user.role === 'staff' || user.role === 'dn1ops') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
           </div>
       </main>
     </div>
