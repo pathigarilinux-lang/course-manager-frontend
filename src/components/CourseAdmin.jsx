@@ -149,7 +149,8 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
                 teacherName: newCourseData.teacher || 'Goenka Ji',
                 startDate: newCourseData.startDate,
                 endDate: newCourseData.endDate,
-                owner_role: userRole // ✅ CRITICAL: Assigns the role (dn1ops/staff/admin)
+                // ✅ CRITICAL FIX: Ensures new course belongs to dn1ops
+                owner_role: userRole 
             }) 
         });
         
@@ -210,7 +211,6 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ SMART PROCESSOR
   const processDataRows = (rows) => {
     if (!rows || rows.length < 2) { setUploadStatus({ type: 'error', msg: 'File is empty.' }); return; }
     
