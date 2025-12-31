@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Save, Trash2, Printer, Coffee, Bell, Shield, Briefcase, UserCheck, Edit } from 'lucide-react';
+import { Users, Plus, Save, Trash2, Printer, Coffee, Bell, Shield, Briefcase, UserCheck, Edit, Heart } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
 export default function SevaBoard({ courses }) {
