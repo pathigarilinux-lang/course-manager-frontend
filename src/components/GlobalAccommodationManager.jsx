@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, RefreshCw, BedDouble, PlusCircle, Trash2, Printer, X, PieChart as PieIcon, BarChart3, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Search, RefreshCw, BedDouble, PlusCircle, Trash2, Printer, X, PieChart as PieIcon, BarChart3, AlertTriangle, ArrowRight, Wand2 } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { API_URL, styles } from '../config';
 import MaleBlockLayout from './MaleBlockLayout';     
@@ -15,9 +15,8 @@ const COLORS = {
 };
 
 // ✅ STRICT DELETION POLICY
-// Only rooms starting with these prefixes can be deleted.
-// Everything else (A, B, C... ISO) is considered CORE and protected.
-const ALLOWED_DELETE_PREFIXES = ['TENT', 'HALL', 'DORM', 'TEMP', 'EXTRA', 'OVR'];
+// Added 'ROOM' so you can delete the individual rooms if needed
+const ALLOWED_DELETE_PREFIXES = ['TENT', 'HALL', 'DORM', 'TEMP', 'EXTRA', 'OVR', 'ROOM'];
 
 export default function GlobalAccommodationManager() {
   // --- STATE MANAGEMENT ---
@@ -32,8 +31,9 @@ export default function GlobalAccommodationManager() {
   // Tools & Modals
   const [showAddRoom, setShowAddRoom] = useState(false);
   const [showDeleteRoom, setShowDeleteRoom] = useState(false);
+  const [showBulkTool, setShowBulkTool] = useState(false); // ✅ New State
   
-  // New Room Form State (Split for safety)
+  // New Room Form State
   const [newRoomData, setNewRoomData] = useState({ 
       prefix: 'TENT', 
       suffix: '', 
@@ -42,6 +42,9 @@ export default function GlobalAccommodationManager() {
       floor: 'Ground' 
   });
   
+  // Bulk Gen State
+  const [bulkGender, setBulkGender] = useState('Male');
+
   const [deleteRoomNo, setDeleteRoomNo] = useState('');
   const [showAutoTool, setShowAutoTool] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(''); 
@@ -60,19 +63,16 @@ export default function GlobalAccommodationManager() {
         const oList = await occRes.json();
         const cList = await coursesRes.json();
 
-        // Safety checks to prevent "filter of undefined" crashes
         setRooms(Array.isArray(rList) ? rList : []);
         setOccupancy(Array.isArray(oList) ? oList : []);
         setCourses(Array.isArray(cList) ? cList : []);
         
-        // Auto-select first course for the tool
         if(Array.isArray(cList) && cList.length > 0 && !selectedCourse) {
             setSelectedCourse(cList[0].course_id);
         }
 
     } catch (err) { 
         console.error("Error loading data:", err); 
-        // Fallbacks to prevent UI crash
         setRooms([]);
         setOccupancy([]);
     }
@@ -80,7 +80,7 @@ export default function GlobalAccommodationManager() {
   
   useEffect(() => { loadData(); }, []);
 
-  // --- STATISTICS ENGINE (Memoized for Performance) ---
+  // --- STATISTICS ENGINE ---
   const stats = useMemo(() => {
       const breakdown = {
           male: { OM:0, NM:0, SM:0, Total:0 },
@@ -109,7 +109,6 @@ export default function GlobalAccommodationManager() {
           }
       });
 
-      // Prepare Bar Chart Data by Course
       const courseMap = {};
       (courses || []).forEach(c => {
           const name = c.course_name.split('/')[0].substring(0, 15);
@@ -133,7 +132,6 @@ export default function GlobalAccommodationManager() {
       const targetRoomNo = targetRoomData.room_no;
       const targetOccupant = occupancy.find(p => p.room_no === targetRoomNo);
 
-      // Mode 1: Select Student to Move
       if (!moveMode) {
           if (targetOccupant) {
               setMoveMode({ student: targetOccupant, sourceRoom: targetRoomNo });
@@ -141,29 +139,21 @@ export default function GlobalAccommodationManager() {
           return;
       }
 
-      // Mode 2: Execute Move/Swap
       const { student, sourceRoom } = moveMode;
       const studentGender = (student.gender || '').toLowerCase();
       const roomGender = (targetRoomData.gender_type || '').toLowerCase();
       
-      // Gender Safety Check
       if (!studentGender.startsWith(roomGender.charAt(0))) {
           if(!window.confirm(`⚠️ GENDER WARNING: Moving ${student.gender} to ${targetRoomData.gender_type} room?`)) return;
       }
 
-      // API Calls
       try {
           if (targetOccupant) {
-              // SWAP Logic
               if (!window.confirm(`Swap ${student.full_name} <-> ${targetOccupant.full_name}?`)) return;
-              // 1. Move A to Temp
               await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: 'TEMP_SWAP' }) });
-              // 2. Move B to Source
               await fetch(`${API_URL}/participants/${targetOccupant.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...targetOccupant, room_no: sourceRoom }) });
-              // 3. Move A to Target
               await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: targetRoomNo }) });
           } else {
-              // MOVE Logic
               if (!window.confirm(`Move ${student.full_name} to ${targetRoomNo}?`)) return;
               await fetch(`${API_URL}/participants/${student.participant_id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ...student, room_no: targetRoomNo }) });
           }
@@ -176,12 +166,9 @@ export default function GlobalAccommodationManager() {
   };
 
   const handleAddRoom = async () => {
-      // Validate inputs
       if (!newRoomData.suffix.trim()) return alert("Please enter a suffix (e.g., 1, 2, A)");
-      
       const generatedRoomNo = `${newRoomData.prefix}-${newRoomData.suffix.trim().toUpperCase()}`;
 
-      // Check duplicacy
       if(rooms.some(r => r.room_no === generatedRoomNo)) {
           return alert("Room Number already exists!");
       }
@@ -195,13 +182,12 @@ export default function GlobalAccommodationManager() {
                   type: newRoomData.gender,
                   capacity: newRoomData.capacity,
                   floor: newRoomData.floor,
-                  block: 'TEMP' // Mark as TEMP block
+                  block: 'TEMP' 
               }) 
           });
           
           if (res.ok) { 
               alert(`✅ Room ${generatedRoomNo} Added Successfully!`); 
-              // Reset but keep prefix/gender for speed entry
               setNewRoomData(prev => ({ ...prev, suffix: '' })); 
               loadData(); 
           } else { 
@@ -211,11 +197,58 @@ export default function GlobalAccommodationManager() {
       } catch (err) { alert("❌ Network Error"); }
   };
 
-  // ✅ CHECK IF DELETABLE
+  // ✅ NEW: BULK GENERATOR LOGIC
+  const handleBulkGenerate = async () => {
+      const msg = `⚠️ GENERATE NEW BLOCK?\n\nThis will create:\n- 8 Dormitories (DORMITORY-21 to 28) [6 Beds]\n- 3 Rooms (ROOM-A to C) [2 Beds]\n\nGender: ${bulkGender}`;
+      if (!window.confirm(msg)) return;
+
+      const newBlockRooms = [];
+
+      // 1. Create 8 Dormitories (6 Beds)
+      for (let i = 21; i <= 28; i++) {
+          newBlockRooms.push({
+              roomNo: `DORMITORY-${i}`,
+              type: bulkGender,
+              capacity: 6,
+              floor: 'Ground',
+              block: 'New Block'
+          });
+      }
+
+      // 2. Create 3 Individual Rooms (2 Beds)
+      ['A', 'B', 'C'].forEach(suffix => {
+          newBlockRooms.push({
+              roomNo: `ROOM-${suffix}`,
+              type: bulkGender,
+              capacity: 2,
+              floor: 'Ground',
+              block: 'New Block'
+          });
+      });
+
+      let successCount = 0;
+      for (const room of newBlockRooms) {
+          // Skip if exists
+          if (rooms.some(r => r.room_no === room.roomNo)) continue;
+          
+          try {
+              await fetch(`${API_URL}/rooms`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(room)
+              });
+              successCount++;
+          } catch(e) { console.error(e); }
+      }
+
+      alert(`✅ Created ${successCount} new rooms in "New Block".`);
+      loadData();
+      setShowBulkTool(false);
+  };
+
   const isDeletable = (roomNo) => {
       if(!roomNo) return false;
       const upper = roomNo.toUpperCase();
-      // Only allow if it STARTS with one of the allowed manual prefixes
       return ALLOWED_DELETE_PREFIXES.some(prefix => upper.startsWith(prefix));
   };
 
@@ -225,13 +258,11 @@ export default function GlobalAccommodationManager() {
       
       if (!room) return alert("❌ Room not found.");
       
-      // ✅ STRICT SAFETY CHECK
       if (!isDeletable(room.room_no)) {
           alert(`⛔ ACTION DENIED\n\nRoom '${room.room_no}' is a Core System Room.\nYou can ONLY delete rooms starting with: ${ALLOWED_DELETE_PREFIXES.join(', ')}`);
           return;
       }
 
-      // Occupancy Check
       const isOccupied = (occupancy || []).some(p => p.room_no === room.room_no);
       if (isOccupied) return alert(`⛔ Cannot delete ${room.room_no}. It is occupied!`);
 
@@ -264,22 +295,14 @@ export default function GlobalAccommodationManager() {
 
   const searchResult = searchQuery ? (occupancy || []).find(p => p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || p.conf_no.toLowerCase().includes(searchQuery.toLowerCase())) : null;
 
-  // Chart Data Preparation
   const malePieData = [ { name: 'Old', value: stats.male.OM, color: COLORS.om }, { name: 'New', value: stats.male.NM, color: COLORS.nm }, { name: 'Server', value: stats.male.SM, color: COLORS.sm } ].filter(d => d.value > 0);
   const femalePieData = [ { name: 'Old', value: stats.female.OF, color: COLORS.of }, { name: 'New', value: stats.female.NF, color: COLORS.nf }, { name: 'Server', value: stats.female.SF, color: COLORS.sf } ].filter(d => d.value > 0);
 
-  // --- FLOATING PANEL STYLE (SCROLLABLE & NON-BLOCKING) ---
   const panelStyle = {
-      position: 'fixed', 
-      bottom: '30px', 
-      right: '30px', 
-      background: 'white', 
-      padding: '25px', 
-      borderRadius: '12px', 
+      position: 'fixed', bottom: '30px', right: '30px', 
+      background: 'white', padding: '25px', borderRadius: '12px', 
       boxShadow: '0 20px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.05)', 
-      width: '320px', 
-      zIndex: 2000,
-      animation: 'slideUp 0.3s ease-out'
+      width: '320px', zIndex: 2000, animation: 'slideUp 0.3s ease-out'
   };
 
   return (
@@ -342,7 +365,6 @@ export default function GlobalAccommodationManager() {
       {/* 2. CONTROLS BAR */}
       <div className="no-print" style={{ background: 'white', padding: '10px 20px', borderBottom: '1px solid #eaeaea', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           
-          {/* Tabs */}
           <div style={{display:'flex', gap:'10px'}}>
               {['Male', 'Female'].map(gender => (
                   <button key={gender} onClick={() => { setActiveTab(gender); setNewRoomData(prev => ({...prev, gender: gender})); }} 
@@ -352,7 +374,6 @@ export default function GlobalAccommodationManager() {
               ))}
           </div>
 
-          {/* Action Buttons */}
           <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
               
               {moveMode && (
@@ -379,11 +400,15 @@ export default function GlobalAccommodationManager() {
               </div>
               
               {/* Tool Toggles */}
-              <button onClick={() => { setShowAddRoom(!showAddRoom); setShowDeleteRoom(false); }} style={{background: showAddRoom ? '#333' : '#28a745', border:'none', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', color:'white', display:'flex', alignItems:'center', gap:'5px', fontWeight:'bold'}}>
+              <button onClick={() => { setShowBulkTool(!showBulkTool); setShowAddRoom(false); setShowDeleteRoom(false); }} style={{background: showBulkTool ? '#333' : '#6f42c1', border:'none', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', color:'white', display:'flex', alignItems:'center', gap:'5px', fontWeight:'bold'}}>
+                  <Wand2 size={16}/> {showBulkTool ? 'Close' : 'Bulk Tools'}
+              </button>
+
+              <button onClick={() => { setShowAddRoom(!showAddRoom); setShowDeleteRoom(false); setShowBulkTool(false); }} style={{background: showAddRoom ? '#333' : '#28a745', border:'none', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', color:'white', display:'flex', alignItems:'center', gap:'5px', fontWeight:'bold'}}>
                   <PlusCircle size={16}/> {showAddRoom ? 'Close' : 'Add Room'}
               </button>
 
-              <button onClick={() => { setShowDeleteRoom(!showDeleteRoom); setShowAddRoom(false); }} style={{background: showDeleteRoom ? '#333' : '#dc3545', border:'none', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', color:'white', display:'flex', alignItems:'center', gap:'5px', fontWeight:'bold'}}>
+              <button onClick={() => { setShowDeleteRoom(!showDeleteRoom); setShowAddRoom(false); setShowBulkTool(false); }} style={{background: showDeleteRoom ? '#333' : '#dc3545', border:'none', borderRadius:'6px', padding:'6px 12px', cursor:'pointer', color:'white', display:'flex', alignItems:'center', gap:'5px', fontWeight:'bold'}}>
                   <Trash2 size={16}/> {showDeleteRoom ? 'Close' : 'Del Room'}
               </button>
 
@@ -393,9 +418,8 @@ export default function GlobalAccommodationManager() {
           </div>
       </div>
 
-      {/* 3. MAIN CANVAS AREA (SCROLLABLE) */}
+      {/* 3. MAIN CANVAS AREA */}
       <div style={{padding:'30px', background:'white', minHeight:'600px', overflowX:'auto'}}>
-          {/* Render Safety: Ensure data exists before passing */}
           {activeTab === 'Male' ? (
               <MaleBlockLayout rooms={rooms || []} occupancy={occupancy || []} onRoomClick={handleRoomInteraction} />
           ) : (
@@ -403,7 +427,37 @@ export default function GlobalAccommodationManager() {
           )}
       </div>
 
-      {/* --- FLOATING PANEL: ADD ROOM (SCROLLABLE BACKGROUND) --- */}
+      {/* --- BULK GENERATOR PANEL (NEW) --- */}
+      {showBulkTool && (
+          <div style={{...panelStyle, borderTop:'4px solid #6f42c1'}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
+                  <h3 style={{margin:0, fontSize:'16px', color:'#6f42c1'}}>New Block Gen</h3>
+                  <button onClick={()=>setShowBulkTool(false)} style={{border:'none', background:'none', cursor:'pointer'}}><X size={18}/></button>
+              </div>
+              
+              <div style={{background:'#f3e5f5', padding:'10px', borderRadius:'6px', marginBottom:'15px', border:'1px solid #e1bee7', fontSize:'12px', color:'#4a148c'}}>
+                  <div style={{fontWeight:'bold', marginBottom:'5px'}}>Will Create:</div>
+                  <ul style={{paddingLeft:'20px', margin:0}}>
+                      <li>8 Dormitories (DORM-21 to 28) with 6 beds</li>
+                      <li>3 Rooms (ROOM-A to C) with 2 beds</li>
+                  </ul>
+              </div>
+
+              <div style={{marginBottom:'15px'}}>
+                  <label style={styles.label}>Select Block Gender:</label>
+                  <select value={bulkGender} onChange={e=>setBulkGender(e.target.value)} style={styles.input}>
+                      <option value="Male">Male Block</option>
+                      <option value="Female">Female Block</option>
+                  </select>
+              </div>
+              
+              <button onClick={handleBulkGenerate} style={{width:'100%', padding:'12px', borderRadius:'6px', border:'none', background:'#6f42c1', color:'white', fontWeight:'bold', cursor:'pointer', fontSize:'13px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px'}}>
+                  <Wand2 size={16}/> GENERATE LAYOUT
+              </button>
+          </div>
+      )}
+
+      {/* --- ADD ROOM PANEL --- */}
       {showAddRoom && (
           <div style={panelStyle}>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
@@ -412,7 +466,6 @@ export default function GlobalAccommodationManager() {
               </div>
               
               <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
-                  {/* Improved Prefix Selector */}
                   <div>
                       <label style={styles.label}>Prefix & Suffix</label>
                       <div style={{display:'flex', gap:'5px'}}>
@@ -460,7 +513,7 @@ export default function GlobalAccommodationManager() {
           </div>
       )}
 
-      {/* --- FLOATING PANEL: DELETE ROOM (WITH PROTECTION) --- */}
+      {/* --- DELETE ROOM PANEL --- */}
       {showDeleteRoom && (
           <div style={{...panelStyle, borderTop:'4px solid #dc3545'}}>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
@@ -491,7 +544,6 @@ export default function GlobalAccommodationManager() {
           </div>
       )}
 
-      {/* Auto Tool Component (Overlay) */}
       <style>{`@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }`}</style>
       
       {showAutoTool && (
