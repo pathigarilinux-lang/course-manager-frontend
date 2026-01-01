@@ -19,6 +19,7 @@ import GateReception from './components/GateReception';
 import ATPanel from './components/ATPanel';
 
 function App() {
+  // 1. Initialize User
   const [user, setUser] = useState(() => {
       try {
           const savedUser = localStorage.getItem('dhammaUser');
@@ -26,126 +27,191 @@ function App() {
       } catch (e) { return null; }
   });
 
-  // ✅ LOGIC: If 'gate' user, default directly to 'gate' tab
-  const [activeTab, setActiveTab] = useState(user?.role === 'gate' ? 'gate' : 'dashboard');
-  
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [courses, setCourses] = useState([]); 
+  const [courses, setCourses] = useState([]); // ✅ Always initialized as empty array
   const [stats, setStats] = useState({});
 
+  // 2. Login/Logout Handlers
   const handleLogin = (userData) => {
       setUser(userData);
       localStorage.setItem('dhammaUser', JSON.stringify(userData));
-      // ✅ Redirect Gate users immediately
-      setActiveTab(userData.role === 'gate' ? 'gate' : 'dashboard');
   };
 
   const handleLogout = () => {
       setUser(null);
+      setCourses([]); // Clear sensitive data on logout
       localStorage.removeItem('dhammaUser');
       setActiveTab('dashboard');
   };
 
+  // 3. Robust Fetch Logic
   const fetchCourses = async () => {
+      if (!user) return; // Don't fetch if logged out
+
       try {
-          const res = await fetch(`${API_URL}/courses`); 
-          const data = await res.json();
-          setCourses(Array.isArray(data) ? data : []);
-      } catch (err) { console.error("Fetch Error:", err); setCourses([]); }
+          const res = await fetch(`${API_URL}/courses`);
+          const allCourses = await res.json();
+          
+          if (!Array.isArray(allCourses)) {
+              setCourses([]);
+              return;
+          }
+
+          // 🛡️ ROLE-BASED FILTERING
+          let filteredCourses = [];
+          if (user.role === 'admin') {
+              filteredCourses = allCourses;
+          } else if (user.role === 'dn1ops') {
+              filteredCourses = allCourses.filter(c => c.owner_role === 'dn1ops');
+          } else {
+              // Staff/Gate/AT see everything EXCEPT dn1ops courses
+              filteredCourses = allCourses.filter(c => c.owner_role !== 'dn1ops');
+          }
+
+          setCourses(filteredCourses);
+
+      } catch (e) { 
+          console.error("Failed to fetch courses", e); 
+          setCourses([]); // Fallback to empty array on error
+      }
   };
 
-  const fetchStats = async () => {
-      try {
-          const res = await fetch(`${API_URL}/stats`);
-          const data = await res.json();
-          setStats(data);
-      } catch (err) { console.error(err); }
-  };
-
+  // 4. Load Data on Mount & User Change
   useEffect(() => {
       if (user) {
           fetchCourses();
-          fetchStats();
+      }
+  }, [user]); // ✅ Re-runs whenever user logs in/out
+
+  const fetchStats = async () => {
+      if(courses.length > 0) {
+          try {
+              const res = await fetch(`${API_URL}/courses/${courses[0].course_id}/stats`);
+              const data = await res.json();
+              setStats(data);
+          } catch(e) { console.error("Stats Error", e); }
+      }
+  };
+
+  useEffect(() => { if(courses.length > 0) fetchStats(); }, [courses]);
+
+  // 5. Role-Based Redirects
+  useEffect(() => {
+      if (user) {
+          if (user.role === 'gate') { setActiveTab('gate'); setSidebarOpen(false); }
+          else if (user.role === 'at') { setActiveTab('at'); setSidebarOpen(false); }
+          else if (['dashboard','gate','at'].includes(activeTab) && !['gate','at'].includes(user.role)) {
+               // Keep current tab unless restricted
+          }
       }
   }, [user]);
 
   if (!user) return <Login onLogin={handleLogin} />;
 
-  // --- SIDEBAR NAVIGATION HELPER ---
-  const NavItem = ({ id, label, icon: Icon, roles = [] }) => {
-      // ✅ If roles array is empty, everyone sees it. 
-      // ✅ If roles array has values, USER MUST BE IN IT.
-      if (roles.length > 0 && !roles.includes(user.role)) return null;
-      
-      return (
-          <button
-              onClick={() => { setActiveTab(id); if (window.innerWidth <= 768) setSidebarOpen(false); }}
-              style={{
-                  ...styles.navItem,
-                  background: activeTab === id ? 'rgba(255,255,255,0.2)' : 'transparent',
-                  justifyContent: isSidebarOpen ? 'flex-start' : 'center',
-                  padding: isSidebarOpen ? '12px 20px' : '12px',
-              }}
-              title={label}
-          >
-              <Icon size={20} />
-              {isSidebarOpen && <span>{label}</span>}
-          </button>
-      );
-  };
+  // 6. Menu Items
+  const MENU_ITEMS = [
+      { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate', 'dn1ops'] },
+      { id: 'checkin', label: 'Onboarding', icon: <UserPlus size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'students', label: 'Manage Students', icon: <Users size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin', 'staff', 'at', 'dn1ops'] }, 
+      { id: 'admin', label: 'Course Admin', icon: <Database size={20}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
+      { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
+  ];
+
+  const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
 
   return (
-    <div style={styles.dashboardContainer}>
-      {/* MOBILE HEADER */}
-      <div className="mobile-header" style={{display: 'none', padding: '15px', background: '#2c3e50', color: 'white', alignItems: 'center', justifyContent: 'space-between'}}>
-          <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-              <button onClick={() => setSidebarOpen(!isSidebarOpen)} style={{background:'none', border:'none', color:'white'}}><Menu size={24}/></button>
-              <h3 style={{margin:0}}>Dhamma Nagajjuna</h3>
-          </div>
-      </div>
-
+    <div style={{ display: 'flex', height: '100vh', background: '#f4f6f8', fontFamily: 'Segoe UI, sans-serif' }}>
+      
+      {/* SIDEBAR */}
       <aside style={{
-          ...styles.sidebar,
-          width: isSidebarOpen ? '260px' : '70px',
-          transform: (window.innerWidth <= 768 && !isSidebarOpen) ? 'translateX(-100%)' : 'translateX(0)',
-          position: window.innerWidth <= 768 ? 'fixed' : 'relative',
-          zIndex: 1000, transition: 'width 0.3s ease'
+          width: isSidebarOpen ? '260px' : '0px', 
+          minWidth: isSidebarOpen ? '260px' : '0px',
+          background: '#1e293b',
+          color: 'white',
+          transition: 'all 0.3s ease',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '2px 0 10px rgba(0,0,0,0.1)',
+          zIndex: 100,
+          overflow: 'hidden'
       }}>
-          <div style={{ padding: '20px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '10px' }}>
-              {isSidebarOpen ? <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>Dhamma Seva</h2> : <Heart size={28}/>}
-              {isSidebarOpen && <div style={{ fontSize: '12px', opacity: 0.7, marginTop: '5px' }}>{user.role === 'gate' ? 'Gate Access' : user.role}</div>}
+          <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid #334155', whiteSpace:'nowrap' }}>
+              <div style={{ minWidth: '35px', height: '35px', borderRadius: '8px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>DN</div>
+              <div>
+                  <div style={{ fontWeight: 'bold', fontSize: '16px' }}>Dhamma Nagajjuna</div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{user.username} ({user.role})</div>
+              </div>
           </div>
 
-          <nav style={{ flex: 1, overflowY: 'auto' }}>
-              {/* ✅ VISIBILITY RULES:
-                  - 'gate' user sees ONLY Gate tab.
-                  - 'dn1ops' sees Gate + others (if you kept previous logic).
-                  - 'admin'/'staff' see standard tabs.
-              */}
-              
-              <NavItem id="dashboard" label="Dashboard" icon={LayoutDashboard} roles={['admin', 'staff', 'dn1ops']} />
-              
-              {/* ✅ GATE TAB: Visible to EVERYONE (including 'gate' role) */}
-              <NavItem id="gate" label="Gate / Reception" icon={UserCheck} roles={['admin', 'staff', 'dn1ops', 'gate']} />
-              
-              <NavItem id="checkin" label="Check-In" icon={UserPlus} roles={['admin', 'staff', 'dn1ops']} />
-              <NavItem id="students" label="Participants" icon={Users} roles={['admin', 'staff', 'dn1ops']} />
-              <NavItem id="accommodation" label="Accommodation" icon={BedDouble} roles={['admin', 'staff']} />
-              <NavItem id="at" label="AT / Teacher" icon={GraduationCap} roles={['admin', 'staff', 'dn1ops']} />
-              <NavItem id="store" label="Store / Expenses" icon={ShoppingBag} roles={['admin', 'staff', 'dn1ops']} />
-              <NavItem id="seva" label="Seva Board" icon={Heart} roles={['admin', 'staff', 'dn1ops', 'gate']} />
-              <NavItem id="admin" label="Course Admin" icon={Database} roles={['admin', 'staff', 'dn1ops']} />
+          <nav style={{ flex: 1, padding: '15px 10px', overflowY: 'auto' }}>
+              {allowedMenuItems.map(item => (
+                  <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id)}
+                      style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '15px',
+                          padding: '12px 15px',
+                          background: activeTab === item.id ? '#334155' : 'transparent',
+                          color: activeTab === item.id ? '#60a5fa' : '#cbd5e1',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          marginBottom: '5px',
+                          transition: 'all 0.2s',
+                          whiteSpace: 'nowrap'
+                      }}
+                  >
+                      {item.icon}
+                      <span style={{ fontSize: '14px' }}>{item.label}</span>
+                  </button>
+              ))}
           </nav>
+
+          <div style={{ padding: '15px', borderTop: '1px solid #334155' }}>
+              <button 
+                  onClick={handleLogout}
+                  style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '15px',
+                      padding: '12px 15px',
+                      background: '#ef44441a',
+                      color: '#ef4444',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                  }}
+              >
+                  <LogOut size={20} />
+                  <span>Sign Out</span>
+              </button>
+          </div>
       </aside>
 
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: '#f4f6f9' }}>
-          <header style={{ background: 'white', padding: '15px 30px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0, color: '#2c3e50', fontSize: '20px' }}>
-                  {activeTab === 'gate' ? 'Gate Reception' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-              </h2>
-              
-              {user && (
-                  <button onClick={handleLogout} style={{background:'#ffebee', color:'#c62828', border:'none', padding:'8px 12px', borderRadius:'50%', width:'35px', height:'35px', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer'}}>
+      {/* MAIN CONTENT */}
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          
+          <header style={{ background: 'white', padding: '15px 30px', boxShadow: '0 2px 5px rgba(0,0,0,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+                  <button onClick={() => setSidebarOpen(!isSidebarOpen)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+                      {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+                  </button>
+                  <div style={{ fontSize: '14px', color: '#64748b', fontWeight: '600' }}>
+                      {MENU_ITEMS.find(i => i.id === activeTab)?.label || 'Dhamma Nagajjuna'}
+                  </div>
+              </div>
+              {!isSidebarOpen && (
+                  <button onClick={handleLogout} style={{background:'#ffebee', color:'#c62828', border:'none', borderRadius:'50%', width:'35px', height:'35px', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer'}}>
                       <LogOut size={16}/>
                   </button>
               )}
@@ -153,10 +219,7 @@ function App() {
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
               {activeTab === 'dashboard' && <CourseDashboard courses={courses} stats={stats} />}
-              
-              {/* ✅ GATE: Pass 'gate' role logic down */}
-              {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
-              
+              {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} />}
               {activeTab === 'checkin' && <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} userRole={user.role} />}
               {activeTab === 'students' && <ParticipantList courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               {activeTab === 'accommodation' && <GlobalAccommodationManager />}
@@ -164,6 +227,7 @@ function App() {
               {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               {activeTab === 'seva' && <SevaBoard courses={courses} />}
               
+              {/* ✅ Render Store for Admin, Staff AND dn1ops */}
               {(user.role === 'admin' || user.role === 'staff' || user.role === 'dn1ops') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
           </div>
       </main>
