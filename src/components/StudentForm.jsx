@@ -1,17 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-    User, MapPin, Coffee, Lock, Key, AlertTriangle, CheckCircle, 
-    Search, X, Printer, ArrowRight, Briefcase, RefreshCw, Wand2, RotateCcw 
-} from 'lucide-react';
-
-// --- LAYOUT IMPORTS ---
+import { User, MapPin, Coffee, Lock, Key, AlertTriangle, CheckCircle, Search, X, Printer, ArrowRight, Briefcase, RefreshCw, Wand2, RotateCcw } from 'lucide-react';
 import DiningLayout from '../DiningLayout';
 import PagodaLayout from '../PagodaLayout';
 import MaleBlockLayout from './MaleBlockLayout'; 
 import FemaleBlockLayout from './FemaleBlockLayout'; 
 import NewBlockLayout from './NewBlockLayout'; 
 
-// ✅ NEW DN1 LAYOUTS
+// ✅ NEW DN1 DINING IMPORTS
 import DN1MaleDining from './DN1MaleDining';
 import DN1FemaleDining from './DN1FemaleDining';
 
@@ -31,11 +26,9 @@ const getCourseSuffix = (courseName) => {
 };
 
 export default function StudentForm({ courses, preSelectedRoom, clearRoom, userRole }) {
-  // --- STATE ---
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]);
   const [occupancy, setOccupancy] = useState([]); 
-  
   const [selectedStudent, setSelectedStudent] = useState(null); 
   const [status, setStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,17 +47,16 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
   });
   
   const [printReceiptData, setPrintReceiptData] = useState(null);
-  
-  // Modals
   const [showVisualRoom, setShowVisualRoom] = useState(false);
-  const [showVisualDining, setShowVisualDining] = useState(false);
-  const [showVisualPagoda, setShowVisualPagoda] = useState(false);
-
-  // Tabs
+  
+  // ✅ MODAL TABS
   const [roomModalTab, setRoomModalTab] = useState(userRole === 'dn1ops' ? 'New Block' : 'Male'); 
   const [diningModalTab, setDiningModalTab] = useState('General'); // 'General', 'DN1 Male', 'DN1 Female'
 
-  // --- 1. INITIAL LOAD ---
+  const [showVisualDining, setShowVisualDining] = useState(false);
+  const [showVisualPagoda, setShowVisualPagoda] = useState(false);
+
+  // Initial Room Load
   useEffect(() => { 
       fetch(`${API_URL}/rooms`)
         .then(res => res.json())
@@ -83,20 +75,18 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
       } 
   }, [preSelectedRoom, courses]);
 
-  // --- 2. SYNC DATA ---
+  // Sync Data
   useEffect(() => { 
       if (formData.courseId) {
           const syncData = () => {
-              // 1. Fetch Participants
               fetch(`${API_URL}/courses/${formData.courseId}/participants`)
                   .then(res => res.json())
                   .then(data => setParticipants(Array.isArray(data) ? data : []))
                   .catch(e => { console.error(e); setParticipants([]); });
 
-              // 2. Fetch Global Occupied
               fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`)
                   .then(res => {
-                      if (res.status === 404) return { dining: [], pagoda: [] }; // Handle API missing
+                      if (res.status === 404) return { dining: [], pagoda: [] };
                       if (!res.ok) throw new Error('Global fetch failed');
                       return res.json();
                   })
@@ -106,18 +96,13 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
                           pagoda: (data && Array.isArray(data.pagoda)) ? data.pagoda : []
                       });
                   })
-                  .catch(e => { 
-                      console.warn("Sync warning:", e); 
-                      setGlobalOccupied({ dining: [], pagoda: [] }); 
-                  });
+                  .catch(e => { console.warn(e); setGlobalOccupied({ dining: [], pagoda: [] }); });
 
-              // 3. Fetch Room Occupancy
               fetch(`${API_URL}/rooms/occupancy`)
                   .then(res => res.json())
                   .then(data => setOccupancy(Array.isArray(data) ? data : []))
                   .catch(e => { console.error(e); setOccupancy([]); });
           };
-
           syncData();
           setSearchTerm(''); 
           const interval = setInterval(syncData, 5000);
@@ -136,13 +121,13 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
       }
   }, [formData.confNo, formData.courseName]);
 
-  // --- 3. CONFLICT MAPPING ---
   const cleanNum = (val) => val ? String(val).trim() : '';
   const currentGenderRaw = selectedStudent?.gender ? selectedStudent.gender.toLowerCase() : '';
   const isMale = currentGenderRaw.startsWith('m');
   const isFemale = currentGenderRaw.startsWith('f'); 
   const themeColor = isMale ? '#007bff' : (isFemale ? '#e91e63' : '#6c757d');
 
+  // --- CONFLICT MAPPING ---
   const diningMap = new Map();
   const pagodaMap = new Map();
 
@@ -181,7 +166,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
   const availableMobiles = (NUMBER_OPTIONS || []).filter(n => !usedMobiles.has(String(n)) || String(n) === String(formData.mobileLocker));
   const availableValuables = (NUMBER_OPTIONS || []).filter(n => !usedValuables.has(String(n)) || String(n) === String(formData.valuablesLocker));
 
-  // --- 4. HANDLERS ---
   const selectStudent = (student) => {
       setSelectedStudent(student);
       const targetCourseId = student.courseId || formData.courseId;
@@ -206,15 +190,13 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
   };
 
   const handleOpenRoomModal = () => {
-      if(!selectedStudent) return alert("⚠️ Please select a student first.");
       if (userRole === 'dn1ops') setRoomModalTab('New Block');
       else setRoomModalTab(isFemale ? 'Female' : 'Male');
       setShowVisualRoom(true);
   };
 
   const handleOpenDiningModal = () => {
-      if(!selectedStudent) return alert("⚠️ Please select a student first.");
-      // Auto-switch tab based on logic
+      // Auto-select tab logic
       if (userRole === 'dn1ops') setDiningModalTab(isFemale ? 'DN1 Female' : 'DN1 Male');
       else setDiningModalTab('General');
       setShowVisualDining(true);
@@ -223,14 +205,11 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
   const handleRoomSelect = (bedData) => {
       const roomObj = bedData.room_no ? bedData : bedData;
       if (roomObj.occupant) return alert("⛔ This bed is already occupied!");
-      
       const roomGender = (roomObj.gender_type || bedData.gender || '').toLowerCase();
       const studentGenderChar = (selectedStudent?.gender || '').toLowerCase().charAt(0);
-      
       if (userRole !== 'dn1ops' && roomGender && !roomGender.startsWith(studentGenderChar)) {
           if(!window.confirm(`⚠️ WARNING: Assigning ${roomGender} room to ${selectedStudent.gender} student. Continue?`)) return;
       }
-      
       setFormData(prev => ({ ...prev, roomNo: roomObj.room_no }));
       setShowVisualRoom(false);
   };
@@ -271,44 +250,29 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
   const handleSubmit = async (e) => { 
       e.preventDefault();
       if (!formData.confNo) return alert("Missing Conf No");
-      
       const dStatus = diningMap.get(formData.seatNo);
       if (formData.seatNo && dStatus && dStatus.blocked) return alert(`⛔ STOP: Dining Seat ${formData.seatNo} is ALREADY TAKEN.`);
-      
       const pStatus = pagodaMap.get(formData.pagodaCell);
       if (formData.pagodaCell && pStatus && pStatus.blocked) return alert(`⛔ STOP: Pagoda Cell ${formData.pagodaCell} is ALREADY TAKEN.`);
 
       setStatus('Submitting...');
-      
       try { 
           const payload = { ...formData, diningSeatType: formData.seatType, gender: selectedStudent?.gender };
           const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-          
           if (!res.ok) {
               const errorData = await res.json();
               throw new Error(errorData.error || "Check-in failed"); 
           }
-
           await fetch(`${API_URL}/notify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type:'arrival', participantId: formData.participantId }) });
           prepareReceipt(); 
           setTimeout(() => window.print(), 500); 
           setStatus('✅ Success!'); 
-          
           setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' }));
-          setSelectedStudent(null); 
-          setSearchTerm(''); 
-          clearRoom(); 
-          
-          // Refresh Data
+          setSelectedStudent(null); setSearchTerm(''); clearRoom(); 
           fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(res => res.json()).then(d => setParticipants(Array.isArray(d) ? d : [])); 
           fetch(`${API_URL}/rooms/occupancy`).then(res=>res.json()).then(d => setOccupancy(Array.isArray(d) ? d : [])); 
-          
           setTimeout(() => setStatus(''), 4000);
-
-      } catch (err) { 
-          setStatus(`❌ ${err.message}`); 
-          alert(`🛑 ERROR: ${err.message}`);
-      } 
+      } catch (err) { setStatus(`❌ ${err.message}`); alert(`🛑 ERROR: ${err.message}`); } 
   };
 
   const searchResults = (participants || []).filter(p => {
@@ -318,13 +282,10 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
       return p.full_name.toLowerCase().includes(term) || (p.conf_no || '').toLowerCase().includes(term);
   });
 
-  const handleResetRoom = () => {
-      setFormData(prev => ({ ...prev, roomNo: '' }));
-  };
+  const handleResetRoom = () => { setFormData(prev => ({ ...prev, roomNo: '' })); };
 
   return ( 
       <div style={styles.card}> 
-          {/* COMPACT HEADER */}
           <div className="no-print" style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px', borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
               <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                   <User size={20} color="#007bff"/> 
@@ -334,9 +295,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
           </div>
 
           <div className="no-print" style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'20px'}}>
-              {/* LEFT COLUMN: FORM */}
               <form onSubmit={handleSubmit}>
-                  {/* SEARCH */}
                   <div style={{background:'#f8f9fa', padding:'15px', borderRadius:'10px', marginBottom:'15px', border:'1px solid #eee'}}>
                       <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'15px', alignItems:'end'}}>
                           <div>
@@ -359,7 +318,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
 
                   {selectedStudent && (
                       <div style={{animation:'fadeIn 0.2s ease'}}>
-                          {/* INFO BAR */}
                           {selectedStudent.medical_info && (<div style={{background:'#fff3cd', borderLeft:'3px solid #ffc107', padding:'8px 12px', borderRadius:'4px', marginBottom:'10px', fontSize:'12px', color:'#856404', display:'flex', gap:'8px'}}><AlertTriangle size={16}/><span><strong>Medical:</strong> {selectedStudent.medical_info}</span></div>)}
                           <div style={{display:'flex', gap:'10px', marginBottom:'15px', fontSize:'12px'}}>
                               <div style={{background:'#e9ecef', padding:'6px 10px', borderRadius:'4px'}}><strong>ID:</strong> {formData.confNo}</div>
@@ -367,9 +325,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
                               <div style={{background: themeColor, color:'white', padding:'6px 10px', borderRadius:'4px', fontWeight:'bold'}}>{selectedStudent.gender}</div>
                           </div>
 
-                          {/* ASSIGNMENT GRID */}
                           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'15px'}}>
-                              {/* ROOM */}
                               <div style={{border:'1px solid #eee', borderRadius:'8px', padding:'12px', boxShadow:'0 2px 5px rgba(0,0,0,0.01)'}}>
                                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px', borderBottom:'1px solid #f0f0f0', paddingBottom:'5px'}}>
                                       <h5 style={{margin:0, color:'#555', display:'flex', alignItems:'center', gap:'6px'}}><MapPin size={14} color="#007bff"/> Room</h5>
@@ -380,7 +336,6 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
                                   </div>
                               </div>
                               
-                              {/* DINING */}
                               <div style={{border:'1px solid #eee', borderRadius:'8px', padding:'12px', boxShadow:'0 2px 5px rgba(0,0,0,0.01)'}}>
                                   <h5 style={{margin:'0 0 10px 0', color:'#555', display:'flex', alignItems:'center', gap:'6px', borderBottom:'1px solid #f0f0f0', paddingBottom:'5px'}}><Coffee size={14} color="#e91e63"/> Dining, Lockers & Laundry</h5>
                                   <div style={{marginBottom:'10px', display:'flex', gap:'5px'}}>
@@ -395,14 +350,12 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
                               </div>
                           </div>
 
-                          {/* EXTRAS */}
                           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'10px', fontSize:'12px'}}>
                               <div><label style={{fontWeight:'bold', color:'#777'}}>Lang</label><select style={{...styles.input, padding:'6px'}} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>{LANGUAGES.map(l=><option key={l}>{l}</option>)}</select></div>
                               <div><label style={{fontWeight:'bold', color:'#777'}}>Pagoda</label><button type="button" onClick={() => setShowVisualPagoda(true)} style={{...styles.input, padding:'6px', textAlign:'left', cursor:'pointer'}}>{formData.pagodaCell || "None"}</button></div>
                               <div><label style={{fontWeight:'bold', color:'#777'}}>Special</label><select style={{...styles.input, padding:'6px'}} value={formData.specialSeating} onChange={e => setFormData({...formData, specialSeating: e.target.value})}><option value="">None</option><option value="Chowky">Chowky</option><option value="Chair">Chair</option></select></div>
                           </div>
 
-                          {/* ACTIONS */}
                           <div style={{marginTop:'20px', textAlign:'right', display:'flex', justifyContent:'flex-end', gap:'10px'}}>
                               <button type="button" onClick={triggerReprint} disabled={!selectedStudent} style={{...styles.btn(false), background:'white', border:'1px solid #ccc', color:'#555', display:'flex', alignItems:'center', gap:'6px', padding:'10px 15px'}}><Printer size={16}/> Reprint</button>
                               <button type="submit" style={{...styles.btn(true), background:'#28a745', border:'none', color:'white', display:'flex', alignItems:'center', gap:'8px', padding:'10px 25px'}}><CheckCircle size={16}/> CONFIRM CHECK-IN <ArrowRight size={16}/></button>
@@ -411,25 +364,18 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
                   )}
               </form>
 
-              {/* RIGHT COLUMN: PREVIEW RECEIPT (Restored Solid UI) */}
+              {/* RIGHT COLUMN: RECEIPT - ✅ RESTORED VISIBLE STYLE */}
               {selectedStudent && (
-                  <div className="no-print" style={{
-                      background: 'white',
-                      padding: '20px',
-                      borderRadius: '12px',
-                      border: '1px solid #ddd', // Solid border
-                      height: 'fit-content',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)' // Better shadow
-                  }}>
-                      <div style={{textAlign:'center', borderBottom:'1px solid #eee', paddingBottom:'15px', marginBottom:'15px'}}>
-                          <h4 style={{margin:0, color:'#333', fontSize:'16px'}}>Receipt Preview</h4>
-                          <div style={{fontSize:'12px', color:'#777', marginTop:'5px'}}>Dhamma Nagajjuna</div>
+                  <div className="no-print" style={{background:'white', padding:'15px', borderRadius:'10px', border:'1px solid #ddd', height:'fit-content', boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
+                      <div style={{textAlign:'center', borderBottom:'1px solid #eee', paddingBottom:'10px', marginBottom:'10px'}}>
+                          <h4 style={{margin:0, color:'#555'}}>Receipt Preview</h4>
+                          <div style={{fontSize:'11px', color:'#999'}}>Dhamma Nagajjuna</div>
                       </div>
-                      <div style={{fontSize:'13px', display:'grid', gap:'10px', color:'#444'}}>
-                          <div style={{display:'flex', justifyContent:'space-between', borderBottom:'1px dashed #eee', paddingBottom:'5px'}}><span>Name:</span> <strong>{selectedStudent.full_name}</strong></div>
-                          <div style={{display:'flex', justifyContent:'space-between', borderBottom:'1px dashed #eee', paddingBottom:'5px'}}><span>ID:</span> <strong>{formData.confNo || '-'}</strong></div>
-                          <div style={{display:'flex', justifyContent:'space-between', borderBottom:'1px dashed #eee', paddingBottom:'5px'}}><span>Room:</span> <strong style={{color:'#007bff'}}>{formData.roomNo || '-'}</strong></div>
-                          <div style={{display:'flex', justifyContent:'space-between', borderBottom:'1px dashed #eee', paddingBottom:'5px'}}><span>Dining:</span> <strong>{formData.seatNo || '-'} ({formData.seatType})</strong></div>
+                      <div style={{fontSize:'12px', display:'grid', gap:'8px', color:'#444'}}>
+                          <div style={{display:'flex', justifyContent:'space-between'}}><span>Name:</span> <strong>{selectedStudent.full_name}</strong></div>
+                          <div style={{display:'flex', justifyContent:'space-between'}}><span>ID:</span> <strong>{formData.confNo || '-'}</strong></div>
+                          <div style={{display:'flex', justifyContent:'space-between'}}><span>Room:</span> <strong style={{color:'#007bff'}}>{formData.roomNo || '-'}</strong></div>
+                          <div style={{display:'flex', justifyContent:'space-between'}}><span>Dining:</span> <strong>{formData.seatNo || '-'} ({formData.seatType})</strong></div>
                           <div style={{display:'flex', justifyContent:'space-between'}}><span>Locker:</span> <strong>M:{formData.mobileLocker || '-'} / V:{formData.valuablesLocker || '-'}</strong></div>
                       </div>
                   </div>
@@ -462,7 +408,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
               </div>
           )}
 
-          {/* 2. DINING MODAL - WITH TABS */}
+          {/* 2. DINING MODAL - ✅ FIXED: PASSING MAP NOT ARRAY */}
           {showVisualDining && (
               <div className="no-print" style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:2000, display:'flex', flexDirection:'column', padding:'20px'}}>
                   <div style={{background:'white', borderRadius:'12px', flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
@@ -476,6 +422,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
                           ))}
                       </div>
                       <div style={{flex:1, overflow:'auto', padding:'20px'}}>
+                          {/* ✅ PASS ARRAY to Old Layout, PASS MAP to New Layouts */}
                           {diningModalTab === 'General' && <DiningLayout onSelect={handleDiningSeatChange} occupied={globalOccupied.dining || []} currentGender={selectedStudent?.gender} />}
                           {diningModalTab === 'DN1 Male' && <DN1MaleDining occupiedMap={diningMap} selected={formData.seatNo} onSelect={handleDiningSeatChange} />}
                           {diningModalTab === 'DN1 Female' && <DN1FemaleDining occupiedMap={diningMap} selected={formData.seatNo} onSelect={handleDiningSeatChange} />}
@@ -499,7 +446,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
               </div>
           )}
 
-          {/* HIDDEN PRINT AREA */}
+          {/* HIDDEN PRINT AREA - PRESERVED EXACTLY */}
           <div id="receipt-print-area" style={{display:'none'}}>
               {printReceiptData && (
                   <div style={{padding:'20px', fontFamily:'Arial, sans-serif', width:'300px', margin:'0 auto', border:'1px solid #000'}}>
@@ -542,6 +489,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
                   </div>
               )}
           </div>
+          
           <style>{`
               @media print {
                   @page { size: auto; margin: 0; }
