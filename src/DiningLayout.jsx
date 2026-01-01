@@ -1,12 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 
-// ✅ IMPORT EXISTING LAYOUTS FROM COMPONENTS FOLDER
-// If your files are in 'src/components/', these paths are correct.
-// If they are in the same folder as this file, change to './MaleDiningLayout'
-import MaleDiningLayout from './components/MaleDiningLayout'; 
-import FemaleDiningLayout from './components/FemaleDiningLayout';
+// ✅ CORRECTED IMPORTS: Point to sibling files (Same Folder)
+import MaleDiningLayout from './MaleDiningLayout'; 
+import FemaleDiningLayout from './FemaleDiningLayout';
 
-// --- DN1 CONFIGURATION (New Layouts) ---
+// --- DN1 CONFIGURATION ---
 const DN1_CONFIG = {
   MALE: {
     color: '#1565c0', bg: '#e3f2fd',
@@ -22,13 +20,13 @@ const DN1_CONFIG = {
 
 export default function DiningLayout({ onSelect, occupied, currentGender, ...props }) {
   // ✅ STATE: Controls which tab is active
-  const [activeTab, setActiveTab] = useState('STANDARD'); // 'STANDARD', 'DN1_MALE', 'DN1_FEMALE'
+  const [activeTab, setActiveTab] = useState('STANDARD'); 
 
   // Helper: Detect gender for Standard tab fallback
   const effectiveGender = currentGender || props.gender || ''; 
   const isFemaleStd = effectiveGender.toLowerCase().startsWith('f');
 
-  // --- DN1 LOGIC: Safe Conflict Check ---
+  // --- DN1 LOGIC ---
   const occupiedSet = useMemo(() => {
     const set = new Set();
     if (Array.isArray(occupied)) {
@@ -37,7 +35,6 @@ export default function DiningLayout({ onSelect, occupied, currentGender, ...pro
     return set;
   }, [occupied]);
 
-  // --- DN1 RENDER: Single Cell ---
   const renderDN1Cell = (num, type, config) => {
     const numStr = String(num);
     const isOccupied = occupiedSet.has(numStr);
@@ -62,7 +59,6 @@ export default function DiningLayout({ onSelect, occupied, currentGender, ...pro
     );
   };
 
-  // --- DN1 RENDER: Grid ---
   const renderDN1Grid = (configKey) => {
     const config = DN1_CONFIG[configKey];
     return (
@@ -72,14 +68,12 @@ export default function DiningLayout({ onSelect, occupied, currentGender, ...pro
         </h4>
         
         <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          {/* FLOOR */}
           <div style={{ background: '#fafafa', padding: '10px', borderRadius: '8px', border: '1px solid #eee' }}>
             <div style={{ marginBottom: '8px', fontWeight: 'bold', fontSize: '11px', color: '#2e7d32', background: '#e8f5e9', padding: '4px', borderRadius: '4px' }}>FLOOR</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px' }}>
               {config.floor.flat().map(n => renderDN1Cell(n, 'Floor', config))}
             </div>
           </div>
-          {/* CHAIRS */}
           <div style={{ background: config.bg, padding: '10px', borderRadius: '8px', border: `1px solid ${config.color}30` }}>
             <div style={{ marginBottom: '8px', fontWeight: 'bold', fontSize: '11px', color: config.color, background: 'white', padding: '4px', borderRadius: '4px' }}>CHAIRS</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px' }}>
@@ -143,7 +137,6 @@ export default function DiningLayout({ onSelect, occupied, currentGender, ...pro
             <div style={{marginBottom:'10px', color:'#666', fontSize:'12px', fontStyle:'italic'}}>
               Showing Standard {isFemaleStd ? 'Female' : 'Male'} Layout
             </div>
-            {/* Render Legacy Components */}
             {isFemaleStd ? 
               <FemaleDiningLayout onSelect={onSelect} occupied={occupied} {...props} /> : 
               <MaleDiningLayout onSelect={onSelect} occupied={occupied} {...props} />
