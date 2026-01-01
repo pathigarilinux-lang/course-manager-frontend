@@ -6,7 +6,7 @@ import MaleBlockLayout from './MaleBlockLayout';
 import FemaleBlockLayout from './FemaleBlockLayout'; 
 import NewBlockLayout from './NewBlockLayout'; 
 
-// ✅ NEW DN1 DINING IMPORTS
+// ✅ NEW IMPORTS
 import DN1MaleDining from './DN1MaleDining';
 import DN1FemaleDining from './DN1FemaleDining';
 
@@ -26,6 +26,7 @@ const getCourseSuffix = (courseName) => {
 };
 
 export default function StudentForm({ courses, preSelectedRoom, clearRoom, userRole }) {
+  // --- STATE ---
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]);
   const [occupancy, setOccupancy] = useState([]); 
@@ -49,7 +50,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
   const [printReceiptData, setPrintReceiptData] = useState(null);
   const [showVisualRoom, setShowVisualRoom] = useState(false);
   
-  // ✅ MODAL TABS
+  // ✅ TAB STATES
   const [roomModalTab, setRoomModalTab] = useState(userRole === 'dn1ops' ? 'New Block' : 'Male'); 
   const [diningModalTab, setDiningModalTab] = useState('General'); // 'General', 'DN1 Male', 'DN1 Female'
 
@@ -190,13 +191,15 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
   };
 
   const handleOpenRoomModal = () => {
+      if(!selectedStudent) return alert("⚠️ Please select a student first.");
       if (userRole === 'dn1ops') setRoomModalTab('New Block');
       else setRoomModalTab(isFemale ? 'Female' : 'Male');
       setShowVisualRoom(true);
   };
 
   const handleOpenDiningModal = () => {
-      // Auto-select tab logic
+      if(!selectedStudent) return alert("⚠️ Please select a student first.");
+      // Auto-switch tab based on logic
       if (userRole === 'dn1ops') setDiningModalTab(isFemale ? 'DN1 Female' : 'DN1 Male');
       else setDiningModalTab('General');
       setShowVisualDining(true);
@@ -364,7 +367,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom, userR
                   )}
               </form>
 
-              {/* RIGHT COLUMN: RECEIPT - ✅ RESTORED VISIBLE STYLE */}
+              {/* RIGHT COLUMN: PREVIEW RECEIPT (Restored Solid UI) */}
               {selectedStudent && (
                   <div className="no-print" style={{background:'white', padding:'15px', borderRadius:'10px', border:'1px solid #ddd', height:'fit-content', boxShadow:'0 4px 12px rgba(0,0,0,0.08)'}}>
                       <div style={{textAlign:'center', borderBottom:'1px solid #eee', paddingBottom:'10px', marginBottom:'10px'}}>
