@@ -19,38 +19,22 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // ✅ VISIBILITY LOGIC
+  // ✅ VISIBILITY LOGIC: Gate User sees ALL courses
   const visibleCourses = useMemo(() => {
       if (!courses) return [];
       
-      // ✅ IF 'gate' USER: See EVERYTHING (Staff + Dn1Ops)
-      // ✅ IF 'dn1ops' USER: See ONLY Dn1Ops courses (as per your previous request, or change to return 'courses' if they should see all)
-      if (userRole === 'dn1ops') {
-           // Uncomment below if dn1ops should ONLY see their own.
-           // return courses.filter(c => c.owner_role === 'dn1ops');
-           
-           // OR return ALL if dn1ops should act like Gate user for this tab:
-           return courses; 
-      }
-      
-      // Admin/Staff/Gate see ALL
+      // Admin, Staff, Gate, and Dn1Ops (at the gate) should see ALL courses
+      // This matches your request: "gate user should be able to see the courses owned by dn1ops & staff users"
       return courses;
-  }, [courses, userRole]);
+  }, [courses]);
   
-  // Auto-select first course
+  // Auto-select first course if none selected
   useEffect(() => {
       if (!selectedCourseId && visibleCourses.length > 0) {
           setSelectedCourseId(visibleCourses[0].course_id);
       }
   }, [visibleCourses]);
 
-  // ... (Rest of the file remains exactly the same as the previous version I sent)
-  // ... (Data loading, Check-in logic, Chart rendering)
-  // ...
-  // ...
-  
-  // (Paste the rest of the 'GateReception.jsx' content here from the previous successful file)
-  
   // --- 1. DATA LOADING ---
   const loadParticipants = async () => {
     if (!selectedCourseId) return;
@@ -62,11 +46,10 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
     } catch (err) { console.error(err); }
     finally { setIsRefreshing(false); }
   };
-  
+
   useEffect(() => { loadParticipants(); }, [selectedCourseId]);
 
-  // ... (Keep all the handlers handleCheckIn, handleCancelStudent, etc.) ...
-  
+  // --- 2. ACTIONS ---
   const handleCheckIn = async (p) => {
       if (!window.confirm(`Mark ${p.full_name} as ARRIVED at Gate?`)) return;
       try {
@@ -101,16 +84,22 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
     } catch (e) { alert("Error undoing"); }
   };
 
+  // --- 3. FILTER & SORT ---
   const processedList = useMemo(() => {
       let data = [...participants];
+
+      // Search
       if (searchQuery) {
           const q = searchQuery.toLowerCase();
           data = data.filter(p => p.full_name.toLowerCase().includes(q) || (p.conf_no||'').toLowerCase().includes(q) || (p.phone||'').includes(q));
       }
+
+      // Tab Filter
       if (activeFilter === 'Arrived') data = data.filter(p => p.status === 'Arrived' || p.status === 'Attending');
       else if (activeFilter === 'Pending') data = data.filter(p => p.status === 'Confirmed');
       else if (activeFilter === 'Cancelled') data = data.filter(p => p.status === 'Cancelled');
 
+      // Sort
       if (sortConfig.key) {
           data.sort((a, b) => {
               if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -121,6 +110,7 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
       return data;
   }, [participants, searchQuery, activeFilter, sortConfig]);
 
+  // --- 4. STATS ---
   const stats = useMemo(() => {
       const s = { 
           total: participants.length, arrived: 0, pending: 0, cancelled: 0,
@@ -161,6 +151,7 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
 
   return (
       <div style={{animation: 'fadeIn 0.3s ease'}}>
+          {/* HEADER SECTION */}
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', background:'white', padding:'15px', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
               <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
                   <div style={{background:'#e3f2fd', padding:'10px', borderRadius:'50%', color:'#1565c0'}}><UserCheck size={24}/></div>
@@ -186,6 +177,7 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
 
           {selectedCourseId ? (
               <>
+                  {/* STATS PANEL */}
                   <div className="stats-panel" style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'20px', marginBottom:'20px'}}>
                       <div style={{background:'white', padding:'15px', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.05)', display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px'}}>
                            <div style={{textAlign:'center', padding:'10px', background:'#fbe9e7', borderRadius:'8px', color:'#d84315'}}>
@@ -204,6 +196,7 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
                                <div style={{fontSize:'24px', fontWeight:'bold'}}>{stats.cancelled}</div>
                                <div style={{fontSize:'12px', fontWeight:'bold'}}>Cancelled</div>
                            </div>
+                           {/* Row 2: Breakdown */}
                            <div style={{gridColumn:'span 4', display:'flex', justifyContent:'space-around', marginTop:'10px', fontSize:'11px', color:'#555', background:'#f9fafb', padding:'8px', borderRadius:'6px'}}>
                                <span style={{color:COLORS.om}}>Old Male: {stats.om}</span>
                                <span style={{color:COLORS.nm}}>New Male: {stats.nm}</span>
@@ -212,6 +205,7 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
                            </div>
                       </div>
 
+                      {/* CHART */}
                       <div style={{background:'white', padding:'10px', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.05)', height:'160px', display:'flex', alignItems:'center', justifyContent:'center'}}>
                           <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
@@ -227,6 +221,7 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
                       </div>
                   </div>
 
+                  {/* TABLE CONTROLS */}
                   <div style={{background:'white', padding:'15px', borderRadius:'12px 12px 0 0', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                       <div style={{display:'flex', gap:'5px'}}>
                           {['All', 'Arrived', 'Pending', 'Cancelled'].map(f => (
@@ -255,6 +250,7 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
                       </div>
                   </div>
 
+                  {/* LIST TABLE */}
                   <div style={{background:'white', maxHeight:'500px', overflowY:'auto', boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
                       <table style={{width:'100%', borderCollapse:'collapse', fontSize:'13px'}}>
                           <thead style={{position:'sticky', top:0, background:'#f8f9fa', zIndex:10}}>
