@@ -18,6 +18,7 @@ export default function DN1FemaleDining({ occupiedMap, selected, onSelect }) {
 
   const renderCell = (num, type) => {
       const numStr = String(num);
+      // SAFETY CHECK: Ensure occupiedMap exists
       const isOccupied = occupiedMap && occupiedMap.has(numStr);
       const isSelected = String(selected) === numStr;
       
