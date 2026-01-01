@@ -1,8 +1,7 @@
 import React from 'react';
 
 export default function DN1MaleDining({ occupiedMap, selected, onSelect }) {
-  
-  // --- CONFIGURATION ---
+  // CONFIGURATION: ROWS OF 6
   // CHAIR: 1-6 (Row 1), 31-36 (Row 2), 37-42 (Row 3)
   const chairRows = [
     [1, 2, 3, 4, 5, 6],
@@ -10,7 +9,7 @@ export default function DN1MaleDining({ occupiedMap, selected, onSelect }) {
     [37, 38, 39, 40, 41, 42]
   ];
 
-  // FLOOR: 5-30 (Broken into rows of 6 for neatness)
+  // FLOOR: 5-30 (Broken into rows of 6)
   const floorRows = [
     [5, 6, 7, 8, 9, 10],
     [11, 12, 13, 14, 15, 16],
@@ -21,6 +20,7 @@ export default function DN1MaleDining({ occupiedMap, selected, onSelect }) {
 
   const renderCell = (num, type) => {
       const numStr = String(num);
+      // SAFETY CHECK: Ensure occupiedMap exists before calling .has()
       const isOccupied = occupiedMap && occupiedMap.has(numStr);
       const isSelected = String(selected) === numStr;
       
