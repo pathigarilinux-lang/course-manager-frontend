@@ -23,15 +23,26 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
   const visibleCourses = useMemo(() => {
       if (!courses) return [];
       
-      // Admin, Staff, Gate, and Dn1Ops (at the gate) should see ALL courses
-      // This matches your request: "gate user should be able to see the courses owned by dn1ops & staff users"
+      // 1. GATE USER: Sees EVERYTHING (Staff + Dn1Ops)
+      if (userRole === 'gate') {
+          return courses; 
+      }
+
+      // 2. DN1OPS USER: Sees ONLY Dn1Ops courses
+      if (userRole === 'dn1ops') {
+           return courses.filter(c => c.owner_role === 'dn1ops');
+      }
+      
+      // 3. ADMIN/STAFF: See EVERYTHING
       return courses;
-  }, [courses]);
+  }, [courses, userRole]);
   
   // Auto-select first course if none selected
   useEffect(() => {
       if (!selectedCourseId && visibleCourses.length > 0) {
           setSelectedCourseId(visibleCourses[0].course_id);
+      } else if (visibleCourses.length === 0) {
+          setSelectedCourseId('');
       }
   }, [visibleCourses]);
 
@@ -84,14 +95,24 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
     } catch (e) { alert("Error undoing"); }
   };
 
-  // --- 3. FILTER & SORT ---
+  // --- 3. HELPER: SMART PHONE FINDER ---
+  // This checks all common database column names for phone numbers
+  const getPhone = (p) => {
+      return p.phone || p.mobile || p.phone_number || p.contact_number || p.mobile_no || '-';
+  };
+
+  // --- 4. FILTER & SORT ---
   const processedList = useMemo(() => {
       let data = [...participants];
 
       // Search
       if (searchQuery) {
           const q = searchQuery.toLowerCase();
-          data = data.filter(p => p.full_name.toLowerCase().includes(q) || (p.conf_no||'').toLowerCase().includes(q) || (p.phone||'').includes(q));
+          data = data.filter(p => 
+              p.full_name.toLowerCase().includes(q) || 
+              (p.conf_no||'').toLowerCase().includes(q) || 
+              getPhone(p).includes(q) // ✅ Search by phone too
+          );
       }
 
       // Tab Filter
@@ -102,15 +123,18 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
       // Sort
       if (sortConfig.key) {
           data.sort((a, b) => {
-              if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-              if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+              const valA = sortConfig.key === 'phone' ? getPhone(a) : a[sortConfig.key];
+              const valB = sortConfig.key === 'phone' ? getPhone(b) : b[sortConfig.key];
+              
+              if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+              if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
               return 0;
           });
       }
       return data;
   }, [participants, searchQuery, activeFilter, sortConfig]);
 
-  // --- 4. STATS ---
+  // --- 5. STATS ---
   const stats = useMemo(() => {
       const s = { 
           total: participants.length, arrived: 0, pending: 0, cancelled: 0,
@@ -280,7 +304,8 @@ export default function GateReception({ courses, refreshCourses, userRole }) {
                                           </td>
                                           <td style={{padding:'12px'}}>
                                               <div style={{display:'flex', alignItems:'center', gap:'5px', color:'#555'}}>
-                                                  <Phone size={12}/> {p.phone || p.mobile || '-'}
+                                                  {/* ✅ FIXED: Checks all possible phone number fields */}
+                                                  <Phone size={12}/> {getPhone(p)}
                                               </div>
                                           </td>
                                           <td style={{padding:'12px', textAlign:'center'}}>
