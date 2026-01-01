@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 
-// ✅ IMPORT LEGACY LAYOUTS (Siblings in the 'components' folder)
+// ✅ CORRECT IMPORTS: Since this file is in 'src/components/', 
+// and the layouts are also there, we use './' to point to neighbors.
 import MaleDiningLayout from './MaleDiningLayout'; 
 import FemaleDiningLayout from './FemaleDiningLayout';
 
@@ -19,14 +20,13 @@ const DN1_CONFIG = {
 };
 
 export default function DiningSystem({ onSelect, occupied, currentGender, ...props }) {
-  // ✅ STATE: Active Tab
   const [activeTab, setActiveTab] = useState('STANDARD'); 
 
-  // Gender Logic
+  // Gender Helper
   const effectiveGender = currentGender || props.gender || ''; 
   const isFemaleStd = effectiveGender.toLowerCase().startsWith('f');
 
-  // --- SAFE DATA HANDLING ---
+  // Safe Data Handling
   const occupiedSet = useMemo(() => {
     const set = new Set();
     if (Array.isArray(occupied)) {
@@ -35,7 +35,7 @@ export default function DiningSystem({ onSelect, occupied, currentGender, ...pro
     return set;
   }, [occupied]);
 
-  // --- DN1 RENDERERS ---
+  // DN1 Renderers
   const renderDN1Cell = (num, type, config) => {
     const numStr = String(num);
     const isOccupied = occupiedSet.has(numStr);
@@ -83,11 +83,9 @@ export default function DiningSystem({ onSelect, occupied, currentGender, ...pro
     );
   };
 
-  // --- MAIN RENDER ---
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight:'400px', border:'3px solid #007bff' }}>
-      {/* 👆 BLUE BORDER: Visual confirmation that you are using this new file */}
-
+      
       {/* --- TABS --- */}
       <div style={{ display: 'flex', background: '#343a40', padding: '10px 10px 0' }}>
         <button type="button" onClick={() => setActiveTab('STANDARD')} style={{ flex: 1, padding: '12px', border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize:'13px', background: activeTab === 'STANDARD' ? '#f8f9fa' : 'transparent', color: activeTab === 'STANDARD' ? '#333' : '#adb5bd', borderRadius: '8px 8px 0 0' }}>Main Hall</button>
