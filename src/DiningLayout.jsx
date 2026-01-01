@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 
-// ✅ IMPORT EXISTING LAYOUTS (Preserves Old Workflow)
+// ✅ IMPORT EXISTING LAYOUTS
 import MaleDiningLayout from './MaleDiningLayout';
 import FemaleDiningLayout from './FemaleDiningLayout';
 
-// --- DN1 CONFIGURATION (New Layout Logic) ---
+// --- DN1 CONFIGURATION ---
 const DN1_CONFIG = {
   MALE: {
     color: '#1565c0', bg: '#e3f2fd',
@@ -19,15 +19,14 @@ const DN1_CONFIG = {
 };
 
 export default function DiningLayout({ onSelect, occupied, currentGender, ...props }) {
-  // ✅ DEFAULT TAB: Standard (Old Layout)
-  const [activeTab, setActiveTab] = useState('STANDARD'); // Options: 'STANDARD', 'DN1_MALE', 'DN1_FEMALE'
+  // ✅ STATE
+  const [activeTab, setActiveTab] = useState('STANDARD'); // 'STANDARD', 'DN1_MALE', 'DN1_FEMALE'
 
-  // Helper: Detect gender for the Standard tab auto-switching
+  // Helper: Detect gender for Standard tab
   const effectiveGender = currentGender || props.gender || ''; 
   const isFemaleStd = effectiveGender.toLowerCase().startsWith('f');
 
-  // --- DN1 RENDER LOGIC ---
-  // 1. Safe Conflict Check (Prevents Crashes)
+  // --- DN1 LOGIC ---
   const occupiedSet = useMemo(() => {
     const set = new Set();
     if (Array.isArray(occupied)) {
@@ -36,7 +35,6 @@ export default function DiningLayout({ onSelect, occupied, currentGender, ...pro
     return set;
   }, [occupied]);
 
-  // 2. Render Single Seat for DN1
   const renderDN1Cell = (num, type, config) => {
     const numStr = String(num);
     const isOccupied = occupiedSet.has(numStr);
@@ -52,7 +50,7 @@ export default function DiningLayout({ onSelect, occupied, currentGender, ...pro
           color: isOccupied ? '#c62828' : (isSelected ? 'white' : '#333'),
           border: isOccupied ? '1px solid #ffcdd2' : '1px solid #ccc',
           borderRadius: '6px', fontSize: '12px', fontWeight: 'bold',
-          cursor: isOccupied ? 'not-allowed' : 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+          cursor: isOccupied ? 'not-allowed' : 'pointer', margin: '2px'
         }}
         title={isOccupied ? `Occupied` : `${type} ${num}`}
       >
@@ -61,23 +59,23 @@ export default function DiningLayout({ onSelect, occupied, currentGender, ...pro
     );
   };
 
-  // 3. Render Grid for DN1
-  const renderDN1Grid = (configName) => {
-    const config = DN1_CONFIG[configName];
+  const renderDN1Grid = (configKey) => {
+    const config = DN1_CONFIG[configKey];
     return (
-      <div style={{ textAlign: 'center', padding: '10px' }}>
+      <div style={{ textAlign: 'center', padding: '10px', background: '#fff', borderRadius: '8px' }}>
+        <h4 style={{ margin: '0 0 15px 0', color: config.color }}>{configKey} HALL LAYOUT</h4>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
           {/* FLOOR */}
           <div style={{ background: '#fafafa', padding: '10px', borderRadius: '8px', border: '1px solid #eee' }}>
             <div style={{ marginBottom: '8px', fontWeight: 'bold', fontSize: '11px', color: '#2e7d32', background: '#e8f5e9', padding: '4px', borderRadius: '4px' }}>FLOOR</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px' }}>
               {config.floor.flat().map(n => renderDN1Cell(n, 'Floor', config))}
             </div>
           </div>
           {/* CHAIRS */}
           <div style={{ background: config.bg, padding: '10px', borderRadius: '8px', border: `1px solid ${config.color}30` }}>
             <div style={{ marginBottom: '8px', fontWeight: 'bold', fontSize: '11px', color: config.color, background: 'white', padding: '4px', borderRadius: '4px' }}>CHAIRS</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px' }}>
               {config.chairs.flat().map(n => renderDN1Cell(n, 'Chair', config))}
             </div>
           </div>
@@ -86,63 +84,72 @@ export default function DiningLayout({ onSelect, occupied, currentGender, ...pro
     );
   };
 
+  // --- RENDER ---
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* --- TABS --- */}
-      <div style={{ display: 'flex', background: '#f8f9fa', borderBottom: '1px solid #ddd', padding: '5px 5px 0' }}>
-        {/* TAB 1: STANDARD (Existing) */}
+    <div style={{ width: '100%', minHeight: '400px' }}>
+      
+      {/* 🔹 EXPLICIT TABS 🔹 */}
+      <div style={{ 
+          display: 'flex', gap: '5px', padding: '10px', background: '#f0f2f5', 
+          borderBottom: '2px solid #ddd', marginBottom: '10px' 
+      }}>
         <button 
           type="button"
           onClick={() => setActiveTab('STANDARD')}
           style={{
-            flex: 1, padding: '10px', border: 'none', background: activeTab === 'STANDARD' ? 'white' : 'transparent',
-            fontWeight: 'bold', color: activeTab === 'STANDARD' ? '#333' : '#777', cursor: 'pointer', borderRadius: '6px 6px 0 0',
-            borderBottom: activeTab === 'STANDARD' ? '3px solid #666' : 'none'
+            flex: 1, padding: '10px 5px', border: '1px solid #ccc', borderRadius: '6px', 
+            fontWeight: 'bold', cursor: 'pointer', fontSize: '13px',
+            background: activeTab === 'STANDARD' ? '#424242' : 'white',
+            color: activeTab === 'STANDARD' ? 'white' : '#333'
           }}
         >
-          Standard Hall
+          Main Hall
         </button>
-
-        {/* TAB 2: DN1 MALE */}
         <button 
           type="button"
           onClick={() => setActiveTab('DN1_MALE')}
           style={{
-            flex: 1, padding: '10px', border: 'none', background: activeTab === 'DN1_MALE' ? 'white' : 'transparent',
-            fontWeight: 'bold', color: activeTab === 'DN1_MALE' ? '#1565c0' : '#777', cursor: 'pointer', borderRadius: '6px 6px 0 0',
-            borderBottom: activeTab === 'DN1_MALE' ? '3px solid #1565c0' : 'none'
+            flex: 1, padding: '10px 5px', border: '1px solid #1976d2', borderRadius: '6px', 
+            fontWeight: 'bold', cursor: 'pointer', fontSize: '13px',
+            background: activeTab === 'DN1_MALE' ? '#1565c0' : 'white',
+            color: activeTab === 'DN1_MALE' ? 'white' : '#1565c0'
           }}
         >
           DN1 Male
         </button>
-
-        {/* TAB 3: DN1 FEMALE */}
         <button 
           type="button"
           onClick={() => setActiveTab('DN1_FEMALE')}
           style={{
-            flex: 1, padding: '10px', border: 'none', background: activeTab === 'DN1_FEMALE' ? 'white' : 'transparent',
-            fontWeight: 'bold', color: activeTab === 'DN1_FEMALE' ? '#ad1457' : '#777', cursor: 'pointer', borderRadius: '6px 6px 0 0',
-            borderBottom: activeTab === 'DN1_FEMALE' ? '3px solid #ad1457' : 'none'
+            flex: 1, padding: '10px 5px', border: '1px solid #c2185b', borderRadius: '6px', 
+            fontWeight: 'bold', cursor: 'pointer', fontSize: '13px',
+            background: activeTab === 'DN1_FEMALE' ? '#ad1457' : 'white',
+            color: activeTab === 'DN1_FEMALE' ? 'white' : '#ad1457'
           }}
         >
           DN1 Female
         </button>
       </div>
 
-      {/* --- CONTENT --- */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '10px' }}>
+      {/* 🔹 CONTENT 🔹 */}
+      <div style={{ padding: '5px' }}>
         {activeTab === 'STANDARD' && (
-          // Renders Old Layouts (Auto-detects gender)
-          isFemaleStd ? 
-            <FemaleDiningLayout onSelect={onSelect} occupied={occupied} {...props} /> : 
-            <MaleDiningLayout onSelect={onSelect} occupied={occupied} {...props} />
+          <div style={{ border: '1px dashed #ccc', padding: '10px', borderRadius: '8px' }}>
+            <div style={{marginBottom:'10px', textAlign:'center', color:'#666', fontSize:'12px'}}>
+              Displaying {isFemaleStd ? 'Female' : 'Male'} Standard Hall
+            </div>
+            {isFemaleStd ? 
+              <FemaleDiningLayout onSelect={onSelect} occupied={occupied} {...props} /> : 
+              <MaleDiningLayout onSelect={onSelect} occupied={occupied} {...props} />
+            }
+          </div>
         )}
 
         {activeTab === 'DN1_MALE' && renderDN1Grid('MALE')}
         
         {activeTab === 'DN1_FEMALE' && renderDN1Grid('FEMALE')}
       </div>
+
     </div>
   );
 }
