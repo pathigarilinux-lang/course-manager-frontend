@@ -1,16 +1,16 @@
 import React from 'react';
 
-export default function DN1MaleDining({ occupiedMap, selected, onSelect, onClose }) {
+export default function DN1MaleDining({ occupiedMap, selected, onSelect }) {
   
   // --- CONFIGURATION ---
-  // MALE CHAIR: 1-6 and 31-42
-  const chairRows1 = [[1, 2, 3, 4, 5, 6]];
-  const chairRows2 = [
+  // CHAIR: 1-6 (Row 1), 31-36 (Row 2), 37-42 (Row 3)
+  const chairRows = [
+    [1, 2, 3, 4, 5, 6],
     [31, 32, 33, 34, 35, 36],
     [37, 38, 39, 40, 41, 42]
   ];
 
-  // MALE FLOOR: 5-30
+  // FLOOR: 5-30 (Broken into rows of 6 for neatness)
   const floorRows = [
     [5, 6, 7, 8, 9, 10],
     [11, 12, 13, 14, 15, 16],
@@ -19,26 +19,20 @@ export default function DN1MaleDining({ occupiedMap, selected, onSelect, onClose
     [29, 30] 
   ];
 
-  // --- HELPER TO RENDER SEATS ---
   const renderCell = (num, type) => {
       const numStr = String(num);
-      const isOccupied = occupiedMap.has(numStr); // Check if seat is taken
-      const isSelected = selected === numStr;
+      const isOccupied = occupiedMap && occupiedMap.has(numStr);
+      const isSelected = String(selected) === numStr;
       
       let bg = 'white';
       let color = '#333';
-      let cursor = 'pointer';
       let border = '1px solid #ccc';
+      let cursor = 'pointer';
 
       if (isOccupied) {
-          bg = '#ffebee'; // Light Red
-          color = '#c62828'; // Dark Red
-          cursor = 'not-allowed';
-          border = '1px solid #ffcdd2';
+          bg = '#ffebee'; color = '#c62828'; border = '1px solid #ffcdd2'; cursor = 'not-allowed';
       } else if (isSelected) {
-          bg = '#2196f3'; // Blue
-          color = 'white';
-          border = '1px solid #1976d2';
+          bg = '#2196f3'; color = 'white'; border = '1px solid #1976d2';
       }
 
       return (
@@ -46,13 +40,14 @@ export default function DN1MaleDining({ occupiedMap, selected, onSelect, onClose
               key={`${type}-${num}`}
               onClick={() => !isOccupied && onSelect(numStr, type)}
               style={{
-                  width: '35px', height: '35px', 
+                  width: '40px', height: '40px', 
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: bg, color: color, border: border,
-                  borderRadius: '6px', fontSize: '12px', fontWeight: 'bold',
-                  cursor: cursor, boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                  borderRadius: '8px', fontSize: '13px', fontWeight: 'bold',
+                  cursor: cursor, boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                  transition: 'all 0.1s'
               }}
-              title={isOccupied ? "Occupied" : `${type} Seat ${num}`}
+              title={isOccupied ? "Occupied" : `${type} ${num}`}
           >
               {num}
           </div>
@@ -60,41 +55,27 @@ export default function DN1MaleDining({ occupiedMap, selected, onSelect, onClose
   };
 
   return (
-    <div style={{ textAlign: 'center', padding: '10px' }}>
-      <h3 style={{ color: '#0d47a1', marginBottom: '20px' }}>DN1 Male Dining Hall</h3>
+    <div style={{ textAlign: 'center', padding: '20px', background: '#f8f9fa' }}>
+      <h3 style={{ color: '#1565c0', margin: '0 0 20px 0', borderBottom:'2px solid #e3f2fd', display:'inline-block', paddingBottom:'5px' }}>
+        DN1 Male Dining
+      </h3>
       
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '30px', alignItems: 'start', flexWrap: 'wrap' }}>
-        
-        {/* LEFT SECTION: CHAIRS (1-6) */}
-        <div>
-            <div style={{ marginBottom: '10px', fontWeight: 'bold', color: '#555', background:'#e3f2fd', padding:'5px', borderRadius:'4px' }}>CHAIRS (1-6)</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px' }}>
-                {chairRows1.flat().map(n => renderCell(n, 'Chair'))}
-            </div>
-        </div>
-
-        {/* CENTER SECTION: FLOOR (5-30) */}
-        <div>
-            <div style={{ marginBottom: '10px', fontWeight: 'bold', color: '#555', background:'#e8f5e9', padding:'5px', borderRadius:'4px' }}>FLOOR (5-30)</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', flexWrap: 'wrap' }}>
+        {/* FLOOR SECTION */}
+        <div style={{background:'white', padding:'15px', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
+            <div style={{ marginBottom: '15px', fontWeight: 'bold', color: '#2e7d32', background:'#e8f5e9', padding:'6px', borderRadius:'6px' }}>FLOOR (5-30)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px' }}>
                 {floorRows.flat().map(n => renderCell(n, 'Floor'))}
             </div>
         </div>
 
-        {/* RIGHT SECTION: CHAIRS (31-42) */}
-        <div>
-            <div style={{ marginBottom: '10px', fontWeight: 'bold', color: '#555', background:'#e3f2fd', padding:'5px', borderRadius:'4px' }}>CHAIRS (31-42)</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px' }}>
-                {chairRows2.flat().map(n => renderCell(n, 'Chair'))}
+        {/* CHAIR SECTION */}
+        <div style={{background:'white', padding:'15px', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.05)'}}>
+            <div style={{ marginBottom: '15px', fontWeight: 'bold', color: '#1565c0', background:'#e3f2fd', padding:'6px', borderRadius:'6px' }}>CHAIRS (1-6, 31-42)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px' }}>
+                {chairRows.flat().map(n => renderCell(n, 'Chair'))}
             </div>
         </div>
-
-      </div>
-
-      <div style={{ marginTop: '20px', borderTop: '1px solid #eee', paddingTop: '10px', fontSize: '12px', color: '#666' }}>
-        <span style={{ marginRight: '15px' }}>🟦 Selected</span>
-        <span style={{ marginRight: '15px' }}>⬜ Available</span>
-        <span style={{ color: '#c62828' }}>🟥 Occupied</span>
       </div>
     </div>
   );
