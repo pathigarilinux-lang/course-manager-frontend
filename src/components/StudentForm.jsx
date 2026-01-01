@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, MapPin, Coffee, Lock, Key, AlertTriangle, CheckCircle, Search, X, Printer, ArrowRight, Briefcase, RefreshCw, Wand2 } from 'lucide-react';
-import DiningLayout from '../DiningLayout';
+import DiningLayout from './DiningSystem';
 import PagodaLayout from '../PagodaLayout';
 import MaleBlockLayout from './MaleBlockLayout'; 
 import FemaleBlockLayout from './FemaleBlockLayout'; 
