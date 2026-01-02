@@ -17,6 +17,8 @@ import CourseAdmin from './components/CourseAdmin';
 import SevaBoard from './components/SevaBoard'; 
 import GateReception from './components/GateReception';
 import ATPanel from './components/ATPanel';
+
+// ✅ NEW IMPORT: Standalone Dining Console
 import DN1DiningConsole from './components/DN1DiningConsole';
 
 function App() {
@@ -115,10 +117,14 @@ function App() {
 
   if (!user) return <Login onLogin={handleLogin} />;
 
-  // 6. Menu Items - ✅ MODIFIED: Added 'gate' role to 'gate' tab
+  // 6. Menu Items
   const MENU_ITEMS = [
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
-      { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate', 'dn1ops'] }, // ✅ Added 'gate'
+      
+      // ✅ NEW TAB: DN1 Dining View
+      { id: 'dn1console', label: 'DN1 Dining View', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+
+      { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate', 'dn1ops'] }, 
       { id: 'checkin', label: 'Onboarding', icon: <UserPlus size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
       { id: 'students', label: 'Manage Students', icon: <Users size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
       { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
@@ -226,24 +232,23 @@ function App() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
               {activeTab === 'dashboard' && <CourseDashboard courses={courses} stats={stats} />}
               
-              {/* ✅ UPDATE: Pass userRole to GateReception */}
+              {/* ✅ RENDER NEW DN1 CONSOLE */}
+              {activeTab === 'dn1console' && <DN1DiningConsole courses={courses} />}
+
+              {/* Pass userRole to existing components */}
               {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               
-              {/* ✅ UPDATE: Pass userRole to StudentForm */}
               {activeTab === 'checkin' && <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} userRole={user.role} />}
               
-              {/* ✅ UPDATE: Pass userRole to ParticipantList */}
               {activeTab === 'students' && <ParticipantList courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               
               {activeTab === 'accommodation' && <GlobalAccommodationManager />}
               {activeTab === 'at' && <ATPanel courses={courses} />}
               
-              {/* ✅ UPDATE: Pass userRole to CourseAdmin */}
               {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               
               {activeTab === 'seva' && <SevaBoard courses={courses} />}
               
-              {/* Render Store for Admin, Staff AND dn1ops */}
               {(user.role === 'admin' || user.role === 'staff' || user.role === 'dn1ops') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
           </div>
       </main>
