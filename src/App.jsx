@@ -127,7 +127,7 @@ function App() {
       { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin', 'staff', 'at', 'dn1ops'] }, 
       { id: 'admin', label: 'Course Admin', icon: <Database size={20}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
       { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
-      { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
+      { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin'] }, 
   ];
 
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
