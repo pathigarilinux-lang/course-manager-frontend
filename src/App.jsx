@@ -32,7 +32,7 @@ function App() {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [courses, setCourses] = useState([]); // ✅ Always initialized as empty array
+  const [courses, setCourses] = useState([]); 
   const [stats, setStats] = useState({});
 
   // 2. Login/Logout Handlers
@@ -40,7 +40,7 @@ function App() {
       setUser(userData);
       localStorage.setItem('dhammaUser', JSON.stringify(userData));
       
-      // ✅ Redirect 'gate' role directly to gate tab
+      // Redirect 'gate' role directly to gate tab
       if (userData.role === 'gate') {
           setActiveTab('gate');
       }
@@ -73,7 +73,6 @@ function App() {
           } else if (user.role === 'dn1ops') {
               filteredCourses = allCourses.filter(c => c.owner_role === 'dn1ops');
           } else if (user.role === 'gate') {
-              // ✅ GATE USER SEES ALL COURSES
               filteredCourses = allCourses;
           } else {
               // Staff/AT see everything EXCEPT dn1ops courses
@@ -93,7 +92,7 @@ function App() {
       if (user) {
           fetchCourses();
       }
-  }, [user]); // ✅ Re-runs whenever user logs in/out
+  }, [user]); 
 
   const fetchStats = async () => {
       if(courses.length > 0) {
@@ -117,11 +116,11 @@ function App() {
 
   if (!user) return <Login onLogin={handleLogin} />;
 
-  // 6. Menu Items
+  // 6. Menu Items Configuration
   const MENU_ITEMS = [
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
       
-      // ✅ NEW TAB: DN1 Dining View
+      // ✅ NEW: DN1 Dining View Tab
       { id: 'dn1console', label: 'DN1 Dining View', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
 
       { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate', 'dn1ops'] }, 
@@ -134,6 +133,7 @@ function App() {
       { id: 'seva', label: 'Seva Board', icon: <Heart size={20}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
   ];
 
+  // Filter menu items based on user role
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
 
   return (
@@ -210,7 +210,7 @@ function App() {
           </div>
       </aside>
 
-      {/* MAIN CONTENT */}
+      {/* MAIN CONTENT AREA */}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           
           <header style={{ background: 'white', padding: '15px 30px', boxShadow: '0 2px 5px rgba(0,0,0,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -232,10 +232,9 @@ function App() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
               {activeTab === 'dashboard' && <CourseDashboard courses={courses} stats={stats} />}
               
-              {/* ✅ RENDER NEW DN1 CONSOLE */}
+              {/* ✅ NEW: RENDER DN1 DINING CONSOLE */}
               {activeTab === 'dn1console' && <DN1DiningConsole courses={courses} />}
 
-              {/* Pass userRole to existing components */}
               {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               
               {activeTab === 'checkin' && <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} userRole={user.role} />}
