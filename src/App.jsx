@@ -123,7 +123,7 @@ function App() {
       { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate', 'dn1ops'] }, // ✅ Added 'gate'
       { id: 'checkin', label: 'Onboarding', icon: <UserPlus size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
       { id: 'students', label: 'Manage Students', icon: <Users size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
-      { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={20}/>, roles: ['admin', 'staff', ] },
       { id: 'at', label: 'AT Panel', icon: <GraduationCap size={20}/>, roles: ['admin', 'staff', 'at', 'dn1ops'] }, 
       { id: 'admin', label: 'Course Admin', icon: <Database size={20}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
       { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
