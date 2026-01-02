@@ -130,25 +130,35 @@ export default function DN1StudentForm({ courses, userRole }) {
       setShowVisualRoom(false);
   };
 
-  // ✅ 1. FIXED: GENDER-SPECIFIC OCCUPANCY LOGIC
-  // If we are looking at MALE tab, we only care about seats occupied by MALES.
-  // If Male Student A takes Seat 5, it goes into this set when genderTab is 'MALE'.
-  // It does NOT go into this set when genderTab is 'FEMALE'.
+  // ✅ OCCUPANCY LOGIC: Gender-Aware & Checks BOTH API and Local List
   const occupiedSet = useMemo(() => {
     const set = new Set();
+    const currentTabChar = genderTab === 'MALE' ? 'm' : 'f';
+
+    // 1. Check Global API Data (Server side)
     if(globalOccupied.dining) {
         globalOccupied.dining.forEach(i => {
-            const occupantGender = (i.gender || '').toLowerCase(); // e.g., 'male', 'female'
-            const currentTabChar = genderTab.toLowerCase().charAt(0); // 'm' or 'f'
-            
-            // Only block the seat if the occupant matches the current tab's gender
-            if (i.seat && occupantGender.startsWith(currentTabChar)) {
+            const g = (i.gender || '').toLowerCase();
+            if (i.seat && g.startsWith(currentTabChar)) {
                 set.add(String(i.seat));
             }
         });
     }
+
+    // 2. Check Local Participants (Immediate client side)
+    // This catches double-assignments before the server syncs
+    if(participants) {
+        participants.forEach(p => {
+            const g = (p.gender || '').toLowerCase();
+            // Check if student has a dining seat AND matches current tab gender
+            if ((p.dining_seat_no || p.seatNo) && g.startsWith(currentTabChar)) {
+                const seat = p.dining_seat_no || p.seatNo;
+                set.add(String(seat));
+            }
+        });
+    }
     return set;
-  }, [globalOccupied.dining, genderTab]);
+  }, [globalOccupied.dining, participants, genderTab]);
 
   // --- PREPARE RECEIPT ---
   const prepareReceipt = () => {
@@ -184,7 +194,7 @@ export default function DN1StudentForm({ courses, userRole }) {
           setTimeout(() => window.print(), 500);
           setStatus('✅ Success');
           
-          // Re-fetch to update lists immediately
+          // Re-fetch to update lists
           if(formData.courseId) {
              fetch(`${API_URL}/courses/${formData.courseId}/participants`)
                 .then(r=>r.json()).then(d=>Array.isArray(d)&&setParticipants(d));
@@ -202,7 +212,7 @@ export default function DN1StudentForm({ courses, userRole }) {
       }
   };
 
-  // ✅ 2. SEARCH FILTER: Hide On-boarded students (Attending / Has Room / Has Seat)
+  // --- SEARCH FILTER (Updated) ---
   const searchResults = participants.filter(p => {
       if(!searchTerm) return false;
       if (p.status === 'Attending' || p.room_no || p.dining_seat_no) return false;
@@ -222,7 +232,7 @@ export default function DN1StudentForm({ courses, userRole }) {
   // --- RENDER HELPERS ---
   const renderDN1Cell = (num, type) => {
     const numStr = String(num); 
-    const isOccupied = occupiedSet.has(numStr); // Uses the GENDER-AWARE set
+    const isOccupied = occupiedSet.has(numStr); 
     const config = DN1_CONFIG[genderTab]; 
     const isSelected = formData.seatNo === numStr;
     return (
