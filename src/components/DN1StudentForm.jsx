@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { MapPin, Coffee, AlertTriangle, CheckCircle, Search, X } from 'lucide-react';
+import { MapPin, Coffee, AlertTriangle, CheckCircle, Search, X, BedDouble } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
-// ✅ IMPORT ONLY THE LAYOUTS DN1 OPS NEEDS
-import NewBlockLayout from './NewBlockLayout'; 
+// ❌ NO EXTERNAL LAYOUT IMPORTS (Everything is defined inside this file)
 
-const NUMBER_OPTIONS = Array.from({ length: 200 }, (_, i) => String(i + 1));
-
-// --- DN1 DINING CONFIGURATION ---
+// --- CONFIGURATION 1: DN1 DINING ---
 const DN1_CONFIG = {
   MALE: {
     color: '#1565c0', bg: '#e3f2fd',
@@ -21,11 +18,18 @@ const DN1_CONFIG = {
   }
 };
 
+// --- CONFIGURATION 2: DORMITORY / NEW BLOCK ---
+// ✅ EDIT THESE NUMBERS to match your actual New Block / Dorm rooms
+const DORM_LAYOUT = {
+  GROUND_FLOOR: ['NB-101', 'NB-102', 'NB-103', 'NB-104', 'NB-105', 'NB-106'],
+  FIRST_FLOOR:  ['NB-201', 'NB-202', 'NB-203', 'NB-204', 'NB-205', 'NB-206']
+};
+
 export default function DN1StudentForm({ courses, userRole }) {
   // --- STATE ---
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]);
-  const [occupancy, setOccupancy] = useState([]); // Default to empty array
+  const [occupancy, setOccupancy] = useState([]); 
   const [selectedStudent, setSelectedStudent] = useState(null); 
   const [status, setStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -69,17 +73,16 @@ export default function DN1StudentForm({ courses, userRole }) {
                 .then(setGlobalOccupied)
                 .catch(console.error);
 
-              // 3. Fetch Room Occupancy (WITH SAFETY CHECK)
+              // 3. Fetch Room Occupancy
               fetch(`${API_URL}/rooms/occupancy`)
                 .then(r=>r.json())
                 .then(d => {
-                    // ✅ FIX: Ensure we only set an array
                     if (Array.isArray(d)) setOccupancy(d);
                     else setOccupancy([]); 
                 })
                 .catch(err => {
                     console.error("Occupancy Fetch Error:", err);
-                    setOccupancy([]); // Fallback to empty array
+                    setOccupancy([]); 
                 });
           };
           syncData();
@@ -113,25 +116,27 @@ export default function DN1StudentForm({ courses, userRole }) {
       setIsSearching(false);
   };
 
-  // --- ROOM HANDLER ---
-  const handleRoomSelect = (bedData) => {
-      if (bedData.occupant) return alert("⛔ Bed Occupied!");
-      const roomG = (bedData.gender_type || '').toLowerCase();
-      const studG = (selectedStudent?.gender || '').toLowerCase();
-      if (roomG && !roomG.startsWith(studG.charAt(0))) {
-         if(!window.confirm(`⚠️ Gender Mismatch: Assign ${roomG} room to ${studG} student?`)) return;
-      }
-      setFormData(prev => ({ ...prev, roomNo: bedData.room_no }));
+  // --- ROOM HANDLER (INLINED) ---
+  const handleRoomSelect = (roomNum) => {
+      // Find occupancy data for this specific room
+      const occupantData = occupancy.find(r => r.room_no === roomNum);
+      
+      if (occupantData) return alert(`⛔ Room ${roomNum} is already occupied by ${occupantData.occupant_name || 'someone'}.`);
+      
+      setFormData(prev => ({ ...prev, roomNo: roomNum }));
       setShowVisualRoom(false);
   };
 
-  // --- DINING HANDLER ---
+  // --- DINING HANDLER (INLINED) ---
   const occupiedSet = useMemo(() => {
     const set = new Set();
     if(globalOccupied.dining) globalOccupied.dining.forEach(i => i.seat && set.add(String(i.seat)));
     return set;
   }, [globalOccupied.dining]);
 
+  // --- RENDERERS ---
+
+  // 1. Render Dining Cell
   const renderDN1Cell = (num, type) => {
     const numStr = String(num);
     const isOccupied = occupiedSet.has(numStr);
@@ -157,6 +162,33 @@ export default function DN1StudentForm({ courses, userRole }) {
       >
         {num}
       </div>
+    );
+  };
+
+  // 2. Render Dorm Room Cell
+  const renderDormCell = (roomNum) => {
+    // Check if room is occupied
+    const occupant = occupancy.find(r => r.room_no === roomNum);
+    const isOccupied = !!occupant;
+    const isSelected = formData.roomNo === roomNum;
+
+    return (
+        <div 
+            key={roomNum}
+            onClick={() => !isOccupied && handleRoomSelect(roomNum)}
+            style={{
+                width: '80px', height: '50px', 
+                background: isOccupied ? '#ffebee' : (isSelected ? '#e8f5e9' : 'white'),
+                border: isOccupied ? '1px solid #ffcdd2' : (isSelected ? '2px solid #4caf50' : '1px solid #ccc'),
+                borderRadius: '8px', cursor: isOccupied ? 'not-allowed' : 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                margin: '5px'
+            }}
+        >
+            <div style={{fontWeight:'bold', fontSize:'12px', color: isOccupied ? '#c62828' : '#333'}}>{roomNum}</div>
+            {isOccupied && <div style={{fontSize:'9px', color:'#d32f2f'}}>Occupied</div>}
+            {!isOccupied && isSelected && <CheckCircle size={12} color="green"/>}
+        </div>
     );
   };
 
@@ -263,19 +295,32 @@ export default function DN1StudentForm({ courses, userRole }) {
         )}
       </div>
 
+      {/* --- MODAL: DORM ROOMS (Inlined) --- */}
       {showVisualRoom && (
           <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}>
              <div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}>
                  <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}>
-                     <h3>Select Dormitory / Room</h3>
+                     <h3 style={{display:'flex', alignItems:'center', gap:'10px'}}><BedDouble/> Select Dormitory Room</h3>
                      <button onClick={()=>setShowVisualRoom(false)}><X/></button>
                  </div>
-                 {/* ✅ CRASH FIX: Force valid array for 'occupied' */}
-                 <NewBlockLayout onSelect={handleRoomSelect} occupied={Array.isArray(occupancy) ? occupancy : []} />
+                 
+                 {/* DORM LAYOUT GRID */}
+                 <div style={{padding:'20px', background:'#f5f5f5', borderRadius:'8px', textAlign:'center'}}>
+                    {/* Loop through the DORM_LAYOUT object keys (Ground, First, etc.) */}
+                    {Object.entries(DORM_LAYOUT).map(([floorName, roomArray]) => (
+                        <div key={floorName} style={{marginBottom:'20px'}}>
+                            <h5 style={{margin:'0 0 10px 0', color:'#555', textTransform:'uppercase'}}>{floorName.replace('_', ' ')}</h5>
+                            <div style={{display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'10px'}}>
+                                {roomArray.map(roomNum => renderDormCell(roomNum))}
+                            </div>
+                        </div>
+                    ))}
+                 </div>
              </div>
           </div>
       )}
 
+      {/* --- MODAL: DINING (DN1 Grid) --- */}
       {showVisualDining && (
           <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}>
              <div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}>
