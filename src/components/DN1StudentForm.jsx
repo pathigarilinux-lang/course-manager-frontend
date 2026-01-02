@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { User, MapPin, Coffee, AlertTriangle, CheckCircle, Search, X } from 'lucide-react';
-import { API_URL, LANGUAGES, styles } from '../config';
+import { MapPin, Coffee, AlertTriangle, CheckCircle, Search, X } from 'lucide-react';
+import { API_URL, styles } from '../config';
 
 // ✅ IMPORT ONLY THE LAYOUTS DN1 OPS NEEDS
-import NewBlockLayout from './NewBlockLayout'; // The Dormitory/New Block
-// We don't import standard DiningLayout because we build the DN1 Grid internally here
+import NewBlockLayout from './NewBlockLayout'; 
 
 const NUMBER_OPTIONS = Array.from({ length: 200 }, (_, i) => String(i + 1));
 
@@ -26,7 +25,7 @@ export default function DN1StudentForm({ courses, userRole }) {
   // --- STATE ---
   const [participants, setParticipants] = useState([]); 
   const [rooms, setRooms] = useState([]);
-  const [occupancy, setOccupancy] = useState([]); 
+  const [occupancy, setOccupancy] = useState([]); // Default to empty array
   const [selectedStudent, setSelectedStudent] = useState(null); 
   const [status, setStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,7 +46,7 @@ export default function DN1StudentForm({ courses, userRole }) {
   // Visual Toggles
   const [showVisualRoom, setShowVisualRoom] = useState(false);
   const [showVisualDining, setShowVisualDining] = useState(false);
-  const [diningTab, setDiningTab] = useState('MALE'); // DN1 Tab
+  const [diningTab, setDiningTab] = useState('MALE'); 
 
   // --- INITIAL DATA ---
   useEffect(() => { 
@@ -58,9 +57,30 @@ export default function DN1StudentForm({ courses, userRole }) {
   useEffect(() => { 
       if (formData.courseId) {
           const syncData = () => {
-              fetch(`${API_URL}/courses/${formData.courseId}/participants`).then(r=>r.json()).then(d=>Array.isArray(d)&&setParticipants(d)).catch(console.error);
-              fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`).then(r=>r.json()).then(setGlobalOccupied).catch(console.error);
-              fetch(`${API_URL}/rooms/occupancy`).then(r=>r.json()).then(setOccupancy).catch(console.error);
+              // 1. Fetch Participants
+              fetch(`${API_URL}/courses/${formData.courseId}/participants`)
+                .then(r=>r.json())
+                .then(d => Array.isArray(d) && setParticipants(d))
+                .catch(console.error);
+
+              // 2. Fetch Global Occupied
+              fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`)
+                .then(r=>r.json())
+                .then(setGlobalOccupied)
+                .catch(console.error);
+
+              // 3. Fetch Room Occupancy (WITH SAFETY CHECK)
+              fetch(`${API_URL}/rooms/occupancy`)
+                .then(r=>r.json())
+                .then(d => {
+                    // ✅ FIX: Ensure we only set an array
+                    if (Array.isArray(d)) setOccupancy(d);
+                    else setOccupancy([]); 
+                })
+                .catch(err => {
+                    console.error("Occupancy Fetch Error:", err);
+                    setOccupancy([]); // Fallback to empty array
+                });
           };
           syncData();
           const i = setInterval(syncData, 5000);
@@ -79,7 +99,6 @@ export default function DN1StudentForm({ courses, userRole }) {
       setSelectedStudent(student);
       const isFem = (student.gender || '').toLowerCase().startsWith('f');
       
-      // Auto-set Tabs based on Student Gender
       setDiningTab(isFem ? 'FEMALE' : 'MALE');
       
       setFormData(prev => ({ 
@@ -94,10 +113,9 @@ export default function DN1StudentForm({ courses, userRole }) {
       setIsSearching(false);
   };
 
-  // --- ROOM HANDLER (New Block / Dormitory Only) ---
+  // --- ROOM HANDLER ---
   const handleRoomSelect = (bedData) => {
       if (bedData.occupant) return alert("⛔ Bed Occupied!");
-      // Simple Gender Check
       const roomG = (bedData.gender_type || '').toLowerCase();
       const studG = (selectedStudent?.gender || '').toLowerCase();
       if (roomG && !roomG.startsWith(studG.charAt(0))) {
@@ -107,7 +125,7 @@ export default function DN1StudentForm({ courses, userRole }) {
       setShowVisualRoom(false);
   };
 
-  // --- DINING HANDLER (DN1 Specific) ---
+  // --- DINING HANDLER ---
   const occupiedSet = useMemo(() => {
     const set = new Set();
     if(globalOccupied.dining) globalOccupied.dining.forEach(i => i.seat && set.add(String(i.seat)));
@@ -154,11 +172,9 @@ export default function DN1StudentForm({ courses, userRole }) {
           const res = await fetch(`${API_URL}/check-in`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
           if (!res.ok) throw new Error("Check-in Failed");
           
-          // Print Receipt Logic (Simplified for DN1)
           setTimeout(() => window.print(), 500);
           setStatus('✅ Success');
           
-          // Reset
           setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', confNo: '' }));
           setSelectedStudent(null);
           setSearchTerm('');
@@ -173,7 +189,6 @@ export default function DN1StudentForm({ courses, userRole }) {
 
   return (
     <div style={styles.card}>
-      {/* HEADER */}
       <div className="no-print" style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'3px solid #1565c0', paddingBottom:'10px', marginBottom:'20px'}}>
         <h3 style={{margin:0, color:'#1565c0'}}>DN1 Operations Console</h3>
         {status && <span style={{fontWeight:'bold', color: status.includes('Success')?'green':'red'}}>{status}</span>}
@@ -181,7 +196,6 @@ export default function DN1StudentForm({ courses, userRole }) {
 
       <div className="no-print" style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:'20px'}}>
         <form onSubmit={handleSubmit}>
-            {/* 1. SELECTION */}
             <div style={{background:'#f1f8ff', padding:'15px', borderRadius:'8px', marginBottom:'15px'}}>
                 <div style={{display:'grid', gridTemplateColumns:'1fr 2fr', gap:'10px'}}>
                     <div>
@@ -217,7 +231,6 @@ export default function DN1StudentForm({ courses, userRole }) {
 
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'20px'}}>
                         
-                        {/* ROOM SELECTOR (Forced to New Block) */}
                         <div style={{border:'2px solid #ddd', borderRadius:'8px', padding:'15px'}}>
                             <h4 style={{marginTop:0, display:'flex', alignItems:'center', gap:'5px'}}><MapPin size={16}/> Dormitory / Room</h4>
                             <button type="button" onClick={()=>setShowVisualRoom(true)} style={{...styles.input, textAlign:'left', fontWeight:'bold', cursor:'pointer', background: formData.roomNo ? '#e8f5e9' : 'white'}}>
@@ -225,7 +238,6 @@ export default function DN1StudentForm({ courses, userRole }) {
                             </button>
                         </div>
 
-                        {/* DINING SELECTOR (DN1 Only) */}
                         <div style={{border:'2px solid #ddd', borderRadius:'8px', padding:'15px'}}>
                             <h4 style={{marginTop:0, display:'flex', alignItems:'center', gap:'5px'}}><Coffee size={16}/> DN1 Seat</h4>
                             <button type="button" onClick={()=>setShowVisualDining(true)} style={{...styles.input, textAlign:'left', fontWeight:'bold', cursor:'pointer', background: formData.seatNo ? '#e3f2fd' : 'white'}}>
@@ -241,7 +253,6 @@ export default function DN1StudentForm({ courses, userRole }) {
             )}
         </form>
 
-        {/* RECEIPT PREVIEW */}
         {selectedStudent && (
             <div className="no-print" style={{border:'2px solid #333', padding:'15px', background:'white'}}>
                 <h4 style={{textAlign:'center', borderBottom:'1px solid #ccc'}}>Receipt</h4>
@@ -252,7 +263,6 @@ export default function DN1StudentForm({ courses, userRole }) {
         )}
       </div>
 
-      {/* --- MODAL: ROOM (New Block Only) --- */}
       {showVisualRoom && (
           <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}>
              <div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}>
@@ -260,13 +270,12 @@ export default function DN1StudentForm({ courses, userRole }) {
                      <h3>Select Dormitory / Room</h3>
                      <button onClick={()=>setShowVisualRoom(false)}><X/></button>
                  </div>
-                 {/* Only showing NewBlockLayout as requested */}
-                 <NewBlockLayout onSelect={handleRoomSelect} occupied={occupancy} />
+                 {/* ✅ CRASH FIX: Force valid array for 'occupied' */}
+                 <NewBlockLayout onSelect={handleRoomSelect} occupied={Array.isArray(occupancy) ? occupancy : []} />
              </div>
           </div>
       )}
 
-      {/* --- MODAL: DINING (DN1 Grid) --- */}
       {showVisualDining && (
           <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}>
              <div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}>
@@ -281,7 +290,6 @@ export default function DN1StudentForm({ courses, userRole }) {
                      <button onClick={()=>setShowVisualDining(false)}><X/></button>
                  </div>
                  
-                 {/* DN1 GRID RENDER */}
                  <div style={{textAlign:'center', background: DN1_CONFIG[diningTab].bg, padding:'20px', borderRadius:'8px'}}>
                      <div style={{display:'flex', justifyContent:'center', gap:'40px'}}>
                          <div>
