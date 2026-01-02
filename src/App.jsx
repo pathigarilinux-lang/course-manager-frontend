@@ -17,6 +17,9 @@ import CourseAdmin from './components/CourseAdmin';
 import SevaBoard from './components/SevaBoard'; 
 import GateReception from './components/GateReception';
 import ATPanel from './components/ATPanel';
+// ✅ NEW IMPORT: Standalone Dining Console
+import DN1DiningConsole from './components/DN1DiningConsole';
+import DN1StudentForm from './components/DN1StudentForm';
 
 function App() {
   // 1. Initialize User
@@ -230,7 +233,8 @@ function App() {
               
               {/* ✅ UPDATE: Pass userRole to StudentForm */}
               {activeTab === 'checkin' && <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} userRole={user.role} />}
-              
+              {activeTab === 'checkin' && (user.role === 'dn1ops' ? <DN1StudentForm courses={courses || []} userRole={user.role} /> : <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} userRole={user.role} />)}
+            
               {/* ✅ UPDATE: Pass userRole to ParticipantList */}
               {activeTab === 'students' && <ParticipantList courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
               
