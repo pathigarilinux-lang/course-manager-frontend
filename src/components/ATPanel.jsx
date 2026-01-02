@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Utensils, BarChart2, Armchair, Filter, ChevronLeft, ChevronRight, AlertCircle, Save, X, Search } from 'lucide-react'; 
+import { Utensils, BarChart2, Armchair, Filter, ChevronLeft, ChevronRight, AlertCircle, Save, X, Search, Clock, CheckCircle } from 'lucide-react'; 
 import { API_URL, styles } from '../config';
 import Dashboard from './Dashboard'; 
 
@@ -52,12 +52,11 @@ export default function ATPanel({ courses }) {
           None: { total: 0, m: 0, f: 0 }
       };
       
-      // ✅ CRASH PREVENTION: Handle nulls/undefined safely
       (participants || []).forEach(p => {
-          if (p.status !== 'Attending') return;
+          // Count stats for ALL active-ish students
+          if (['Cancelled', 'Dropped'].includes(p.status)) return;
           
           const type = p.special_seating || 'None';
-          // Fix: Ensure gender is string before lowercasing
           const gender = String(p.gender || '').toLowerCase();
           const isMale = gender.startsWith('m');
           
@@ -69,21 +68,24 @@ export default function ATPanel({ courses }) {
       return stats;
   }, [participants]);
 
-  // ✅ UPDATED FILTER LOGIC: Search by Name OR Conf No
+  // ✅ UPDATED FILTER LOGIC: Shows All Active Statuses (Registered, Confirmed, Attending)
   const filteredList = useMemo(() => {
       if (!Array.isArray(participants)) return [];
 
-      let list = participants.filter(p => p.status === 'Attending');
+      // 1. Base Filter: Exclude Cancelled/Dropped
+      let list = participants.filter(p => !['Cancelled', 'Dropped'].includes(p.status));
       
+      // 2. Tab Filters
       if (activeFilter === 'medical') list = list.filter(p => p.medical_info);
       if (activeFilter === 'food') list = list.filter(p => p.food_allergy);
       if (activeFilter === 'seating') list = list.filter(p => p.special_seating && p.special_seating !== 'None');
 
+      // 3. Search Filter
       if (searchTerm) {
           const lower = searchTerm.toLowerCase();
           list = list.filter(p => 
               String(p.full_name || '').toLowerCase().includes(lower) || 
-              String(p.conf_no || '').toLowerCase().includes(lower) // ✅ Fix: Handle numeric Conf No
+              String(p.conf_no || '').toLowerCase().includes(lower)
           );
       }
       return list;
@@ -116,20 +118,22 @@ export default function ATPanel({ courses }) {
 
   const getStats = () => {
       if (!courseId || !Array.isArray(participants)) return null;
-      const active = participants.filter(p => p.status === 'Attending');
+      const active = participants.filter(p => !['Cancelled', 'Dropped'].includes(p.status));
       return {
           total: active.length,
           m: active.filter(p => String(p.gender||'').toLowerCase().startsWith('m')).length,
           f: active.filter(p => String(p.gender||'').toLowerCase().startsWith('f')).length,
           old: active.filter(p => String(p.conf_no||'').toUpperCase().startsWith('O')).length,
           new: active.filter(p => String(p.conf_no||'').toUpperCase().startsWith('N')).length,
+          arrived: active.filter(p => p.status === 'Attending').length // Track how many actually arrived
       };
   };
 
   const stats = getStats();
 
   if (showKitchenReport) {
-      const kitchenList = (participants || []).filter(p => p.status === 'Attending' && (p.food_allergy || (p.dining_seat_type && p.dining_seat_type !== 'Floor')));
+      // For Kitchen Report, we probably only want people who are actually here ('Attending') or confirmed
+      const kitchenList = (participants || []).filter(p => !['Cancelled', 'Dropped'].includes(p.status) && (p.food_allergy || (p.dining_seat_type && p.dining_seat_type !== 'Floor')));
       return (
           <div style={styles.card}>
               <div className="no-print" style={{marginBottom:'20px'}}>
@@ -151,7 +155,7 @@ export default function ATPanel({ courses }) {
                       <tbody>
                           {kitchenList.filter(p=>p.food_allergy).map(p => (
                               <tr key={p.participant_id}>
-                                  <td style={tdPrint}><strong>{p.dining_seat_no}</strong></td>
+                                  <td style={tdPrint}><strong>{p.dining_seat_no || '-'}</strong></td>
                                   <td style={tdPrint}>{p.full_name} ({p.gender})</td>
                                   <td style={tdPrint}><strong style={{color:'red'}}>{p.food_allergy}</strong></td>
                               </tr>
@@ -165,7 +169,7 @@ export default function ATPanel({ courses }) {
                       <tbody>
                           {kitchenList.filter(p=>p.dining_seat_type && p.dining_seat_type !== 'Floor').map(p => (
                               <tr key={p.participant_id}>
-                                  <td style={tdPrint}><strong>{p.dining_seat_no}</strong></td>
+                                  <td style={tdPrint}><strong>{p.dining_seat_no || '-'}</strong></td>
                                   <td style={tdPrint}>{p.full_name}</td>
                                   <td style={tdPrint}>{p.dining_seat_type}</td>
                               </tr>
@@ -194,6 +198,7 @@ export default function ATPanel({ courses }) {
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
           <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
               <h2 style={{margin:0, display:'flex', alignItems:'center', gap:'10px'}}>🎓 AT Panel</h2>
+              {/* ✅ SHOW ALL COURSES (Removed filter) */}
               <select style={styles.input} onChange={e=>setCourseId(e.target.value)} value={courseId}>
                   <option value="">-- Select Course --</option>
                   {courses.map(c=><option key={c.course_id} value={c.course_id}>{c.course_name}</option>)}
@@ -208,8 +213,8 @@ export default function ATPanel({ courses }) {
       {stats && (
           <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'15px', marginBottom:'20px'}}>
               <div style={{background:'#e3f2fd', padding:'15px', borderRadius:'10px', textAlign:'center'}}>
-                  <div style={{fontSize:'12px', color:'#0d47a1', fontWeight:'bold'}}>TOTAL STUDENTS</div>
-                  <div style={{fontSize:'24px', fontWeight:'900', color:'#1565c0'}}>{stats.total}</div>
+                  <div style={{fontSize:'12px', color:'#0d47a1', fontWeight:'bold'}}>TOTAL (Arrived)</div>
+                  <div style={{fontSize:'24px', fontWeight:'900', color:'#1565c0'}}>{stats.total} <span style={{fontSize:'14px', fontWeight:'normal', color:'#555'}}>({stats.arrived})</span></div>
                   <div style={{fontSize:'11px', color:'#555'}}>Old: {stats.old} | New: {stats.new}</div>
               </div>
               <div style={{background:'#e8f5e9', padding:'15px', borderRadius:'10px', textAlign:'center'}}>
@@ -252,10 +257,14 @@ export default function ATPanel({ courses }) {
               <div key={p.participant_id} onClick={() => setEditingStudent(p)} style={{background:'white', border:'1px solid #eee', borderRadius:'10px', padding:'15px', cursor:'pointer', transition:'all 0.2s', boxShadow:'0 2px 5px rgba(0,0,0,0.02)', position:'relative', borderLeft: `4px solid ${String(p.gender).startsWith('M') ? '#007bff' : '#e91e63'}`}}>
                   <div style={{display:'flex', justifyContent:'space-between', marginBottom:'5px'}}>
                       <span style={{fontWeight:'bold', fontSize:'14px'}}>{p.full_name}</span>
-                      <span style={{fontSize:'11px', background:'#eee', padding:'2px 6px', borderRadius:'4px'}}>{p.conf_no}</span>
+                      {/* ✅ VISUAL STATUS BADGE */}
+                      {p.status !== 'Attending' ? 
+                          <span style={{fontSize:'10px', background:'#eee', color:'#666', padding:'2px 6px', borderRadius:'4px', display:'flex', alignItems:'center', gap:'3px'}}><Clock size={10}/> {p.status}</span>
+                          : <span style={{fontSize:'10px', background:'#e8f5e9', color:'#2e7d32', padding:'2px 6px', borderRadius:'4px', display:'flex', alignItems:'center', gap:'3px'}}><CheckCircle size={10}/> Here</span>
+                      }
                   </div>
                   <div style={{fontSize:'12px', color:'#666', marginBottom:'8px'}}>
-                      {p.age} yrs | {getCategory(p.conf_no)} | {p.room_no || 'No Room'}
+                      {p.conf_no} | {p.age} yrs | {getCategory(p.conf_no)}
                   </div>
                   
                   {/* TAGS */}
