@@ -30,28 +30,12 @@ const DORM_LAYOUT = {
     'ROOM-1A', 'ROOM-1B', 'ROOM-2A', 'ROOM-2B', 'ROOM-3A', 'ROOM-3B'
   ],
   FEMALE: [
-    // --- DORMITORIES (A-E) with 1-6 Suffix ---
-    // DORM-A
     'DORM-A1', 'DORM-A2', 'DORM-A3', 'DORM-A4', 'DORM-A5', 'DORM-A6',
-    // DORM-B
     'DORM-B1', 'DORM-B2', 'DORM-B3', 'DORM-B4', 'DORM-B5', 'DORM-B6',
-    // DORM-C
     'DORM-C1', 'DORM-C2', 'DORM-C3', 'DORM-C4', 'DORM-C5', 'DORM-C6',
-    // DORM-D
     'DORM-D1', 'DORM-D2', 'DORM-D3', 'DORM-D4', 'DORM-D5', 'DORM-D6',
-    // DORM-E
     'DORM-E1', 'DORM-E2', 'DORM-E3', 'DORM-E4', 'DORM-E5', 'DORM-E6',
-    
-    // --- ROOMS (1, 2, 3) ---
-    'ROOM-1A', 'ROOM-1B',
-    'ROOM-2A', 'ROOM-2B',
-    'ROOM-3A', 'ROOM-3B',
-    // 201-206 (AI/BI)
-    '201AI', '201BI', '202AI', '202BI', '203AI', '203BI', 
-    '204AI', '204BI', '205AI', '205BI', '206AI', '206BI',
-    // 207-212 (AW/BW)
-    '207AW', '207BW', '208AW', '208BW', '209AW', '209BW', 
-    '210AW', '210BW', '211AW', '211BW', '212AW', '212BW'
+    'ROOM-1A', 'ROOM-1B', 'ROOM-2A', 'ROOM-2B', 'ROOM-3A', 'ROOM-3B'
   ]
 };
 
@@ -146,11 +130,22 @@ export default function DN1StudentForm({ courses, userRole }) {
       setShowVisualRoom(false);
   };
 
+  // ✅ FIXED: STRICT GENDER CHECK FOR DINING OCCUPANCY
   const occupiedSet = useMemo(() => {
     const set = new Set();
-    if(globalOccupied.dining) globalOccupied.dining.forEach(i => i.seat && set.add(String(i.seat)));
+    if(globalOccupied.dining) {
+        globalOccupied.dining.forEach(i => {
+            // Only add to set if the occupant's gender matches the CURRENT tab's gender
+            const occupantGender = (i.gender || '').toLowerCase();
+            const tabGenderChar = genderTab === 'MALE' ? 'm' : 'f';
+            
+            if (i.seat && occupantGender.startsWith(tabGenderChar)) {
+                set.add(String(i.seat));
+            }
+        });
+    }
     return set;
-  }, [globalOccupied.dining]);
+  }, [globalOccupied.dining, genderTab]);
 
   // --- PREPARE RECEIPT ---
   const prepareReceipt = () => {
@@ -172,6 +167,8 @@ export default function DN1StudentForm({ courses, userRole }) {
   const handleSubmit = async (e) => {
       e.preventDefault();
       if (!formData.confNo) return alert("Missing ID");
+      
+      // Strict check: Is this seat taken BY THIS GENDER?
       if (occupiedSet.has(formData.seatNo)) return alert("Seat already taken!");
 
       setStatus('Saving...');
@@ -208,7 +205,11 @@ export default function DN1StudentForm({ courses, userRole }) {
 
   // --- RENDER HELPERS ---
   const renderDN1Cell = (num, type) => {
-    const numStr = String(num); const isOccupied = occupiedSet.has(numStr); const config = DN1_CONFIG[genderTab]; const isSelected = formData.seatNo === numStr;
+    const numStr = String(num); 
+    const isOccupied = occupiedSet.has(numStr); // Uses the gender-filtered set
+    const config = DN1_CONFIG[genderTab]; 
+    const isSelected = formData.seatNo === numStr;
+    
     return (
       <div key={`${type}-${num}`} onClick={() => { if(isOccupied) return; setFormData(p => ({...p, seatNo: numStr, seatType: type})); setShowVisualDining(false); }}
         style={{ width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isOccupied ? '#ffebee' : (isSelected ? '#333' : 'white'), color: isOccupied ? '#c62828' : (isSelected ? 'white' : '#333'), border: isOccupied ? '1px solid #ef5350' : `1px solid ${config.color}`, borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: isOccupied ? 'not-allowed' : 'pointer', margin:'2px' }}>
