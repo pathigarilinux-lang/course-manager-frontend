@@ -17,6 +17,7 @@ import CourseAdmin from './components/CourseAdmin';
 import SevaBoard from './components/SevaBoard'; 
 import GateReception from './components/GateReception';
 import ATPanel from './components/ATPanel';
+import DN1DiningConsole from './components/DN1DiningConsole';
 
 function App() {
   // 1. Initialize User
