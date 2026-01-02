@@ -16,24 +16,50 @@ const DN1_CONFIG = {
   }
 };
 
-// --- CONFIGURATION 2: DORMITORY ROOMS (UPDATED) ---
+// --- CONFIGURATION 2: DORMITORY ROOMS (FINAL) ---
 const DORM_LAYOUT = {
   MALE: [
-    // Pairs: 21 to 28 (A & E)
-    'DORM-21A', 'DORM-21E', 'DORM-22A', 'DORM-22E', 
-    'DORM-23A', 'DORM-23E', 'DORM-24A', 'DORM-24E', 
-    'DORM-25A', 'DORM-25E', 'DORM-26A', 'DORM-26E', 
-    'DORM-27A', 'DORM-27E', 'DORM-28A', 'DORM-28E'
+    // --- DORMITORIES (21-28) ---
+    // DORM-21
+    'DORM-21A', 'DORM-21B', 'DORM-21C', 'DORM-21D', 'DORM-21E', 'DORM-21F',
+    // DORM-22
+    'DORM-22A', 'DORM-22B', 'DORM-22C', 'DORM-22D', 'DORM-22E', 'DORM-22F',
+    // DORM-23
+    'DORM-23A', 'DORM-23B', 'DORM-23C', 'DORM-23D', 'DORM-23E', 'DORM-23F',
+    // DORM-24
+    'DORM-24A', 'DORM-24B', 'DORM-24C', 'DORM-24D', 'DORM-24E', 'DORM-24F',
+    // DORM-25
+    'DORM-25A', 'DORM-25B', 'DORM-25C', 'DORM-25D', 'DORM-25E', 'DORM-25F',
+    // DORM-26
+    'DORM-26A', 'DORM-26B', 'DORM-26C', 'DORM-26D', 'DORM-26E', 'DORM-26F',
+    // DORM-27
+    'DORM-27A', 'DORM-27B', 'DORM-27C', 'DORM-27D', 'DORM-27E', 'DORM-27F',
+    // DORM-28
+    'DORM-28A', 'DORM-28B', 'DORM-28C', 'DORM-28D', 'DORM-28E', 'DORM-28F',
+
+    // --- ROOMS (1, 2, 3) ---
+    'ROOM-1A', 'ROOM-1B',
+    'ROOM-2A', 'ROOM-2B',
+    'ROOM-3A', 'ROOM-3B'
   ],
+
   FEMALE: [
-    // Dorm & Rooms
-    'DORM-A', 'DORM-E', 'ROOM-1A', 'ROOM-1B', 'ROOM-2A', 'ROOM-2B',
-    // 201-206 (AI/BI)
-    '201AI', '201BI', '202AI', '202BI', '203AI', '203BI', 
-    '204AI', '204BI', '205AI', '205BI', '206AI', '206BI',
-    // 207-212 (AW/BW)
-    '207AW', '207BW', '208AW', '208BW', '209AW', '209BW', 
-    '210AW', '210BW', '211AW', '211BW', '212AW', '212BW'
+    // --- DORMITORIES (A-E) with 1-6 Suffix ---
+    // DORM-A
+    'DORM-A1', 'DORM-A2', 'DORM-A3', 'DORM-A4', 'DORM-A5', 'DORM-A6',
+    // DORM-B
+    'DORM-B1', 'DORM-B2', 'DORM-B3', 'DORM-B4', 'DORM-B5', 'DORM-B6',
+    // DORM-C
+    'DORM-C1', 'DORM-C2', 'DORM-C3', 'DORM-C4', 'DORM-C5', 'DORM-C6',
+    // DORM-D
+    'DORM-D1', 'DORM-D2', 'DORM-D3', 'DORM-D4', 'DORM-D5', 'DORM-D6',
+    // DORM-E
+    'DORM-E1', 'DORM-E2', 'DORM-E3', 'DORM-E4', 'DORM-E5', 'DORM-E6',
+    
+    // --- ROOMS (1, 2, 3) ---
+    'ROOM-1A', 'ROOM-1B',
+    'ROOM-2A', 'ROOM-2B',
+    'ROOM-3A', 'ROOM-3B'
   ]
 };
 
@@ -61,7 +87,7 @@ export default function DN1StudentForm({ courses, userRole }) {
   // Visual Toggles
   const [showVisualRoom, setShowVisualRoom] = useState(false);
   const [showVisualDining, setShowVisualDining] = useState(false);
-  const [genderTab, setGenderTab] = useState('MALE'); // Controls both Room list and Dining Map
+  const [genderTab, setGenderTab] = useState('MALE'); 
 
   // --- INITIAL DATA ---
   useEffect(() => { 
@@ -114,7 +140,7 @@ export default function DN1StudentForm({ courses, userRole }) {
       setIsSearching(false);
   };
 
-  // --- ROOM HANDLER (INLINED) ---
+  // --- ROOM HANDLER ---
   const handleRoomSelect = (roomNum) => {
       const occupantData = occupancy.find(r => r.room_no === roomNum);
       if (occupantData) return alert(`⛔ Room ${roomNum} is already occupied by ${occupantData.occupant_name || 'someone'}.`);
@@ -122,7 +148,7 @@ export default function DN1StudentForm({ courses, userRole }) {
       setShowVisualRoom(false);
   };
 
-  // --- DINING HANDLER (INLINED) ---
+  // --- DINING HANDLER ---
   const occupiedSet = useMemo(() => {
     const set = new Set();
     if(globalOccupied.dining) globalOccupied.dining.forEach(i => i.seat && set.add(String(i.seat)));
@@ -259,14 +285,14 @@ export default function DN1StudentForm({ courses, userRole }) {
                     </div>
 
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'20px'}}>
-                        {/* ROOM SELECTOR */}
+                        
                         <div style={{border:'2px solid #ddd', borderRadius:'8px', padding:'15px'}}>
                             <h4 style={{marginTop:0, display:'flex', alignItems:'center', gap:'5px'}}><MapPin size={16}/> Dormitory / Room</h4>
                             <button type="button" onClick={()=>setShowVisualRoom(true)} style={{...styles.input, textAlign:'left', fontWeight:'bold', cursor:'pointer', background: formData.roomNo ? '#e8f5e9' : 'white'}}>
                                 {formData.roomNo || "Select Bed"}
                             </button>
                         </div>
-                        {/* DINING SELECTOR */}
+
                         <div style={{border:'2px solid #ddd', borderRadius:'8px', padding:'15px'}}>
                             <h4 style={{marginTop:0, display:'flex', alignItems:'center', gap:'5px'}}><Coffee size={16}/> DN1 Seat</h4>
                             <button type="button" onClick={()=>setShowVisualDining(true)} style={{...styles.input, textAlign:'left', fontWeight:'bold', cursor:'pointer', background: formData.seatNo ? '#e3f2fd' : 'white'}}>
@@ -292,7 +318,6 @@ export default function DN1StudentForm({ courses, userRole }) {
         )}
       </div>
 
-      {/* --- MODAL: DORM ROOMS (Updated) --- */}
       {showVisualRoom && (
           <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}>
              <div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}>
@@ -301,7 +326,6 @@ export default function DN1StudentForm({ courses, userRole }) {
                      <button onClick={()=>setShowVisualRoom(false)}><X/></button>
                  </div>
                  
-                 {/* Auto-switches based on Gender */}
                  <div style={{padding:'20px', background:'#f5f5f5', borderRadius:'8px', textAlign:'center'}}>
                     <div style={{display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'10px'}}>
                         {currentRoomList.map(roomNum => renderDormCell(roomNum))}
@@ -311,7 +335,6 @@ export default function DN1StudentForm({ courses, userRole }) {
           </div>
       )}
 
-      {/* --- MODAL: DINING (DN1 Grid) --- */}
       {showVisualDining && (
           <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}>
              <div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}>
