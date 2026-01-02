@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MapPin, Coffee, AlertTriangle, CheckCircle, Search, X, BedDouble } from 'lucide-react';
 import { API_URL, styles } from '../config';
 
-// ❌ NO EXTERNAL LAYOUT IMPORTS (Everything is defined inside this file)
-
 // --- CONFIGURATION 1: DN1 DINING ---
 const DN1_CONFIG = {
   MALE: {
@@ -18,11 +16,25 @@ const DN1_CONFIG = {
   }
 };
 
-// --- CONFIGURATION 2: DORMITORY / NEW BLOCK ---
-// ✅ EDIT THESE NUMBERS to match your actual New Block / Dorm rooms
+// --- CONFIGURATION 2: DORMITORY ROOMS (UPDATED) ---
 const DORM_LAYOUT = {
-  GROUND_FLOOR: ['NB-101', 'NB-102', 'NB-103', 'NB-104', 'NB-105', 'NB-106'],
-  FIRST_FLOOR:  ['NB-201', 'NB-202', 'NB-203', 'NB-204', 'NB-205', 'NB-206']
+  MALE: [
+    // Pairs: 21 to 28 (A & E)
+    'DORM-21A', 'DORM-21E', 'DORM-22A', 'DORM-22E', 
+    'DORM-23A', 'DORM-23E', 'DORM-24A', 'DORM-24E', 
+    'DORM-25A', 'DORM-25E', 'DORM-26A', 'DORM-26E', 
+    'DORM-27A', 'DORM-27E', 'DORM-28A', 'DORM-28E'
+  ],
+  FEMALE: [
+    // Dorm & Rooms
+    'DORM-A', 'DORM-E', 'ROOM-1A', 'ROOM-1B', 'ROOM-2A', 'ROOM-2B',
+    // 201-206 (AI/BI)
+    '201AI', '201BI', '202AI', '202BI', '203AI', '203BI', 
+    '204AI', '204BI', '205AI', '205BI', '206AI', '206BI',
+    // 207-212 (AW/BW)
+    '207AW', '207BW', '208AW', '208BW', '209AW', '209BW', 
+    '210AW', '210BW', '211AW', '211BW', '212AW', '212BW'
+  ]
 };
 
 export default function DN1StudentForm({ courses, userRole }) {
@@ -34,8 +46,7 @@ export default function DN1StudentForm({ courses, userRole }) {
   const [status, setStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const searchInputRef = useRef(null);
-
+  
   // Global Conflict Data
   const [globalOccupied, setGlobalOccupied] = useState({ dining: [], pagoda: [] });
 
@@ -50,7 +61,7 @@ export default function DN1StudentForm({ courses, userRole }) {
   // Visual Toggles
   const [showVisualRoom, setShowVisualRoom] = useState(false);
   const [showVisualDining, setShowVisualDining] = useState(false);
-  const [diningTab, setDiningTab] = useState('MALE'); 
+  const [genderTab, setGenderTab] = useState('MALE'); // Controls both Room list and Dining Map
 
   // --- INITIAL DATA ---
   useEffect(() => { 
@@ -61,29 +72,16 @@ export default function DN1StudentForm({ courses, userRole }) {
   useEffect(() => { 
       if (formData.courseId) {
           const syncData = () => {
-              // 1. Fetch Participants
               fetch(`${API_URL}/courses/${formData.courseId}/participants`)
-                .then(r=>r.json())
-                .then(d => Array.isArray(d) && setParticipants(d))
-                .catch(console.error);
+                .then(r=>r.json()).then(d => Array.isArray(d) && setParticipants(d)).catch(console.error);
 
-              // 2. Fetch Global Occupied
               fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`)
-                .then(r=>r.json())
-                .then(setGlobalOccupied)
-                .catch(console.error);
+                .then(r=>r.json()).then(setGlobalOccupied).catch(console.error);
 
-              // 3. Fetch Room Occupancy
               fetch(`${API_URL}/rooms/occupancy`)
                 .then(r=>r.json())
-                .then(d => {
-                    if (Array.isArray(d)) setOccupancy(d);
-                    else setOccupancy([]); 
-                })
-                .catch(err => {
-                    console.error("Occupancy Fetch Error:", err);
-                    setOccupancy([]); 
-                });
+                .then(d => { if (Array.isArray(d)) setOccupancy(d); else setOccupancy([]); })
+                .catch(err => { console.error(err); setOccupancy([]); });
           };
           syncData();
           const i = setInterval(syncData, 5000);
@@ -102,7 +100,7 @@ export default function DN1StudentForm({ courses, userRole }) {
       setSelectedStudent(student);
       const isFem = (student.gender || '').toLowerCase().startsWith('f');
       
-      setDiningTab(isFem ? 'FEMALE' : 'MALE');
+      setGenderTab(isFem ? 'FEMALE' : 'MALE');
       
       setFormData(prev => ({ 
           ...prev, 
@@ -118,11 +116,8 @@ export default function DN1StudentForm({ courses, userRole }) {
 
   // --- ROOM HANDLER (INLINED) ---
   const handleRoomSelect = (roomNum) => {
-      // Find occupancy data for this specific room
       const occupantData = occupancy.find(r => r.room_no === roomNum);
-      
       if (occupantData) return alert(`⛔ Room ${roomNum} is already occupied by ${occupantData.occupant_name || 'someone'}.`);
-      
       setFormData(prev => ({ ...prev, roomNo: roomNum }));
       setShowVisualRoom(false);
   };
@@ -140,7 +135,7 @@ export default function DN1StudentForm({ courses, userRole }) {
   const renderDN1Cell = (num, type) => {
     const numStr = String(num);
     const isOccupied = occupiedSet.has(numStr);
-    const config = DN1_CONFIG[diningTab];
+    const config = DN1_CONFIG[genderTab];
     const isSelected = formData.seatNo === numStr;
 
     return (
@@ -167,7 +162,6 @@ export default function DN1StudentForm({ courses, userRole }) {
 
   // 2. Render Dorm Room Cell
   const renderDormCell = (roomNum) => {
-    // Check if room is occupied
     const occupant = occupancy.find(r => r.room_no === roomNum);
     const isOccupied = !!occupant;
     const isSelected = formData.roomNo === roomNum;
@@ -177,7 +171,7 @@ export default function DN1StudentForm({ courses, userRole }) {
             key={roomNum}
             onClick={() => !isOccupied && handleRoomSelect(roomNum)}
             style={{
-                width: '80px', height: '50px', 
+                width: '90px', padding:'10px 5px',
                 background: isOccupied ? '#ffebee' : (isSelected ? '#e8f5e9' : 'white'),
                 border: isOccupied ? '1px solid #ffcdd2' : (isSelected ? '2px solid #4caf50' : '1px solid #ccc'),
                 borderRadius: '8px', cursor: isOccupied ? 'not-allowed' : 'pointer',
@@ -186,8 +180,8 @@ export default function DN1StudentForm({ courses, userRole }) {
             }}
         >
             <div style={{fontWeight:'bold', fontSize:'12px', color: isOccupied ? '#c62828' : '#333'}}>{roomNum}</div>
-            {isOccupied && <div style={{fontSize:'9px', color:'#d32f2f'}}>Occupied</div>}
-            {!isOccupied && isSelected && <CheckCircle size={12} color="green"/>}
+            {isOccupied && <div style={{fontSize:'9px', color:'#d32f2f', marginTop:'2px'}}>Occupied</div>}
+            {!isOccupied && isSelected && <CheckCircle size={12} color="green" style={{marginTop:'2px'}}/>}
         </div>
     );
   };
@@ -218,6 +212,9 @@ export default function DN1StudentForm({ courses, userRole }) {
   };
 
   const searchResults = participants.filter(p => searchTerm && p.full_name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  // Get current list of rooms based on gender
+  const currentRoomList = DORM_LAYOUT[genderTab] || [];
 
   return (
     <div style={styles.card}>
@@ -262,14 +259,14 @@ export default function DN1StudentForm({ courses, userRole }) {
                     </div>
 
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'20px'}}>
-                        
+                        {/* ROOM SELECTOR */}
                         <div style={{border:'2px solid #ddd', borderRadius:'8px', padding:'15px'}}>
                             <h4 style={{marginTop:0, display:'flex', alignItems:'center', gap:'5px'}}><MapPin size={16}/> Dormitory / Room</h4>
                             <button type="button" onClick={()=>setShowVisualRoom(true)} style={{...styles.input, textAlign:'left', fontWeight:'bold', cursor:'pointer', background: formData.roomNo ? '#e8f5e9' : 'white'}}>
                                 {formData.roomNo || "Select Bed"}
                             </button>
                         </div>
-
+                        {/* DINING SELECTOR */}
                         <div style={{border:'2px solid #ddd', borderRadius:'8px', padding:'15px'}}>
                             <h4 style={{marginTop:0, display:'flex', alignItems:'center', gap:'5px'}}><Coffee size={16}/> DN1 Seat</h4>
                             <button type="button" onClick={()=>setShowVisualDining(true)} style={{...styles.input, textAlign:'left', fontWeight:'bold', cursor:'pointer', background: formData.seatNo ? '#e3f2fd' : 'white'}}>
@@ -295,26 +292,20 @@ export default function DN1StudentForm({ courses, userRole }) {
         )}
       </div>
 
-      {/* --- MODAL: DORM ROOMS (Inlined) --- */}
+      {/* --- MODAL: DORM ROOMS (Updated) --- */}
       {showVisualRoom && (
           <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}>
              <div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}>
                  <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}>
-                     <h3 style={{display:'flex', alignItems:'center', gap:'10px'}}><BedDouble/> Select Dormitory Room</h3>
+                     <h3 style={{display:'flex', alignItems:'center', gap:'10px'}}><BedDouble/> Select {genderTab === 'MALE' ? 'Male' : 'Female'} Bed</h3>
                      <button onClick={()=>setShowVisualRoom(false)}><X/></button>
                  </div>
                  
-                 {/* DORM LAYOUT GRID */}
+                 {/* Auto-switches based on Gender */}
                  <div style={{padding:'20px', background:'#f5f5f5', borderRadius:'8px', textAlign:'center'}}>
-                    {/* Loop through the DORM_LAYOUT object keys (Ground, First, etc.) */}
-                    {Object.entries(DORM_LAYOUT).map(([floorName, roomArray]) => (
-                        <div key={floorName} style={{marginBottom:'20px'}}>
-                            <h5 style={{margin:'0 0 10px 0', color:'#555', textTransform:'uppercase'}}>{floorName.replace('_', ' ')}</h5>
-                            <div style={{display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'10px'}}>
-                                {roomArray.map(roomNum => renderDormCell(roomNum))}
-                            </div>
-                        </div>
-                    ))}
+                    <div style={{display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'10px'}}>
+                        {currentRoomList.map(roomNum => renderDormCell(roomNum))}
+                    </div>
                  </div>
              </div>
           </div>
@@ -326,24 +317,20 @@ export default function DN1StudentForm({ courses, userRole }) {
              <div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}>
                  <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}>
                      <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
-                        <h3>Select DN1 Seat</h3>
-                        <div style={{display:'flex', background:'#eee', padding:'2px', borderRadius:'4px'}}>
-                            <button onClick={()=>setDiningTab('MALE')} style={{padding:'5px 10px', border:'none', background: diningTab==='MALE'?'#1565c0':'transparent', color:diningTab==='MALE'?'white':'#333', borderRadius:'4px', fontWeight:'bold', cursor:'pointer'}}>Male</button>
-                            <button onClick={()=>setDiningTab('FEMALE')} style={{padding:'5px 10px', border:'none', background: diningTab==='FEMALE'?'#ad1457':'transparent', color:diningTab==='FEMALE'?'white':'#333', borderRadius:'4px', fontWeight:'bold', cursor:'pointer'}}>Female</button>
-                        </div>
+                        <h3>Select DN1 Seat ({genderTab})</h3>
                      </div>
                      <button onClick={()=>setShowVisualDining(false)}><X/></button>
                  </div>
                  
-                 <div style={{textAlign:'center', background: DN1_CONFIG[diningTab].bg, padding:'20px', borderRadius:'8px'}}>
+                 <div style={{textAlign:'center', background: DN1_CONFIG[genderTab].bg, padding:'20px', borderRadius:'8px'}}>
                      <div style={{display:'flex', justifyContent:'center', gap:'40px'}}>
                          <div>
                              <strong>FLOOR</strong>
-                             <div style={{display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'5px'}}>{DN1_CONFIG[diningTab].floor.flat().map(n => renderDN1Cell(n, 'Floor'))}</div>
+                             <div style={{display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'5px'}}>{DN1_CONFIG[genderTab].floor.flat().map(n => renderDN1Cell(n, 'Floor'))}</div>
                          </div>
                          <div>
                              <strong>CHAIRS</strong>
-                             <div style={{display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'5px'}}>{DN1_CONFIG[diningTab].chairs.flat().map(n => renderDN1Cell(n, 'Chair'))}</div>
+                             <div style={{display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'5px'}}>{DN1_CONFIG[genderTab].chairs.flat().map(n => renderDN1Cell(n, 'Chair'))}</div>
                          </div>
                      </div>
                  </div>
