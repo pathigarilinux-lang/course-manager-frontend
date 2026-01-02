@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, Map, User, CheckCircle, Search, AlertCircle } from 'lucide-react'; 
+// ✅ FIX: Aliased 'Map' to 'MapIcon' to avoid conflict with JS Map
+import { RefreshCw, Map as MapIcon, User, CheckCircle, Search, AlertCircle } from 'lucide-react'; 
 import { API_URL } from '../config'; 
 
 export default function DN1DiningConsole({ courses = [] }) {
   // --- STATE ---
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [loading, setLoading] = useState(false);
-  const [occupiedData, setOccupiedData] = useState([]); // Array of {seat, gender, studentName...}
+  const [occupiedData, setOccupiedData] = useState([]); 
   const [participants, setParticipants] = useState([]);
-  const [activeTab, setActiveTab] = useState('MALE'); // 'MALE' or 'FEMALE'
+  const [activeTab, setActiveTab] = useState('MALE'); 
   
-  // Selection State for Assignment
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [assignStatus, setAssignStatus] = useState('');
 
@@ -33,13 +33,11 @@ export default function DN1DiningConsole({ courses = [] }) {
     if (!selectedCourseId) return;
     setLoading(true);
     try {
-      // 1. Get Occupancy (Who is sitting where?)
       const occRes = await fetch(`${API_URL}/courses/${selectedCourseId}/global-occupied`);
       if (!occRes.ok) throw new Error("Failed to fetch occupancy");
       const occData = await occRes.json();
       setOccupiedData(occData.dining || []);
 
-      // 2. Get Participants (Who needs a seat?)
       const partRes = await fetch(`${API_URL}/courses/${selectedCourseId}/participants`);
       if (!partRes.ok) throw new Error("Failed to fetch participants");
       const partData = await partRes.json();
@@ -47,7 +45,7 @@ export default function DN1DiningConsole({ courses = [] }) {
 
     } catch (error) {
       console.error("Failed to load data", error);
-      setParticipants([]); // Reset on error to prevent crash
+      setParticipants([]); 
       setOccupiedData([]);
     } finally {
       setLoading(false);
@@ -56,27 +54,23 @@ export default function DN1DiningConsole({ courses = [] }) {
 
   useEffect(() => {
     fetchData();
-    setSelectedStudent(null); // Reset selection on course change
+    setSelectedStudent(null); 
   }, [selectedCourseId]);
 
   // --- HELPERS ---
-  
-  // Safe Filter Logic
   const pendingStudents = useMemo(() => {
     if (!Array.isArray(participants)) return [];
     
     const targetChar = activeTab === 'MALE' ? 'm' : 'f';
     return participants.filter(p => {
-      // Safety Check: ensure p exists
       if (!p) return false;
       const g = (p.gender || '').toLowerCase();
-      // Must match gender AND (have no seat OR have empty seat)
       return g.startsWith(targetChar) && (!p.dining_seat_no || p.dining_seat_no === '');
     });
   }, [participants, activeTab]);
 
-  // Occupied Lookup Set
   const occupiedSet = useMemo(() => {
+    // ✅ FIX: Now 'Map' refers to Javascript Map, because we renamed the icon
     const map = new Map(); 
     if (Array.isArray(occupiedData)) {
         occupiedData.forEach(item => {
@@ -86,7 +80,7 @@ export default function DN1DiningConsole({ courses = [] }) {
     return map;
   }, [occupiedData]);
 
-  // --- ACTION: ASSIGN SEAT ---
+  // --- ASSIGN SEAT ---
   const handleAssignSeat = async (seatNum, type) => {
     if (!selectedStudent) {
       alert("Please select a student from the left list first.");
@@ -122,7 +116,6 @@ export default function DN1DiningConsole({ courses = [] }) {
       setAssignStatus('✅ Assigned');
       setTimeout(() => setAssignStatus(''), 2000);
       
-      // Refresh Data & Clear Selection
       await fetchData();
       setSelectedStudent(null); 
 
@@ -139,19 +132,18 @@ export default function DN1DiningConsole({ courses = [] }) {
     const isOccupied = !!occupant;
     const theme = CONFIG[activeTab].theme;
 
-    // Interaction Styles
     let bg = 'white';
     let cursor = 'pointer';
     let border = `1px solid ${theme.border}`;
     let title = isOccupied ? `Occupied` : `Assign to ${selectedStudent ? selectedStudent.full_name : 'Student'}`;
 
     if (isOccupied) {
-      bg = '#ffebee'; // Red background
+      bg = '#ffebee'; 
       cursor = 'not-allowed';
       border = '1px solid #ef5350';
       title = `Occupied (Seat ${num})`;
     } else if (selectedStudent) {
-      bg = '#e8f5e9'; // Light Green hint
+      bg = '#e8f5e9'; 
       border = '2px dashed #4caf50';
     }
 
@@ -181,13 +173,12 @@ export default function DN1DiningConsole({ courses = [] }) {
   return (
     <div style={{ display: 'flex', gap: '20px', height: 'calc(100vh - 100px)', padding: '10px' }}>
       
-      {/* --- LEFT PANEL: STUDENT LIST --- */}
+      {/* LEFT PANEL */}
       <div style={{ width: '300px', background: 'white', borderRadius: '12px', padding: '15px', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
         <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px', display:'flex', alignItems:'center', gap:'8px' }}>
           <User size={18} /> Pending Students
         </h3>
 
-        {/* Course Selector */}
         <select 
           style={{ padding: '10px', borderRadius: '6px', border: '1px solid #ccc', marginBottom: '15px', width: '100%' }}
           value={selectedCourseId}
@@ -199,7 +190,6 @@ export default function DN1DiningConsole({ courses = [] }) {
           ))}
         </select>
 
-        {/* Pending List */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {!selectedCourseId ? (
             <div style={{color:'#999', fontSize:'13px', textAlign:'center', marginTop:'20px'}}>Please select a course to view students.</div>
@@ -228,10 +218,9 @@ export default function DN1DiningConsole({ courses = [] }) {
         </div>
       </div>
 
-      {/* --- RIGHT PANEL: DINING MAP --- */}
+      {/* RIGHT PANEL */}
       <div style={{ flex: 1, background: 'white', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
         
-        {/* Header & Tabs */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
             <h2 style={{ margin: 0, color: '#333' }}>DN1 Dining Map</h2>
@@ -249,19 +238,16 @@ export default function DN1DiningConsole({ courses = [] }) {
           </div>
         </div>
 
-        {/* Map Area */}
         <div style={{ flex: 1, overflow: 'auto', background: activeConfig.theme.bg, borderRadius: '12px', padding: '20px', border: `1px solid ${activeConfig.theme.border}` }}>
           {assignStatus && <div style={{textAlign:'center', marginBottom:'15px', padding:'10px', background:'white', borderRadius:'8px', fontWeight:'bold', color:'green', boxShadow:'0 2px 5px rgba(0,0,0,0.1)'}}>{assignStatus}</div>}
           
           <div style={{ display: 'flex', justifyContent: 'center', gap: '30px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            {/* FLOOR */}
             <div style={{ background: 'white', padding: '15px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
               <div style={{ marginBottom: '10px', textAlign: 'center', fontWeight: 'bold', color: '#555', fontSize: '11px', background: '#f5f5f5', padding: '4px', borderRadius: '4px' }}>FLOOR</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px' }}>
                 {activeConfig.floor.flat().map(n => renderCell(n, 'Floor'))}
               </div>
             </div>
-            {/* CHAIRS */}
             <div style={{ background: 'white', padding: '15px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
               <div style={{ marginBottom: '10px', textAlign: 'center', fontWeight: 'bold', color: '#555', fontSize: '11px', background: '#f5f5f5', padding: '4px', borderRadius: '4px' }}>CHAIRS</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px' }}>
