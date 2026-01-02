@@ -130,18 +130,19 @@ export default function DN1StudentForm({ courses, userRole }) {
       setShowVisualRoom(false);
   };
 
-  // ✅ 1. FIXED CONFLICT LOGIC: Ensures Male/Female separation
+  // ✅ 1. FIXED: GENDER-SPECIFIC OCCUPANCY LOGIC
+  // If we are looking at MALE tab, we only care about seats occupied by MALES.
+  // If Male Student A takes Seat 5, it goes into this set when genderTab is 'MALE'.
+  // It does NOT go into this set when genderTab is 'FEMALE'.
   const occupiedSet = useMemo(() => {
     const set = new Set();
     if(globalOccupied.dining) {
         globalOccupied.dining.forEach(i => {
-            // Normalize genders for comparison
-            const occupantGender = (i.gender || '').toLowerCase();
-            const tabGenderChar = genderTab === 'MALE' ? 'm' : 'f';
+            const occupantGender = (i.gender || '').toLowerCase(); // e.g., 'male', 'female'
+            const currentTabChar = genderTab.toLowerCase().charAt(0); // 'm' or 'f'
             
-            // Only mark occupied if seat ID exists AND genders match
-            // This prevents "Male 5" from blocking "Female 5"
-            if (i.seat && occupantGender.startsWith(tabGenderChar)) {
+            // Only block the seat if the occupant matches the current tab's gender
+            if (i.seat && occupantGender.startsWith(currentTabChar)) {
                 set.add(String(i.seat));
             }
         });
@@ -183,10 +184,12 @@ export default function DN1StudentForm({ courses, userRole }) {
           setTimeout(() => window.print(), 500);
           setStatus('✅ Success');
           
-          // Re-fetch data to immediately update drop-down
+          // Re-fetch to update lists immediately
           if(formData.courseId) {
              fetch(`${API_URL}/courses/${formData.courseId}/participants`)
                 .then(r=>r.json()).then(d=>Array.isArray(d)&&setParticipants(d));
+             fetch(`${API_URL}/courses/${formData.courseId}/global-occupied`)
+                .then(r=>r.json()).then(setGlobalOccupied);
           }
 
           setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', confNo: '', specialSeating: 'None' }));
@@ -199,13 +202,10 @@ export default function DN1StudentForm({ courses, userRole }) {
       }
   };
 
-  // ✅ 2. FIXED SEARCH: Filter out already On-boarded (Attending) students
+  // ✅ 2. SEARCH FILTER: Hide On-boarded students (Attending / Has Room / Has Seat)
   const searchResults = participants.filter(p => {
       if(!searchTerm) return false;
-      
-      // Filter out if Checked In OR has Room OR has Dining
       if (p.status === 'Attending' || p.room_no || p.dining_seat_no) return false;
-      
       return p.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
              (p.conf_no && p.conf_no.toLowerCase().includes(searchTerm.toLowerCase()));
   });
@@ -221,7 +221,10 @@ export default function DN1StudentForm({ courses, userRole }) {
 
   // --- RENDER HELPERS ---
   const renderDN1Cell = (num, type) => {
-    const numStr = String(num); const isOccupied = occupiedSet.has(numStr); const config = DN1_CONFIG[genderTab]; const isSelected = formData.seatNo === numStr;
+    const numStr = String(num); 
+    const isOccupied = occupiedSet.has(numStr); // Uses the GENDER-AWARE set
+    const config = DN1_CONFIG[genderTab]; 
+    const isSelected = formData.seatNo === numStr;
     return (
       <div key={`${type}-${num}`} onClick={() => { if(isOccupied) return; setFormData(p => ({...p, seatNo: numStr, seatType: type})); setShowVisualDining(false); }}
         style={{ width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isOccupied ? '#ffebee' : (isSelected ? '#333' : 'white'), color: isOccupied ? '#c62828' : (isSelected ? 'white' : '#333'), border: isOccupied ? '1px solid #ef5350' : `1px solid ${config.color}`, borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: isOccupied ? 'not-allowed' : 'pointer', margin:'2px' }}>
@@ -265,7 +268,7 @@ export default function DN1StudentForm({ courses, userRole }) {
                         <input style={{...styles.input, padding:'8px'}} placeholder="Name / ID" value={searchTerm} onChange={e=>{setSearchTerm(e.target.value); setIsSearching(true)}} disabled={!formData.courseId}/>
                         {isSearching && searchTerm && (
                             <div style={{position:'absolute', top:'100%', left:0, right:0, background:'white', border:'1px solid #ccc', zIndex:100, maxHeight:'200px', overflowY:'auto'}}>
-                                {searchResults.length === 0 ? <div style={{padding:'10px', color:'#999', fontSize:'12px'}}>No pending students found.</div> : 
+                                {searchResults.length === 0 ? <div style={{padding:'10px', color:'#999', fontSize:'12px'}}>No pending students found.</div> :
                                 searchResults.map(p => (
                                     <div key={p.participant_id} onClick={()=>selectStudent(p)} style={{padding:'8px', borderBottom:'1px solid #eee', cursor:'pointer', fontWeight:'bold', fontSize:'13px'}}>
                                         {p.full_name} ({p.conf_no})
