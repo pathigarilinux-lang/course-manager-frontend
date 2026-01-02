@@ -4,7 +4,6 @@ import DiningLayout from '../DiningLayout';
 import PagodaLayout from '../PagodaLayout';
 import MaleBlockLayout from './MaleBlockLayout'; 
 import FemaleBlockLayout from './FemaleBlockLayout'; 
-import NewBlockLayout from './NewBlockLayout'; // ✅ 1. IMPORT NEW LAYOUT
 import { API_URL, LANGUAGES, styles } from '../config';
 
 const NUMBER_OPTIONS = Array.from({ length: 200 }, (_, i) => String(i + 1));
@@ -431,7 +430,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                           {roomModalTab === 'Male' && <MaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomSelect} />}
                           {roomModalTab === 'Female' && <FemaleBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomSelect} />}
                           {/* ✅ RENDER NEW LAYOUT */}
-                          {roomModalTab === 'New Block' && <NewBlockLayout rooms={rooms} occupancy={occupancy} onRoomClick={handleRoomSelect} />}
+                          
                       </div>
                   </div>
               </div>
