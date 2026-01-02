@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, Map, User, CheckCircle, Search, AlertCircle } from 'lucide-react'; 
 import { API_URL } from '../config'; 
 
-export default function DN1DiningConsole({ courses }) {
+export default function DN1DiningConsole({ courses = [] }) {
   // --- STATE ---
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,16 +35,20 @@ export default function DN1DiningConsole({ courses }) {
     try {
       // 1. Get Occupancy (Who is sitting where?)
       const occRes = await fetch(`${API_URL}/courses/${selectedCourseId}/global-occupied`);
+      if (!occRes.ok) throw new Error("Failed to fetch occupancy");
       const occData = await occRes.json();
       setOccupiedData(occData.dining || []);
 
       // 2. Get Participants (Who needs a seat?)
       const partRes = await fetch(`${API_URL}/courses/${selectedCourseId}/participants`);
+      if (!partRes.ok) throw new Error("Failed to fetch participants");
       const partData = await partRes.json();
       setParticipants(Array.isArray(partData) ? partData : []);
 
     } catch (error) {
       console.error("Failed to load data", error);
+      setParticipants([]); // Reset on error to prevent crash
+      setOccupiedData([]);
     } finally {
       setLoading(false);
     }
@@ -57,10 +61,14 @@ export default function DN1DiningConsole({ courses }) {
 
   // --- HELPERS ---
   
-  // Filter Students: Only show those matching the Active Tab Gender & NO Seat assigned yet
+  // Safe Filter Logic
   const pendingStudents = useMemo(() => {
+    if (!Array.isArray(participants)) return [];
+    
     const targetChar = activeTab === 'MALE' ? 'm' : 'f';
     return participants.filter(p => {
+      // Safety Check: ensure p exists
+      if (!p) return false;
       const g = (p.gender || '').toLowerCase();
       // Must match gender AND (have no seat OR have empty seat)
       return g.startsWith(targetChar) && (!p.dining_seat_no || p.dining_seat_no === '');
@@ -69,10 +77,12 @@ export default function DN1DiningConsole({ courses }) {
 
   // Occupied Lookup Set
   const occupiedSet = useMemo(() => {
-    const map = new Map(); // Store full info, not just existence
-    occupiedData.forEach(item => {
-      if (item.seat) map.set(String(item.seat), item);
-    });
+    const map = new Map(); 
+    if (Array.isArray(occupiedData)) {
+        occupiedData.forEach(item => {
+          if (item && item.seat) map.set(String(item.seat), item);
+        });
+    }
     return map;
   }, [occupiedData]);
 
@@ -92,18 +102,11 @@ export default function DN1DiningConsole({ courses }) {
 
     setAssignStatus('Saving...');
     try {
-      // Use existing Check-in API to update the seat
-      // We send the existing student data + new dining info
       const payload = {
         courseId: selectedCourseId,
         participantId: selectedStudent.participant_id,
         seatNo: String(seatNum),
-        diningSeatType: type, // 'Chair' or 'Floor'
-        // Preserve other fields if needed, or backend handles partial updates
-        // Assuming backend 'check-in' or 'update-participant' handles this. 
-        // If you strictly use /check-in, ensure it doesn't wipe other data.
-        // SAFE BET: specialized endpoint or simple update. 
-        // Let's assume /check-in works for updates as per previous logic.
+        diningSeatType: type, 
         confNo: selectedStudent.conf_no,
         gender: selectedStudent.gender
       };
@@ -119,9 +122,9 @@ export default function DN1DiningConsole({ courses }) {
       setAssignStatus('✅ Assigned');
       setTimeout(() => setAssignStatus(''), 2000);
       
-      // Refresh Data
-      fetchData();
-      setSelectedStudent(null); // Clear selection
+      // Refresh Data & Clear Selection
+      await fetchData();
+      setSelectedStudent(null); 
 
     } catch (err) {
       alert("Error assigning seat: " + err.message);
@@ -132,7 +135,7 @@ export default function DN1DiningConsole({ courses }) {
   // --- RENDERERS ---
   const renderCell = (num, type) => {
     const numStr = String(num);
-    const occupant = occupiedSet.get(numStr); // Get occupant details if any
+    const occupant = occupiedSet.get(numStr); 
     const isOccupied = !!occupant;
     const theme = CONFIG[activeTab].theme;
 
@@ -140,13 +143,14 @@ export default function DN1DiningConsole({ courses }) {
     let bg = 'white';
     let cursor = 'pointer';
     let border = `1px solid ${theme.border}`;
+    let title = isOccupied ? `Occupied` : `Assign to ${selectedStudent ? selectedStudent.full_name : 'Student'}`;
 
     if (isOccupied) {
       bg = '#ffebee'; // Red background
       cursor = 'not-allowed';
       border = '1px solid #ef5350';
+      title = `Occupied (Seat ${num})`;
     } else if (selectedStudent) {
-      // Highlight available seats when a student is selected
       bg = '#e8f5e9'; // Light Green hint
       border = '2px dashed #4caf50';
     }
@@ -156,16 +160,16 @@ export default function DN1DiningConsole({ courses }) {
         key={`${type}-${num}`}
         onClick={() => !isOccupied && handleAssignSeat(numStr, type)}
         style={{
-          width: '40px', height: '40px', 
+          width: '38px', height: '38px', 
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: bg,
           color: isOccupied ? '#c62828' : '#333',
           border: border,
           borderRadius: '6px', fontSize: '12px', fontWeight: 'bold',
-          cursor: cursor, position: 'relative',
+          cursor: cursor, position: 'relative', margin: '2px',
           transition: 'transform 0.1s'
         }}
-        title={isOccupied ? `Occupied` : `Assign to ${selectedStudent ? selectedStudent.full_name : 'Student'}`}
+        title={title}
       >
         {num}
       </div>
@@ -175,13 +179,12 @@ export default function DN1DiningConsole({ courses }) {
   const activeConfig = CONFIG[activeTab];
 
   return (
-    <div style={{ display: 'flex', gap: '20px', height: 'calc(100vh - 100px)' }}>
+    <div style={{ display: 'flex', gap: '20px', height: 'calc(100vh - 100px)', padding: '10px' }}>
       
       {/* --- LEFT PANEL: STUDENT LIST --- */}
       <div style={{ width: '300px', background: 'white', borderRadius: '12px', padding: '15px', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-        <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-          <User size={16} style={{display:'inline', marginRight:'5px'}}/> 
-          Pending Students
+        <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', borderBottom: '1px solid #eee', paddingBottom: '10px', display:'flex', alignItems:'center', gap:'8px' }}>
+          <User size={18} /> Pending Students
         </h3>
 
         {/* Course Selector */}
@@ -199,7 +202,7 @@ export default function DN1DiningConsole({ courses }) {
         {/* Pending List */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {!selectedCourseId ? (
-            <div style={{color:'#999', fontSize:'13px', textAlign:'center'}}>Select a course first</div>
+            <div style={{color:'#999', fontSize:'13px', textAlign:'center', marginTop:'20px'}}>Please select a course to view students.</div>
           ) : pendingStudents.length === 0 ? (
             <div style={{padding:'20px', textAlign:'center', color:'#28a745'}}>
               <CheckCircle size={24} style={{margin:'0 auto 10px auto'}}/>
@@ -232,10 +235,11 @@ export default function DN1DiningConsole({ courses }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
             <h2 style={{ margin: 0, color: '#333' }}>DN1 Dining Map</h2>
-            <div style={{fontSize:'12px', color: selectedStudent ? '#e65100' : '#666', marginTop:'5px', fontWeight: 'bold'}}>
-              {selectedStudent 
-                ? `👉 Assigning seat for: ${selectedStudent.full_name}` 
-                : "Select a student from the left list to assign"}
+            <div style={{fontSize:'13px', color: selectedStudent ? '#e65100' : '#666', marginTop:'5px', fontWeight: 'bold', display:'flex', alignItems:'center', gap:'5px'}}>
+               {selectedStudent ? <AlertCircle size={14}/> : null}
+               {selectedStudent 
+                ? `Assigning seat for: ${selectedStudent.full_name}` 
+                : "Select a student from the list to start assigning"}
             </div>
           </div>
 
@@ -247,20 +251,20 @@ export default function DN1DiningConsole({ courses }) {
 
         {/* Map Area */}
         <div style={{ flex: 1, overflow: 'auto', background: activeConfig.theme.bg, borderRadius: '12px', padding: '20px', border: `1px solid ${activeConfig.theme.border}` }}>
-          {assignStatus && <div style={{textAlign:'center', marginBottom:'10px', fontWeight:'bold', color:'green'}}>{assignStatus}</div>}
+          {assignStatus && <div style={{textAlign:'center', marginBottom:'15px', padding:'10px', background:'white', borderRadius:'8px', fontWeight:'bold', color:'green', boxShadow:'0 2px 5px rgba(0,0,0,0.1)'}}>{assignStatus}</div>}
           
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '30px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
             {/* FLOOR */}
             <div style={{ background: 'white', padding: '15px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
               <div style={{ marginBottom: '10px', textAlign: 'center', fontWeight: 'bold', color: '#555', fontSize: '11px', background: '#f5f5f5', padding: '4px', borderRadius: '4px' }}>FLOOR</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px' }}>
                 {activeConfig.floor.flat().map(n => renderCell(n, 'Floor'))}
               </div>
             </div>
             {/* CHAIRS */}
             <div style={{ background: 'white', padding: '15px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
               <div style={{ marginBottom: '10px', textAlign: 'center', fontWeight: 'bold', color: '#555', fontSize: '11px', background: '#f5f5f5', padding: '4px', borderRadius: '4px' }}>CHAIRS</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px' }}>
                 {activeConfig.chairs.flat().map(n => renderCell(n, 'Chair'))}
               </div>
             </div>
