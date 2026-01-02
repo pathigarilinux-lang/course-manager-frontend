@@ -237,9 +237,7 @@ function App() {
               {activeTab === 'dn1console' && <DN1DiningConsole courses={courses} />}
 
               {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
-              
-              {activeTab === 'checkin' && <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} userRole={user.role} />}
-              
+                                  
               {activeTab === 'checkin' && (user.role === 'dn1ops' ? <DN1StudentForm courses={courses || []} userRole={user.role} /> : <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} userRole={user.role} />)}
               
               {activeTab === 'accommodation' && <GlobalAccommodationManager />}
