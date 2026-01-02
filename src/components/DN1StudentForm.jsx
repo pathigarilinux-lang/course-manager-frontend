@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { User, MapPin, Coffee, AlertTriangle, CheckCircle, Search, X, BedDouble, Printer } from 'lucide-react';
+import { User, MapPin, Coffee, AlertTriangle, CheckCircle, Search, X, BedDouble, Printer, Lock } from 'lucide-react';
 import { API_URL, LANGUAGES, styles } from '../config';
 
 // --- CONFIGURATION 1: DN1 DINING ---
@@ -57,7 +57,7 @@ const DORM_LAYOUT = {
 
 const NUMBER_OPTIONS = Array.from({ length: 200 }, (_, i) => String(i + 1));
 
-// Helper: Extract Suffix (e.g. "45-Day" -> "-45D")
+// Helper: Extract Suffix
 const getCourseSuffix = (courseName) => {
     if (!courseName) return '';
     const nameUpper = courseName.toUpperCase();
@@ -76,7 +76,6 @@ export default function DN1StudentForm({ courses, userRole }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   
-  // Global Conflict Data
   const [globalOccupied, setGlobalOccupied] = useState({ dining: [], pagoda: [] });
 
   const [formData, setFormData] = useState({ 
@@ -105,7 +104,7 @@ export default function DN1StudentForm({ courses, userRole }) {
       }
   }, [formData.courseId]);
 
-  // AUTO-FILL LAUNDRY LOGIC
+  // AUTO-FILL LAUNDRY
   useEffect(() => {
       if (formData.confNo && formData.courseName) {
           const suffix = getCourseSuffix(formData.courseName);
@@ -140,7 +139,6 @@ export default function DN1StudentForm({ courses, userRole }) {
       setIsSearching(false);
   };
 
-  // --- ROOM & DINING LOGIC (Using Constants) ---
   const handleRoomSelect = (roomNum) => {
       const occupantData = occupancy.find(r => r.room_no === roomNum);
       if (occupantData) return alert(`⛔ Room ${roomNum} occupied by ${occupantData.occupant_name}`);
@@ -154,7 +152,7 @@ export default function DN1StudentForm({ courses, userRole }) {
     return set;
   }, [globalOccupied.dining]);
 
-  // --- PREPARE RECEIPT ---
+  // --- PREPARE RECEIPT (IDENTICAL TO STANDARD FORM) ---
   const prepareReceipt = () => {
       const courseObj = courses.find(c => c.course_id == formData.courseId);
       let rawName = courseObj?.course_name || 'Unknown';
@@ -165,7 +163,8 @@ export default function DN1StudentForm({ courses, userRole }) {
           to: courseObj ? new Date(courseObj.end_date).toLocaleDateString() : '', 
           studentName: selectedStudent?.full_name, confNo: formData.confNo, roomNo: formData.roomNo, seatNo: formData.seatNo, 
           mobile: formData.mobileLocker || '-', valuables: formData.valuablesLocker || '-', laundry: formData.laundryToken, 
-          language: formData.language, special: (formData.specialSeating && formData.specialSeating !== 'None') ? formData.specialSeating : null
+          language: formData.language, special: (formData.specialSeating && formData.specialSeating !== 'None') ? formData.specialSeating : null,
+          pagoda: null // Explicitly null for DN1
       });
   };
 
@@ -200,7 +199,6 @@ export default function DN1StudentForm({ courses, userRole }) {
   const searchResults = participants.filter(p => searchTerm && p.full_name.toLowerCase().includes(searchTerm.toLowerCase()));
   const currentRoomList = DORM_LAYOUT[genderTab] || [];
   
-  // Locker Logic
   const usedMobiles = new Set();
   const usedValuables = new Set();
   participants.forEach(p => { if(p.mobile_locker_no) usedMobiles.add(p.mobile_locker_no); if(p.valuables_locker_no) usedValuables.add(p.valuables_locker_no); });
@@ -208,12 +206,9 @@ export default function DN1StudentForm({ courses, userRole }) {
   const availableValuables = (NUMBER_OPTIONS || []).filter(n => !usedValuables.has(String(n)) || String(n) === String(formData.valuablesLocker));
   const themeColor = genderTab === 'MALE' ? '#007bff' : '#e91e63';
 
-  // --- RENDER CELL HELPERS ---
+  // --- RENDER HELPERS ---
   const renderDN1Cell = (num, type) => {
-    const numStr = String(num);
-    const isOccupied = occupiedSet.has(numStr);
-    const config = DN1_CONFIG[genderTab];
-    const isSelected = formData.seatNo === numStr;
+    const numStr = String(num); const isOccupied = occupiedSet.has(numStr); const config = DN1_CONFIG[genderTab]; const isSelected = formData.seatNo === numStr;
     return (
       <div key={`${type}-${num}`} onClick={() => { if(isOccupied) return; setFormData(p => ({...p, seatNo: numStr, seatType: type})); setShowVisualDining(false); }}
         style={{ width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: isOccupied ? '#ffebee' : (isSelected ? '#333' : 'white'), color: isOccupied ? '#c62828' : (isSelected ? 'white' : '#333'), border: isOccupied ? '1px solid #ef5350' : `1px solid ${config.color}`, borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: isOccupied ? 'not-allowed' : 'pointer', margin:'2px' }}>
@@ -223,9 +218,7 @@ export default function DN1StudentForm({ courses, userRole }) {
   };
 
   const renderDormCell = (roomNum) => {
-    const occupant = occupancy.find(r => r.room_no === roomNum);
-    const isOccupied = !!occupant;
-    const isSelected = formData.roomNo === roomNum;
+    const occupant = occupancy.find(r => r.room_no === roomNum); const isOccupied = !!occupant; const isSelected = formData.roomNo === roomNum;
     return (
         <div key={roomNum} onClick={() => !isOccupied && handleRoomSelect(roomNum)} style={{ width: '85px', padding:'8px 4px', background: isOccupied ? '#ffebee' : (isSelected ? '#e8f5e9' : 'white'), border: isOccupied ? '1px solid #ffcdd2' : (isSelected ? '2px solid #4caf50' : '1px solid #ccc'), borderRadius: '6px', cursor: isOccupied ? 'not-allowed' : 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', margin: '4px' }}>
             <div style={{fontWeight:'bold', fontSize:'11px', color: isOccupied ? '#c62828' : '#333'}}>{roomNum}</div>
@@ -236,6 +229,7 @@ export default function DN1StudentForm({ courses, userRole }) {
 
   return (
     <div style={styles.card}>
+      {/* HEADER */}
       <div className="no-print" style={{display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:`3px solid ${themeColor}`, paddingBottom:'10px', marginBottom:'20px'}}>
         <h3 style={{margin:0, color:themeColor, display:'flex', alignItems:'center', gap:'10px'}}><User/> DN1 Operations Console</h3>
         {status && <span style={{fontWeight:'bold', color: status.includes('Success')?'green':'red'}}>{status}</span>}
@@ -271,48 +265,35 @@ export default function DN1StudentForm({ courses, userRole }) {
 
             {selectedStudent && (
                 <div style={{animation:'fadeIn 0.3s'}}>
-                    {/* ALERTS */}
+                    {/* INFO BAR */}
                     {selectedStudent.medical_info && (<div style={{background:'#fff3cd', borderLeft:'3px solid #ffc107', padding:'8px 12px', borderRadius:'4px', marginBottom:'10px', fontSize:'12px', color:'#856404', display:'flex', gap:'8px'}}><AlertTriangle size={16}/><span><strong>Medical:</strong> {selectedStudent.medical_info}</span></div>)}
-                    
                     <div style={{display:'flex', gap:'10px', marginBottom:'15px', fontSize:'12px'}}>
                         <div style={{background:'#e9ecef', padding:'6px 10px', borderRadius:'4px'}}><strong>ID:</strong> {formData.confNo}</div>
                         <div style={{background: themeColor, color:'white', padding:'6px 10px', borderRadius:'4px', fontWeight:'bold'}}>{selectedStudent.gender}</div>
                         <div style={{background:'#e9ecef', padding:'6px 10px', borderRadius:'4px'}}><strong>Age:</strong> {selectedStudent.age}</div>
                     </div>
 
-                    {/* ASSIGNMENT GRID */}
+                    {/* ROOM & DINING */}
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'15px'}}>
-                        <div style={{border:'1px solid #eee', borderRadius:'8px', padding:'12px', boxShadow:'0 2px 5px rgba(0,0,0,0.01)'}}>
-                            <h5 style={{margin:'0 0 10px 0', color:'#555', display:'flex', alignItems:'center', gap:'6px'}}><MapPin size={14} color="#007bff"/> Dorm/Room</h5>
+                        <div style={{border:'1px solid #eee', borderRadius:'8px', padding:'12px'}}>
+                            <h5 style={{margin:'0 0 10px 0', color:'#555', display:'flex', alignItems:'center', gap:'6px'}}><MapPin size={14}/> Dorm/Room</h5>
                             <button type="button" onClick={()=>setShowVisualRoom(true)} style={{...styles.input, textAlign:'left', padding:'8px', fontSize:'13px', background: formData.roomNo ? '#e3f2fd' : 'white', color: formData.roomNo ? '#0d47a1' : '#555', fontWeight: formData.roomNo ? 'bold' : 'normal', cursor:'pointer', display:'flex', justifyContent:'space-between'}}>
                                 {formData.roomNo || "Select Bed"} {formData.roomNo && <CheckCircle size={14} color="green"/>}
                             </button>
                         </div>
-
-                        <div style={{border:'1px solid #eee', borderRadius:'8px', padding:'12px', boxShadow:'0 2px 5px rgba(0,0,0,0.01)'}}>
-                            <h5 style={{margin:'0 0 10px 0', color:'#555', display:'flex', alignItems:'center', gap:'6px'}}><Coffee size={14} color="#e91e63"/> Dining (DN1)</h5>
-                            <div style={{display:'flex', gap:'5px'}}>
-                                <button type="button" onClick={()=>setShowVisualDining(true)} style={{...styles.input, textAlign:'left', padding:'8px', fontSize:'13px', flex:1, background: formData.seatNo ? '#e3f2fd' : 'white', color: formData.seatNo ? '#0d47a1' : '#555', fontWeight: formData.seatNo ? 'bold' : 'normal', cursor:'pointer'}}>
-                                    {formData.seatNo ? `${formData.seatNo} (${formData.seatType})` : "Select Seat"}
-                                </button>
-                            </div>
+                        <div style={{border:'1px solid #eee', borderRadius:'8px', padding:'12px'}}>
+                            <h5 style={{margin:'0 0 10px 0', color:'#555', display:'flex', alignItems:'center', gap:'6px'}}><Coffee size={14}/> Dining (DN1)</h5>
+                            <button type="button" onClick={()=>setShowVisualDining(true)} style={{...styles.input, textAlign:'left', padding:'8px', fontSize:'13px', flex:1, background: formData.seatNo ? '#e3f2fd' : 'white', color: formData.seatNo ? '#0d47a1' : '#555', fontWeight: formData.seatNo ? 'bold' : 'normal', cursor:'pointer', width:'100%'}}>
+                                {formData.seatNo ? `${formData.seatNo} (${formData.seatType})` : "Select Seat"}
+                            </button>
                         </div>
                     </div>
 
                     {/* LOCKERS & LAUNDRY */}
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'5px', marginBottom:'15px'}}>
-                        <div>
-                            <label style={{fontSize:'10px', fontWeight:'bold', color:'#777'}}>Mobile</label>
-                            <select style={{...styles.input, padding:'6px', fontSize:'12px'}} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">None</option>{availableMobiles.map(n => <option key={n} value={n}>{n}</option>)}</select>
-                        </div>
-                        <div>
-                            <label style={{fontSize:'10px', fontWeight:'bold', color:'#777'}}>Valuables</label>
-                            <select style={{...styles.input, padding:'6px', fontSize:'12px'}} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">None</option>{availableValuables.map(n => <option key={n} value={n}>{n}</option>)}</select>
-                        </div>
-                        <div>
-                            <label style={{fontSize:'10px', fontWeight:'bold', color:'#777'}}>Laundry</label>
-                            <input style={{...styles.input, padding:'6px', fontSize:'12px', background:'#f0f8ff', fontWeight:'bold'}} value={formData.laundryToken} onChange={e=>setFormData({...formData, laundryToken:e.target.value})} placeholder="Token"/>
-                        </div>
+                        <div><label style={{fontSize:'10px', fontWeight:'bold', color:'#777'}}>Mobile</label><select style={{...styles.input, padding:'6px', fontSize:'12px'}} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">None</option>{availableMobiles.map(n => <option key={n} value={n}>{n}</option>)}</select></div>
+                        <div><label style={{fontSize:'10px', fontWeight:'bold', color:'#777'}}>Valuables</label><select style={{...styles.input, padding:'6px', fontSize:'12px'}} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">None</option>{availableValuables.map(n => <option key={n} value={n}>{n}</option>)}</select></div>
+                        <div><label style={{fontSize:'10px', fontWeight:'bold', color:'#777'}}>Laundry</label><input style={{...styles.input, padding:'6px', fontSize:'12px', background:'#f0f8ff', fontWeight:'bold'}} value={formData.laundryToken} onChange={e=>setFormData({...formData, laundryToken:e.target.value})} placeholder="Token"/></div>
                     </div>
 
                     {/* EXTRAS */}
@@ -326,7 +307,7 @@ export default function DN1StudentForm({ courses, userRole }) {
             )}
         </form>
 
-        {/* --- ARRIVAL PASS PREVIEW (RIGHT SIDE) --- */}
+        {/* --- ARRIVAL PASS PREVIEW (IDENTICAL TO STANDARD FORM) --- */}
         {selectedStudent && (
             <div className="no-print" style={{border:'2px solid #333', padding:'15px', background:'#fff', borderRadius:'8px', fontSize:'12px', boxShadow:'0 4px 10px rgba(0,0,0,0.05)'}}>
                 <h4 style={{textAlign:'center', margin:'0 0 10px 0', borderBottom:'1px solid #eee', paddingBottom:'5px', color:'#333'}}>Arrival Pass Preview</h4>
@@ -335,6 +316,7 @@ export default function DN1StudentForm({ courses, userRole }) {
                     <div style={{display:'flex', justifyContent:'space-between'}}><span>Room:</span> <strong>{formData.roomNo || '-'}</strong></div>
                     <div style={{display:'flex', justifyContent:'space-between'}}><span>Dining:</span> <strong>{formData.seatNo || '-'}</strong></div>
                     <div style={{display:'flex', justifyContent:'space-between'}}><span>Mobile Locker:</span> <strong>{formData.mobileLocker || '-'}</strong></div>
+                    <div style={{display:'flex', justifyContent:'space-between'}}><span>Valuables Locker:</span> <strong>{formData.valuablesLocker || '-'}</strong></div>
                     <div style={{display:'flex', justifyContent:'space-between'}}><span>Laundry:</span> <strong>{formData.laundryToken || '-'}</strong></div>
                 </div>
                 <div style={{marginTop:'15px', padding:'10px', background:'#f8f9fa', textAlign:'center', fontSize:'10px', color:'#666'}}>
@@ -346,76 +328,60 @@ export default function DN1StudentForm({ courses, userRole }) {
       </div>
 
       {/* --- MODALS --- */}
-      {showVisualRoom && (
-          <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}>
-             <div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}>
-                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}>
-                     <h3 style={{display:'flex', alignItems:'center', gap:'10px'}}><BedDouble/> Select {genderTab} Bed</h3>
-                     <button onClick={()=>setShowVisualRoom(false)}><X/></button>
-                 </div>
-                 <div style={{padding:'20px', background:'#f5f5f5', borderRadius:'8px', textAlign:'center'}}>
-                    <div style={{display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'10px'}}>
-                        {currentRoomList.map(roomNum => renderDormCell(roomNum))}
-                    </div>
-                 </div>
-             </div>
-          </div>
-      )}
+      {showVisualRoom && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}><div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}><div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}><h3 style={{display:'flex', alignItems:'center', gap:'10px'}}><BedDouble/> Select {genderTab} Bed</h3><button onClick={()=>setShowVisualRoom(false)}><X/></button></div><div style={{padding:'20px', background:'#f5f5f5', borderRadius:'8px', textAlign:'center'}}><div style={{display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'10px'}}>{currentRoomList.map(roomNum => renderDormCell(roomNum))}</div></div></div></div>}
+      {showVisualDining && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}><div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}><div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}><h3 style={{display:'flex', alignItems:'center', gap:'10px'}}><Coffee/> Select {genderTab} Seat</h3><button onClick={()=>setShowVisualDining(false)}><X/></button></div><div style={{textAlign:'center', background: DN1_CONFIG[genderTab].bg, padding:'20px', borderRadius:'8px'}}><div style={{display:'flex', justifyContent:'center', gap:'40px'}}><div><strong>FLOOR</strong><div style={{display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'5px'}}>{DN1_CONFIG[genderTab].floor.flat().map(n => renderDN1Cell(n, 'Floor'))}</div></div><div><strong>CHAIRS</strong><div style={{display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'5px'}}>{DN1_CONFIG[genderTab].chairs.flat().map(n => renderDN1Cell(n, 'Chair'))}</div></div></div></div></div></div>}
 
-      {showVisualDining && (
-          <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}>
-             <div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}>
-                 <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}>
-                     <h3 style={{display:'flex', alignItems:'center', gap:'10px'}}><Coffee/> Select {genderTab} Seat</h3>
-                     <button onClick={()=>setShowVisualDining(false)}><X/></button>
-                 </div>
-                 <div style={{textAlign:'center', background: DN1_CONFIG[genderTab].bg, padding:'20px', borderRadius:'8px'}}>
-                     <div style={{display:'flex', justifyContent:'center', gap:'40px'}}>
-                         <div><strong>FLOOR</strong><div style={{display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'5px'}}>{DN1_CONFIG[genderTab].floor.flat().map(n => renderDN1Cell(n, 'Floor'))}</div></div>
-                         <div><strong>CHAIRS</strong><div style={{display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'5px'}}>{DN1_CONFIG[genderTab].chairs.flat().map(n => renderDN1Cell(n, 'Chair'))}</div></div>
-                     </div>
-                 </div>
-             </div>
-          </div>
-      )}
-
-      {/* --- PRINTABLE RECEIPT (HIDDEN UNTIL PRINT) --- */}
+      {/* --- EXACT THERMAL PRINT LAYOUT (Copied from StudentForm) --- */}
       {printReceiptData && (
           <div id="receipt-print-area" className="print-only">
-              <div style={{textAlign:'center', borderBottom:'2px solid black', paddingBottom:'10px', marginBottom:'15px'}}>
-                  <h2 style={{margin:0, fontSize:'24px'}}>Dhamma Nagajjuna</h2>
-                  <div style={{fontSize:'14px'}}>Vipassana International Meditation Centre</div>
+              <div style={{border:'2px solid black', padding:'10px', width:'300px', margin:'0 auto', fontFamily:'Arial, sans-serif'}}>
+                  <div style={{textAlign:'center', borderBottom:'1px solid black', paddingBottom:'5px', marginBottom:'5px'}}>
+                      <h3 style={{margin:0, fontSize:'16px'}}>Dhamma Nagajjuna</h3>
+                      <div style={{fontSize:'10px'}}>Vipassana International Meditation Centre</div>
+                      <div style={{fontSize:'11px', marginTop:'4px', fontWeight:'bold'}}>{printReceiptData.courseName}</div>
+                      <div style={{fontSize:'10px'}}>{printReceiptData.from} - {printReceiptData.to}</div>
+                  </div>
+                  
+                  <table style={{width:'100%', borderCollapse:'collapse', marginBottom:'5px'}}>
+                      <tbody>
+                          <tr><td colSpan="2" style={{border:'1px solid black', padding:'4px', fontSize:'12px'}}>Name: <strong>{printReceiptData.studentName}</strong></td></tr>
+                          <tr>
+                             <td style={{border:'1px solid black', padding:'4px', fontSize:'11px'}}>ID: <strong>{printReceiptData.confNo}</strong></td>
+                             <td style={{border:'1px solid black', padding:'4px', fontSize:'11px'}}>Type: <strong>Student</strong></td>
+                          </tr>
+                          <tr>
+                              <td style={{border:'1px solid black', padding:'4px', fontSize:'12px', background:'#f0f0f0'}}>Room: <strong style={{fontSize:'14px'}}>{printReceiptData.roomNo}</strong></td>
+                              <td style={{border:'1px solid black', padding:'4px', fontSize:'12px', background:'#f0f0f0'}}>Dining: <strong style={{fontSize:'14px'}}>{printReceiptData.seatNo}</strong></td>
+                          </tr>
+                          <tr>
+                              <td style={{border:'1px solid black', padding:'4px', fontSize:'11px'}}>Mob Locker: <strong>{printReceiptData.mobile}</strong></td>
+                              <td style={{border:'1px solid black', padding:'4px', fontSize:'11px'}}>Val Locker: <strong>{printReceiptData.valuables}</strong></td>
+                          </tr>
+                          <tr>
+                              <td colSpan="2" style={{border:'1px solid black', padding:'4px', fontSize:'11px'}}>
+                                  Laundry Token: <strong>{printReceiptData.laundry}</strong>
+                              </td>
+                          </tr>
+                          <tr>
+                              <td colSpan="2" style={{border:'1px solid black', padding:'4px', fontSize:'11px'}}>
+                                  Language: <strong>{printReceiptData.language}</strong>
+                              </td>
+                          </tr>
+                      </tbody>
+                  </table>
+                  <div style={{textAlign:'center', fontSize:'9px', fontStyle:'italic', marginTop:'5px'}}>*** Student Copy ***</div>
               </div>
-              <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}>
-                  <tbody>
-                      <tr><td colSpan="2" style={{border:'1px solid black', padding:'6px'}}><strong>Student:</strong> {printReceiptData.studentName} ({printReceiptData.confNo})</td></tr>
-                      <tr><td colSpan="2" style={{border:'1px solid black', padding:'6px'}}><strong>Course:</strong> {printReceiptData.courseName} ({printReceiptData.from} - {printReceiptData.to})</td></tr>
-                      <tr>
-                          <td style={{border:'1px solid black', padding:'8px', width:'50%'}}><strong>Room:</strong> <span style={{fontSize:'16px', fontWeight:'bold'}}>{printReceiptData.roomNo}</span></td>
-                          <td style={{border:'1px solid black', padding:'8px', width:'50%'}}><strong>Dining:</strong> <span style={{fontSize:'16px', fontWeight:'bold'}}>{printReceiptData.seatNo}</span></td>
-                      </tr>
-                      <tr>
-                          <td style={{border:'1px solid black', padding:'6px'}}>Lockers: M-<strong>{printReceiptData.mobile}</strong> / V-<strong>{printReceiptData.valuables}</strong></td>
-                          <td style={{border:'1px solid black', padding:'6px'}}>Laundry: <strong>{printReceiptData.laundry}</strong></td>
-                      </tr>
-                      <tr>
-                          <td colSpan="2" style={{border:'1px solid black', padding:'6px', textAlign:'center', fontStyle:'italic'}}>
-                              Safe travel and happy meditation!
-                          </td>
-                      </tr>
-                  </tbody>
-              </table>
           </div>
       )}
 
-      {/* PRINT STYLES */}
+      {/* EXACT PRINT CSS */}
       <style>{`
         @media print {
             @page { size: auto; margin: 0; }
             html, body { height: 100%; overflow: hidden; margin: 0; padding: 0; }
             body * { visibility: hidden; }
             #receipt-print-area, #receipt-print-area * { visibility: visible; }
-            #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; box-sizing: border-box; }
+            #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; display:flex; justify-content:center; align-items:flex-start; padding-top:10px; }
             .no-print { display: none !important; }
         }
       `}</style>
