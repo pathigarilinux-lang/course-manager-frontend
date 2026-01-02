@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { User, MapPin, Coffee, AlertTriangle, CheckCircle, Search, X, BedDouble, Printer, Lock } from 'lucide-react';
+import { User, MapPin, Coffee, AlertTriangle, CheckCircle, Search, X, BedDouble, Printer, Lock, Briefcase, RefreshCw } from 'lucide-react';
 import { API_URL, LANGUAGES, styles } from '../config';
 
 // --- CONFIGURATION 1: DN1 DINING ---
@@ -152,7 +152,7 @@ export default function DN1StudentForm({ courses, userRole }) {
     return set;
   }, [globalOccupied.dining]);
 
-  // --- PREPARE RECEIPT (IDENTICAL TO STANDARD FORM) ---
+  // --- PREPARE RECEIPT ---
   const prepareReceipt = () => {
       const courseObj = courses.find(c => c.course_id == formData.courseId);
       let rawName = courseObj?.course_name || 'Unknown';
@@ -164,7 +164,7 @@ export default function DN1StudentForm({ courses, userRole }) {
           studentName: selectedStudent?.full_name, confNo: formData.confNo, roomNo: formData.roomNo, seatNo: formData.seatNo, 
           mobile: formData.mobileLocker || '-', valuables: formData.valuablesLocker || '-', laundry: formData.laundryToken, 
           language: formData.language, special: (formData.specialSeating && formData.specialSeating !== 'None') ? formData.specialSeating : null,
-          pagoda: null // Explicitly null for DN1
+          pagoda: null
       });
   };
 
@@ -307,22 +307,30 @@ export default function DN1StudentForm({ courses, userRole }) {
             )}
         </form>
 
-        {/* --- ARRIVAL PASS PREVIEW (IDENTICAL TO STANDARD FORM) --- */}
+        {/* --- ARRIVAL PASS PREVIEW (Rich UI On-Screen) --- */}
         {selectedStudent && (
-            <div className="no-print" style={{border:'2px solid #333', padding:'15px', background:'#fff', borderRadius:'8px', fontSize:'12px', boxShadow:'0 4px 10px rgba(0,0,0,0.05)'}}>
-                <h4 style={{textAlign:'center', margin:'0 0 10px 0', borderBottom:'1px solid #eee', paddingBottom:'5px', color:'#333'}}>Arrival Pass Preview</h4>
-                <div style={{display:'grid', gridTemplateColumns:'1fr', gap:'8px'}}>
-                    <div style={{display:'flex', justifyContent:'space-between'}}><span>Name:</span> <strong>{selectedStudent.full_name}</strong></div>
-                    <div style={{display:'flex', justifyContent:'space-between'}}><span>Room:</span> <strong>{formData.roomNo || '-'}</strong></div>
-                    <div style={{display:'flex', justifyContent:'space-between'}}><span>Dining:</span> <strong>{formData.seatNo || '-'}</strong></div>
-                    <div style={{display:'flex', justifyContent:'space-between'}}><span>Mobile Locker:</span> <strong>{formData.mobileLocker || '-'}</strong></div>
-                    <div style={{display:'flex', justifyContent:'space-between'}}><span>Valuables Locker:</span> <strong>{formData.valuablesLocker || '-'}</strong></div>
-                    <div style={{display:'flex', justifyContent:'space-between'}}><span>Laundry:</span> <strong>{formData.laundryToken || '-'}</strong></div>
+            <div className="no-print" style={{background:'white', borderRadius:'12px', boxShadow:'0 4px 20px rgba(0,0,0,0.1)', overflow:'hidden', border:'1px solid #eee'}}>
+                <div style={{background: themeColor, color:'white', padding:'15px', textAlign:'center'}}>
+                    <h4 style={{margin:0, fontSize:'16px', textTransform:'uppercase', letterSpacing:'1px'}}>Arrival Pass</h4>
+                    <div style={{fontSize:'11px', opacity:0.9}}>Dhamma Nagajjuna</div>
                 </div>
-                <div style={{marginTop:'15px', padding:'10px', background:'#f8f9fa', textAlign:'center', fontSize:'10px', color:'#666'}}>
-                    <Printer size={16} style={{marginBottom:'5px'}}/>
-                    <div>Ready to Print</div>
+                <div style={{padding:'20px'}}>
+                    <div style={{textAlign:'center', marginBottom:'20px'}}>
+                        <div style={{fontSize:'18px', fontWeight:'bold', color:'#333', marginBottom:'5px'}}>{selectedStudent.full_name}</div>
+                        <div style={{fontSize:'12px', color:'#777', background:'#f8f9fa', display:'inline-block', padding:'4px 12px', borderRadius:'15px'}}>ID: <strong>{formData.confNo}</strong> • {selectedStudent.age} Yrs</div>
+                    </div>
+                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginBottom:'15px'}}>
+                        <div style={{background:'#f8f9fa', padding:'10px', borderRadius:'8px', textAlign:'center', border:'1px solid #eee'}}><div style={{fontSize:'10px', color:'#777', textTransform:'uppercase', fontWeight:'bold', marginBottom:'2px'}}>ROOM</div><div style={{fontSize:'16px', fontWeight:'bold', color:themeColor}}>{formData.roomNo || '-'}</div></div>
+                        <div style={{background:'#f8f9fa', padding:'10px', borderRadius:'8px', textAlign:'center', border:'1px solid #eee'}}><div style={{fontSize:'10px', color:'#777', textTransform:'uppercase', fontWeight:'bold', marginBottom:'2px'}}>DINING</div><div style={{fontSize:'16px', fontWeight:'bold', color:themeColor}}>{formData.seatNo || '-'}</div></div>
+                    </div>
+                    <div style={{fontSize:'12px', color:'#555', display:'flex', flexDirection:'column', gap:'8px', borderTop:'1px solid #eee', paddingTop:'15px'}}>
+                        <div style={{display:'flex', justifyContent:'space-between'}}><span style={{display:'flex', alignItems:'center', gap:'6px'}}><Lock size={12}/> Mobile</span><strong>{formData.mobileLocker || '-'}</strong></div>
+                        <div style={{display:'flex', justifyContent:'space-between'}}><span style={{display:'flex', alignItems:'center', gap:'6px'}}><Briefcase size={12}/> Valuables</span><strong>{formData.valuablesLocker || '-'}</strong></div>
+                        <div style={{display:'flex', justifyContent:'space-between'}}><span style={{display:'flex', alignItems:'center', gap:'6px'}}><RefreshCw size={12}/> Laundry</span><strong>{formData.laundryToken || '-'}</strong></div>
+                        <div style={{display:'flex', justifyContent:'space-between'}}><span style={{display:'flex', alignItems:'center', gap:'6px'}}><User size={12}/> Language</span><strong>{formData.language}</strong></div>
+                    </div>
                 </div>
+                <button type="button" onClick={() => { prepareReceipt(); setTimeout(() => window.print(), 100); }} style={{width: '100%', padding: '12px', background: '#333', color: 'white', border: 'none', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}><Printer size={14}/> PRINT PASS MANUALLY</button>
             </div>
         )}
       </div>
@@ -331,7 +339,7 @@ export default function DN1StudentForm({ courses, userRole }) {
       {showVisualRoom && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}><div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}><div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}><h3 style={{display:'flex', alignItems:'center', gap:'10px'}}><BedDouble/> Select {genderTab} Bed</h3><button onClick={()=>setShowVisualRoom(false)}><X/></button></div><div style={{padding:'20px', background:'#f5f5f5', borderRadius:'8px', textAlign:'center'}}><div style={{display:'flex', flexWrap:'wrap', justifyContent:'center', gap:'10px'}}>{currentRoomList.map(roomNum => renderDormCell(roomNum))}</div></div></div></div>}
       {showVisualDining && <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:1000, display:'flex', padding:'20px'}}><div style={{background:'white', flex:1, borderRadius:'8px', padding:'20px', overflow:'auto'}}><div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px'}}><h3 style={{display:'flex', alignItems:'center', gap:'10px'}}><Coffee/> Select {genderTab} Seat</h3><button onClick={()=>setShowVisualDining(false)}><X/></button></div><div style={{textAlign:'center', background: DN1_CONFIG[genderTab].bg, padding:'20px', borderRadius:'8px'}}><div style={{display:'flex', justifyContent:'center', gap:'40px'}}><div><strong>FLOOR</strong><div style={{display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'5px'}}>{DN1_CONFIG[genderTab].floor.flat().map(n => renderDN1Cell(n, 'Floor'))}</div></div><div><strong>CHAIRS</strong><div style={{display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:'5px'}}>{DN1_CONFIG[genderTab].chairs.flat().map(n => renderDN1Cell(n, 'Chair'))}</div></div></div></div></div></div>}
 
-      {/* --- EXACT THERMAL PRINT LAYOUT (Copied from StudentForm) --- */}
+      {/* --- EXACT THERMAL PRINT LAYOUT --- */}
       {printReceiptData && (
           <div id="receipt-print-area" className="print-only">
               <div style={{border:'2px solid black', padding:'10px', width:'300px', margin:'0 auto', fontFamily:'Arial, sans-serif'}}>
@@ -374,7 +382,7 @@ export default function DN1StudentForm({ courses, userRole }) {
           </div>
       )}
 
-      {/* EXACT PRINT CSS */}
+      {/* PRINT STYLES */}
       <style>{`
         @media print {
             @page { size: auto; margin: 0; }
