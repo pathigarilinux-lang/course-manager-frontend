@@ -59,7 +59,13 @@ const DORM_LAYOUT = {
     // --- ROOMS (1, 2, 3) ---
     'ROOM-1A', 'ROOM-1B',
     'ROOM-2A', 'ROOM-2B',
-    'ROOM-3A', 'ROOM-3B'
+    'ROOM-3A', 'ROOM-3B',
+    // 201-206 (AI/BI)
+    '201AI', '201BI', '202AI', '202BI', '203AI', '203BI', 
+    '204AI', '204BI', '205AI', '205BI', '206AI', '206BI',
+    // 207-212 (AW/BW)
+    '207AW', '207BW', '208AW', '208BW', '209AW', '209BW', 
+    '210AW', '210BW', '211AW', '211BW', '212AW', '212BW'
   ]
 };
 
