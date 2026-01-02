@@ -68,15 +68,14 @@ function App() {
 
           // 🛡️ ROLE-BASED FILTERING
           let filteredCourses = [];
-          if (user.role === 'admin') {
+          if (user.role === 'admin' || user.role === 'gate' || user.role === 'at') {
+              // ✅ ADMIN, GATE, & AT: See ALL COURSES (God Mode)
               filteredCourses = allCourses;
           } else if (user.role === 'dn1ops') {
+              // 🔒 DN1 OPS: See ONLY their own courses
               filteredCourses = allCourses.filter(c => c.owner_role === 'dn1ops');
-          } else if (user.role === 'gate') {
-              // ✅ GATE USER SEES ALL COURSES
-              filteredCourses = allCourses;
           } else {
-              // Staff/AT see everything EXCEPT dn1ops courses
+              // 🔒 STAFF: See everything EXCEPT dn1ops courses
               filteredCourses = allCourses.filter(c => c.owner_role !== 'dn1ops');
           }
 
