@@ -523,6 +523,8 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
                             <tr style={{borderBottom:'2px solid #e9ecef'}}>
                                 <th style={{padding:'15px', textAlign:'left', color:'#666'}}>Course Name</th>
                                 <th style={{padding:'15px', textAlign:'left', color:'#666'}}>Teacher</th>
+                                {/* ✅ ADDED NEW COLUMN HEADER FOR OWNER */}
+                                <th style={{padding:'15px', textAlign:'center', color:'#666'}}>Owner</th>
                                 <th style={{padding:'15px', textAlign:'center', color:'#666'}}>Status</th>
                                 <th style={{padding:'15px', textAlign:'right', color:'#666'}}>Action</th>
                             </tr>
@@ -531,6 +533,11 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
                             {courses.slice().reverse().map(c => {
                                 const status = getCourseStatus(c);
                                 const isEditing = editingId === c.course_id;
+                                // ✅ LOGIC FOR OWNER BADGE
+                                const owner = c.owner_role === 'dn1ops' ? 'DN1 Ops' : (c.owner_role === 'admin' ? 'Admin' : 'Staff');
+                                const ownerColor = c.owner_role === 'dn1ops' ? '#6f42c1' : '#17a2b8'; 
+                                const ownerBg = c.owner_role === 'dn1ops' ? '#f3e5f5' : '#e0f7fa';
+
                                 return (
                                     <tr key={c.course_id} style={{borderBottom:'1px solid #f0f0f0', background: isEditing ? '#fff3e0' : 'transparent'}}>
                                         <td style={{padding:'15px'}}>
@@ -538,6 +545,14 @@ export default function CourseAdmin({ courses, refreshCourses, userRole }) {
                                             <div style={{fontSize:'12px', color:'#888', marginTop:'4px'}}>{new Date(c.start_date).toLocaleDateString()} - {new Date(c.end_date).toLocaleDateString()}</div>
                                         </td>
                                         <td style={{padding:'15px', color:'#555'}}>{c.teacher_name}</td>
+                                        
+                                        {/* ✅ RENDER OWNER BADGE */}
+                                        <td style={{padding:'15px', textAlign:'center'}}>
+                                            <span style={{background: ownerBg, color: ownerColor, padding:'4px 10px', borderRadius:'12px', fontSize:'11px', fontWeight:'bold', border:`1px solid ${ownerColor}40`}}>
+                                                {owner}
+                                            </span>
+                                        </td>
+
                                         <td style={{padding:'15px', textAlign:'center'}}>
                                             <span style={{background: status.bg, color: status.color, padding:'4px 10px', borderRadius:'20px', fontSize:'11px', fontWeight:'bold', display:'inline-block', minWidth:'80px', textAlign:'center'}}>{status.label}</span>
                                         </td>
