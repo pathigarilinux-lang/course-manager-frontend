@@ -121,7 +121,7 @@ function App() {
       { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
       
       // ✅ NEW: DN1 Dining View Tab
-      { id: 'dn1console', label: 'DN1 Dining View', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'dn1console', label: 'DN1 Dining View', icon: <LayoutDashboard size={20}/>, roles: ['admin', 'dn1ops'] },
 
       { id: 'gate', label: 'Gate Reception', icon: <UserCheck size={20}/>, roles: ['admin', 'staff', 'gate', 'dn1ops'] }, 
       { id: 'checkin', label: 'Onboarding', icon: <UserPlus size={20}/>, roles: ['admin', 'staff', 'dn1ops'] },
