@@ -115,7 +115,7 @@ function App() {
       { id: 'students', label: 'Manage Students', icon: <Users size={18}/>, roles: ['admin', 'staff', 'dn1ops'] },
       { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={18}/>, roles: ['admin', 'staff', ] },
       { id: 'at', label: 'AT Panel', icon: <GraduationCap size={18}/>, roles: ['admin', 'staff', 'at', 'dn1ops'] }, 
-      { id: 'alumni', label: 'Alumni Directory', icon: <History size={18}/>, roles: ['admin', 'staff', 'dn1ops'] }, // ✅ NEW MENU ITEM
+      { id: 'alumni', label: 'Alumni Directory', icon: <History size={18}/>, roles: ['admin'] }, // ✅ NEW MENU ITEM
       { id: 'admin', label: 'Course Admin', icon: <Database size={18}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
       { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={18}/>, roles: ['admin', 'staff', 'dn1ops'] },
       { id: 'seva', label: 'Seva Board', icon: <Heart size={18}/>, roles: ['admin'] }, 
