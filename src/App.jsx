@@ -18,6 +18,7 @@ import SevaBoard from './components/SevaBoard';
 import GateReception from './components/GateReception';
 import ATPanel from './components/ATPanel';
 import DN1StudentForm from './components/DN1StudentForm';
+import AlumniDirectory from './components/AlumniDirectory'; // Add to imports
 
 // --- PREMIUM STYLES CONSTANTS ---
 const theme = {
@@ -113,7 +114,9 @@ function App() {
       { id: 'at', label: 'AT Panel', icon: <GraduationCap size={18}/>, roles: ['admin', 'staff', 'at', 'dn1ops'] }, 
       { id: 'admin', label: 'Course Admin', icon: <Database size={18}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
       { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={18}/>, roles: ['admin', 'staff', 'dn1ops'] },
-      { id: 'seva', label: 'Seva Board', icon: <Heart size={18}/>, roles: ['admin'] }, 
+      { id: 'seva', label: 'Seva Board', icon: <Heart size={18}/>, roles: ['admin'] },
+      // Add this object to your MENU_ITEMS array
+      { id: 'alumni', label: 'Alumni Directory', icon: <History size={18}/>, roles: ['admin', 'staff', 'dn1ops'] },
   ];
 
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
@@ -242,7 +245,7 @@ function App() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '30px', maxWidth:'1600px', width:'100%', margin:'0 auto' }}>
               <div style={{animation: 'fadeIn 0.4s ease-out'}}>
                   {activeTab === 'dashboard' && <CourseDashboard courses={courses} stats={stats} />}
-                  
+                  {activeTab === 'alumni' && <AlumniDirectory courses={courses} />}
                   {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
                   
                   {activeTab === 'checkin' && (user.role === 'dn1ops' ? <DN1StudentForm courses={courses || []} userRole={user.role} /> : <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} userRole={user.role} />)}
