@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+  import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, BedDouble, UserPlus, Users, ShoppingBag, 
   Settings, LogOut, Shield, GraduationCap, Heart, UserCheck, 
-  Menu, X, Database, ChevronRight 
+  Menu, X, Database, ChevronRight, History 
 } from 'lucide-react';
 import { API_URL } from './config';
 
@@ -18,7 +18,7 @@ import SevaBoard from './components/SevaBoard';
 import GateReception from './components/GateReception';
 import ATPanel from './components/ATPanel';
 import DN1StudentForm from './components/DN1StudentForm';
-import AlumniDirectory from './components/AlumniDirectory'; // Add to imports
+import AlumniDirectory from './components/AlumniDirectory'; // ✅ NEW IMPORT
 
 // --- PREMIUM STYLES CONSTANTS ---
 const theme = {
@@ -70,10 +70,13 @@ function App() {
           // 🛡️ ROLE-BASED FILTERING
           let filteredCourses = [];
           if (user.role === 'admin' || user.role === 'gate' || user.role === 'at') {
+              // ✅ GOD MODE: Admin, Gate, AT see ALL courses
               filteredCourses = allCourses;
           } else if (user.role === 'dn1ops') {
+              // 🔒 DN1 OPS: Restricted
               filteredCourses = allCourses.filter(c => c.owner_role === 'dn1ops');
           } else {
+              // 🔒 STAFF: Restricted
               filteredCourses = allCourses.filter(c => c.owner_role !== 'dn1ops');
           }
           setCourses(filteredCourses);
@@ -112,10 +115,10 @@ function App() {
       { id: 'students', label: 'Manage Students', icon: <Users size={18}/>, roles: ['admin', 'staff', 'dn1ops'] },
       { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={18}/>, roles: ['admin', 'staff', ] },
       { id: 'at', label: 'AT Panel', icon: <GraduationCap size={18}/>, roles: ['admin', 'staff', 'at', 'dn1ops'] }, 
+      { id: 'alumni', label: 'Alumni Directory', icon: <History size={18}/>, roles: ['admin', 'staff', 'dn1ops'] }, // ✅ NEW MENU ITEM
       { id: 'admin', label: 'Course Admin', icon: <Database size={18}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
       { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={18}/>, roles: ['admin', 'staff', 'dn1ops'] },
-      { id: 'seva', label: 'Seva Board', icon: <Heart size={18}/>, roles: ['admin'] },
-      { id: 'alumni', label: 'Alumni Directory', icon: <History size={18}/>, roles: ['admin', 'staff', 'dn1ops'] },
+      { id: 'seva', label: 'Seva Board', icon: <Heart size={18}/>, roles: ['admin'] }, 
   ];
 
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
@@ -234,7 +237,6 @@ function App() {
                   </div>
               </div>
               
-              {/* Optional: Add Date/Time or Notifications here */}
               <div style={{fontSize:'12px', color:'#64748b', fontWeight:'500', background:'#f8fafc', padding:'6px 12px', borderRadius:'20px', border:'1px solid #e2e8f0'}}>
                   {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
               </div>
@@ -246,22 +248,28 @@ function App() {
                   {activeTab === 'dashboard' && <CourseDashboard courses={courses} stats={stats} />}
                   
                   {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
+                  
                   {activeTab === 'checkin' && (user.role === 'dn1ops' ? <DN1StudentForm courses={courses || []} userRole={user.role} /> : <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} userRole={user.role} />)}
+                
                   {activeTab === 'students' && <ParticipantList courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
+                  
                   {activeTab === 'accommodation' && <GlobalAccommodationManager />}
                   {activeTab === 'at' && <ATPanel courses={courses} />}
-                  {activeTab === 'alumni' && <AlumniDirectory courses={courses} />}
-                  {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
-                  {activeTab === 'seva' && <SevaBoard courses={courses} />}
-                  {(user.role === 'admin' || user.role === 'staff' || user.role === 'dn1ops') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
                   
+                  {activeTab === 'alumni' && <AlumniDirectory courses={courses} />}
+                  
+                  {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
+                  
+                  {activeTab === 'seva' && <SevaBoard courses={courses} />}
+                  
+                  {(user.role === 'admin' || user.role === 'staff' || user.role === 'dn1ops') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
               </div>
           </div>
       </main>
 
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        /* Custom Scrollbar for a premium feel */
+        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; borderRadius: 4px; }
