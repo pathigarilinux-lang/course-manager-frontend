@@ -246,21 +246,15 @@ function App() {
                   {activeTab === 'dashboard' && <CourseDashboard courses={courses} stats={stats} />}
                   
                   {activeTab === 'gate' && <GateReception courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
-                  
                   {activeTab === 'checkin' && (user.role === 'dn1ops' ? <DN1StudentForm courses={courses || []} userRole={user.role} /> : <StudentForm courses={courses || []} fetchStats={fetchStats} refreshCourses={fetchCourses} preSelectedRoom={null} clearRoom={()=>{}} userRole={user.role} />)}
-                
                   {activeTab === 'students' && <ParticipantList courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
-                  
                   {activeTab === 'accommodation' && <GlobalAccommodationManager />}
                   {activeTab === 'at' && <ATPanel courses={courses} />}
-                  
-                  {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
-                  
-                  {activeTab === 'seva' && <SevaBoard courses={courses} />}
-                  
-                  {(user.role === 'admin' || user.role === 'staff' || user.role === 'dn1ops') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
-
                   {activeTab === 'alumni' && <AlumniDirectory courses={courses} />}
+                  {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
+                  {activeTab === 'seva' && <SevaBoard courses={courses} />}
+                  {(user.role === 'admin' || user.role === 'staff' || user.role === 'dn1ops') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
+                  
               </div>
           </div>
       </main>
