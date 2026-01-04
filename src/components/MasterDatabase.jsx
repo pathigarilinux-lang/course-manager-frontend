@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Database, Upload, Trash2, Search, Filter, Download, 
     PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
-    ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe, Flag, XCircle 
+    ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe, Flag, XCircle, 
+    User, Shield, Lock, AlertTriangle 
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -14,25 +15,23 @@ import { styles } from '../config';
 // --- CONFIG ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-const VERSION = 9; // Updated for S.No and State Fixes
+const VERSION = 9; 
 
-// 1. COURSE COLUMNS
+// --- COLUMNS CONFIG ---
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
 
-// 2. FIXED COLUMNS (Adjusted positions for S.No)
 const FIXED_COLS = [
-    { key: 'sno', label: 'S.No', width: 50, left: 0 }, // New S.No Column
+    { key: 'sno', label: 'S.No', width: 50, left: 0 },
     { key: 'name', label: 'Student Name', width: 220, left: 50 },
     { key: 'gender', label: 'Gender', width: 70, left: 270 },
     { key: 'age', label: 'Age', width: 60, left: 340 },
     { key: 'mobile', label: 'Mobile', width: 110, left: 400 },
 ];
 
-// 3. DEMOGRAPHIC COLUMNS
 const OTHER_COLS = [
     { key: 'language', label: 'Language', width: 100 },
     { key: 'city', label: 'City', width: 120 },
-    { key: 'state', label: 'State', width: 120 }, // Ensure State is here
+    { key: 'state', label: 'State', width: 120 },
     { key: 'country', label: 'Country', width: 100 },
     { key: 'pin', label: 'Pin Code', width: 80 },
     { key: 'email', label: 'Email', width: 200 },
@@ -42,10 +41,7 @@ const OTHER_COLS = [
     { key: 'company', label: 'Company', width: 150 },
 ];
 
-const COLORS = [
-    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', 
-    '#6366f1', '#14b8a6', '#f97316', '#d946ef', '#06b6d4', '#84cc16'
-];
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#f97316', '#d946ef', '#06b6d4', '#84cc16'];
 
 // --- DB HELPER ---
 const dbHelper = {
@@ -89,12 +85,10 @@ const dbHelper = {
 
 // --- UTILS ---
 const cleanString = (str) => String(str || '').trim().toLowerCase().replace(/\s+/g, ' ');
-
 const toTitleCase = (str) => {
     if (!str) return '';
     return String(str).toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
-
 const findValue = (row, possibleKeys) => {
     if (!row) return '';
     const rowKeys = Object.keys(row);
@@ -106,7 +100,10 @@ const findValue = (row, possibleKeys) => {
     return '';
 };
 
-export default function MasterDatabase() {
+// ---------------------------------------------------------
+//  MAIN COMPONENT (Receives 'user' prop from App.jsx)
+// ---------------------------------------------------------
+export default function MasterDatabase({ user }) {
     const [students, setStudents] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [viewMode, setViewMode] = useState('list');
@@ -114,15 +111,16 @@ export default function MasterDatabase() {
     const [mergeStatus, setMergeStatus] = useState('');
     
     // FILTERS
-    const [filters, setFilters] = useState({
-        search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All'
-    });
-
+    const [filters, setFilters] = useState({ search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All' });
     const [options, setOptions] = useState({ cities: [], states: [], countries: [] });
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
-    
-    // STATS
     const [graphData, setGraphData] = useState({ courseDist: [], genderDist: [], ageDist: [], cityDist: [], stateDist: [], pinDist: [], countryDist: [] });
+
+    // --- 🛡️ SECURITY CHECK ---
+    // Only 'admin' role can delete. 'master_at' (Charan) cannot.
+    const canDelete = user && user.role === 'admin'; 
+    const userLabel = user ? `${user.username.charAt(0).toUpperCase() + user.username.slice(1)}` : 'Guest';
+    const roleLabel = user ? (user.role === 'admin' ? 'Administrator' : 'AT (Master Data)') : 'Viewer';
 
     useEffect(() => { refreshData(); }, []);
 
@@ -132,7 +130,7 @@ export default function MasterDatabase() {
             const data = await dbHelper.getAll();
             setStudents(data);
             prepareFilterOptions(data);
-            prepareGraphData(data); // Initial Stats
+            prepareGraphData(data);
         } catch (e) { console.error("DB Error", e); }
         finally { setIsLoading(false); }
     };
@@ -146,28 +144,17 @@ export default function MasterDatabase() {
         });
     };
 
-    // --- MAIN ENGINE ---
     const processedList = useMemo(() => {
         let list = [...students];
-
         if (filters.course !== 'All') list = list.filter(s => (s.history?.[filters.course] || 0) > 0);
-        if (filters.gender !== 'All') {
-            const char = filters.gender.charAt(0).toLowerCase();
-            list = list.filter(s => String(s.gender).toLowerCase().startsWith(char));
-        }
+        if (filters.gender !== 'All') list = list.filter(s => String(s.gender).toLowerCase().startsWith(filters.gender.charAt(0).toLowerCase()));
         if (filters.city !== 'All') list = list.filter(s => s.city === filters.city);
         if (filters.state !== 'All') list = list.filter(s => s.state === filters.state);
         if (filters.country !== 'All') list = list.filter(s => s.country === filters.country);
-        
         if (filters.search) {
             const lower = filters.search.toLowerCase();
-            list = list.filter(s => 
-                String(s.name).toLowerCase().includes(lower) || 
-                String(s.mobile).includes(lower) ||
-                String(s.email).toLowerCase().includes(lower)
-            );
+            list = list.filter(s => String(s.name).toLowerCase().includes(lower) || String(s.mobile).includes(lower) || String(s.email).toLowerCase().includes(lower));
         }
-
         list.sort((a, b) => {
             let valA, valB;
             if (COURSE_COLS.includes(sortConfig.key)) {
@@ -183,16 +170,10 @@ export default function MasterDatabase() {
         return list;
     }, [students, filters, sortConfig]);
 
-    useEffect(() => {
-        prepareGraphData(processedList);
-    }, [processedList]);
+    useEffect(() => { prepareGraphData(processedList); }, [processedList]);
 
     const prepareGraphData = (data) => {
-        const courses = COURSE_COLS.map(col => ({
-            name: col,
-            students: data.filter(s => (s.history?.[col] || 0) > 0).length
-        }));
-        
+        const courses = COURSE_COLS.map(col => ({ name: col, students: data.filter(s => (s.history?.[col] || 0) > 0).length }));
         const male = data.filter(s => String(s.gender).toLowerCase().startsWith('m')).length;
         const female = data.filter(s => String(s.gender).toLowerCase().startsWith('f')).length;
         
@@ -232,7 +213,6 @@ export default function MasterDatabase() {
         });
     };
 
-    // --- UPLOAD HANDLER ---
     const handleFileUpload = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
@@ -275,7 +255,7 @@ export default function MasterDatabase() {
                 email: String(findValue(mainRow, ['Email', 'E-mail', 'Mail'])),
                 language: toTitleCase(findValue(mainRow, ['Language', 'Languages', 'Mother Tongue'])),
                 city: toTitleCase(findValue(mainRow, ['City', 'District', 'Town'])),
-                state: toTitleCase(findValue(mainRow, ['State', 'Province', 'Region'])), // Explicit State
+                state: toTitleCase(findValue(mainRow, ['State', 'Province', 'Region'])),
                 country: toTitleCase(findValue(mainRow, ['Country', 'Nation'])),
                 pin: String(findValue(mainRow, ['Pin', 'Pin Code', 'Pincode', 'Zip', 'Postal Code'])),
                 education: findValue(mainRow, ['Education', 'Qualification', 'Degree']),
@@ -316,31 +296,24 @@ export default function MasterDatabase() {
         setSortConfig({ key, direction });
     };
 
-    // ✅ FIXED: S.No in Export
     const handleExport = () => {
         const wb = XLSX.utils.book_new();
-
-        // Helper to format row with S.No
         const formatRow = (s, index) => {
-            const row = { 'S.No': index + 1 }; // First column
-            // Skip s.sno key from Fixed Cols since we generate it here
+            const row = { 'S.No': index + 1 };
             FIXED_COLS.filter(c => c.key !== 'sno').forEach(col => row[col.label] = s[col.key]);
             COURSE_COLS.forEach(col => row[col] = s.history?.[col] || 0);
             OTHER_COLS.forEach(col => row[col.label] = s[col.key]);
             return row;
         };
 
-        // 1. Export Current Filtered View
         if (processedList.length > 0) {
             const currentData = processedList.map((s, i) => formatRow(s, i));
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(currentData), "Filtered Data");
         }
 
-        // 2. Export Master Sheet (All Students)
         const masterData = students.map((s, i) => formatRow(s, i));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(masterData), "All Students");
 
-        // 3. Export Course Specific Sheets (Filtered by Course > 0)
         COURSE_COLS.forEach(course => {
             const filtered = students.filter(s => (s.history?.[course] || 0) > 0);
             if (filtered.length > 0) {
@@ -348,7 +321,6 @@ export default function MasterDatabase() {
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetData), `${course}`);
             }
         });
-
         XLSX.writeFile(wb, `Dhamma_Master_DB_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
@@ -367,21 +339,45 @@ export default function MasterDatabase() {
                     </div>
                 </div>
                 
-                <div style={{display:'flex', gap:'10px'}}>
-                    <div style={{background:'#e2e8f0', padding:'4px', borderRadius:'8px', display:'flex', gap:'5px'}}>
-                        <button onClick={() => setViewMode('list')} style={{padding:'8px 15px', borderRadius:'6px', border:'none', cursor:'pointer', fontWeight:'600', display:'flex', alignItems:'center', gap:'6px', background: viewMode === 'list' ? 'white' : 'transparent', color: viewMode === 'list' ? '#1e293b' : '#64748b', boxShadow: viewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'}}>
-                            <List size={16}/> List
-                        </button>
-                        <button onClick={() => setViewMode('analytics')} style={{padding:'8px 15px', borderRadius:'6px', border:'none', cursor:'pointer', fontWeight:'600', display:'flex', alignItems:'center', gap:'6px', background: viewMode === 'analytics' ? 'white' : 'transparent', color: viewMode === 'analytics' ? '#1e293b' : '#64748b', boxShadow: viewMode === 'analytics' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'}}>
-                            <BarChart3 size={16}/> Stats
+                {/* 🛡️ USER BADGE & PERMISSIONS */}
+                <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+                    <div style={{display:'flex', alignItems:'center', gap:'10px', background:'white', padding:'6px 12px', borderRadius:'30px', border:'1px solid #e2e8f0', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}>
+                        <div style={{width:'36px', height:'36px', borderRadius:'50%', background: canDelete ? '#fef2f2' : '#f0f9ff', display:'flex', alignItems:'center', justifyContent:'center', border: canDelete ? '1px solid #fee2e2' : '1px solid #e0f2fe'}}>
+                            <User size={18} color={canDelete ? '#ef4444' : '#0ea5e9'}/>
+                        </div>
+                        <div style={{lineHeight:'1.2'}}>
+                            <div style={{fontSize:'13px', fontWeight:'700', color:'#1e293b'}}>{userLabel}</div>
+                            <div style={{fontSize:'11px', color:'#64748b', display:'flex', alignItems:'center', gap:'4px'}}>
+                                <Shield size={10}/> {roleLabel}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{display:'flex', gap:'10px'}}>
+                        <div style={{background:'#e2e8f0', padding:'4px', borderRadius:'8px', display:'flex', gap:'5px'}}>
+                            <button onClick={() => setViewMode('list')} style={{padding:'8px 15px', borderRadius:'6px', border:'none', cursor:'pointer', fontWeight:'600', display:'flex', alignItems:'center', gap:'6px', background: viewMode === 'list' ? 'white' : 'transparent', color: viewMode === 'list' ? '#1e293b' : '#64748b', boxShadow: viewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'}}>
+                                <List size={16}/>
+                            </button>
+                            <button onClick={() => setViewMode('analytics')} style={{padding:'8px 15px', borderRadius:'6px', border:'none', cursor:'pointer', fontWeight:'600', display:'flex', alignItems:'center', gap:'6px', background: viewMode === 'analytics' ? 'white' : 'transparent', color: viewMode === 'analytics' ? '#1e293b' : '#64748b', boxShadow: viewMode === 'analytics' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'}}>
+                                <BarChart3 size={16}/>
+                            </button>
+                        </div>
+                        
+                        {/* 🔒 SECURE DELETE BUTTON */}
+                        {canDelete ? (
+                            <button onClick={() => { if(window.confirm('Are you sure you want to delete ALL data? This cannot be undone.')) dbHelper.clear().then(refreshData) }} style={{...styles.btn(false), color:'#ef4444', borderColor:'#ef4444'}}>
+                                <Trash2 size={16}/> Clear DB
+                            </button>
+                        ) : (
+                            <button title="Only Administrators can delete data" disabled style={{...styles.btn(false), color:'#cbd5e1', borderColor:'#e2e8f0', background:'#f8fafc', cursor:'not-allowed'}}>
+                                <Lock size={16}/> Delete Locked
+                            </button>
+                        )}
+                        
+                        <button onClick={() => setShowUpload(!showUpload)} style={{...styles.btn(true), background:'#10b981', borderColor:'#10b981'}}>
+                            <Upload size={16}/> Import
                         </button>
                     </div>
-                    <button onClick={() => dbHelper.clear().then(refreshData)} style={{...styles.btn(false), color:'#ef4444', borderColor:'#ef4444'}}>
-                        <Trash2 size={16}/> Clear
-                    </button>
-                    <button onClick={() => setShowUpload(!showUpload)} style={{...styles.btn(true), background:'#10b981', borderColor:'#10b981'}}>
-                        <Upload size={16}/> Import
-                    </button>
                 </div>
             </div>
 
@@ -398,7 +394,7 @@ export default function MasterDatabase() {
                 </div>
             )}
 
-            {/* FILTERS */}
+            {/* FILTER TOOLBAR */}
             <div style={{padding:'15px', marginBottom:'20px', border:'1px solid #e2e8f0', borderRadius:'12px', background:'white'}}>
                 <div style={{display:'flex', flexWrap:'wrap', gap:'10px', alignItems:'center', marginBottom:'10px'}}>
                     <div style={{position:'relative', width:'250px'}}>
