@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Database, Upload, Trash2, Search, Filter, Download, 
-    PieChart, MapPin, Users, Award, FileText, CheckCircle, AlertCircle 
+    PieChart, MapPin, Users, Award, FileText, CheckCircle, X, ChevronDown 
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { styles } from '../config';
@@ -9,7 +9,8 @@ import { styles } from '../config';
 // --- CONFIG ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-const VERSION = 2; // Incremented for schema update
+const VERSION = 3; // Schema Update
+const COURSE_COLS = ['10D', 'STP', 'SPL', 'TSC', '20D', '30D', '45D', '60D'];
 
 // --- INDEXED DB HELPER ---
 const dbHelper = {
@@ -30,10 +31,7 @@ const dbHelper = {
             const tx = db.transaction(STORE_NAME, 'readwrite');
             const store = tx.objectStore(STORE_NAME);
             let count = 0;
-            students.forEach(s => {
-                store.put(s);
-                count++;
-            });
+            students.forEach(s => { store.put(s); count++; });
             tx.oncomplete = () => resolve(count);
             tx.onerror = () => reject(tx.error);
         });
@@ -56,16 +54,18 @@ const dbHelper = {
     }
 };
 
-// --- INTELLIGENT PARSER ---
 const cleanString = (str) => String(str || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 export default function MasterDatabase() {
     const [students, setStudents] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [stats, setStats] = useState({ total: 0, old: 0, new: 0, male: 0, female: 0, cities: {} });
+    const [stats, setStats] = useState({ total: 0, old: 0, new: 0, male: 0, female: 0 });
     const [showUpload, setShowUpload] = useState(false);
     const [mergeStatus, setMergeStatus] = useState('');
+    
+    // ✅ NEW: Course Filter State
+    const [courseFilter, setCourseFilter] = useState('All'); // 'All', '10D', '60D' etc.
 
     useEffect(() => { refreshData(); }, []);
 
@@ -79,7 +79,7 @@ export default function MasterDatabase() {
         finally { setIsLoading(false); }
     };
 
-    // ✅ INTELLIGENT MERGE LOGIC
+    // ✅ INTELLIGENT PARSER WITH EXACT COLUMNS
     const handleFileUpload = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
@@ -87,60 +87,46 @@ export default function MasterDatabase() {
         setIsLoading(true);
         setMergeStatus('Reading files...');
 
-        let teacherList = []; // Holds data from "Teacher List"
-        let attendedList = []; // Holds data from "Attended"
+        let teacherList = [];
+        let attendedList = [];
 
-        // 1. READ ALL FILES FIRST
         for (const file of files) {
             const data = await file.arrayBuffer();
             const workbook = XLSX.read(data, { type: 'array' });
-            
-            // Try to find header row automatically (Teacher list header is usually lower down)
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // Read as array of arrays
+            const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
             
             // Detect Header Row
             let headerRowIndex = 0;
-            let headers = [];
-            
             for(let i=0; i<rawData.length; i++) {
                 const rowStr = JSON.stringify(rawData[i]).toLowerCase();
-                if (rowStr.includes('student') && (rowStr.includes('10d') || rowStr.includes('roomno'))) {
-                    headerRowIndex = i; // Found Teacher List Header
-                    break;
+                if (rowStr.includes('student') && (rowStr.includes('10d') || rowStr.includes('stp'))) {
+                    headerRowIndex = i; break;
                 }
                 if (rowStr.includes('name') && rowStr.includes('mobile')) {
-                    headerRowIndex = i; // Found Attended List Header
-                    break;
+                    headerRowIndex = i; break;
                 }
             }
 
-            // Re-parse with correct header
             const jsonData = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex });
-            
-            // Check file type based on columns
             const firstRow = jsonData[0] || {};
+            
+            // Check if specific columns exist to identify file type
             if (firstRow['10D'] !== undefined || firstRow['STP'] !== undefined) {
-                console.log("Identified Teacher List:", file.name);
+                console.log("Found Teacher List:", file.name);
                 teacherList = teacherList.concat(jsonData);
             } else {
-                console.log("Identified Attended List:", file.name);
+                console.log("Found Attended List:", file.name);
                 attendedList = attendedList.concat(jsonData);
             }
         }
 
-        setMergeStatus(`Merging ${attendedList.length} students with ${teacherList.length} teacher records...`);
+        setMergeStatus(`Merging ${attendedList.length} students with ${teacherList.length} history records...`);
 
-        // 2. MERGE LOGIC
-        // If we only have Teacher List, we can't do much (no mobile nums usually). 
-        // We prioritize Attended List as the "Master" source.
-        
         const finalData = attendedList.map(mainRow => {
-            // Key Mapping from Attended List
             const mobile = (mainRow['PhoneMobile'] || mainRow['PhoneHome'] || '').toString().replace(/\D/g, '');
             if (!mobile || mobile.length < 5) return null;
 
-            // Prepare Basic Data
             let student = {
                 mobile: mobile,
                 name: mainRow['Name'],
@@ -153,51 +139,39 @@ export default function MasterDatabase() {
                 accommodation: mainRow['Accommodation'],
                 last_course_conf: mainRow['Conf No'],
                 last_update: new Date().toISOString(),
-                // Default History Stats
-                history: {
-                    '10D': 0, 'STP': 0, 'SPL': 0, 'TSC': 0, 
-                    '20D': 0, '30D': 0, '45D': 0, '60D': 0
-                }
+                history: {} // Container for exact columns
             };
 
-            // 🔍 FIND MATCH IN TEACHER LIST
-            // Strategy: Match by Normalized Name OR Normalized Room No
+            // Initialize all columns to 0
+            COURSE_COLS.forEach(col => student.history[col] = 0);
+
+            // Match Logic
             const cleanName = cleanString(student.name);
             const cleanRoom = cleanString(student.accommodation).replace(/-/g, '').replace(/ /g, '');
 
             const teacherRow = teacherList.find(tRow => {
                 const tName = cleanString(tRow['Student']);
                 const tRoom = cleanString(tRow['RoomNo']).replace(/-/g, '').replace(/ /g, '');
-                
-                // Match Logic: Name exact match OR Room exact match (if matched room is unique enough)
                 return tName === cleanName || (tRoom && tRoom === cleanRoom && tRoom.length > 3);
             });
 
-            // 💉 INJECT DATA
+            // Inject Exact Columns
             if (teacherRow) {
-                student.history = {
-                    '10D': parseInt(teacherRow['10D'] || 0),
-                    'STP': parseInt(teacherRow['STP'] || 0),
-                    'SPL': parseInt(teacherRow['SPL'] || 0),
-                    'TSC': parseInt(teacherRow['TSC'] || 0),
-                    '20D': parseInt(teacherRow['20D'] || 0),
-                    '30D': parseInt(teacherRow['30D'] || 0),
-                    '45D': parseInt(teacherRow['45D'] || 0),
-                    '60D': parseInt(teacherRow['60D'] || 0)
-                };
+                COURSE_COLS.forEach(col => {
+                    // Force 0 if undefined/null/empty, otherwise parse Int
+                    const val = teacherRow[col];
+                    student.history[col] = val ? parseInt(val) : 0;
+                });
             }
 
             return student;
         }).filter(Boolean);
 
-        // 3. SAVE TO DB
         if (finalData.length > 0) {
             await dbHelper.addBulk(finalData);
-            setMergeStatus(`Successfully merged and saved ${finalData.length} records!`);
-        } else if (teacherList.length > 0 && attendedList.length === 0) {
-            setMergeStatus("⚠️ Only Teacher List found. Please upload 'Attended List' too for contact details.");
+            setMergeStatus(`✅ Success! Merged ${finalData.length} records with full history.`);
         } else {
-            setMergeStatus("No valid data found.");
+            setMergeStatus("⚠️ No matching data found or invalid files.");
         }
         
         await refreshData();
@@ -205,46 +179,51 @@ export default function MasterDatabase() {
         setTimeout(() => setShowUpload(false), 3000);
     };
 
-    // Stats
     const calculateStats = (data) => {
-        const s = { total: data.length, old: 0, new: 0, male: 0, female: 0, cities: {} };
+        const s = { total: data.length, old: 0, new: 0, male: 0, female: 0 };
         data.forEach(p => {
-            // Old student if history exists > 0
-            const h = p.history || {};
-            const coursesCount = (h['10D']||0) + (h['STP']||0) + (h['20D']||0);
-            
-            if (coursesCount > 0 || String(p.last_course_conf).startsWith('O')) s.old++;
+            // Check if any course > 0
+            const hasHistory = COURSE_COLS.some(col => p.history[col] > 0);
+            if (hasHistory || String(p.last_course_conf).startsWith('O')) s.old++;
             else s.new++;
 
             if (String(p.gender).toLowerCase().startsWith('m')) s.male++; else s.female++;
-            const city = (p.city || 'Unknown').trim();
-            s.cities[city] = (s.cities[city] || 0) + 1;
         });
         setStats(s);
     };
 
+    // ✅ ADVANCED FILTER ENGINE
     const filteredList = useMemo(() => {
-        if (!searchTerm) return students.slice(0, 100);
-        const lower = searchTerm.toLowerCase();
-        return students.filter(s => 
-            String(s.name).toLowerCase().includes(lower) || 
-            String(s.mobile).includes(lower) ||
-            String(s.city).toLowerCase().includes(lower)
-        ).slice(0, 100);
-    }, [students, searchTerm]);
+        let list = students;
 
-    const topCities = Object.entries(stats.cities).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        // 1. Course Specific Filter
+        if (courseFilter !== 'All') {
+            list = list.filter(s => (s.history?.[courseFilter] || 0) > 0);
+        }
+
+        // 2. Search Text
+        if (searchTerm) {
+            const lower = searchTerm.toLowerCase();
+            list = list.filter(s => 
+                String(s.name).toLowerCase().includes(lower) || 
+                String(s.mobile).includes(lower) ||
+                String(s.city).toLowerCase().includes(lower)
+            );
+        }
+
+        return list.slice(0, 100); // Pagination limit
+    }, [students, searchTerm, courseFilter]);
 
     return (
         <div style={{animation:'fadeIn 0.3s'}}>
             {/* HEADER */}
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'25px'}}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                 <div>
                     <h1 style={{margin:0, display:'flex', alignItems:'center', gap:'12px', color:'#1e293b'}}>
-                        <Database size={32} className="text-blue-600"/> Master Student Database
+                        <Database size={32} className="text-blue-600"/> Master Database
                     </h1>
                     <div style={{fontSize:'13px', color:'#64748b', marginTop:'5px'}}>
-                        Smart Merge Enabled • {stats.total.toLocaleString()} Records
+                        {stats.total.toLocaleString()} Records • {stats.old.toLocaleString()} Old Students
                     </div>
                 </div>
                 <div style={{display:'flex', gap:'10px'}}>
@@ -252,111 +231,98 @@ export default function MasterDatabase() {
                         <Trash2 size={16}/> Clear DB
                     </button>
                     <button onClick={() => setShowUpload(!showUpload)} style={{...styles.btn(true), background:'#10b981', borderColor:'#10b981'}}>
-                        <Upload size={16}/> Import & Merge
+                        <Upload size={16}/> Import Files
                     </button>
                 </div>
             </div>
 
-            {/* UPLOAD AREA */}
+            {/* UPLOAD PANEL */}
             {showUpload && (
-                <div style={{background:'#f0fdf4', border:'2px dashed #86efac', borderRadius:'12px', padding:'30px', textAlign:'center', marginBottom:'25px'}}>
-                    <FileText size={40} color="#15803d" style={{marginBottom:'10px'}}/>
-                    <h3 style={{margin:0, color:'#14532d'}}>Intelligent Course Merge</h3>
-                    <p style={{fontSize:'13px', color:'#166534', marginBottom:'20px'}}>
-                        Select BOTH <strong>Teacher List</strong> and <strong>Attended List</strong> files together.<br/>
-                        The system will auto-match students and combine their data.
+                <div style={{background:'#f0fdf4', border:'2px dashed #86efac', borderRadius:'12px', padding:'25px', textAlign:'center', marginBottom:'25px'}}>
+                    <FileText size={32} color="#15803d" style={{marginBottom:'10px'}}/>
+                    <h3 style={{margin:0, color:'#14532d'}}>Upload "Teacher List" & "Attended List"</h3>
+                    <p style={{fontSize:'12px', color:'#166534', marginBottom:'15px'}}>
+                        Select both files. The system will create columns: {COURSE_COLS.join(', ')}
                     </p>
-                    <input 
-                        type="file" 
-                        accept=".xlsx, .xls" 
-                        multiple 
-                        onChange={handleFileUpload}
-                        style={{display:'block', margin:'0 auto', color:'#15803d'}}
-                    />
+                    <input type="file" accept=".xlsx, .xls" multiple onChange={handleFileUpload} style={{display:'block', margin:'0 auto', color:'#15803d'}}/>
                     {isLoading && <div style={{marginTop:'15px', fontWeight:'bold', color:'#0d9488'}}>{mergeStatus}</div>}
                 </div>
             )}
 
-            {/* ANALYTICS */}
-            <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'20px', marginBottom:'30px'}}>
-                <div style={cardStyle}>
-                    <div style={labelStyle}>TOTAL STUDENTS</div>
-                    <div style={numStyle}>{stats.total.toLocaleString()}</div>
-                    <div style={subStyle}>Merged Records</div>
-                </div>
-                <div style={cardStyle}>
-                    <div style={labelStyle}>OLD vs NEW</div>
-                    <div style={numStyle}>{stats.old.toLocaleString()} <span style={{fontSize:'14px', color:'#94a3b8'}}>/ {stats.new.toLocaleString()}</span></div>
-                    <div style={subStyle}>Course History</div>
-                </div>
-                <div style={cardStyle}>
-                    <div style={labelStyle}>GENDER</div>
-                    <div style={numStyle}>{stats.male.toLocaleString()} <span style={{fontSize:'14px', color:'#94a3b8'}}>M</span> • {stats.female.toLocaleString()} <span style={{fontSize:'14px', color:'#94a3b8'}}>F</span></div>
-                </div>
-                <div style={cardStyle}>
-                    <div style={labelStyle}>TOP CITY</div>
-                    <div style={numStyle}>{topCities[0]?.[0] || '-'}</div>
-                    <div style={subStyle}>{topCities[0]?.[1]} Students</div>
-                </div>
-            </div>
-
-            {/* MAIN TABLE */}
+            {/* FILTERS & TABLE */}
             <div style={{background:'white', borderRadius:'12px', border:'1px solid #e2e8f0', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.1)', overflow:'hidden'}}>
-                <div style={{padding:'15px', borderBottom:'1px solid #f1f5f9', display:'flex', gap:'15px'}}>
-                    <div style={{position:'relative', flex:1}}>
-                        <Search size={18} style={{position:'absolute', left:'12px', top:'10px', color:'#94a3b8'}}/>
+                
+                {/* TOOLBAR */}
+                <div style={{padding:'15px', borderBottom:'1px solid #f1f5f9', display:'flex', gap:'15px', alignItems:'center', background:'#f8fafc'}}>
+                    <div style={{position:'relative', width:'300px'}}>
+                        <Search size={16} style={{position:'absolute', left:'10px', top:'10px', color:'#94a3b8'}}/>
                         <input 
                             style={{...styles.input, paddingLeft:'35px', width:'100%', border:'1px solid #e2e8f0'}}
-                            placeholder="Search by Name, Mobile, City..."
+                            placeholder="Search Name, City..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                         />
                     </div>
+
+                    <div style={{height:'30px', width:'1px', background:'#e2e8f0'}}></div>
+
+                    <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                        <Filter size={16} color="#64748b"/>
+                        <span style={{fontSize:'13px', fontWeight:'600', color:'#475569'}}>Filter by Course:</span>
+                        <select 
+                            value={courseFilter} 
+                            onChange={e => setCourseFilter(e.target.value)}
+                            style={{padding:'8px', borderRadius:'6px', border:'1px solid #cbd5e1', fontSize:'13px', fontWeight:'600', minWidth:'120px'}}
+                        >
+                            <option value="All">All Students</option>
+                            {COURSE_COLS.map(c => <option key={c} value={c}>Has done {c}</option>)}
+                        </select>
+                    </div>
+
+                    <div style={{marginLeft:'auto', fontSize:'12px', fontWeight:'600', color:'#3b82f6'}}>
+                        Showing {filteredList.length} results
+                    </div>
                 </div>
 
-                <div style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr 2fr 1fr', background:'#f8fafc', padding:'12px 20px', fontSize:'11px', fontWeight:'700', color:'#64748b', textTransform:'uppercase', letterSpacing:'0.5px'}}>
-                    <div>Student Name</div>
-                    <div>Mobile</div>
-                    <div>Gender / Age</div>
-                    <div>City</div>
-                    <div>Course History (Merged)</div>
-                    <div>Last Conf No</div>
+                {/* TABLE HEADER */}
+                <div style={{display:'grid', gridTemplateColumns:'200px 100px 80px 120px 50px 50px 50px 50px 50px 50px 50px 50px', borderBottom:'1px solid #e2e8f0', background:'#f1f5f9'}}>
+                    <div style={thStyle}>Student Name</div>
+                    <div style={thStyle}>Mobile</div>
+                    <div style={thStyle}>Gen/Age</div>
+                    <div style={thStyle}>City</div>
+                    {COURSE_COLS.map(c => (
+                        <div key={c} style={{...thStyle, textAlign:'center', color:'#2563eb'}}>{c}</div>
+                    ))}
                 </div>
 
-                <div style={{maxHeight:'500px', overflowY:'auto'}}>
-                    {filteredList.map(s => {
-                        const h = s.history || {};
-                        const historyStr = `10D:${h['10D']||0} STP:${h['STP']||0} 20D:${h['20D']||0}`;
-                        
-                        return (
-                            <div key={s.mobile} style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr 2fr 1fr', padding:'15px 20px', borderBottom:'1px solid #f1f5f9', fontSize:'13px', alignItems:'center', ':hover':{background:'#f8fafc'}}}>
-                                <div style={{fontWeight:'600', color:'#1e293b'}}>{s.name}</div>
-                                <div style={{color:'#64748b'}}>{s.mobile}</div>
-                                <div>
-                                    <span style={{
-                                        padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:'bold',
-                                        background: String(s.gender).toLowerCase().startsWith('m') ? '#e0f2fe' : '#fce7f3',
-                                        color: String(s.gender).toLowerCase().startsWith('m') ? '#0284c7' : '#db2777'
-                                    }}>{String(s.gender).charAt(0)}</span>
-                                    <span style={{marginLeft:'8px', color:'#64748b'}}>{s.age}</span>
-                                </div>
-                                <div style={{color:'#334155'}}>{s.city}</div>
-                                
-                                {/* MERGED HISTORY DISPLAY */}
-                                <div style={{display:'flex', gap:'5px', flexWrap:'wrap'}}>
-                                    {(h['10D'] > 0) && <span style={{background:'#dcfce7', color:'#166534', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', fontWeight:'bold'}}>10D:{h['10D']}</span>}
-                                    {(h['STP'] > 0) && <span style={{background:'#dbeafe', color:'#1e40af', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', fontWeight:'bold'}}>STP:{h['STP']}</span>}
-                                    {(h['20D'] > 0) && <span style={{background:'#f3e8ff', color:'#7e22ce', padding:'2px 6px', borderRadius:'4px', fontSize:'10px', fontWeight:'bold'}}>20D:{h['20D']}</span>}
-                                    {Object.values(h).every(v => v === 0) && <span style={{color:'#cbd5e1', fontSize:'11px'}}>No History</span>}
-                                </div>
-                                
-                                <div style={{fontSize:'11px', color:'#94a3b8'}}>{s.last_course_conf}</div>
+                {/* TABLE BODY */}
+                <div style={{maxHeight:'600px', overflowY:'auto'}}>
+                    {filteredList.map((s) => (
+                        <div key={s.mobile} style={{display:'grid', gridTemplateColumns:'200px 100px 80px 120px 50px 50px 50px 50px 50px 50px 50px 50px', borderBottom:'1px solid #f1f5f9', alignItems:'center', ':hover':{background:'#f8fafc'}}}>
+                            
+                            {/* Basic Info */}
+                            <div style={tdStyle}>
+                                <div style={{fontWeight:'600', color:'#1e293b', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}} title={s.name}>{s.name}</div>
                             </div>
-                        );
-                    })}
-                </div>
-                <div style={{padding:'10px 20px', borderTop:'1px solid #f1f5f9', fontSize:'11px', color:'#94a3b8', background:'#f8fafc'}}>
-                    Showing {filteredList.length} of {students.length} records
+                            <div style={tdStyle}>{s.mobile}</div>
+                            <div style={tdStyle}>
+                                <span style={{
+                                    padding:'1px 6px', borderRadius:'4px', fontSize:'10px', fontWeight:'bold',
+                                    background: String(s.gender).toLowerCase().startsWith('m') ? '#e0f2fe' : '#fce7f3',
+                                    color: String(s.gender).toLowerCase().startsWith('m') ? '#0284c7' : '#db2777'
+                                }}>{String(s.gender).charAt(0)}</span>
+                                <span style={{marginLeft:'5px', color:'#64748b'}}>{s.age}</span>
+                            </div>
+                            <div style={{...tdStyle, color:'#475569'}} title={s.city}>{s.city}</div>
+
+                            {/* EXACT COLUMNS (0 is shown as 0) */}
+                            {COURSE_COLS.map(col => (
+                                <div key={col} style={{...tdStyle, textAlign:'center', fontWeight:'600', color: s.history[col] > 0 ? '#0f172a' : '#e2e8f0'}}>
+                                    {s.history[col]}
+                                </div>
+                            ))}
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>
@@ -364,7 +330,5 @@ export default function MasterDatabase() {
 }
 
 // STYLES
-const cardStyle = { background: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', border:'1px solid #e2e8f0' };
-const labelStyle = { fontSize: '11px', fontWeight: '700', color: '#94a3b8', marginBottom: '5px' };
-const numStyle = { fontSize: '24px', fontWeight: '800', color: '#1e293b' };
-const subStyle = { fontSize: '12px', color: '#64748b', marginTop: '2px' };
+const thStyle = { padding:'12px 10px', fontSize:'11px', fontWeight:'700', color:'#64748b', textTransform:'uppercase', borderRight:'1px solid #f1f5f9' };
+const tdStyle = { padding:'10px', fontSize:'12px', borderRight:'1px solid #f8fafc' };
