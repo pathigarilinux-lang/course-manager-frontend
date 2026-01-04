@@ -3,7 +3,7 @@ import {
     Database, Upload, Trash2, Search, Filter, Download, 
     PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
     ChevronUp, ArrowUpDown, Table 
-} from 'lucide-react'; // ✅ FIXED: Aliased PieChart to PieIcon
+} from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
     PieChart, Pie, Cell 
@@ -14,24 +14,35 @@ import { styles } from '../config';
 // --- CONFIG ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-const VERSION = 4;
+const VERSION = 5; // Updated version
+
+// 1. COURSE COLUMNS (Scrollable)
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
-const DISPLAY_COLS = [
-    { key: 'name', label: 'Student Name', width: '200px' },
-    { key: 'mobile', label: 'Mobile', width: '100px' },
-    { key: 'phone_home', label: 'Phone (Home)', width: '100px' },
-    { key: 'email', label: 'Email', width: '150px' },
-    { key: 'gender', label: 'Gender', width: '60px' },
-    { key: 'age', label: 'Age', width: '50px' },
-    { key: 'language', label: 'Language', width: '80px' },
-    { key: 'city', label: 'City', width: '100px' },
-    { key: 'state', label: 'State', width: '100px' },
-    { key: 'country', label: 'Country', width: '80px' },
-    { key: 'pin', label: 'Pin', width: '70px' },
-    { key: 'education', label: 'Education', width: '120px' },
-    { key: 'occupation', label: 'Occupation', width: '120px' },
-    { key: 'company', label: 'Company', width: '120px' },
+
+// 2. FIXED COLUMNS (Sticky Left)
+const FIXED_COLS = [
+    { key: 'name', label: 'Student Name', width: 220, left: 0 },
+    { key: 'gender', label: 'Gender', width: 70, left: 220 },
+    { key: 'age', label: 'Age', width: 60, left: 290 },
+    { key: 'mobile', label: 'Mobile', width: 110, left: 350 },
 ];
+
+// 3. DEMOGRAPHIC COLUMNS (Scrollable, after Courses)
+const OTHER_COLS = [
+    { key: 'language', label: 'Language', width: 100 },
+    { key: 'city', label: 'City', width: 120 },
+    { key: 'state', label: 'State', width: 120 },
+    { key: 'country', label: 'Country', width: 100 },
+    { key: 'pin', label: 'Pin Code', width: 80 },
+    { key: 'email', label: 'Email', width: 200 },
+    { key: 'phone_home', label: 'Phone (Home)', width: 120 },
+    { key: 'education', label: 'Education', width: 150 },
+    { key: 'occupation', label: 'Occupation', width: 150 },
+    { key: 'company', label: 'Company', width: 150 },
+];
+
+// Combine for Export Order
+const ALL_EXPORT_COLS = [...FIXED_COLS, ...COURSE_COLS.map(c => ({ key: c, label: c })), ...OTHER_COLS];
 
 // --- DB HELPER ---
 const dbHelper = {
@@ -84,10 +95,7 @@ export default function MasterDatabase() {
     const [mergeStatus, setMergeStatus] = useState('');
     const [courseFilter, setCourseFilter] = useState('All');
     
-    // Sorting State
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
-
-    // Stats
     const [graphData, setGraphData] = useState({ courseDist: [], genderDist: [], ageDist: [] });
 
     useEffect(() => { refreshData(); }, []);
@@ -129,7 +137,7 @@ export default function MasterDatabase() {
         });
     };
 
-    // --- UPLOAD & PARSER ---
+    // --- UPLOAD HANDLER ---
     const handleFileUpload = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
@@ -226,20 +234,16 @@ export default function MasterDatabase() {
         setTimeout(() => setShowUpload(false), 3000);
     };
 
-    // --- SORT HANDLER ---
+    // --- SORT ---
     const handleSort = (key) => {
         let direction = 'asc';
-        if (sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
+        if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
         setSortConfig({ key, direction });
     };
 
-    // --- FILTER & SORT ENGINE ---
     const processedList = useMemo(() => {
         let list = [...students];
 
-        // 1. Filter
         if (courseFilter !== 'All') {
             list = list.filter(s => (s.history?.[courseFilter] || 0) > 0);
         }
@@ -253,24 +257,17 @@ export default function MasterDatabase() {
             );
         }
 
-        // 2. Sort
         list.sort((a, b) => {
             let valA, valB;
-
-            // Handle Course Columns (History)
             if (COURSE_COLS.includes(sortConfig.key)) {
                 valA = a.history?.[sortConfig.key] || 0;
                 valB = b.history?.[sortConfig.key] || 0;
             } else {
-                // Handle Standard Columns
                 valA = a[sortConfig.key] || '';
                 valB = b[sortConfig.key] || '';
             }
-
             if (typeof valA === 'string') {
-                return sortConfig.direction === 'asc' 
-                    ? valA.localeCompare(valB) 
-                    : valB.localeCompare(valA);
+                return sortConfig.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
             }
             return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
         });
@@ -278,42 +275,41 @@ export default function MasterDatabase() {
         return list;
     }, [students, searchTerm, courseFilter, sortConfig]);
 
-    // --- EXPORT MASTER FILE ---
+    // --- EXPORT ---
     const handleExport = () => {
         const wb = XLSX.utils.book_new();
 
-        // 1. Create a "Full Master" Sheet
-        const masterData = students.map(s => {
+        // Helper to format a student row for export
+        const formatRow = (s) => {
             const row = {};
-            DISPLAY_COLS.forEach(col => row[col.label] = s[col.key]);
+            // 1. Fixed
+            FIXED_COLS.forEach(col => row[col.label] = s[col.key]);
+            // 2. Courses
             COURSE_COLS.forEach(col => row[col] = s.history?.[col] || 0);
+            // 3. Other
+            OTHER_COLS.forEach(col => row[col.label] = s[col.key]);
             return row;
-        });
-        const wsMaster = XLSX.utils.json_to_sheet(masterData);
-        XLSX.utils.book_append_sheet(wb, wsMaster, "All Students");
+        };
 
-        // 2. Create Course-Specific Sheets (60D, 45D...)
+        // Master Sheet
+        const masterData = students.map(formatRow);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(masterData), "All Students");
+
+        // Course Sheets
         COURSE_COLS.forEach(course => {
             const filtered = students.filter(s => (s.history?.[course] || 0) > 0);
             if (filtered.length > 0) {
-                const sheetData = filtered.map(s => {
-                    const row = {};
-                    DISPLAY_COLS.forEach(col => row[col.label] = s[col.key]);
-                    COURSE_COLS.forEach(c => row[c] = s.history?.[c] || 0);
-                    return row;
-                });
-                const ws = XLSX.utils.json_to_sheet(sheetData);
-                XLSX.utils.book_append_sheet(wb, ws, `${course} Students`);
+                const sheetData = filtered.map(formatRow);
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetData), `${course}`);
             }
         });
 
-        // 3. Download
-        XLSX.writeFile(wb, `Dhamma_Master_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
+        XLSX.writeFile(wb, `Dhamma_Master_DB_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
     return (
         <div style={{animation:'fadeIn 0.3s'}}>
-            {/* TOP HEADER */}
+            {/* HEADER */}
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                 <div>
                     <h1 style={{margin:0, display:'flex', alignItems:'center', gap:'12px', color:'#1e293b'}}>
@@ -425,17 +421,22 @@ export default function MasterDatabase() {
                         </button>
                     </div>
 
-                    {/* SCROLLABLE TABLE CONTAINER */}
-                    <div style={{overflowX:'auto', maxHeight:'650px'}}>
-                        <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}>
-                            <thead style={{background:'#f1f5f9', position:'sticky', top:0, zIndex:10}}>
+                    {/* TABLE CONTAINER */}
+                    <div style={{overflowX:'auto', maxHeight:'650px', position:'relative'}}>
+                        <table style={{width:'max-content', borderCollapse:'separate', borderSpacing:0, fontSize:'12px'}}>
+                            <thead style={{background:'#f1f5f9', position:'sticky', top:0, zIndex:30}}>
                                 <tr>
-                                    {/* DYNAMIC PROFILE COLUMNS */}
-                                    {DISPLAY_COLS.map(col => (
+                                    {/* FIXED COLUMNS HEADERS */}
+                                    {FIXED_COLS.map(col => (
                                         <th 
                                             key={col.key}
                                             onClick={() => handleSort(col.key)}
-                                            style={{...thStyle, minWidth: col.width, cursor:'pointer', userSelect:'none'}}
+                                            style={{
+                                                ...thStyle, width: col.width, minWidth: col.width, maxWidth: col.width,
+                                                position: 'sticky', left: col.left, zIndex: 35,
+                                                background: '#f1f5f9', borderRight:'1px solid #cbd5e1',
+                                                cursor:'pointer'
+                                            }}
                                         >
                                             <div style={{display:'flex', alignItems:'center', gap:'5px'}}>
                                                 {col.label}
@@ -443,12 +444,13 @@ export default function MasterDatabase() {
                                             </div>
                                         </th>
                                     ))}
-                                    {/* COURSE COLUMNS */}
+
+                                    {/* COURSE COLUMNS HEADERS */}
                                     {COURSE_COLS.map(col => (
                                         <th 
                                             key={col} 
                                             onClick={() => handleSort(col)}
-                                            style={{...thStyle, minWidth:'50px', textAlign:'center', color:'#2563eb', cursor:'pointer'}}
+                                            style={{...thStyle, width: 50, minWidth: 50, textAlign:'center', color:'#2563eb', cursor:'pointer'}}
                                         >
                                             <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:'2px'}}>
                                                 {col}
@@ -456,28 +458,62 @@ export default function MasterDatabase() {
                                             </div>
                                         </th>
                                     ))}
+
+                                    {/* OTHER COLUMNS HEADERS */}
+                                    {OTHER_COLS.map(col => (
+                                        <th 
+                                            key={col.key}
+                                            onClick={() => handleSort(col.key)}
+                                            style={{...thStyle, width: col.width, minWidth: col.width, cursor:'pointer'}}
+                                        >
+                                            <div style={{display:'flex', alignItems:'center', gap:'5px'}}>
+                                                {col.label}
+                                                {sortConfig.key === col.key && <ArrowUpDown size={12}/>}
+                                            </div>
+                                        </th>
+                                    ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {processedList.map((s, idx) => (
-                                    <tr key={s.mobile} style={{borderBottom:'1px solid #f1f5f9', background: idx%2===0 ? 'white' : '#fafafa'}}>
-                                        {DISPLAY_COLS.map(col => (
+                                    <tr key={s.mobile} style={{background: idx%2===0 ? 'white' : '#fafafa'}}>
+                                        
+                                        {/* FIXED COLUMNS DATA */}
+                                        {FIXED_COLS.map(col => (
+                                            <td key={col.key} style={{
+                                                ...tdStyle, 
+                                                position: 'sticky', left: col.left, zIndex: 20,
+                                                background: idx%2===0 ? 'white' : '#fafafa',
+                                                borderRight: '1px solid #cbd5e1',
+                                                fontWeight: col.key === 'name' ? '600' : '400',
+                                                color: col.key === 'name' ? '#1e293b' : 'inherit'
+                                            }}>
+                                                <div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width: col.width}} title={s[col.key]}>
+                                                    {s[col.key]}
+                                                </div>
+                                            </td>
+                                        ))}
+
+                                        {/* COURSE DATA */}
+                                        {COURSE_COLS.map(col => (
+                                            <td key={col} style={{...tdStyle, textAlign:'center', fontWeight:'700', color: s.history[col] > 0 ? '#0f172a' : '#e2e8f0'}}>
+                                                {s.history[col]}
+                                            </td>
+                                        ))}
+
+                                        {/* OTHER DATA */}
+                                        {OTHER_COLS.map(col => (
                                             <td key={col.key} style={tdStyle}>
                                                 <div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth: col.width}} title={s[col.key]}>
                                                     {s[col.key]}
                                                 </div>
                                             </td>
                                         ))}
-                                        {COURSE_COLS.map(col => (
-                                            <td key={col} style={{...tdStyle, textAlign:'center', fontWeight:'700', color: s.history[col] > 0 ? '#0f172a' : '#e2e8f0'}}>
-                                                {s.history[col]}
-                                            </td>
-                                        ))}
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                        {processedList.length === 0 && <div style={{padding:'30px', textAlign:'center', color:'#94a3b8'}}>No records found</div>}
+                        {processedList.length === 0 && <div style={{padding:'30px', textAlign:'center', color:'#94a3b8', position:'sticky', left:0}}>No records found</div>}
                     </div>
                     
                     <div style={{padding:'10px', background:'#f8fafc', borderTop:'1px solid #e2e8f0', fontSize:'12px', color:'#64748b', fontWeight:'600'}}>
@@ -490,7 +526,7 @@ export default function MasterDatabase() {
 }
 
 // STYLES
-const thStyle = { padding:'12px 10px', fontSize:'11px', fontWeight:'700', color:'#475569', textTransform:'uppercase', borderRight:'1px solid #e2e8f0', borderBottom:'2px solid #e2e8f0', textAlign:'left' };
-const tdStyle = { padding:'8px 10px', fontSize:'12px', borderRight:'1px solid #f1f5f9', color:'#334155' };
+const thStyle = { padding:'12px 10px', fontSize:'11px', fontWeight:'700', color:'#475569', textTransform:'uppercase', borderRight:'1px solid #f1f5f9', borderBottom:'2px solid #cbd5e1', textAlign:'left' };
+const tdStyle = { padding:'8px 10px', fontSize:'12px', borderRight:'1px solid #f1f5f9', color:'#334155', borderBottom:'1px solid #f1f5f9' };
 const chartCardStyle = { background:'white', padding:'20px', borderRadius:'12px', border:'1px solid #e2e8f0', boxShadow:'0 2px 4px rgba(0,0,0,0.05)' };
 const chartTitleStyle = { margin:'0 0 5px 0', fontSize:'16px', fontWeight:'700', color:'#1e293b' };
