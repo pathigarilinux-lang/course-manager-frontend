@@ -124,7 +124,7 @@ function App() {
       { id: 'seva', label: 'Seva Board', icon: <Heart size={18}/>, roles: ['admin'] },
       // ✅ UPDATED: Added 'master_at' to roles
       { id: 'master', label: 'Master Database', icon: <Database size={18}/>, roles: ['admin', 'master_at'] },
-      { id: 'mentor', label: 'Mentor Distribution', icon: <Users size={18}/>, roles: ['admin', 'master_at'] }
+      { id: 'mentor', label: 'Mentor Distribution', icon: <Users size={18}/>, roles: ['admin', 'master_at'] },
       { id: 'passport', label: 'Seva Passport (View)', icon: <CreditCard size={18}/>, roles: ['admin'] }
   ];
 
