@@ -3,7 +3,7 @@ import {
     Database, Upload, Trash2, Search, Filter, Download, 
     PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
     ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe, Flag, XCircle, 
-    User, Shield, Lock, Save, GitMerge, AlertCircle, CheckCircle 
+    User, Shield, Lock, Save, GitMerge, AlertCircle, CheckCircle, Briefcase 
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -15,7 +15,7 @@ import { styles } from '../config';
 // --- CONFIGURATION ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-const VERSION = 10; // Version 10 for Duplicate Feature Support
+const VERSION = 13; // Bumped to ensure Mentor Columns schema update
 
 // 1. COURSE COLUMNS
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
@@ -29,8 +29,14 @@ const FIXED_COLS = [
     { key: 'mobile', label: 'Mobile', width: 110, left: 400 },
 ];
 
-// 3. DEMOGRAPHIC COLUMNS
+// 3. DEMOGRAPHIC & MENTOR COLUMNS (Restored)
 const OTHER_COLS = [
+    // --- MENTOR DATA (Restored) ---
+    { key: 'mentor', label: 'Assigned Mentor', width: 150 },
+    { key: 'mentor_status', label: 'Status', width: 120 },
+    { key: 'mentor_notes', label: 'Notes', width: 200 },
+
+    // --- STANDARD DATA ---
     { key: 'language', label: 'Language', width: 100 },
     { key: 'city', label: 'City', width: 120 },
     { key: 'state', label: 'State', width: 120 },
@@ -43,12 +49,9 @@ const OTHER_COLS = [
     { key: 'company', label: 'Company', width: 150 },
 ];
 
-const COLORS = [
-    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', 
-    '#6366f1', '#14b8a6', '#f97316', '#d946ef', '#06b6d4', '#84cc16'
-];
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#f97316', '#d946ef', '#06b6d4', '#84cc16'];
 
-// --- DATABASE HELPER (IndexedDB) ---
+// --- DATABASE HELPER ---
 const dbHelper = {
     open: () => new Promise((resolve, reject) => {
         const req = indexedDB.open(DB_NAME, VERSION);
@@ -127,28 +130,26 @@ export default function MasterDatabase({ user }) {
     const [showUpload, setShowUpload] = useState(false);
     const [mergeStatus, setMergeStatus] = useState('');
     
-    // DUPLICATE RESOLUTION STATES
+    // DUPLICATE RESOLVER STATE
     const [showDuplicates, setShowDuplicates] = useState(false);
     const [duplicateGroups, setDuplicateGroups] = useState([]);
 
-    // FILTERS & OPTIONS
+    // FILTERS
     const [filters, setFilters] = useState({ 
-        search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All' 
+        search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All', mentor: 'All' 
     });
-    const [options, setOptions] = useState({ cities: [], states: [], countries: [] });
-    const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
     
-    // CHART DATA
+    const [options, setOptions] = useState({ cities: [], states: [], countries: [], mentors: [] });
+    const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
     const [graphData, setGraphData] = useState({ 
         courseDist: [], genderDist: [], ageDist: [], cityDist: [], stateDist: [], pinDist: [], countryDist: [] 
     });
 
-    // SECURITY CHECK
+    // SECURITY
     const canDelete = user && user.role === 'admin'; 
     const userLabel = user ? `${user.username.charAt(0).toUpperCase() + user.username.slice(1)}` : 'Guest';
     const roleLabel = user ? (user.role === 'admin' ? 'Administrator' : 'AT (Master Data)') : 'Viewer';
 
-    // --- INITIAL DATA LOAD ---
     useEffect(() => { refreshData(); }, []);
 
     const refreshData = async () => {
@@ -157,27 +158,25 @@ export default function MasterDatabase({ user }) {
             const data = await dbHelper.getAll();
             setStudents(data);
             prepareFilterOptions(data);
-            prepareGraphData(data); // Initial stats on full data
+            prepareGraphData(data);
         } catch (e) { console.error("DB Error", e); }
         finally { setIsLoading(false); }
     };
 
-    // --- 🕵️‍♂️ DUPLICATE SCANNER ENGINE ---
+    // --- 🕵️‍♂️ DUPLICATE SCANNER (RESTORED) ---
     const scanForDuplicates = () => {
         setIsLoading(true);
         const nameGroups = {};
         
-        // 1. Group by Name
         students.forEach(s => {
             const key = cleanString(s.name);
             if (!nameGroups[key]) nameGroups[key] = [];
             nameGroups[key].push(s);
         });
 
-        // 2. Filter Groups
         const groups = Object.values(nameGroups).filter(group => {
             if (group.length < 2) return false;
-            // Ensure same gender to avoid false positives
+            // Strict check: Same Gender required
             const genders = new Set(group.map(s => String(s.gender).toLowerCase().charAt(0)));
             return genders.size === 1;
         });
@@ -188,27 +187,26 @@ export default function MasterDatabase({ user }) {
     };
 
     const handleMergeGroup = async (group) => {
-        // 1. Identify Master (Latest update is best)
+        // Sort by update time (newest first)
         const sorted = [...group].sort((a, b) => new Date(b.last_update || 0) - new Date(a.last_update || 0));
         const master = { ...sorted[0] }; 
         const duplicates = sorted.slice(1);
 
-        // 2. Merge Logic
         duplicates.forEach(dup => {
+            // Sum Course History
             COURSE_COLS.forEach(c => {
                 master.history[c] = (master.history[c] || 0) + (dup.history[c] || 0);
             });
-            // Fill gaps in master record
+            // Fill missing fields
             Object.keys(master).forEach(key => {
                 if (!master[key] && dup[key]) master[key] = dup[key];
             });
         });
 
-        // 3. Save & Delete
+        // Save Master, Delete Dups
         await dbHelper.addBulk([master]);
         await dbHelper.deleteBulk(duplicates.map(d => d.mobile));
 
-        // 4. Update UI
         const remaining = duplicateGroups.filter(g => g !== group);
         setDuplicateGroups(remaining);
         if (remaining.length === 0) {
@@ -217,17 +215,17 @@ export default function MasterDatabase({ user }) {
         }
     };
 
-    // --- DATA PROCESSING HELPER ---
+    // --- DATA PREP ---
     const prepareFilterOptions = (data) => {
         const getUnique = (key) => [...new Set(data.map(s => s[key]).filter(Boolean).map(s => s.trim()))].sort();
         setOptions({
             cities: getUnique('city'),
             states: getUnique('state'),
-            countries: getUnique('country')
+            countries: getUnique('country'),
+            mentors: getUnique('mentor') // Added Mentor Filter Option
         });
     };
 
-    // --- MAIN ENGINE: FILTER & SORT ---
     const processedList = useMemo(() => {
         let list = [...students];
 
@@ -239,6 +237,7 @@ export default function MasterDatabase({ user }) {
         if (filters.city !== 'All') list = list.filter(s => s.city === filters.city);
         if (filters.state !== 'All') list = list.filter(s => s.state === filters.state);
         if (filters.country !== 'All') list = list.filter(s => s.country === filters.country);
+        if (filters.mentor !== 'All') list = list.filter(s => s.mentor === filters.mentor);
         
         if (filters.search) {
             const lower = filters.search.toLowerCase();
@@ -264,7 +263,6 @@ export default function MasterDatabase({ user }) {
         return list;
     }, [students, filters, sortConfig]);
 
-    // Update charts when filters change
     useEffect(() => { prepareGraphData(processedList); }, [processedList]);
 
     const prepareGraphData = (data) => {
@@ -312,7 +310,7 @@ export default function MasterDatabase({ user }) {
         });
     };
 
-    // --- FILE UPLOAD LOGIC ---
+    // --- UPLOAD HANDLER ---
     const handleFileUpload = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
@@ -366,6 +364,12 @@ export default function MasterDatabase({ user }) {
                 company: findValue(mainRow, ['Company', 'Organization']),
                 accommodation: findValue(mainRow, ['Accommodation', 'Room', 'RoomNo']),
                 last_course_conf: findValue(mainRow, ['Conf No', 'ConfNo']),
+                
+                // ✅ MENTOR DATA CAPTURE
+                mentor: findValue(mainRow, ['Mentor', 'Assigned To', 'Leader']),
+                mentor_status: findValue(mainRow, ['Status', 'Mentor Status']),
+                mentor_notes: findValue(mainRow, ['Notes', 'Mentor Notes']),
+
                 last_update: new Date().toISOString(),
                 history: {} 
             };
@@ -399,7 +403,7 @@ export default function MasterDatabase({ user }) {
         setSortConfig({ key, direction });
     };
 
-    // --- 🌍 EXPORT FUNCTIONS ---
+    // --- 🌍 MASTER EXPORT ---
     const handleMasterExport = () => {
         const wb = XLSX.utils.book_new();
         const formatRow = (s, index) => {
@@ -423,6 +427,7 @@ export default function MasterDatabase({ user }) {
         XLSX.writeFile(wb, `Dhamma_Master_FULL_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
+    // --- ⚡ FILTERED EXPORT ---
     const handleFilteredExport = () => {
         const wb = XLSX.utils.book_new();
         const formatRow = (s, index) => {
@@ -439,11 +444,11 @@ export default function MasterDatabase({ user }) {
         XLSX.writeFile(wb, `Dhamma_Filtered_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
-    const resetFilters = () => setFilters({ search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All' });
+    const resetFilters = () => setFilters({ search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All', mentor: 'All' });
 
     return (
         <div style={{animation:'fadeIn 0.3s'}}>
-            {/* TOP HEADER */}
+            {/* HEADER */}
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                 <div>
                     <h1 style={{margin:0, display:'flex', alignItems:'center', gap:'12px', color:'#1e293b'}}>
@@ -552,6 +557,12 @@ export default function MasterDatabase({ user }) {
                         <option value="All">All States</option>
                         {options.states.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
+                    {/* Mentor Filter */}
+                    <select value={filters.mentor} onChange={e => setFilters({...filters, mentor: e.target.value})} style={filterSelectStyle}>
+                        <option value="All">All Mentors</option>
+                        {options.mentors.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    
                     <button onClick={resetFilters} style={{border:'none', background:'transparent', cursor:'pointer', color:'#ef4444', display:'flex', alignItems:'center'}}><XCircle size={18}/></button>
                 </div>
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
@@ -563,10 +574,11 @@ export default function MasterDatabase({ user }) {
             {/* --- ANALYTICS VIEW --- */}
             {viewMode === 'analytics' && (
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'25px', marginBottom:'40px', animation:'fadeIn 0.4s'}}>
-                    <div style={chartCardStyle}><h3 style={chartTitleStyle}><MapPin size={16} style={{marginRight:'5px'}}/> Top Cities</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.cityDist} layout="vertical"><XAxis type="number" hide/><YAxis dataKey="name" type="category" width={100} style={{fontSize:'11px'}}/><Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>{graphData.cityDist.map((e, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div></div>
+                    <div style={chartCardStyle}><h3 style={chartTitleStyle}><MapPin size={16} style={{marginRight:'5px'}}/> Top Cities (Filtered)</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.cityDist} layout="vertical"><XAxis type="number" hide/><YAxis dataKey="name" type="category" width={100} style={{fontSize:'11px'}}/><Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>{graphData.cityDist.map((e, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div></div>
                     <div style={chartCardStyle}><h3 style={chartTitleStyle}><Globe size={16} style={{marginRight:'5px'}}/> State Distribution</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.stateDist}><XAxis dataKey="name" style={{fontSize:'10px'}} interval={0} angle={-30} textAnchor="end" height={60}/><YAxis/><Tooltip/><Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={30}>{graphData.stateDist.map((e, i) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div></div>
                     <div style={chartCardStyle}><h3 style={chartTitleStyle}><BarChart3 size={16} style={{marginRight:'5px'}}/> Course Portfolio</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.courseDist}><XAxis dataKey="name"/><YAxis/><Tooltip/><Bar dataKey="students" radius={[4, 4, 0, 0]} barSize={40}>{graphData.courseDist.map((e, i) => <Cell key={i} fill={COLORS[(i + 12) % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div></div>
                     <div style={chartCardStyle}><h3 style={chartTitleStyle}><Hash size={16} style={{marginRight:'5px'}}/> Top PIN Codes</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.pinDist} layout="vertical"><XAxis type="number" hide/><YAxis dataKey="name" type="category" width={60} style={{fontSize:'11px'}}/><Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>{graphData.pinDist.map((e, i) => <Cell key={i} fill={COLORS[(i + 5) % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div></div>
+                    <div style={chartCardStyle}><h3 style={chartTitleStyle}><Flag size={16} style={{marginRight:'5px'}}/> Top Countries</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.countryDist} layout="vertical"><XAxis type="number" hide/><YAxis dataKey="name" type="category" width={60} style={{fontSize:'11px'}}/><Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>{graphData.countryDist.map((e, i) => <Cell key={i} fill={COLORS[(i + 6) % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div></div>
                     <div style={chartCardStyle}><h3 style={chartTitleStyle}>Gender Ratio</h3><div style={{height:'300px'}}><ResponsiveContainer><PieChart><Pie data={graphData.genderDist} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"><Cell fill="#3b82f6"/><Cell fill="#ec4899"/></Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer></div></div>
                     <div style={chartCardStyle}><h3 style={chartTitleStyle}>Age Distribution</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.ageDist}><XAxis dataKey="name" style={{fontSize:'10px'}}/><YAxis/><Tooltip/><Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={30}/></BarChart></ResponsiveContainer></div></div>
                 </div>
@@ -577,7 +589,7 @@ export default function MasterDatabase({ user }) {
                 <div style={{background:'white', borderRadius:'12px', border:'1px solid #e2e8f0', overflow:'hidden'}}>
                     <div style={{overflowX:'auto', maxHeight:'650px'}}>
                         <table style={{width:'max-content', borderCollapse:'separate', borderSpacing:0, fontSize:'12px'}}>
-                            <thead style={{background:'#f1f5f9', position:'sticky', top:0, zIndex:30}}><tr>{FIXED_COLS.map(c=><th key={c.key} style={{...thStyle, width:c.width, position:'sticky', left:c.left, zIndex:35, background:'#f1f5f9'}}>{c.label}</th>)}{COURSE_COLS.map(c=><th key={c} style={{...thStyle, width:50, textAlign:'center'}}>{c}</th>)}{OTHER_COLS.map(c=><th key={c.key} style={{...thStyle, width:c.width}}>{c.label}</th>)}</tr></thead>
+                            <thead style={{background:'#f1f5f9', position:'sticky', top:0, zIndex:30}}><tr>{FIXED_COLS.map(c=><th key={c.key} onClick={()=>handleSort(c.key)} style={{...thStyle, width:c.width, position:'sticky', left:c.left, zIndex:35, background:'#f1f5f9', cursor:'pointer'}}>{c.label} {sortConfig.key===c.key && <ArrowUpDown size={12}/>}</th>)}{COURSE_COLS.map(c=><th key={c} onClick={()=>handleSort(c)} style={{...thStyle, width:50, textAlign:'center', cursor:'pointer'}}>{c} {sortConfig.key===c && <ArrowUpDown size={10}/>}</th>)}{OTHER_COLS.map(c=><th key={c.key} onClick={()=>handleSort(c.key)} style={{...thStyle, width:c.width, cursor:'pointer'}}>{c.label} {sortConfig.key===c.key && <ArrowUpDown size={12}/>}</th>)}</tr></thead>
                             <tbody>{processedList.map((s,i)=><tr key={s.mobile} style={{background:i%2===0?'white':'#fafafa'}}>{FIXED_COLS.map(c=><td key={c.key} style={{...tdStyle, position:'sticky', left:c.left, zIndex:20, background:i%2===0?'white':'#fafafa'}}>{c.key==='sno'?i+1:s[c.key]}</td>)}{COURSE_COLS.map(c=><td key={c} style={{...tdStyle, textAlign:'center', fontWeight:'bold'}}>{s.history[c]}</td>)}{OTHER_COLS.map(c=><td key={c.key} style={tdStyle}>{s[c.key]}</td>)}</tr>)}</tbody>
                         </table>
                     </div>
