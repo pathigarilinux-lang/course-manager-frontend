@@ -269,7 +269,7 @@ function App() {
                   {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
                   
                   {activeTab === 'seva' && <SevaBoard courses={courses} />}
-                  {activeTab === 'passport' && <SevaPassport />}  {/* ✅ RENDER NEW TAB */}
+                  {activeTab === 'passport' && <SevaPassport />}
                   {(user.role === 'admin' || user.role === 'staff' || user.role === 'dn1ops') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
               </div>
           </div>
