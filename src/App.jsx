@@ -122,7 +122,7 @@ function App() {
       { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={18}/>, roles: ['admin', 'staff', 'dn1ops'] },
       { id: 'seva', label: 'Seva Board', icon: <Heart size={18}/>, roles: ['admin'] },
       // ✅ UPDATED: Added 'master_at' to roles
-      { id: 'master', label: 'Master Database', icon: <Database size={18}/>, roles: ['admin', 'master_at'] }
+      { id: 'master', label: 'Master Database', icon: <Database size={18}/>, roles: ['admin', 'master_at'] },
       { id: 'mentor', label: 'Mentor Distribution', icon: <Users size={18}/>, roles: ['admin', 'master_at'] }
   ];
 
@@ -260,12 +260,12 @@ function App() {
                   
                   {activeTab === 'accommodation' && <GlobalAccommodationManager />}
                   {activeTab === 'at' && <ATPanel courses={courses} />}
-                  
+                  {activeTab === 'mentor' && <MentorManager />} 
                   {activeTab === 'alumni' && <AlumniDirectory courses={courses} />}
                   {/* ✅ UPDATED: Passed user prop to MasterDatabase */}
                   {activeTab === 'master' && <MasterDatabase user={user} />}                  
                   {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
-                  {activeTab === 'mentor' && <MentorManager />}
+                  
                   {activeTab === 'seva' && <SevaBoard courses={courses} />}
                   
                   {(user.role === 'admin' || user.role === 'staff' || user.role === 'dn1ops') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
