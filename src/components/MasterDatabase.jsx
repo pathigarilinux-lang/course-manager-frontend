@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Database, Upload, Trash2, Search, Filter, Download, 
     PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
-    ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe 
+    ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe, Flag 
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -14,12 +14,12 @@ import { styles } from '../config';
 // --- CONFIG ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-const VERSION = 7; 
+const VERSION = 8; // Incremented for Country Stats
 
 // 1. COURSE COLUMNS
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
 
-// 2. FIXED COLUMNS (Sticky Left)
+// 2. FIXED COLUMNS
 const FIXED_COLS = [
     { key: 'name', label: 'Student Name', width: 220, left: 0 },
     { key: 'gender', label: 'Gender', width: 70, left: 220 },
@@ -41,7 +41,13 @@ const OTHER_COLS = [
     { key: 'company', label: 'Company', width: 150 },
 ];
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+// --- VIBRANT COLOR PALETTE ---
+const COLORS = [
+    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', 
+    '#6366f1', '#14b8a6', '#f97316', '#d946ef', '#06b6d4', '#84cc16',
+    '#e11d48', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#db2777',
+    '#4f46e5', '#0d9488', '#ea580c', '#c026d3', '#0891b2', '#65a30d'
+];
 
 // --- DB HELPER ---
 const dbHelper = {
@@ -110,8 +116,9 @@ export default function MasterDatabase() {
     const [showUpload, setShowUpload] = useState(false);
     const [mergeStatus, setMergeStatus] = useState('');
     const [courseFilter, setCourseFilter] = useState('All');
+    
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
-    const [graphData, setGraphData] = useState({ courseDist: [], genderDist: [], ageDist: [], cityDist: [], stateDist: [], pinDist: [] });
+    const [graphData, setGraphData] = useState({ courseDist: [], genderDist: [], ageDist: [], cityDist: [], stateDist: [], pinDist: [], countryDist: [] });
 
     useEffect(() => { refreshData(); }, []);
 
@@ -147,14 +154,12 @@ export default function MasterDatabase() {
             else buckets['60+']++;
         });
 
-        // 3. Geography Helper (FIXED: Handles Numbers safely)
+        // 3. Geography Helper
         const getTopK = (key, k=10) => {
             const counts = {};
             data.forEach(s => {
-                // FORCE STRING CASTING HERE TO PREVENT CRASH ON NUMBERS (PIN)
                 const rawVal = s[key];
                 if (rawVal === undefined || rawVal === null) return;
-                
                 const val = String(rawVal).trim();
                 
                 if(val && val.toLowerCase() !== 'unknown') {
@@ -174,7 +179,8 @@ export default function MasterDatabase() {
             ageDist: Object.keys(buckets).map(k => ({ name: k, count: buckets[k] })),
             cityDist: getTopK('city', 10),
             stateDist: getTopK('state', 10),
-            pinDist: getTopK('pin', 10)
+            pinDist: getTopK('pin', 10),
+            countryDist: getTopK('country', 10) // New Country Data
         });
     };
 
@@ -228,7 +234,6 @@ export default function MasterDatabase() {
                 name: toTitleCase(findValue(mainRow, ['Name', 'Student Name', 'Student'])),
                 gender: toTitleCase(findValue(mainRow, ['Gender', 'Sex'])),
                 age: findValue(mainRow, ['Age']),
-                
                 phone_home: String(findValue(mainRow, ['PhoneHome', 'Home Phone'])),
                 email: String(findValue(mainRow, ['Email', 'E-mail', 'Mail'])),
                 language: toTitleCase(findValue(mainRow, ['Language', 'Languages', 'Mother Tongue'])),
@@ -236,11 +241,9 @@ export default function MasterDatabase() {
                 state: toTitleCase(findValue(mainRow, ['State', 'Province'])),
                 country: toTitleCase(findValue(mainRow, ['Country', 'Nation'])),
                 pin: String(findValue(mainRow, ['Pin', 'Pin Code', 'Pincode', 'Zip', 'Postal Code'])),
-                
                 education: findValue(mainRow, ['Education', 'Qualification', 'Degree']),
                 occupation: findValue(mainRow, ['Occupation', 'Profession']),
                 company: findValue(mainRow, ['Company', 'Organization']),
-                
                 accommodation: findValue(mainRow, ['Accommodation', 'Room', 'RoomNo']),
                 last_course_conf: findValue(mainRow, ['Conf No', 'ConfNo']),
                 last_update: new Date().toISOString(),
@@ -279,44 +282,6 @@ export default function MasterDatabase() {
         setTimeout(() => setShowUpload(false), 3000);
     };
 
-    // --- SORT ---
-    const handleSort = (key) => {
-        let direction = 'asc';
-        if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
-        setSortConfig({ key, direction });
-    };
-
-    const processedList = useMemo(() => {
-        let list = [...students];
-        if (courseFilter !== 'All') list = list.filter(s => (s.history?.[courseFilter] || 0) > 0);
-        
-        if (searchTerm) {
-            const lower = searchTerm.toLowerCase();
-            list = list.filter(s => 
-                String(s.name).toLowerCase().includes(lower) || 
-                String(s.mobile).includes(lower) ||
-                String(s.city).toLowerCase().includes(lower) ||
-                String(s.email).toLowerCase().includes(lower)
-            );
-        }
-
-        list.sort((a, b) => {
-            let valA, valB;
-            if (COURSE_COLS.includes(sortConfig.key)) {
-                valA = a.history?.[sortConfig.key] || 0;
-                valB = b.history?.[sortConfig.key] || 0;
-            } else {
-                valA = a[sortConfig.key] || '';
-                valB = b[sortConfig.key] || '';
-            }
-            if (typeof valA === 'string') {
-                return sortConfig.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-            }
-            return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
-        });
-        return list;
-    }, [students, searchTerm, courseFilter, sortConfig]);
-
     // --- EXPORT ---
     const handleExport = () => {
         const wb = XLSX.utils.book_new();
@@ -343,6 +308,40 @@ export default function MasterDatabase() {
         XLSX.writeFile(wb, `Dhamma_Master_DB_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
+    // --- SORT ---
+    const handleSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+        setSortConfig({ key, direction });
+    };
+
+    const processedList = useMemo(() => {
+        let list = [...students];
+        if (courseFilter !== 'All') list = list.filter(s => (s.history?.[courseFilter] || 0) > 0);
+        if (searchTerm) {
+            const lower = searchTerm.toLowerCase();
+            list = list.filter(s => 
+                String(s.name).toLowerCase().includes(lower) || 
+                String(s.mobile).includes(lower) ||
+                String(s.city).toLowerCase().includes(lower) ||
+                String(s.email).toLowerCase().includes(lower)
+            );
+        }
+        list.sort((a, b) => {
+            let valA, valB;
+            if (COURSE_COLS.includes(sortConfig.key)) {
+                valA = a.history?.[sortConfig.key] || 0;
+                valB = b.history?.[sortConfig.key] || 0;
+            } else {
+                valA = a[sortConfig.key] || '';
+                valB = b[sortConfig.key] || '';
+            }
+            if (typeof valA === 'string') return sortConfig.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+        });
+        return list;
+    }, [students, searchTerm, courseFilter, sortConfig]);
+
     return (
         <div style={{animation:'fadeIn 0.3s'}}>
             {/* HEADER */}
@@ -365,7 +364,6 @@ export default function MasterDatabase() {
                             <BarChart3 size={16}/> Stats
                         </button>
                     </div>
-
                     <button onClick={() => dbHelper.clear().then(refreshData)} style={{...styles.btn(false), color:'#ef4444', borderColor:'#ef4444'}}>
                         <Trash2 size={16}/> Clear
                     </button>
@@ -402,7 +400,11 @@ export default function MasterDatabase() {
                                     <XAxis type="number" hide />
                                     <YAxis dataKey="name" type="category" width={100} axisLine={false} tickLine={false} style={{fontSize:'11px'}} />
                                     <Tooltip />
-                                    <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={15} />
+                                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>
+                                        {graphData.cityDist.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -418,7 +420,31 @@ export default function MasterDatabase() {
                                     <XAxis dataKey="name" style={{fontSize:'10px'}} interval={0} angle={-30} textAnchor="end" height={60} />
                                     <YAxis />
                                     <Tooltip />
-                                    <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={30} />
+                                    <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={30}>
+                                        {graphData.stateDist.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* CHART: COUNTRY */}
+                    <div style={chartCardStyle}>
+                        <h3 style={chartTitleStyle}><Flag size={16} style={{marginRight:'5px'}}/> Top Countries</h3>
+                        <div style={{height:'300px'}}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={graphData.countryDist} layout="vertical">
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                                    <XAxis type="number" hide />
+                                    <YAxis dataKey="name" type="category" width={100} axisLine={false} tickLine={false} style={{fontSize:'11px'}} />
+                                    <Tooltip />
+                                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>
+                                        {graphData.countryDist.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[(index + 6) % COLORS.length]} />
+                                        ))}
+                                    </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -434,14 +460,18 @@ export default function MasterDatabase() {
                                     <XAxis type="number" hide />
                                     <YAxis dataKey="name" type="category" width={60} axisLine={false} tickLine={false} style={{fontSize:'11px'}} />
                                     <Tooltip />
-                                    <Bar dataKey="count" fill="#10b981" radius={[0, 4, 4, 0]} barSize={15} />
+                                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>
+                                        {graphData.pinDist.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[(index + 9) % COLORS.length]} />
+                                        ))}
+                                    </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
 
                     {/* CHART: COURSE */}
-                    <div style={chartCardStyle}>
+                    <div style={{...chartCardStyle, gridColumn: 'span 2'}}>
                         <h3 style={chartTitleStyle}><BarChart3 size={16} style={{marginRight:'5px'}}/> Course Portfolio</h3>
                         <div style={{height:'300px'}}>
                             <ResponsiveContainer width="100%" height="100%">
@@ -450,7 +480,11 @@ export default function MasterDatabase() {
                                     <XAxis dataKey="name" />
                                     <YAxis />
                                     <Tooltip />
-                                    <Bar dataKey="students" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={40} />
+                                    <Bar dataKey="students" radius={[4, 4, 0, 0]} barSize={40}>
+                                        {graphData.courseDist.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[(index + 12) % COLORS.length]} />
+                                        ))}
+                                    </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
