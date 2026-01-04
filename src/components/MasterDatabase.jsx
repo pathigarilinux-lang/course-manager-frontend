@@ -14,24 +14,25 @@ import { styles } from '../config';
 // --- CONFIG ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-const VERSION = 8; 
+const VERSION = 9; // Updated for S.No and State Fixes
 
 // 1. COURSE COLUMNS
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
 
-// 2. FIXED COLUMNS
+// 2. FIXED COLUMNS (Adjusted positions for S.No)
 const FIXED_COLS = [
-    { key: 'name', label: 'Student Name', width: 220, left: 0 },
-    { key: 'gender', label: 'Gender', width: 70, left: 220 },
-    { key: 'age', label: 'Age', width: 60, left: 290 },
-    { key: 'mobile', label: 'Mobile', width: 110, left: 350 },
+    { key: 'sno', label: 'S.No', width: 50, left: 0 }, // New S.No Column
+    { key: 'name', label: 'Student Name', width: 220, left: 50 },
+    { key: 'gender', label: 'Gender', width: 70, left: 270 },
+    { key: 'age', label: 'Age', width: 60, left: 340 },
+    { key: 'mobile', label: 'Mobile', width: 110, left: 400 },
 ];
 
 // 3. DEMOGRAPHIC COLUMNS
 const OTHER_COLS = [
     { key: 'language', label: 'Language', width: 100 },
     { key: 'city', label: 'City', width: 120 },
-    { key: 'state', label: 'State', width: 120 },
+    { key: 'state', label: 'State', width: 120 }, // Ensure State is here
     { key: 'country', label: 'Country', width: 100 },
     { key: 'pin', label: 'Pin Code', width: 80 },
     { key: 'email', label: 'Email', width: 200 },
@@ -120,7 +121,7 @@ export default function MasterDatabase() {
     const [options, setOptions] = useState({ cities: [], states: [], countries: [] });
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
     
-    // STATS STATE (Now derived from filtered list)
+    // STATS
     const [graphData, setGraphData] = useState({ courseDist: [], genderDist: [], ageDist: [], cityDist: [], stateDist: [], pinDist: [], countryDist: [] });
 
     useEffect(() => { refreshData(); }, []);
@@ -131,6 +132,7 @@ export default function MasterDatabase() {
             const data = await dbHelper.getAll();
             setStudents(data);
             prepareFilterOptions(data);
+            prepareGraphData(data); // Initial Stats
         } catch (e) { console.error("DB Error", e); }
         finally { setIsLoading(false); }
     };
@@ -144,7 +146,7 @@ export default function MasterDatabase() {
         });
     };
 
-    // --- MAIN ENGINE: FILTER & SORT ---
+    // --- MAIN ENGINE ---
     const processedList = useMemo(() => {
         let list = [...students];
 
@@ -181,23 +183,19 @@ export default function MasterDatabase() {
         return list;
     }, [students, filters, sortConfig]);
 
-    // --- UPDATE STATS WHEN FILTER CHANGES ---
     useEffect(() => {
         prepareGraphData(processedList);
     }, [processedList]);
 
     const prepareGraphData = (data) => {
-        // 1. Courses
         const courses = COURSE_COLS.map(col => ({
             name: col,
             students: data.filter(s => (s.history?.[col] || 0) > 0).length
         }));
         
-        // 2. Gender
         const male = data.filter(s => String(s.gender).toLowerCase().startsWith('m')).length;
         const female = data.filter(s => String(s.gender).toLowerCase().startsWith('f')).length;
         
-        // 3. Age
         const buckets = { 'Under 20':0, '20-29':0, '30-39':0, '40-49':0, '50-59':0, '60+':0 };
         data.forEach(s => {
             const age = parseInt(s.age) || 0;
@@ -209,7 +207,6 @@ export default function MasterDatabase() {
             else buckets['60+']++;
         });
 
-        // 4. Geography Helpers
         const getTopK = (key, k=10) => {
             const counts = {};
             data.forEach(s => {
@@ -278,7 +275,7 @@ export default function MasterDatabase() {
                 email: String(findValue(mainRow, ['Email', 'E-mail', 'Mail'])),
                 language: toTitleCase(findValue(mainRow, ['Language', 'Languages', 'Mother Tongue'])),
                 city: toTitleCase(findValue(mainRow, ['City', 'District', 'Town'])),
-                state: toTitleCase(findValue(mainRow, ['State', 'Province'])),
+                state: toTitleCase(findValue(mainRow, ['State', 'Province', 'Region'])), // Explicit State
                 country: toTitleCase(findValue(mainRow, ['Country', 'Nation'])),
                 pin: String(findValue(mainRow, ['Pin', 'Pin Code', 'Pincode', 'Zip', 'Postal Code'])),
                 education: findValue(mainRow, ['Education', 'Qualification', 'Degree']),
@@ -319,18 +316,40 @@ export default function MasterDatabase() {
         setSortConfig({ key, direction });
     };
 
+    // ✅ FIXED: S.No in Export
     const handleExport = () => {
         const wb = XLSX.utils.book_new();
-        const formatRow = (s) => {
-            const row = {};
-            FIXED_COLS.forEach(col => row[col.label] = s[col.key]);
+
+        // Helper to format row with S.No
+        const formatRow = (s, index) => {
+            const row = { 'S.No': index + 1 }; // First column
+            // Skip s.sno key from Fixed Cols since we generate it here
+            FIXED_COLS.filter(c => c.key !== 'sno').forEach(col => row[col.label] = s[col.key]);
             COURSE_COLS.forEach(col => row[col] = s.history?.[col] || 0);
             OTHER_COLS.forEach(col => row[col.label] = s[col.key]);
             return row;
         };
-        const currentData = processedList.map(formatRow);
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(currentData), "Filtered Data");
-        XLSX.writeFile(wb, `Filtered_Student_Data_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+        // 1. Export Current Filtered View
+        if (processedList.length > 0) {
+            const currentData = processedList.map((s, i) => formatRow(s, i));
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(currentData), "Filtered Data");
+        }
+
+        // 2. Export Master Sheet (All Students)
+        const masterData = students.map((s, i) => formatRow(s, i));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(masterData), "All Students");
+
+        // 3. Export Course Specific Sheets (Filtered by Course > 0)
+        COURSE_COLS.forEach(course => {
+            const filtered = students.filter(s => (s.history?.[course] || 0) > 0);
+            if (filtered.length > 0) {
+                const sheetData = filtered.map((s, i) => formatRow(s, i));
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetData), `${course}`);
+            }
+        });
+
+        XLSX.writeFile(wb, `Dhamma_Master_DB_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
     const resetFilters = () => setFilters({ search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All' });
@@ -379,10 +398,9 @@ export default function MasterDatabase() {
                 </div>
             )}
 
-            {/* COMPOUND FILTER TOOLBAR (Visible in BOTH modes for live filtering) */}
+            {/* FILTERS */}
             <div style={{padding:'15px', marginBottom:'20px', border:'1px solid #e2e8f0', borderRadius:'12px', background:'white'}}>
                 <div style={{display:'flex', flexWrap:'wrap', gap:'10px', alignItems:'center', marginBottom:'10px'}}>
-                    {/* SEARCH */}
                     <div style={{position:'relative', width:'250px'}}>
                         <Search size={16} style={{position:'absolute', left:'10px', top:'10px', color:'#94a3b8'}}/>
                         <input style={{...styles.input, paddingLeft:'35px', width:'100%', border:'1px solid #cbd5e1'}} placeholder="Search Name..." value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})}/>
@@ -407,7 +425,7 @@ export default function MasterDatabase() {
                     <button onClick={resetFilters} style={{border:'none', background:'transparent', cursor:'pointer', color:'#ef4444', display:'flex', alignItems:'center'}}><XCircle size={18}/></button>
                 </div>
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                    <div style={{fontSize:'12px', color:'#64748b', fontWeight:'600'}}>Found {processedList.length} matches (Charts updated)</div>
+                    <div style={{fontSize:'12px', color:'#64748b', fontWeight:'600'}}>Found {processedList.length} matches</div>
                     <button onClick={handleExport} style={{display:'flex', alignItems:'center', gap:'8px', background:'#0f172a', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', fontWeight:'600', cursor:'pointer'}}><Download size={16}/> Export Filtered Data</button>
                 </div>
             </div>
@@ -415,8 +433,6 @@ export default function MasterDatabase() {
             {/* --- ANALYTICS VIEW --- */}
             {viewMode === 'analytics' && (
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'25px', marginBottom:'40px', animation:'fadeIn 0.4s'}}>
-                    
-                    {/* CHART: CITY */}
                     <div style={chartCardStyle}>
                         <h3 style={chartTitleStyle}><MapPin size={16} style={{marginRight:'5px'}}/> Top Cities (Filtered)</h3>
                         <div style={{height:'300px'}}>
@@ -433,10 +449,24 @@ export default function MasterDatabase() {
                             </ResponsiveContainer>
                         </div>
                     </div>
-
-                    {/* CHART: COURSE */}
                     <div style={chartCardStyle}>
-                        <h3 style={chartTitleStyle}><BarChart3 size={16} style={{marginRight:'5px'}}/> Course Portfolio (Filtered)</h3>
+                        <h3 style={chartTitleStyle}><Globe size={16} style={{marginRight:'5px'}}/> State Distribution</h3>
+                        <div style={{height:'300px'}}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={graphData.stateDist}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" style={{fontSize:'10px'}} interval={0} angle={-30} textAnchor="end" height={60} />
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={30}>
+                                        {graphData.stateDist.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />)}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                    <div style={chartCardStyle}>
+                        <h3 style={chartTitleStyle}><BarChart3 size={16} style={{marginRight:'5px'}}/> Course Portfolio</h3>
                         <div style={{height:'300px'}}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={graphData.courseDist}>
@@ -451,8 +481,22 @@ export default function MasterDatabase() {
                             </ResponsiveContainer>
                         </div>
                     </div>
-
-                     {/* CHART: GENDER */}
+                    <div style={chartCardStyle}>
+                        <h3 style={chartTitleStyle}><Hash size={16} style={{marginRight:'5px'}}/> Top PIN Codes</h3>
+                        <div style={{height:'300px'}}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={graphData.pinDist} layout="vertical">
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                                    <XAxis type="number" hide />
+                                    <YAxis dataKey="name" type="category" width={60} axisLine={false} tickLine={false} style={{fontSize:'11px'}} />
+                                    <Tooltip />
+                                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>
+                                        {graphData.pinDist.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 5) % COLORS.length]} />)}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
                      <div style={chartCardStyle}>
                         <h3 style={chartTitleStyle}>Gender Ratio</h3>
                         <div style={{height:'300px'}}>
@@ -466,8 +510,6 @@ export default function MasterDatabase() {
                             </ResponsiveContainer>
                         </div>
                     </div>
-
-                    {/* CHART: AGE */}
                     <div style={chartCardStyle}>
                         <h3 style={chartTitleStyle}>Age Distribution</h3>
                         <div style={{height:'300px'}}>
@@ -478,24 +520,6 @@ export default function MasterDatabase() {
                                     <YAxis />
                                     <Tooltip />
                                     <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={30} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
-                    {/* CHART: PIN */}
-                    <div style={chartCardStyle}>
-                        <h3 style={chartTitleStyle}><Hash size={16} style={{marginRight:'5px'}}/> Top PIN Codes</h3>
-                        <div style={{height:'300px'}}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={graphData.pinDist} layout="vertical">
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                                    <XAxis type="number" hide />
-                                    <YAxis dataKey="name" type="category" width={60} axisLine={false} tickLine={false} style={{fontSize:'11px'}} />
-                                    <Tooltip />
-                                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>
-                                        {graphData.pinDist.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 5) % COLORS.length]} />)}
-                                    </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -531,8 +555,10 @@ export default function MasterDatabase() {
                                 {processedList.map((s, idx) => (
                                     <tr key={s.mobile} style={{background: idx%2===0 ? 'white' : '#fafafa'}}>
                                         {FIXED_COLS.map(col => (
-                                            <td key={col.key} style={{...tdStyle, position: 'sticky', left: col.left, zIndex: 20, background: idx%2===0 ? 'white' : '#fafafa', borderRight: '1px solid #cbd5e1', fontWeight: col.key === 'name' ? '600' : '400'}}>
-                                                <div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width: col.width}} title={s[col.key]}>{s[col.key]}</div>
+                                            <td key={col.key} style={{...tdStyle, position: 'sticky', left: col.left, zIndex: 20, background: idx%2===0 ? 'white' : '#fafafa', borderRight: '1px solid #cbd5e1', fontWeight: col.key === 'name' ? '600' : '400', color: col.key === 'name' ? '#1e293b' : 'inherit'}}>
+                                                <div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width: col.width}} title={s[col.key]}>
+                                                    {col.key === 'sno' ? idx + 1 : s[col.key]}
+                                                </div>
                                             </td>
                                         ))}
                                         {COURSE_COLS.map(col => <td key={col} style={{...tdStyle, textAlign:'center', fontWeight:'700', color: s.history[col] > 0 ? '#0f172a' : '#e2e8f0'}}>{s.history[col]}</td>)}
