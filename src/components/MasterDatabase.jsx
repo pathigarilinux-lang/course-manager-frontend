@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Database, Upload, Trash2, Search, Filter, Download, 
     PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
-    ChevronUp, ArrowUpDown, Table 
+    ChevronUp, ArrowUpDown, Table, MapPin 
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -14,9 +14,9 @@ import { styles } from '../config';
 // --- CONFIG ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-const VERSION = 5; // Updated version
+const VERSION = 6; // Incremented for schema stability
 
-// 1. COURSE COLUMNS (Scrollable)
+// 1. COURSE COLUMNS
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
 
 // 2. FIXED COLUMNS (Sticky Left)
@@ -27,7 +27,7 @@ const FIXED_COLS = [
     { key: 'mobile', label: 'Mobile', width: 110, left: 350 },
 ];
 
-// 3. DEMOGRAPHIC COLUMNS (Scrollable, after Courses)
+// 3. DEMOGRAPHIC COLUMNS
 const OTHER_COLS = [
     { key: 'language', label: 'Language', width: 100 },
     { key: 'city', label: 'City', width: 120 },
@@ -84,7 +84,21 @@ const dbHelper = {
     }
 };
 
+// --- UTILS ---
 const cleanString = (str) => String(str || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+// Smart Finder: Looks for a value in row using multiple possible key names (case-insensitive)
+const findValue = (row, possibleKeys) => {
+    const rowKeys = Object.keys(row);
+    for (const target of possibleKeys) {
+        // Exact match check
+        if (row[target]) return row[target];
+        // Case-insensitive check
+        const foundKey = rowKeys.find(k => k.toLowerCase().trim() === target.toLowerCase());
+        if (foundKey && row[foundKey]) return row[foundKey];
+    }
+    return '';
+};
 
 export default function MasterDatabase() {
     const [students, setStudents] = useState([]);
@@ -96,7 +110,7 @@ export default function MasterDatabase() {
     const [courseFilter, setCourseFilter] = useState('All');
     
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
-    const [graphData, setGraphData] = useState({ courseDist: [], genderDist: [], ageDist: [] });
+    const [graphData, setGraphData] = useState({ courseDist: [], genderDist: [], ageDist: [], cityDist: [], stateDist: [], pinDist: [] });
 
     useEffect(() => { refreshData(); }, []);
 
@@ -111,11 +125,13 @@ export default function MasterDatabase() {
     };
 
     const prepareGraphData = (data) => {
+        // 1. Courses
         const courses = COURSE_COLS.map(col => ({
             name: col,
             students: data.filter(s => (s.history?.[col] || 0) > 0).length
         }));
         
+        // 2. Demographics
         const male = data.filter(s => String(s.gender).toLowerCase().startsWith('m')).length;
         const female = data.filter(s => String(s.gender).toLowerCase().startsWith('f')).length;
         
@@ -130,10 +146,26 @@ export default function MasterDatabase() {
             else buckets['60+']++;
         });
 
+        // 3. Geography Helper
+        const getTopK = (key, k=10) => {
+            const counts = {};
+            data.forEach(s => {
+                const val = (s[key] || 'Unknown').trim();
+                if(val && val.toLowerCase() !== 'unknown') counts[val] = (counts[val] || 0) + 1;
+            });
+            return Object.entries(counts)
+                .map(([name, count]) => ({ name, count }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, k);
+        };
+
         setGraphData({
             courseDist: courses,
             genderDist: [{ name: 'Male', value: male }, { name: 'Female', value: female }],
-            ageDist: Object.keys(buckets).map(k => ({ name: k, count: buckets[k] }))
+            ageDist: Object.keys(buckets).map(k => ({ name: k, count: buckets[k] })),
+            cityDist: getTopK('city', 10),
+            stateDist: getTopK('state', 10),
+            pinDist: getTopK('pin', 10)
         });
     };
 
@@ -178,38 +210,44 @@ export default function MasterDatabase() {
         setMergeStatus(`Merging ${attendedList.length} students with ${teacherList.length} history records...`);
 
         const finalData = attendedList.map(mainRow => {
-            const mobile = (mainRow['PhoneMobile'] || mainRow['PhoneHome'] || '').toString().replace(/\D/g, '');
+            // Fuzzy Finders for Keys
+            const mobileRaw = findValue(mainRow, ['PhoneMobile', 'PhoneHome', 'Mobile', 'Cell']);
+            const mobile = mobileRaw.toString().replace(/\D/g, '');
             if (!mobile || mobile.length < 5) return null;
 
             let student = {
                 mobile: mobile,
-                name: mainRow['Name'],
-                gender: mainRow['Gender'],
-                age: mainRow['Age'],
-                phone_home: mainRow['PhoneHome'] || '',
-                email: mainRow['Email'] || '',
-                language: mainRow['Language'] || '',
-                city: mainRow['City'],
-                state: mainRow['State'],
-                country: mainRow['Country'] || '',
-                pin: mainRow['Pin'] || '',
-                education: mainRow['Education'] || '',
-                occupation: mainRow['Occupation'],
-                company: mainRow['Company'] || '',
-                accommodation: mainRow['Accommodation'],
-                last_course_conf: mainRow['Conf No'],
+                name: findValue(mainRow, ['Name', 'Student Name', 'Student']),
+                gender: findValue(mainRow, ['Gender', 'Sex']),
+                age: findValue(mainRow, ['Age']),
+                
+                // Detailed Fields (Using Fuzzy Finder)
+                phone_home: findValue(mainRow, ['PhoneHome', 'Home Phone']),
+                email: findValue(mainRow, ['Email', 'E-mail']),
+                language: findValue(mainRow, ['Language', 'Mother Tongue']),
+                city: findValue(mainRow, ['City', 'District']),
+                state: findValue(mainRow, ['State', 'Province']),
+                country: findValue(mainRow, ['Country']),
+                pin: findValue(mainRow, ['Pin', 'Pin Code', 'Pincode', 'Zip']),
+                education: findValue(mainRow, ['Education', 'Qualification']),
+                occupation: findValue(mainRow, ['Occupation', 'Profession']),
+                company: findValue(mainRow, ['Company', 'Organization']),
+                
+                accommodation: findValue(mainRow, ['Accommodation', 'Room', 'RoomNo']),
+                last_course_conf: findValue(mainRow, ['Conf No', 'ConfNo']),
                 last_update: new Date().toISOString(),
                 history: {} 
             };
 
             COURSE_COLS.forEach(col => student.history[col] = 0);
 
+            // Merge History
             const cleanName = cleanString(student.name);
             const cleanRoom = cleanString(student.accommodation).replace(/-/g, '').replace(/ /g, '');
 
             const teacherRow = teacherList.find(tRow => {
-                const tName = cleanString(tRow['Student']);
-                const tRoom = cleanString(tRow['RoomNo']).replace(/-/g, '').replace(/ /g, '');
+                const tName = cleanString(findValue(tRow, ['Student', 'Name']));
+                const tRoom = cleanString(findValue(tRow, ['RoomNo', 'Room'])).replace(/-/g, '').replace(/ /g, '');
                 return tName === cleanName || (tRoom && tRoom === cleanRoom && tRoom.length > 3);
             });
 
@@ -244,9 +282,8 @@ export default function MasterDatabase() {
     const processedList = useMemo(() => {
         let list = [...students];
 
-        if (courseFilter !== 'All') {
-            list = list.filter(s => (s.history?.[courseFilter] || 0) > 0);
-        }
+        if (courseFilter !== 'All') list = list.filter(s => (s.history?.[courseFilter] || 0) > 0);
+        
         if (searchTerm) {
             const lower = searchTerm.toLowerCase();
             list = list.filter(s => 
@@ -279,23 +316,17 @@ export default function MasterDatabase() {
     const handleExport = () => {
         const wb = XLSX.utils.book_new();
 
-        // Helper to format a student row for export
         const formatRow = (s) => {
             const row = {};
-            // 1. Fixed
             FIXED_COLS.forEach(col => row[col.label] = s[col.key]);
-            // 2. Courses
             COURSE_COLS.forEach(col => row[col] = s.history?.[col] || 0);
-            // 3. Other
             OTHER_COLS.forEach(col => row[col.label] = s[col.key]);
             return row;
         };
 
-        // Master Sheet
         const masterData = students.map(formatRow);
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(masterData), "All Students");
 
-        // Course Sheets
         COURSE_COLS.forEach(course => {
             const filtered = students.filter(s => (s.history?.[course] || 0) > 0);
             if (filtered.length > 0) {
@@ -355,8 +386,58 @@ export default function MasterDatabase() {
             {/* --- ANALYTICS VIEW --- */}
             {viewMode === 'analytics' && (
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'25px', marginBottom:'40px', animation:'fadeIn 0.4s'}}>
+                    
+                    {/* CHART: CITY */}
                     <div style={chartCardStyle}>
-                        <h3 style={chartTitleStyle}>Course Eligibility</h3>
+                        <h3 style={chartTitleStyle}><MapPin size={16} style={{marginRight:'5px'}}/> Top Cities</h3>
+                        <div style={{height:'300px'}}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={graphData.cityDist} layout="vertical">
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                                    <XAxis type="number" hide />
+                                    <YAxis dataKey="name" type="category" width={100} axisLine={false} tickLine={false} style={{fontSize:'11px'}} />
+                                    <Tooltip />
+                                    <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={15} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                     {/* CHART: STATE */}
+                     <div style={chartCardStyle}>
+                        <h3 style={chartTitleStyle}>State Distribution</h3>
+                        <div style={{height:'300px'}}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={graphData.stateDist}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" style={{fontSize:'10px'}} interval={0} angle={-30} textAnchor="end" height={60} />
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={30} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* CHART: PIN CODE */}
+                    <div style={chartCardStyle}>
+                        <h3 style={chartTitleStyle}>Top PIN Codes</h3>
+                        <div style={{height:'300px'}}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={graphData.pinDist} layout="vertical">
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                                    <XAxis type="number" hide />
+                                    <YAxis dataKey="name" type="category" width={60} axisLine={false} tickLine={false} style={{fontSize:'11px'}} />
+                                    <Tooltip />
+                                    <Bar dataKey="count" fill="#10b981" radius={[0, 4, 4, 0]} barSize={15} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* CHART: COURSE */}
+                    <div style={chartCardStyle}>
+                        <h3 style={chartTitleStyle}>Course Portfolio</h3>
                         <div style={{height:'300px'}}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={graphData.courseDist}>
@@ -364,21 +445,8 @@ export default function MasterDatabase() {
                                     <XAxis dataKey="name" />
                                     <YAxis />
                                     <Tooltip />
-                                    <Bar dataKey="students" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
+                                    <Bar dataKey="students" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={40} />
                                 </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-                    <div style={chartCardStyle}>
-                        <h3 style={chartTitleStyle}>Gender Ratio</h3>
-                        <div style={{height:'300px'}}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie data={graphData.genderDist} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                        <Cell fill="#3b82f6" /><Cell fill="#ec4899" />
-                                    </Pie>
-                                    <Tooltip /><Legend />
-                                </PieChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
@@ -526,7 +594,7 @@ export default function MasterDatabase() {
 }
 
 // STYLES
-const thStyle = { padding:'12px 10px', fontSize:'11px', fontWeight:'700', color:'#475569', textTransform:'uppercase', borderRight:'1px solid #f1f5f9', borderBottom:'2px solid #cbd5e1', textAlign:'left' };
+const thStyle = { padding:'12px 10px', fontSize:'11px', fontWeight:'700', color:'#475569', textTransform:'uppercase', borderRight:'1px solid #e2e8f0', borderBottom:'2px solid #cbd5e1', textAlign:'left' };
 const tdStyle = { padding:'8px 10px', fontSize:'12px', borderRight:'1px solid #f1f5f9', color:'#334155', borderBottom:'1px solid #f1f5f9' };
 const chartCardStyle = { background:'white', padding:'20px', borderRadius:'12px', border:'1px solid #e2e8f0', boxShadow:'0 2px 4px rgba(0,0,0,0.05)' };
-const chartTitleStyle = { margin:'0 0 5px 0', fontSize:'16px', fontWeight:'700', color:'#1e293b' };
+const chartTitleStyle = { margin:'0 0 5px 0', fontSize:'16px', fontWeight:'700', color:'#1e293b', display:'flex', alignItems:'center' };
