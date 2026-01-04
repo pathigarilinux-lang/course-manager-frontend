@@ -1,4 +1,4 @@
-  import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, BedDouble, UserPlus, Users, ShoppingBag, 
   Settings, LogOut, Shield, GraduationCap, Heart, UserCheck, 
@@ -18,8 +18,8 @@ import SevaBoard from './components/SevaBoard';
 import GateReception from './components/GateReception';
 import ATPanel from './components/ATPanel';
 import DN1StudentForm from './components/DN1StudentForm';
-import AlumniDirectory from './components/AlumniDirectory'; // ✅ NEW IMPORT
-import MasterDatabase from './components/MasterDatabase';  // ✅ NEW IMPORT MasterDatabase
+import AlumniDirectory from './components/AlumniDirectory'; 
+import MasterDatabase from './components/MasterDatabase';  
 
 // --- PREMIUM STYLES CONSTANTS ---
 const theme = {
@@ -116,11 +116,12 @@ function App() {
       { id: 'students', label: 'Manage Students', icon: <Users size={18}/>, roles: ['admin', 'staff', 'dn1ops'] },
       { id: 'accommodation', label: 'Room Manager', icon: <BedDouble size={18}/>, roles: ['admin', 'staff', ] },
       { id: 'at', label: 'AT Panel', icon: <GraduationCap size={18}/>, roles: ['admin', 'staff', 'at', 'dn1ops'] }, 
-      { id: 'alumni', label: 'Alumni Directory', icon: <History size={18}/>, roles: ['admin'] }, // ✅ NEW MENU ITEM
+      { id: 'alumni', label: 'Alumni Directory', icon: <History size={18}/>, roles: ['admin'] }, 
       { id: 'admin', label: 'Course Admin', icon: <Database size={18}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
       { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={18}/>, roles: ['admin', 'staff', 'dn1ops'] },
       { id: 'seva', label: 'Seva Board', icon: <Heart size={18}/>, roles: ['admin'] },
-      { id: 'master', label: 'Master Database', icon: <Database size={18}/>, roles: ['admin'] }  
+      // ✅ UPDATED: Added 'master_at' to roles
+      { id: 'master', label: 'Master Database', icon: <Database size={18}/>, roles: ['admin', 'master_at'] }  
   ];
 
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
@@ -259,7 +260,8 @@ function App() {
                   {activeTab === 'at' && <ATPanel courses={courses} />}
                   
                   {activeTab === 'alumni' && <AlumniDirectory courses={courses} />}
-                  {activeTab === 'master' && <MasterDatabase />}                  
+                  {/* ✅ UPDATED: Passed user prop to MasterDatabase */}
+                  {activeTab === 'master' && <MasterDatabase user={user} />}                  
                   {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
                   
                   {activeTab === 'seva' && <SevaBoard courses={courses} />}
