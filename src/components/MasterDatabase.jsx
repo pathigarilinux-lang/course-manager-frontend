@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Database, Upload, Trash2, Search, Filter, Download, 
     PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
-    ChevronUp, ArrowUpDown, Table, MapPin 
+    ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe 
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -14,7 +14,7 @@ import { styles } from '../config';
 // --- CONFIG ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-const VERSION = 7; // Incremented for Normalization
+const VERSION = 7; 
 
 // 1. COURSE COLUMNS
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
@@ -41,8 +41,7 @@ const OTHER_COLS = [
     { key: 'company', label: 'Company', width: 150 },
 ];
 
-// Combine for Export Order
-const ALL_EXPORT_COLS = [...FIXED_COLS, ...COURSE_COLS.map(c => ({ key: c, label: c })), ...OTHER_COLS];
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 // --- DB HELPER ---
 const dbHelper = {
@@ -84,27 +83,19 @@ const dbHelper = {
     }
 };
 
-// --- NORMALIZATION UTILS ---
-
-// 1. Clean String for Matching (Internal Logic)
+// --- UTILS ---
 const cleanString = (str) => String(str || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
-// 2. Title Case for Display (Hyderabad, not hyderabad)
 const toTitleCase = (str) => {
     if (!str) return '';
     return String(str).toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
 
-// 3. Smart Value Finder (Case Insensitive Key Search)
 const findValue = (row, possibleKeys) => {
     if (!row) return '';
     const rowKeys = Object.keys(row);
-    
     for (const target of possibleKeys) {
-        // 1. Try Exact Match
         if (row[target] !== undefined) return row[target];
-        
-        // 2. Try Case Insensitive Match
         const match = rowKeys.find(k => k.toLowerCase().trim() === target.toLowerCase().trim());
         if (match && row[match] !== undefined) return row[match];
     }
@@ -119,7 +110,6 @@ export default function MasterDatabase() {
     const [showUpload, setShowUpload] = useState(false);
     const [mergeStatus, setMergeStatus] = useState('');
     const [courseFilter, setCourseFilter] = useState('All');
-    
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
     const [graphData, setGraphData] = useState({ courseDist: [], genderDist: [], ageDist: [], cityDist: [], stateDist: [], pinDist: [] });
 
@@ -157,13 +147,17 @@ export default function MasterDatabase() {
             else buckets['60+']++;
         });
 
-        // 3. Geography Helper (Normalized Data)
+        // 3. Geography Helper (FIXED: Handles Numbers safely)
         const getTopK = (key, k=10) => {
             const counts = {};
             data.forEach(s => {
-                const val = (s[key] || 'Unknown').trim();
+                // FORCE STRING CASTING HERE TO PREVENT CRASH ON NUMBERS (PIN)
+                const rawVal = s[key];
+                if (rawVal === undefined || rawVal === null) return;
+                
+                const val = String(rawVal).trim();
+                
                 if(val && val.toLowerCase() !== 'unknown') {
-                    // Normalize for counting (already title cased in DB, but safe to check)
                     const norm = toTitleCase(val); 
                     counts[norm] = (counts[norm] || 0) + 1;
                 }
@@ -201,15 +195,12 @@ export default function MasterDatabase() {
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
             
-            // Smart Header Detection
             let headerRowIndex = 0;
             for(let i=0; i<rawData.length; i++) {
                 const rowStr = JSON.stringify(rawData[i]).toLowerCase();
-                // Teacher List Detection
                 if (rowStr.includes('10d') || rowStr.includes('stp')) {
                     headerRowIndex = i; break;
                 }
-                // Attended List Detection
                 if (rowStr.includes('name') && (rowStr.includes('mobile') || rowStr.includes('gender') || rowStr.includes('city'))) {
                     headerRowIndex = i; break;
                 }
@@ -218,7 +209,6 @@ export default function MasterDatabase() {
             const jsonData = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex });
             const firstRow = jsonData[0] || {};
             
-            // File Classification
             if (findValue(firstRow, ['10D', 'STP']) !== '') {
                 teacherList = teacherList.concat(jsonData);
             } else {
@@ -229,7 +219,6 @@ export default function MasterDatabase() {
         setMergeStatus(`Merging ${attendedList.length} students with ${teacherList.length} history records...`);
 
         const finalData = attendedList.map(mainRow => {
-            // Fuzzy Key Mapping
             const mobileRaw = findValue(mainRow, ['PhoneMobile', 'PhoneHome', 'Mobile', 'Cell', 'Phone']);
             const mobile = mobileRaw.toString().replace(/\D/g, '');
             if (!mobile || mobile.length < 5) return null;
@@ -240,17 +229,13 @@ export default function MasterDatabase() {
                 gender: toTitleCase(findValue(mainRow, ['Gender', 'Sex'])),
                 age: findValue(mainRow, ['Age']),
                 
-                // Detailed Fields with Smart Lookup & Normalization
-                phone_home: findValue(mainRow, ['PhoneHome', 'Home Phone']),
-                email: findValue(mainRow, ['Email', 'E-mail', 'Mail']),
+                phone_home: String(findValue(mainRow, ['PhoneHome', 'Home Phone'])),
+                email: String(findValue(mainRow, ['Email', 'E-mail', 'Mail'])),
                 language: toTitleCase(findValue(mainRow, ['Language', 'Languages', 'Mother Tongue'])),
-                
-                // City Normalization: "hyderabad " -> "Hyderabad"
                 city: toTitleCase(findValue(mainRow, ['City', 'District', 'Town'])),
                 state: toTitleCase(findValue(mainRow, ['State', 'Province'])),
                 country: toTitleCase(findValue(mainRow, ['Country', 'Nation'])),
-                
-                pin: findValue(mainRow, ['Pin', 'Pin Code', 'Pincode', 'Zip', 'Postal Code']),
+                pin: String(findValue(mainRow, ['Pin', 'Pin Code', 'Pincode', 'Zip', 'Postal Code'])),
                 
                 education: findValue(mainRow, ['Education', 'Qualification', 'Degree']),
                 occupation: findValue(mainRow, ['Occupation', 'Profession']),
@@ -264,7 +249,6 @@ export default function MasterDatabase() {
 
             COURSE_COLS.forEach(col => student.history[col] = 0);
 
-            // Merge History
             const cleanName = cleanString(student.name);
             const cleanRoom = cleanString(student.accommodation).replace(/-/g, '').replace(/ /g, '');
 
@@ -304,7 +288,6 @@ export default function MasterDatabase() {
 
     const processedList = useMemo(() => {
         let list = [...students];
-
         if (courseFilter !== 'All') list = list.filter(s => (s.history?.[courseFilter] || 0) > 0);
         
         if (searchTerm) {
@@ -331,7 +314,6 @@ export default function MasterDatabase() {
             }
             return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
         });
-
         return list;
     }, [students, searchTerm, courseFilter, sortConfig]);
 
@@ -428,7 +410,7 @@ export default function MasterDatabase() {
 
                      {/* CHART: STATE */}
                      <div style={chartCardStyle}>
-                        <h3 style={chartTitleStyle}>State Distribution</h3>
+                        <h3 style={chartTitleStyle}><Globe size={16} style={{marginRight:'5px'}}/> State Distribution</h3>
                         <div style={{height:'300px'}}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={graphData.stateDist}>
@@ -444,7 +426,7 @@ export default function MasterDatabase() {
 
                     {/* CHART: PIN CODE */}
                     <div style={chartCardStyle}>
-                        <h3 style={chartTitleStyle}>Top PIN Codes</h3>
+                        <h3 style={chartTitleStyle}><Hash size={16} style={{marginRight:'5px'}}/> Top PIN Codes</h3>
                         <div style={{height:'300px'}}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={graphData.pinDist} layout="vertical">
@@ -460,7 +442,7 @@ export default function MasterDatabase() {
 
                     {/* CHART: COURSE */}
                     <div style={chartCardStyle}>
-                        <h3 style={chartTitleStyle}>Course Portfolio</h3>
+                        <h3 style={chartTitleStyle}><BarChart3 size={16} style={{marginRight:'5px'}}/> Course Portfolio</h3>
                         <div style={{height:'300px'}}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={graphData.courseDist}>
