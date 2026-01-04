@@ -14,7 +14,7 @@ import { styles } from '../config';
 // --- CONFIG ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-const VERSION = 6; // Incremented for schema stability
+const VERSION = 7; // Incremented for Normalization
 
 // 1. COURSE COLUMNS
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
@@ -84,18 +84,29 @@ const dbHelper = {
     }
 };
 
-// --- UTILS ---
+// --- NORMALIZATION UTILS ---
+
+// 1. Clean String for Matching (Internal Logic)
 const cleanString = (str) => String(str || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
-// Smart Finder: Looks for a value in row using multiple possible key names (case-insensitive)
+// 2. Title Case for Display (Hyderabad, not hyderabad)
+const toTitleCase = (str) => {
+    if (!str) return '';
+    return String(str).toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
+// 3. Smart Value Finder (Case Insensitive Key Search)
 const findValue = (row, possibleKeys) => {
+    if (!row) return '';
     const rowKeys = Object.keys(row);
+    
     for (const target of possibleKeys) {
-        // Exact match check
-        if (row[target]) return row[target];
-        // Case-insensitive check
-        const foundKey = rowKeys.find(k => k.toLowerCase().trim() === target.toLowerCase());
-        if (foundKey && row[foundKey]) return row[foundKey];
+        // 1. Try Exact Match
+        if (row[target] !== undefined) return row[target];
+        
+        // 2. Try Case Insensitive Match
+        const match = rowKeys.find(k => k.toLowerCase().trim() === target.toLowerCase().trim());
+        if (match && row[match] !== undefined) return row[match];
     }
     return '';
 };
@@ -146,12 +157,16 @@ export default function MasterDatabase() {
             else buckets['60+']++;
         });
 
-        // 3. Geography Helper
+        // 3. Geography Helper (Normalized Data)
         const getTopK = (key, k=10) => {
             const counts = {};
             data.forEach(s => {
                 const val = (s[key] || 'Unknown').trim();
-                if(val && val.toLowerCase() !== 'unknown') counts[val] = (counts[val] || 0) + 1;
+                if(val && val.toLowerCase() !== 'unknown') {
+                    // Normalize for counting (already title cased in DB, but safe to check)
+                    const norm = toTitleCase(val); 
+                    counts[norm] = (counts[norm] || 0) + 1;
+                }
             });
             return Object.entries(counts)
                 .map(([name, count]) => ({ name, count }))
@@ -186,13 +201,16 @@ export default function MasterDatabase() {
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
             
+            // Smart Header Detection
             let headerRowIndex = 0;
             for(let i=0; i<rawData.length; i++) {
                 const rowStr = JSON.stringify(rawData[i]).toLowerCase();
-                if (rowStr.includes('student') && (rowStr.includes('10d') || rowStr.includes('stp'))) {
+                // Teacher List Detection
+                if (rowStr.includes('10d') || rowStr.includes('stp')) {
                     headerRowIndex = i; break;
                 }
-                if (rowStr.includes('name') && rowStr.includes('mobile')) {
+                // Attended List Detection
+                if (rowStr.includes('name') && (rowStr.includes('mobile') || rowStr.includes('gender') || rowStr.includes('city'))) {
                     headerRowIndex = i; break;
                 }
             }
@@ -200,7 +218,8 @@ export default function MasterDatabase() {
             const jsonData = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex });
             const firstRow = jsonData[0] || {};
             
-            if (firstRow['10D'] !== undefined || firstRow['STP'] !== undefined) {
+            // File Classification
+            if (findValue(firstRow, ['10D', 'STP']) !== '') {
                 teacherList = teacherList.concat(jsonData);
             } else {
                 attendedList = attendedList.concat(jsonData);
@@ -210,26 +229,30 @@ export default function MasterDatabase() {
         setMergeStatus(`Merging ${attendedList.length} students with ${teacherList.length} history records...`);
 
         const finalData = attendedList.map(mainRow => {
-            // Fuzzy Finders for Keys
-            const mobileRaw = findValue(mainRow, ['PhoneMobile', 'PhoneHome', 'Mobile', 'Cell']);
+            // Fuzzy Key Mapping
+            const mobileRaw = findValue(mainRow, ['PhoneMobile', 'PhoneHome', 'Mobile', 'Cell', 'Phone']);
             const mobile = mobileRaw.toString().replace(/\D/g, '');
             if (!mobile || mobile.length < 5) return null;
 
             let student = {
                 mobile: mobile,
-                name: findValue(mainRow, ['Name', 'Student Name', 'Student']),
-                gender: findValue(mainRow, ['Gender', 'Sex']),
+                name: toTitleCase(findValue(mainRow, ['Name', 'Student Name', 'Student'])),
+                gender: toTitleCase(findValue(mainRow, ['Gender', 'Sex'])),
                 age: findValue(mainRow, ['Age']),
                 
-                // Detailed Fields (Using Fuzzy Finder)
+                // Detailed Fields with Smart Lookup & Normalization
                 phone_home: findValue(mainRow, ['PhoneHome', 'Home Phone']),
-                email: findValue(mainRow, ['Email', 'E-mail']),
-                language: findValue(mainRow, ['Language', 'Mother Tongue']),
-                city: findValue(mainRow, ['City', 'District']),
-                state: findValue(mainRow, ['State', 'Province']),
-                country: findValue(mainRow, ['Country']),
-                pin: findValue(mainRow, ['Pin', 'Pin Code', 'Pincode', 'Zip']),
-                education: findValue(mainRow, ['Education', 'Qualification']),
+                email: findValue(mainRow, ['Email', 'E-mail', 'Mail']),
+                language: toTitleCase(findValue(mainRow, ['Language', 'Languages', 'Mother Tongue'])),
+                
+                // City Normalization: "hyderabad " -> "Hyderabad"
+                city: toTitleCase(findValue(mainRow, ['City', 'District', 'Town'])),
+                state: toTitleCase(findValue(mainRow, ['State', 'Province'])),
+                country: toTitleCase(findValue(mainRow, ['Country', 'Nation'])),
+                
+                pin: findValue(mainRow, ['Pin', 'Pin Code', 'Pincode', 'Zip', 'Postal Code']),
+                
+                education: findValue(mainRow, ['Education', 'Qualification', 'Degree']),
                 occupation: findValue(mainRow, ['Occupation', 'Profession']),
                 company: findValue(mainRow, ['Company', 'Organization']),
                 
