@@ -112,20 +112,15 @@ export default function MasterDatabase() {
     const [showUpload, setShowUpload] = useState(false);
     const [mergeStatus, setMergeStatus] = useState('');
     
-    // ✅ MULTI-DIMENSIONAL FILTERS
+    // FILTERS
     const [filters, setFilters] = useState({
-        search: '',
-        course: 'All',
-        gender: 'All',
-        city: 'All',
-        state: 'All',
-        country: 'All'
+        search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All'
     });
 
-    // Dropdown Options (Derived from Data)
     const [options, setOptions] = useState({ cities: [], states: [], countries: [] });
-    
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+    
+    // STATS STATE (Now derived from filtered list)
     const [graphData, setGraphData] = useState({ courseDist: [], genderDist: [], ageDist: [], cityDist: [], stateDist: [], pinDist: [], countryDist: [] });
 
     useEffect(() => { refreshData(); }, []);
@@ -135,7 +130,6 @@ export default function MasterDatabase() {
         try {
             const data = await dbHelper.getAll();
             setStudents(data);
-            prepareGraphData(data);
             prepareFilterOptions(data);
         } catch (e) { console.error("DB Error", e); }
         finally { setIsLoading(false); }
@@ -150,15 +144,60 @@ export default function MasterDatabase() {
         });
     };
 
+    // --- MAIN ENGINE: FILTER & SORT ---
+    const processedList = useMemo(() => {
+        let list = [...students];
+
+        if (filters.course !== 'All') list = list.filter(s => (s.history?.[filters.course] || 0) > 0);
+        if (filters.gender !== 'All') {
+            const char = filters.gender.charAt(0).toLowerCase();
+            list = list.filter(s => String(s.gender).toLowerCase().startsWith(char));
+        }
+        if (filters.city !== 'All') list = list.filter(s => s.city === filters.city);
+        if (filters.state !== 'All') list = list.filter(s => s.state === filters.state);
+        if (filters.country !== 'All') list = list.filter(s => s.country === filters.country);
+        
+        if (filters.search) {
+            const lower = filters.search.toLowerCase();
+            list = list.filter(s => 
+                String(s.name).toLowerCase().includes(lower) || 
+                String(s.mobile).includes(lower) ||
+                String(s.email).toLowerCase().includes(lower)
+            );
+        }
+
+        list.sort((a, b) => {
+            let valA, valB;
+            if (COURSE_COLS.includes(sortConfig.key)) {
+                valA = a.history?.[sortConfig.key] || 0;
+                valB = b.history?.[sortConfig.key] || 0;
+            } else {
+                valA = a[sortConfig.key] || '';
+                valB = b[sortConfig.key] || '';
+            }
+            if (typeof valA === 'string') return sortConfig.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
+        });
+        return list;
+    }, [students, filters, sortConfig]);
+
+    // --- UPDATE STATS WHEN FILTER CHANGES ---
+    useEffect(() => {
+        prepareGraphData(processedList);
+    }, [processedList]);
+
     const prepareGraphData = (data) => {
-        // ... (Stats Logic Unchanged)
+        // 1. Courses
         const courses = COURSE_COLS.map(col => ({
             name: col,
             students: data.filter(s => (s.history?.[col] || 0) > 0).length
         }));
+        
+        // 2. Gender
         const male = data.filter(s => String(s.gender).toLowerCase().startsWith('m')).length;
         const female = data.filter(s => String(s.gender).toLowerCase().startsWith('f')).length;
         
+        // 3. Age
         const buckets = { 'Under 20':0, '20-29':0, '30-39':0, '40-49':0, '50-59':0, '60+':0 };
         data.forEach(s => {
             const age = parseInt(s.age) || 0;
@@ -170,6 +209,7 @@ export default function MasterDatabase() {
             else buckets['60+']++;
         });
 
+        // 4. Geography Helpers
         const getTopK = (key, k=10) => {
             const counts = {};
             data.forEach(s => {
@@ -210,17 +250,14 @@ export default function MasterDatabase() {
             const workbook = XLSX.read(data, { type: 'array' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-            
             let headerRowIndex = 0;
             for(let i=0; i<rawData.length; i++) {
                 const rowStr = JSON.stringify(rawData[i]).toLowerCase();
                 if (rowStr.includes('10d') || rowStr.includes('stp')) { headerRowIndex = i; break; }
                 if (rowStr.includes('name') && (rowStr.includes('mobile') || rowStr.includes('gender'))) { headerRowIndex = i; break; }
             }
-
             const jsonData = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex });
             const firstRow = jsonData[0] || {};
-            
             if (findValue(firstRow, ['10D', 'STP']) !== '') teacherList = teacherList.concat(jsonData);
             else attendedList = attendedList.concat(jsonData);
         }
@@ -254,7 +291,6 @@ export default function MasterDatabase() {
             };
             COURSE_COLS.forEach(col => student.history[col] = 0);
             
-            // Match Logic
             const cleanName = cleanString(student.name);
             const cleanRoom = cleanString(student.accommodation).replace(/-/g, '').replace(/ /g, '');
             const teacherRow = teacherList.find(tRow => {
@@ -277,68 +313,14 @@ export default function MasterDatabase() {
         setTimeout(() => setShowUpload(false), 3000);
     };
 
-    // --- SORT ---
     const handleSort = (key) => {
         let direction = 'asc';
         if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
         setSortConfig({ key, direction });
     };
 
-    // ✅ FILTER ENGINE (COMPOUND)
-    const processedList = useMemo(() => {
-        let list = [...students];
-
-        // 1. Course
-        if (filters.course !== 'All') {
-            list = list.filter(s => (s.history?.[filters.course] || 0) > 0);
-        }
-        // 2. Gender
-        if (filters.gender !== 'All') {
-            const char = filters.gender.charAt(0).toLowerCase();
-            list = list.filter(s => String(s.gender).toLowerCase().startsWith(char));
-        }
-        // 3. City
-        if (filters.city !== 'All') {
-            list = list.filter(s => s.city === filters.city);
-        }
-        // 4. State
-        if (filters.state !== 'All') {
-            list = list.filter(s => s.state === filters.state);
-        }
-        // 5. Country
-        if (filters.country !== 'All') {
-            list = list.filter(s => s.country === filters.country);
-        }
-        // 6. Search
-        if (filters.search) {
-            const lower = filters.search.toLowerCase();
-            list = list.filter(s => 
-                String(s.name).toLowerCase().includes(lower) || 
-                String(s.mobile).includes(lower) ||
-                String(s.email).toLowerCase().includes(lower)
-            );
-        }
-
-        // Sort
-        list.sort((a, b) => {
-            let valA, valB;
-            if (COURSE_COLS.includes(sortConfig.key)) {
-                valA = a.history?.[sortConfig.key] || 0;
-                valB = b.history?.[sortConfig.key] || 0;
-            } else {
-                valA = a[sortConfig.key] || '';
-                valB = b[sortConfig.key] || '';
-            }
-            if (typeof valA === 'string') return sortConfig.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-            return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
-        });
-        return list;
-    }, [students, filters, sortConfig]);
-
-    // ✅ CONTEXT-AWARE EXPORT
     const handleExport = () => {
         const wb = XLSX.utils.book_new();
-
         const formatRow = (s) => {
             const row = {};
             FIXED_COLS.forEach(col => row[col.label] = s[col.key]);
@@ -346,19 +328,12 @@ export default function MasterDatabase() {
             OTHER_COLS.forEach(col => row[col.label] = s[col.key]);
             return row;
         };
-
-        // Export current view (Filtered)
         const currentData = processedList.map(formatRow);
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(currentData), "Filtered Data");
-
         XLSX.writeFile(wb, `Filtered_Student_Data_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
-    const resetFilters = () => {
-        setFilters({
-            search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All'
-        });
-    };
+    const resetFilters = () => setFilters({ search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All' });
 
     return (
         <div style={{animation:'fadeIn 0.3s'}}>
@@ -404,13 +379,46 @@ export default function MasterDatabase() {
                 </div>
             )}
 
+            {/* COMPOUND FILTER TOOLBAR (Visible in BOTH modes for live filtering) */}
+            <div style={{padding:'15px', marginBottom:'20px', border:'1px solid #e2e8f0', borderRadius:'12px', background:'white'}}>
+                <div style={{display:'flex', flexWrap:'wrap', gap:'10px', alignItems:'center', marginBottom:'10px'}}>
+                    {/* SEARCH */}
+                    <div style={{position:'relative', width:'250px'}}>
+                        <Search size={16} style={{position:'absolute', left:'10px', top:'10px', color:'#94a3b8'}}/>
+                        <input style={{...styles.input, paddingLeft:'35px', width:'100%', border:'1px solid #cbd5e1'}} placeholder="Search Name..." value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})}/>
+                    </div>
+                    <select value={filters.course} onChange={e => setFilters({...filters, course: e.target.value})} style={filterSelectStyle}>
+                        <option value="All">All Courses</option>
+                        {COURSE_COLS.map(c => <option key={c} value={c}>Has done {c}</option>)}
+                    </select>
+                    <select value={filters.gender} onChange={e => setFilters({...filters, gender: e.target.value})} style={filterSelectStyle}>
+                        <option value="All">All Genders</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </select>
+                    <select value={filters.city} onChange={e => setFilters({...filters, city: e.target.value})} style={filterSelectStyle}>
+                        <option value="All">All Cities</option>
+                        {options.cities.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <select value={filters.state} onChange={e => setFilters({...filters, state: e.target.value})} style={filterSelectStyle}>
+                        <option value="All">All States</option>
+                        {options.states.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <button onClick={resetFilters} style={{border:'none', background:'transparent', cursor:'pointer', color:'#ef4444', display:'flex', alignItems:'center'}}><XCircle size={18}/></button>
+                </div>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                    <div style={{fontSize:'12px', color:'#64748b', fontWeight:'600'}}>Found {processedList.length} matches (Charts updated)</div>
+                    <button onClick={handleExport} style={{display:'flex', alignItems:'center', gap:'8px', background:'#0f172a', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', fontWeight:'600', cursor:'pointer'}}><Download size={16}/> Export Filtered Data</button>
+                </div>
+            </div>
+
             {/* --- ANALYTICS VIEW --- */}
             {viewMode === 'analytics' && (
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'25px', marginBottom:'40px', animation:'fadeIn 0.4s'}}>
                     
                     {/* CHART: CITY */}
                     <div style={chartCardStyle}>
-                        <h3 style={chartTitleStyle}><MapPin size={16} style={{marginRight:'5px'}}/> Top Cities</h3>
+                        <h3 style={chartTitleStyle}><MapPin size={16} style={{marginRight:'5px'}}/> Top Cities (Filtered)</h3>
                         <div style={{height:'300px'}}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={graphData.cityDist} layout="vertical">
@@ -426,36 +434,67 @@ export default function MasterDatabase() {
                         </div>
                     </div>
 
-                     {/* CHART: STATE */}
-                     <div style={chartCardStyle}>
-                        <h3 style={chartTitleStyle}><Globe size={16} style={{marginRight:'5px'}}/> State Distribution</h3>
+                    {/* CHART: COURSE */}
+                    <div style={chartCardStyle}>
+                        <h3 style={chartTitleStyle}><BarChart3 size={16} style={{marginRight:'5px'}}/> Course Portfolio (Filtered)</h3>
                         <div style={{height:'300px'}}>
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={graphData.stateDist}>
+                                <BarChart data={graphData.courseDist}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="name" style={{fontSize:'10px'}} interval={0} angle={-30} textAnchor="end" height={60} />
+                                    <XAxis dataKey="name" />
                                     <YAxis />
                                     <Tooltip />
-                                    <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={30}>
-                                        {graphData.stateDist.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />)}
+                                    <Bar dataKey="students" radius={[4, 4, 0, 0]} barSize={40}>
+                                        {graphData.courseDist.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 12) % COLORS.length]} />)}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
 
-                    {/* CHART: COUNTRY & PIN */}
-                    <div style={chartCardStyle}>
-                        <h3 style={chartTitleStyle}><Flag size={16} style={{marginRight:'5px'}}/> Top Countries</h3>
+                     {/* CHART: GENDER */}
+                     <div style={chartCardStyle}>
+                        <h3 style={chartTitleStyle}>Gender Ratio</h3>
                         <div style={{height:'300px'}}>
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={graphData.countryDist} layout="vertical">
+                                <PieChart>
+                                    <Pie data={graphData.genderDist} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                        <Cell fill="#3b82f6" /><Cell fill="#ec4899" />
+                                    </Pie>
+                                    <Tooltip /><Legend />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* CHART: AGE */}
+                    <div style={chartCardStyle}>
+                        <h3 style={chartTitleStyle}>Age Distribution</h3>
+                        <div style={{height:'300px'}}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={graphData.ageDist}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" style={{fontSize:'10px'}} />
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={30} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* CHART: PIN */}
+                    <div style={chartCardStyle}>
+                        <h3 style={chartTitleStyle}><Hash size={16} style={{marginRight:'5px'}}/> Top PIN Codes</h3>
+                        <div style={{height:'300px'}}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={graphData.pinDist} layout="vertical">
                                     <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                                     <XAxis type="number" hide />
-                                    <YAxis dataKey="name" type="category" width={100} axisLine={false} tickLine={false} style={{fontSize:'11px'}} />
+                                    <YAxis dataKey="name" type="category" width={60} axisLine={false} tickLine={false} style={{fontSize:'11px'}} />
                                     <Tooltip />
                                     <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>
-                                        {graphData.countryDist.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 6) % COLORS.length]} />)}
+                                        {graphData.pinDist.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 5) % COLORS.length]} />)}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
@@ -467,120 +506,23 @@ export default function MasterDatabase() {
             {/* --- LIST VIEW --- */}
             {viewMode === 'list' && (
                 <div style={{background:'white', borderRadius:'12px', border:'1px solid #e2e8f0', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.1)', overflow:'hidden'}}>
-                    
-                    {/* 🚀 COMPOUND FILTER TOOLBAR */}
-                    <div style={{padding:'15px', borderBottom:'1px solid #f1f5f9', background:'#f8fafc'}}>
-                        
-                        <div style={{display:'flex', flexWrap:'wrap', gap:'10px', alignItems:'center', marginBottom:'15px'}}>
-                            {/* SEARCH */}
-                            <div style={{position:'relative', width:'250px'}}>
-                                <Search size={16} style={{position:'absolute', left:'10px', top:'10px', color:'#94a3b8'}}/>
-                                <input 
-                                    style={{...styles.input, paddingLeft:'35px', width:'100%', border:'1px solid #cbd5e1'}}
-                                    placeholder="Search Name..."
-                                    value={filters.search}
-                                    onChange={e => setFilters({...filters, search: e.target.value})}
-                                />
-                            </div>
-
-                            {/* COURSE */}
-                            <select 
-                                value={filters.course} onChange={e => setFilters({...filters, course: e.target.value})}
-                                style={filterSelectStyle}
-                            >
-                                <option value="All">All Courses</option>
-                                {COURSE_COLS.map(c => <option key={c} value={c}>Has done {c}</option>)}
-                            </select>
-
-                            {/* GENDER */}
-                            <select 
-                                value={filters.gender} onChange={e => setFilters({...filters, gender: e.target.value})}
-                                style={filterSelectStyle}
-                            >
-                                <option value="All">All Genders</option>
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                            </select>
-
-                             {/* CITY */}
-                             <select 
-                                value={filters.city} onChange={e => setFilters({...filters, city: e.target.value})}
-                                style={filterSelectStyle}
-                            >
-                                <option value="All">All Cities</option>
-                                {options.cities.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-
-                            {/* STATE */}
-                            <select 
-                                value={filters.state} onChange={e => setFilters({...filters, state: e.target.value})}
-                                style={filterSelectStyle}
-                            >
-                                <option value="All">All States</option>
-                                {options.states.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-
-                            {/* RESET */}
-                            <button onClick={resetFilters} style={{border:'none', background:'transparent', cursor:'pointer', color:'#ef4444', display:'flex', alignItems:'center'}}>
-                                <XCircle size={18}/>
-                            </button>
-                        </div>
-
-                        {/* EXPORT ACTION */}
-                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                            <div style={{fontSize:'12px', color:'#64748b', fontWeight:'600'}}>
-                                Found {processedList.length} matches
-                            </div>
-                            <button 
-                                onClick={handleExport}
-                                style={{display:'flex', alignItems:'center', gap:'8px', background:'#0f172a', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', fontWeight:'600', cursor:'pointer'}}
-                            >
-                                <Download size={16}/> Export Filtered Data
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* TABLE CONTAINER */}
-                    <div style={{overflowX:'auto', maxHeight:'600px', position:'relative'}}>
+                    <div style={{overflowX:'auto', maxHeight:'650px', position:'relative'}}>
                         <table style={{width:'max-content', borderCollapse:'separate', borderSpacing:0, fontSize:'12px'}}>
                             <thead style={{background:'#f1f5f9', position:'sticky', top:0, zIndex:30}}>
                                 <tr>
-                                    {/* FIXED COLUMNS HEADERS */}
                                     {FIXED_COLS.map(col => (
-                                        <th 
-                                            key={col.key} onClick={() => handleSort(col.key)}
-                                            style={{...thStyle, width: col.width, position: 'sticky', left: col.left, zIndex: 35, background: '#f1f5f9', borderRight:'1px solid #cbd5e1', cursor:'pointer'}}
-                                        >
-                                            <div style={{display:'flex', alignItems:'center', gap:'5px'}}>
-                                                {col.label}
-                                                {sortConfig.key === col.key && <ArrowUpDown size={12} color={sortConfig.direction === 'asc' ? '#3b82f6' : '#ec4899'}/>}
-                                            </div>
+                                        <th key={col.key} onClick={() => handleSort(col.key)} style={{...thStyle, width: col.width, position: 'sticky', left: col.left, zIndex: 35, background: '#f1f5f9', borderRight:'1px solid #cbd5e1', cursor:'pointer'}}>
+                                            <div style={{display:'flex', alignItems:'center', gap:'5px'}}>{col.label} {sortConfig.key === col.key && <ArrowUpDown size={12}/>}</div>
                                         </th>
                                     ))}
-
-                                    {/* COURSE COLUMNS HEADERS */}
                                     {COURSE_COLS.map(col => (
-                                        <th 
-                                            key={col} onClick={() => handleSort(col)}
-                                            style={{...thStyle, width: 50, textAlign:'center', color:'#2563eb', cursor:'pointer'}}
-                                        >
-                                            <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:'2px'}}>
-                                                {col}
-                                                {sortConfig.key === col && <ArrowUpDown size={10}/>}
-                                            </div>
+                                        <th key={col} onClick={() => handleSort(col)} style={{...thStyle, width: 50, textAlign:'center', color:'#2563eb', cursor:'pointer'}}>
+                                            <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:'2px'}}>{col} {sortConfig.key === col && <ArrowUpDown size={10}/>}</div>
                                         </th>
                                     ))}
-
-                                    {/* OTHER COLUMNS HEADERS */}
                                     {OTHER_COLS.map(col => (
-                                        <th 
-                                            key={col.key} onClick={() => handleSort(col.key)}
-                                            style={{...thStyle, width: col.width, cursor:'pointer'}}
-                                        >
-                                            <div style={{display:'flex', alignItems:'center', gap:'5px'}}>
-                                                {col.label}
-                                                {sortConfig.key === col.key && <ArrowUpDown size={12}/>}
-                                            </div>
+                                        <th key={col.key} onClick={() => handleSort(col.key)} style={{...thStyle, width: col.width, cursor:'pointer'}}>
+                                            <div style={{display:'flex', alignItems:'center', gap:'5px'}}>{col.label} {sortConfig.key === col.key && <ArrowUpDown size={12}/>}</div>
                                         </th>
                                     ))}
                                 </tr>
@@ -588,24 +530,13 @@ export default function MasterDatabase() {
                             <tbody>
                                 {processedList.map((s, idx) => (
                                     <tr key={s.mobile} style={{background: idx%2===0 ? 'white' : '#fafafa'}}>
-                                        {/* FIXED COLUMNS DATA */}
                                         {FIXED_COLS.map(col => (
-                                            <td key={col.key} style={{...tdStyle, position: 'sticky', left: col.left, zIndex: 20, background: idx%2===0 ? 'white' : '#fafafa', borderRight: '1px solid #cbd5e1', fontWeight: col.key === 'name' ? '600' : '400', color: col.key === 'name' ? '#1e293b' : 'inherit'}}>
+                                            <td key={col.key} style={{...tdStyle, position: 'sticky', left: col.left, zIndex: 20, background: idx%2===0 ? 'white' : '#fafafa', borderRight: '1px solid #cbd5e1', fontWeight: col.key === 'name' ? '600' : '400'}}>
                                                 <div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width: col.width}} title={s[col.key]}>{s[col.key]}</div>
                                             </td>
                                         ))}
-                                        {/* COURSE DATA */}
-                                        {COURSE_COLS.map(col => (
-                                            <td key={col} style={{...tdStyle, textAlign:'center', fontWeight:'700', color: s.history[col] > 0 ? '#0f172a' : '#e2e8f0'}}>
-                                                {s.history[col]}
-                                            </td>
-                                        ))}
-                                        {/* OTHER DATA */}
-                                        {OTHER_COLS.map(col => (
-                                            <td key={col.key} style={tdStyle}>
-                                                <div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth: col.width}} title={s[col.key]}>{s[col.key]}</div>
-                                            </td>
-                                        ))}
+                                        {COURSE_COLS.map(col => <td key={col} style={{...tdStyle, textAlign:'center', fontWeight:'700', color: s.history[col] > 0 ? '#0f172a' : '#e2e8f0'}}>{s.history[col]}</td>)}
+                                        {OTHER_COLS.map(col => <td key={col.key} style={tdStyle}><div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth: col.width}} title={s[col.key]}>{s[col.key]}</div></td>)}
                                     </tr>
                                 ))}
                             </tbody>
