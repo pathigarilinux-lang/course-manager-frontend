@@ -3,7 +3,7 @@ import {
     Database, Upload, Trash2, Search, Filter, Download, 
     PieChart, MapPin, Users, Award, FileText, ChevronDown, ChevronUp 
 } from 'lucide-react';
-import Papa from 'papaparse'; // You'll need to install: npm install papaparse
+import * as XLSX from 'xlsx'; // ✅ Using the built-in xlsx library
 import { styles } from '../config';
 
 // --- CONFIG ---
@@ -11,14 +11,14 @@ const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
 const VERSION = 1;
 
-// --- INDEXED DB HELPER (For handling 10+ Years of Data) ---
+// --- INDEXED DB HELPER (Unchanged) ---
 const dbHelper = {
     open: () => new Promise((resolve, reject) => {
         const req = indexedDB.open(DB_NAME, VERSION);
         req.onupgradeneeded = (e) => {
             const db = e.target.result;
             if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME, { keyPath: 'mobile' }); // Unique ID is Mobile
+                db.createObjectStore(STORE_NAME, { keyPath: 'mobile' });
             }
         };
         req.onsuccess = () => resolve(req.result);
@@ -31,7 +31,7 @@ const dbHelper = {
             const store = tx.objectStore(STORE_NAME);
             let count = 0;
             students.forEach(s => {
-                store.put(s); // 'put' updates if exists, inserts if new
+                store.put(s);
                 count++;
             });
             tx.oncomplete = () => resolve(count);
@@ -58,7 +58,6 @@ const dbHelper = {
 
 // --- PARSING HELPER ---
 const parseCourseString = (str) => {
-    // Example: "S: 8 L: 3 Seva: 1"
     if (!str) return { sat: 0, served: 0 };
     const s = str.match(/S:\s*(\d+)/);
     const seva = str.match(/Seva:\s*(\d+)/);
@@ -75,10 +74,7 @@ export default function MasterDatabase() {
     const [stats, setStats] = useState({ total: 0, old: 0, new: 0, male: 0, female: 0, cities: {} });
     const [showUpload, setShowUpload] = useState(false);
 
-    // 1. Load Data on Mount
-    useEffect(() => {
-        refreshData();
-    }, []);
+    useEffect(() => { refreshData(); }, []);
 
     const refreshData = async () => {
         setIsLoading(true);
@@ -90,81 +86,84 @@ export default function MasterDatabase() {
         finally { setIsLoading(false); }
     };
 
-    // 2. CSV Import Handler
-    const handleFileUpload = (e) => {
+    // ✅ UPDATED: EXCEL FILE HANDLER
+    const handleFileUpload = async (e) => {
         const files = Array.from(e.target.files);
         setIsLoading(true);
-        let processedCount = 0;
 
-        files.forEach(file => {
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                complete: async (results) => {
-                    const cleanData = results.data.map(row => {
-                        // CLEAN & NORMALIZE
-                        const mobile = (row['PhoneMobile'] || row['PhoneHome'] || '').replace(/\D/g, '');
-                        if (!mobile || mobile.length < 5) return null; // Skip invalid rows
+        for (const file of files) {
+            const data = await file.arrayBuffer();
+            // 1. Read the Excel File
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // 2. Get the First Sheet
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
 
-                        const history = parseCourseString(row['Courses']);
-                        
-                        return {
-                            mobile: mobile, // Primary Key
-                            name: row['Name'],
-                            gender: row['Gender'],
-                            age: row['Age'],
-                            city: row['City'],
-                            state: row['State'],
-                            email: row['Email'],
-                            occupation: row['Occupation'],
-                            courses_raw: row['Courses'], // Keep original string
-                            sat_count: history.sat,
-                            served_count: history.served,
-                            last_course_conf: row['Conf No'],
-                            last_update: new Date().toISOString()
-                        };
-                    }).filter(Boolean);
+            // 3. Convert to JSON
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-                    await dbHelper.addBulk(cleanData);
-                    processedCount++;
-                    if (processedCount === files.length) {
-                        refreshData();
-                        setShowUpload(false);
-                    }
-                }
-            });
-        });
+            // 4. Process Rows
+            const cleanData = jsonData.map(row => {
+                // Key Mapping based on your Excel Headers
+                const mobile = (row['PhoneMobile'] || row['PhoneHome'] || '').toString().replace(/\D/g, '');
+                
+                // Skip if no valid mobile (Primary Key)
+                if (!mobile || mobile.length < 5) return null;
+
+                const history = parseCourseString(row['Courses']);
+
+                return {
+                    mobile: mobile,
+                    name: row['Name'],
+                    gender: row['Gender'],
+                    age: row['Age'],
+                    city: row['City'],
+                    state: row['State'],
+                    email: row['Email'],
+                    occupation: row['Occupation'],
+                    courses_raw: row['Courses'],
+                    sat_count: history.sat,
+                    served_count: history.served,
+                    last_course_conf: row['Conf No'],
+                    last_update: new Date().toISOString()
+                };
+            }).filter(Boolean); // Remove nulls
+
+            // 5. Save to DB
+            if (cleanData.length > 0) {
+                await dbHelper.addBulk(cleanData);
+            }
+        }
+        
+        await refreshData();
+        setIsLoading(false);
+        setShowUpload(false);
     };
 
-    // 3. Stats Calculation
+    // Stats Calculation
     const calculateStats = (data) => {
         const s = { total: data.length, old: 0, new: 0, male: 0, female: 0, cities: {} };
-        
         data.forEach(p => {
-            // Old/New Logic based on history string
             if (p.sat_count > 0 || String(p.last_course_conf).startsWith('O')) s.old++;
             else s.new++;
-
-            // Gender
             if (String(p.gender).toLowerCase().startsWith('m')) s.male++;
             else s.female++;
-
-            // Top Cities
             const city = (p.city || 'Unknown').trim();
             s.cities[city] = (s.cities[city] || 0) + 1;
         });
         setStats(s);
     };
 
-    // 4. Filtering
+    // Filtering
     const filteredList = useMemo(() => {
-        if (!searchTerm) return students.slice(0, 100); // Performance: Limit initial render
+        if (!searchTerm) return students.slice(0, 100);
         const lower = searchTerm.toLowerCase();
         return students.filter(s => 
-            s.name.toLowerCase().includes(lower) || 
-            s.mobile.includes(lower) ||
-            (s.city && s.city.toLowerCase().includes(lower))
-        ).slice(0, 100); // Limit search results too
+            String(s.name).toLowerCase().includes(lower) || 
+            String(s.mobile).includes(lower) ||
+            String(s.city).toLowerCase().includes(lower)
+        ).slice(0, 100);
     }, [students, searchTerm]);
 
     const topCities = Object.entries(stats.cities)
@@ -187,26 +186,26 @@ export default function MasterDatabase() {
                     <button onClick={() => dbHelper.clear().then(refreshData)} style={{...styles.btn(false), color:'#ef4444', borderColor:'#ef4444'}}>
                         <Trash2 size={16}/> Clear DB
                     </button>
-                    <button onClick={() => setShowUpload(!showUpload)} style={{...styles.btn(true), background:'#2563eb'}}>
-                        <Upload size={16}/> Import CSVs
+                    <button onClick={() => setShowUpload(!showUpload)} style={{...styles.btn(true), background:'#10b981', borderColor:'#10b981'}}>
+                        <Upload size={16}/> Import Excel
                     </button>
                 </div>
             </div>
 
             {/* UPLOAD AREA */}
             {showUpload && (
-                <div style={{background:'#f8fafc', border:'2px dashed #cbd5e1', borderRadius:'12px', padding:'30px', textAlign:'center', marginBottom:'25px'}}>
-                    <Upload size={40} color="#94a3b8" style={{marginBottom:'10px'}}/>
-                    <h3 style={{margin:0, color:'#334155'}}>Upload Course Completion Files</h3>
-                    <p style={{fontSize:'13px', color:'#64748b', marginBottom:'20px'}}>
-                        Select multiple CSV files from past courses. The system will merge them automatically.
+                <div style={{background:'#f0fdf4', border:'2px dashed #86efac', borderRadius:'12px', padding:'30px', textAlign:'center', marginBottom:'25px'}}>
+                    <FileText size={40} color="#15803d" style={{marginBottom:'10px'}}/>
+                    <h3 style={{margin:0, color:'#14532d'}}>Upload Excel Files (.xlsx)</h3>
+                    <p style={{fontSize:'13px', color:'#166534', marginBottom:'20px'}}>
+                        Select course completion files. The system will auto-merge duplicates based on Mobile No.
                     </p>
                     <input 
                         type="file" 
-                        accept=".csv" 
+                        accept=".xlsx, .xls" 
                         multiple 
                         onChange={handleFileUpload}
-                        style={{display:'block', margin:'0 auto'}}
+                        style={{display:'block', margin:'0 auto', color:'#15803d'}}
                     />
                 </div>
             )}
@@ -249,8 +248,6 @@ export default function MasterDatabase() {
                             onChange={e => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <button style={styles.btn(false)}><Filter size={16}/> Filters</button>
-                    <button style={styles.btn(false)}><Download size={16}/> Export</button>
                 </div>
 
                 {/* Table Header */}
@@ -274,9 +271,9 @@ export default function MasterDatabase() {
                             <div>
                                 <span style={{
                                     padding:'2px 8px', borderRadius:'10px', fontSize:'11px', fontWeight:'bold',
-                                    background: s.gender.toLowerCase().startsWith('m') ? '#e0f2fe' : '#fce7f3',
-                                    color: s.gender.toLowerCase().startsWith('m') ? '#0284c7' : '#db2777'
-                                }}>{s.gender.charAt(0)}</span>
+                                    background: String(s.gender).toLowerCase().startsWith('m') ? '#e0f2fe' : '#fce7f3',
+                                    color: String(s.gender).toLowerCase().startsWith('m') ? '#0284c7' : '#db2777'
+                                }}>{String(s.gender).charAt(0)}</span>
                                 <span style={{marginLeft:'8px', color:'#64748b'}}>{s.age}</span>
                             </div>
                             <div style={{color:'#334155'}}>{s.city}</div>
