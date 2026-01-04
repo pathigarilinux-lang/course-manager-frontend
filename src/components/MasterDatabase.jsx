@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Database, Upload, Trash2, Search, Filter, Download, 
-    PieChart, BarChart3, List, FileText, ChevronDown, 
+    PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
     ChevronUp, ArrowUpDown, Table 
-} from 'lucide-react';
+} from 'lucide-react'; // ✅ FIXED: Aliased PieChart to PieIcon
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
     PieChart, Pie, Cell 
@@ -14,8 +14,8 @@ import { styles } from '../config';
 // --- CONFIG ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-const VERSION = 4; // Incremented for new fields
-const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC']; // Reordered for priority
+const VERSION = 4;
+const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
 const DISPLAY_COLS = [
     { key: 'name', label: 'Student Name', width: '200px' },
     { key: 'mobile', label: 'Mobile', width: '100px' },
