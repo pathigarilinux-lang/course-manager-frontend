@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, BedDouble, UserPlus, Users, ShoppingBag, 
   Settings, LogOut, Shield, GraduationCap, Heart, UserCheck, 
-  Menu, X, Database, ChevronRight, History 
+  Menu, X, Database, ChevronRight, History, CreditCard 
 } from 'lucide-react';
 import { API_URL } from './config';
 
@@ -20,7 +20,7 @@ import ATPanel from './components/ATPanel';
 import DN1StudentForm from './components/DN1StudentForm';
 import AlumniDirectory from './components/AlumniDirectory'; 
 import MasterDatabase from './components/MasterDatabase';
-import MentorManager from './components/MentorManager';
+import MentorManager from './components/MentorManager'; 
 import SevaPassport from './components/SevaPassport'; // ✅ NEW IMPORT
 
 // --- PREMIUM STYLES CONSTANTS ---
@@ -73,13 +73,10 @@ function App() {
           // 🛡️ ROLE-BASED FILTERING
           let filteredCourses = [];
           if (user.role === 'admin' || user.role === 'gate' || user.role === 'at') {
-              // ✅ GOD MODE: Admin, Gate, AT see ALL courses
               filteredCourses = allCourses;
           } else if (user.role === 'dn1ops') {
-              // 🔒 DN1 OPS: Restricted
               filteredCourses = allCourses.filter(c => c.owner_role === 'dn1ops');
           } else {
-              // 🔒 STAFF: Restricted
               filteredCourses = allCourses.filter(c => c.owner_role !== 'dn1ops');
           }
           setCourses(filteredCourses);
@@ -122,10 +119,10 @@ function App() {
       { id: 'admin', label: 'Course Admin', icon: <Database size={18}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
       { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={18}/>, roles: ['admin', 'staff', 'dn1ops'] },
       { id: 'seva', label: 'Seva Board', icon: <Heart size={18}/>, roles: ['admin'] },
-      // ✅ UPDATED: Added 'master_at' to roles
       { id: 'master', label: 'Master Database', icon: <Database size={18}/>, roles: ['admin', 'master_at'] },
       { id: 'mentor', label: 'Mentor Distribution', icon: <Users size={18}/>, roles: ['admin', 'master_at'] },
-      { id: 'passport', label: 'Seva Passport (View)', icon: <CreditCard size={18}/>, roles: ['admin'] }
+      // ✅ NEW: Seva Passport (Visible to Admin for Testing)
+      { id: 'passport', label: 'Seva Passport (View)', icon: <CreditCard size={18}/>, roles: ['admin'] } 
   ];
 
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
@@ -262,14 +259,16 @@ function App() {
                   
                   {activeTab === 'accommodation' && <GlobalAccommodationManager />}
                   {activeTab === 'at' && <ATPanel courses={courses} />}
-                  {activeTab === 'mentor' && <MentorManager />} 
+                  
                   {activeTab === 'alumni' && <AlumniDirectory courses={courses} />}
-                  {/* ✅ UPDATED: Passed user prop to MasterDatabase */}
-                  {activeTab === 'master' && <MasterDatabase user={user} />}                  
+                  {activeTab === 'master' && <MasterDatabase user={user} />}
+                  {activeTab === 'mentor' && <MentorManager />}  
+                  {activeTab === 'passport' && <SevaPassport />}  {/* ✅ RENDER NEW TAB */}
+                  
                   {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
                   
                   {activeTab === 'seva' && <SevaBoard courses={courses} />}
-                  {activeTab === 'passport' && <SevaPassport />}
+                  
                   {(user.role === 'admin' || user.role === 'staff' || user.role === 'dn1ops') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
               </div>
           </div>
