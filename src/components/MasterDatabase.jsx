@@ -3,7 +3,7 @@ import {
     Database, Upload, Trash2, Search, Filter, Download, 
     PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
     ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe, Flag, XCircle, 
-    User, Shield, Lock, AlertTriangle 
+    User, Shield, Lock, Save 
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -101,7 +101,7 @@ const findValue = (row, possibleKeys) => {
 };
 
 // ---------------------------------------------------------
-//  MAIN COMPONENT (Receives 'user' prop from App.jsx)
+//  MAIN COMPONENT
 // ---------------------------------------------------------
 export default function MasterDatabase({ user }) {
     const [students, setStudents] = useState([]);
@@ -117,7 +117,6 @@ export default function MasterDatabase({ user }) {
     const [graphData, setGraphData] = useState({ courseDist: [], genderDist: [], ageDist: [], cityDist: [], stateDist: [], pinDist: [], countryDist: [] });
 
     // --- 🛡️ SECURITY CHECK ---
-    // Only 'admin' role can delete. 'master_at' (Charan) cannot.
     const canDelete = user && user.role === 'admin'; 
     const userLabel = user ? `${user.username.charAt(0).toUpperCase() + user.username.slice(1)}` : 'Guest';
     const roleLabel = user ? (user.role === 'admin' ? 'Administrator' : 'AT (Master Data)') : 'Viewer';
@@ -296,7 +295,8 @@ export default function MasterDatabase({ user }) {
         setSortConfig({ key, direction });
     };
 
-    const handleExport = () => {
+    // --- 🌍 MASTER EXPORT (All Data) ---
+    const handleMasterExport = () => {
         const wb = XLSX.utils.book_new();
         const formatRow = (s, index) => {
             const row = { 'S.No': index + 1 };
@@ -306,14 +306,11 @@ export default function MasterDatabase({ user }) {
             return row;
         };
 
-        if (processedList.length > 0) {
-            const currentData = processedList.map((s, i) => formatRow(s, i));
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(currentData), "Filtered Data");
-        }
-
+        // 1. All Students Sheet
         const masterData = students.map((s, i) => formatRow(s, i));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(masterData), "All Students");
 
+        // 2. Course Specific Sheets
         COURSE_COLS.forEach(course => {
             const filtered = students.filter(s => (s.history?.[course] || 0) > 0);
             if (filtered.length > 0) {
@@ -321,7 +318,25 @@ export default function MasterDatabase({ user }) {
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetData), `${course}`);
             }
         });
-        XLSX.writeFile(wb, `Dhamma_Master_DB_${new Date().toISOString().slice(0,10)}.xlsx`);
+        XLSX.writeFile(wb, `Dhamma_Master_FULL_${new Date().toISOString().slice(0,10)}.xlsx`);
+    };
+
+    // --- ⚡ FILTERED EXPORT (Only Current View) ---
+    const handleFilteredExport = () => {
+        const wb = XLSX.utils.book_new();
+        const formatRow = (s, index) => {
+            const row = { 'S.No': index + 1 };
+            FIXED_COLS.filter(c => c.key !== 'sno').forEach(col => row[col.label] = s[col.key]);
+            COURSE_COLS.forEach(col => row[col] = s.history?.[col] || 0);
+            OTHER_COLS.forEach(col => row[col.label] = s[col.key]);
+            return row;
+        };
+
+        // Only export what is currently visible in processedList
+        const currentData = processedList.map((s, i) => formatRow(s, i));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(currentData), "Filtered Results");
+        
+        XLSX.writeFile(wb, `Dhamma_Filtered_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
     const resetFilters = () => setFilters({ search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All' });
@@ -339,7 +354,7 @@ export default function MasterDatabase({ user }) {
                     </div>
                 </div>
                 
-                {/* 🛡️ USER BADGE & PERMISSIONS */}
+                {/* 🛡️ USER BADGE */}
                 <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
                     <div style={{display:'flex', alignItems:'center', gap:'10px', background:'white', padding:'6px 12px', borderRadius:'30px', border:'1px solid #e2e8f0', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}}>
                         <div style={{width:'36px', height:'36px', borderRadius:'50%', background: canDelete ? '#fef2f2' : '#f0f9ff', display:'flex', alignItems:'center', justifyContent:'center', border: canDelete ? '1px solid #fee2e2' : '1px solid #e0f2fe'}}>
@@ -363,7 +378,6 @@ export default function MasterDatabase({ user }) {
                             </button>
                         </div>
                         
-                        {/* 🔒 SECURE DELETE BUTTON */}
                         {canDelete ? (
                             <button onClick={() => { if(window.confirm('Are you sure you want to delete ALL data? This cannot be undone.')) dbHelper.clear().then(refreshData) }} style={{...styles.btn(false), color:'#ef4444', borderColor:'#ef4444'}}>
                                 <Trash2 size={16}/> Clear DB
@@ -373,6 +387,11 @@ export default function MasterDatabase({ user }) {
                                 <Lock size={16}/> Delete Locked
                             </button>
                         )}
+
+                        {/* MASTER EXPORT BUTTON */}
+                        <button onClick={handleMasterExport} style={{...styles.btn(false), background:'#f8fafc', color:'#0f172a', borderColor:'#cbd5e1'}}>
+                            <Save size={16}/> Export All
+                        </button>
                         
                         <button onClick={() => setShowUpload(!showUpload)} style={{...styles.btn(true), background:'#10b981', borderColor:'#10b981'}}>
                             <Upload size={16}/> Import
@@ -422,7 +441,11 @@ export default function MasterDatabase({ user }) {
                 </div>
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                     <div style={{fontSize:'12px', color:'#64748b', fontWeight:'600'}}>Found {processedList.length} matches</div>
-                    <button onClick={handleExport} style={{display:'flex', alignItems:'center', gap:'8px', background:'#0f172a', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', fontWeight:'600', cursor:'pointer'}}><Download size={16}/> Export Filtered Data</button>
+                    
+                    {/* FILTERED EXPORT BUTTON */}
+                    <button onClick={handleFilteredExport} style={{display:'flex', alignItems:'center', gap:'8px', background:'#0f172a', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', fontWeight:'600', cursor:'pointer'}}>
+                        <Download size={16}/> Export Filtered Only
+                    </button>
                 </div>
             </div>
 
