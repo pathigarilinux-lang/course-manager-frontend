@@ -21,6 +21,7 @@ import DN1StudentForm from './components/DN1StudentForm';
 import AlumniDirectory from './components/AlumniDirectory'; 
 import MasterDatabase from './components/MasterDatabase';
 import MentorManager from './components/MentorManager';
+import SevaPassport from './components/SevaPassport'; // ✅ NEW IMPORT
 
 // --- PREMIUM STYLES CONSTANTS ---
 const theme = {
@@ -124,6 +125,7 @@ function App() {
       // ✅ UPDATED: Added 'master_at' to roles
       { id: 'master', label: 'Master Database', icon: <Database size={18}/>, roles: ['admin', 'master_at'] },
       { id: 'mentor', label: 'Mentor Distribution', icon: <Users size={18}/>, roles: ['admin', 'master_at'] }
+      { id: 'passport', label: 'Seva Passport (View)', icon: <CreditCard size={18}/>, roles: ['admin'] }
   ];
 
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
@@ -267,7 +269,7 @@ function App() {
                   {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
                   
                   {activeTab === 'seva' && <SevaBoard courses={courses} />}
-                  
+                  {activeTab === 'passport' && <SevaPassport />}  {/* ✅ RENDER NEW TAB */}
                   {(user.role === 'admin' || user.role === 'staff' || user.role === 'dn1ops') && activeTab === 'store' && <ExpenseTracker courses={courses} />}
               </div>
           </div>
