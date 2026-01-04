@@ -4,7 +4,8 @@ import {
     PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
     ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe, Flag, XCircle, 
     User, Shield, Lock, Save, GitMerge, AlertCircle, CheckCircle, 
-    Link as LinkIcon, DownloadCloud // ✅ FIXED: Changed from CloudDownload to DownloadCloud
+    Link as LinkIcon 
+    // Removed CloudDownload to fix crash. Using Download icon instead.
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -16,7 +17,8 @@ import { styles } from '../config';
 // --- CONFIGURATION ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-const VERSION = 13; 
+// ✅ FIXED: Bumped to 14 to resolve "VersionError: requested version (11) is less than existing (13)"
+const VERSION = 14; 
 
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
 
@@ -29,12 +31,9 @@ const FIXED_COLS = [
 ];
 
 const OTHER_COLS = [
-    // Mentor Data
     { key: 'mentor', label: 'Assigned Mentor', width: 150 },
     { key: 'mentor_status', label: 'Status', width: 120 },
     { key: 'mentor_notes', label: 'Notes', width: 200 },
-    
-    // Demographics
     { key: 'language', label: 'Language', width: 100 },
     { key: 'city', label: 'City', width: 120 },
     { key: 'state', label: 'State', width: 120 },
@@ -120,7 +119,6 @@ const findValue = (row, possibleKeys) => {
     const rowKeys = Object.keys(row);
     for (const target of possibleKeys) {
         if (row[target] !== undefined) return row[target];
-        // Fuzzy Match logic
         const match = rowKeys.find(k => k.toLowerCase().includes(target.toLowerCase()));
         if (match && row[match] !== undefined) return row[match];
     }
@@ -128,7 +126,7 @@ const findValue = (row, possibleKeys) => {
 };
 
 // =========================================================
-//  MAIN COMPONENT: MasterDatabase
+//  MAIN COMPONENT
 // =========================================================
 export default function MasterDatabase({ user }) {
     const [students, setStudents] = useState([]);
@@ -138,11 +136,11 @@ export default function MasterDatabase({ user }) {
     const [mergeStatus, setMergeStatus] = useState('');
     const [sheetUrl, setSheetUrl] = useState(''); 
     
-    // Duplicate Resolution States
+    // Duplicate Resolution
     const [showDuplicates, setShowDuplicates] = useState(false);
     const [duplicateGroups, setDuplicateGroups] = useState([]);
 
-    // Filter States
+    // Filters
     const [filters, setFilters] = useState({ 
         search: '', 
         course: 'All', 
@@ -153,7 +151,6 @@ export default function MasterDatabase({ user }) {
         mentor: 'All' 
     });
     
-    // Derived Options
     const [options, setOptions] = useState({ 
         cities: [], 
         states: [], 
@@ -161,7 +158,6 @@ export default function MasterDatabase({ user }) {
         mentors: [] 
     });
     
-    // Sort & Graph State
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
     const [graphData, setGraphData] = useState({ 
         courseDist: [], 
@@ -173,12 +169,10 @@ export default function MasterDatabase({ user }) {
         countryDist: [] 
     });
 
-    // Security Permissions
     const canDelete = user && user.role === 'admin'; 
     const userLabel = user ? `${user.username.charAt(0).toUpperCase() + user.username.slice(1)}` : 'Guest';
     const roleLabel = user ? (user.role === 'admin' ? 'Administrator' : 'AT (Master Data)') : 'Viewer';
 
-    // --- INITIAL LOAD ---
     useEffect(() => { 
         refreshData(); 
     }, []);
@@ -197,7 +191,6 @@ export default function MasterDatabase({ user }) {
         }
     };
 
-    // --- 🕵️‍♂️ DUPLICATE SCANNER LOGIC ---
     const scanForDuplicates = () => {
         setIsLoading(true);
         const nameGroups = {};
@@ -210,7 +203,6 @@ export default function MasterDatabase({ user }) {
 
         const groups = Object.values(nameGroups).filter(group => {
             if (group.length < 2) return false;
-            // Strict check: Same Gender required
             const genders = new Set(group.map(s => String(s.gender).toLowerCase().charAt(0)));
             return genders.size === 1;
         });
@@ -221,17 +213,14 @@ export default function MasterDatabase({ user }) {
     };
 
     const handleMergeGroup = async (group) => {
-        // Sort by last_update desc
         const sorted = [...group].sort((a, b) => new Date(b.last_update || 0) - new Date(a.last_update || 0));
         const master = { ...sorted[0] }; 
         const duplicates = sorted.slice(1);
 
         duplicates.forEach(dup => {
-            // Sum Course History
             COURSE_COLS.forEach(c => {
                 master.history[c] = (master.history[c] || 0) + (dup.history[c] || 0);
             });
-            // Fill missing details
             Object.keys(master).forEach(key => {
                 if (!master[key] && dup[key]) master[key] = dup[key];
             });
@@ -248,7 +237,6 @@ export default function MasterDatabase({ user }) {
         }
     };
 
-    // --- DATA PROCESSING HELPERS ---
     const prepareFilterOptions = (data) => {
         const getUnique = (key) => [...new Set(data.map(s => s[key]).filter(Boolean).map(s => s.trim()))].sort();
         setOptions({
@@ -262,7 +250,6 @@ export default function MasterDatabase({ user }) {
     const processedList = useMemo(() => {
         let list = [...students];
 
-        // Apply Filters
         if (filters.course !== 'All') list = list.filter(s => (s.history?.[filters.course] || 0) > 0);
         if (filters.gender !== 'All') {
             const char = filters.gender.charAt(0).toLowerCase();
@@ -282,7 +269,6 @@ export default function MasterDatabase({ user }) {
             );
         }
 
-        // Apply Sort
         list.sort((a, b) => {
             let valA, valB;
             if (COURSE_COLS.includes(sortConfig.key)) {
@@ -303,23 +289,19 @@ export default function MasterDatabase({ user }) {
         return list;
     }, [students, filters, sortConfig]);
 
-    // Recalculate Stats when filtered list changes
     useEffect(() => { 
         prepareGraphData(processedList); 
     }, [processedList]);
 
     const prepareGraphData = (data) => {
-        // Course Stats
         const courses = COURSE_COLS.map(col => ({
             name: col,
             students: data.filter(s => (s.history?.[col] || 0) > 0).length
         }));
         
-        // Gender Stats
         const male = data.filter(s => String(s.gender).toLowerCase().startsWith('m')).length;
         const female = data.filter(s => String(s.gender).toLowerCase().startsWith('f')).length;
         
-        // Age Stats (Buckets)
         const buckets = { 'Under 20':0, '20-29':0, '30-39':0, '40-49':0, '50-59':0, '60+':0 };
         data.forEach(s => {
             const age = parseInt(s.age) || 0;
@@ -331,7 +313,6 @@ export default function MasterDatabase({ user }) {
             else buckets['60+']++;
         });
 
-        // Top K Helper
         const getTopK = (key, k=10) => {
             const counts = {};
             data.forEach(s => {
@@ -360,7 +341,6 @@ export default function MasterDatabase({ user }) {
         });
     };
 
-    // --- 🧬 UNIFIED DATA PROCESSOR (Handles Files & Google Sheets) ---
     const processIncomingData = async (rawJson) => {
         setMergeStatus(`Processing ${rawJson.length} records...`);
         
@@ -376,11 +356,9 @@ export default function MasterDatabase({ user }) {
                 name: toTitleCase(findValue(mainRow, ['Name','Student','Full Name'])), 
                 gender: toTitleCase(findValue(mainRow, ['Gender','Sex'])), 
                 age: findValue(mainRow, ['Age']),
-                
                 city: toTitleCase(findValue(mainRow, ['City','Town','District'])), 
                 state: toTitleCase(findValue(mainRow, ['State','Province','Region'])), 
                 country: toTitleCase(findValue(mainRow, ['Country','Nation'])),
-                
                 pin: String(findValue(mainRow,['Pin','Zip','Postal'])), 
                 email: String(findValue(mainRow,['Email'])), 
                 phone_home: String(findValue(mainRow,['PhoneHome'])),
@@ -390,7 +368,6 @@ export default function MasterDatabase({ user }) {
                 accommodation: findValue(mainRow,['Room']), 
                 last_course_conf: findValue(mainRow,['Conf']),
                 
-                // MENTOR SYNC FIELDS
                 mentor: findValue(mainRow, ['Mentor', 'Assigned To', 'Leader']),
                 mentor_status: findValue(mainRow, ['Status', 'Mentor Status', 'Result', 'Feedback']),
                 mentor_notes: findValue(mainRow, ['Notes', 'Mentor Notes', 'Comments', 'Remark']),
@@ -417,7 +394,6 @@ export default function MasterDatabase({ user }) {
         setTimeout(() => setShowUpload(false), 3000);
     };
 
-    // --- 📂 FILE UPLOAD HANDLER ---
     const handleFileUpload = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
@@ -432,7 +408,6 @@ export default function MasterDatabase({ user }) {
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
             
-            // Smart Header Search
             let hIdx = 0;
             for(let i=0; i<rawData.length; i++) {
                 const s = JSON.stringify(rawData[i]).toLowerCase();
@@ -446,7 +421,6 @@ export default function MasterDatabase({ user }) {
         await processIncomingData(allData);
     };
 
-    // --- ☁️ GOOGLE LINK IMPORT ---
     const handleUrlImport = async () => {
         if(!sheetUrl) return;
         setIsLoading(true); 
@@ -455,11 +429,9 @@ export default function MasterDatabase({ user }) {
         try {
             const res = await fetch(sheetUrl);
             const csvText = await res.text();
-            
             const workbook = XLSX.read(csvText, { type: 'string' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonData = XLSX.utils.sheet_to_json(sheet);
-            
             await processIncomingData(jsonData);
         } catch(e) {
             console.error(e);
@@ -548,7 +520,7 @@ export default function MasterDatabase({ user }) {
                         </div>
                         {canDelete && <button onClick={()=>{if(window.confirm('Delete ALL?')) dbHelper.clear().then(refreshData)}} style={{...styles.btn(false), color:'#ef4444'}}><Trash2 size={16}/></button>}
                         <button onClick={handleMasterExport} style={{...styles.btn(false)}}><Save size={16}/></button>
-                        <button onClick={()=>setShowUpload(!showUpload)} style={{...styles.btn(true)}}><CloudDownload size={16}/> Sync / Import</button>
+                        <button onClick={()=>setShowUpload(!showUpload)} style={{...styles.btn(true)}}><Download size={16}/> Sync / Import</button>
                     </div>
                 </div>
             </div>
