@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Database, Upload, Trash2, Search, Filter, Download, 
     PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
-    ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe, Flag 
+    ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe, Flag, XCircle 
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -14,7 +14,7 @@ import { styles } from '../config';
 // --- CONFIG ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-const VERSION = 8; // Incremented for Country Stats
+const VERSION = 8; 
 
 // 1. COURSE COLUMNS
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
@@ -41,12 +41,9 @@ const OTHER_COLS = [
     { key: 'company', label: 'Company', width: 150 },
 ];
 
-// --- VIBRANT COLOR PALETTE ---
 const COLORS = [
     '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', 
-    '#6366f1', '#14b8a6', '#f97316', '#d946ef', '#06b6d4', '#84cc16',
-    '#e11d48', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#db2777',
-    '#4f46e5', '#0d9488', '#ea580c', '#c026d3', '#0891b2', '#65a30d'
+    '#6366f1', '#14b8a6', '#f97316', '#d946ef', '#06b6d4', '#84cc16'
 ];
 
 // --- DB HELPER ---
@@ -111,11 +108,22 @@ const findValue = (row, possibleKeys) => {
 export default function MasterDatabase() {
     const [students, setStudents] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState('list');
     const [showUpload, setShowUpload] = useState(false);
     const [mergeStatus, setMergeStatus] = useState('');
-    const [courseFilter, setCourseFilter] = useState('All');
+    
+    // ✅ MULTI-DIMENSIONAL FILTERS
+    const [filters, setFilters] = useState({
+        search: '',
+        course: 'All',
+        gender: 'All',
+        city: 'All',
+        state: 'All',
+        country: 'All'
+    });
+
+    // Dropdown Options (Derived from Data)
+    const [options, setOptions] = useState({ cities: [], states: [], countries: [] });
     
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
     const [graphData, setGraphData] = useState({ courseDist: [], genderDist: [], ageDist: [], cityDist: [], stateDist: [], pinDist: [], countryDist: [] });
@@ -128,18 +136,26 @@ export default function MasterDatabase() {
             const data = await dbHelper.getAll();
             setStudents(data);
             prepareGraphData(data);
+            prepareFilterOptions(data);
         } catch (e) { console.error("DB Error", e); }
         finally { setIsLoading(false); }
     };
 
+    const prepareFilterOptions = (data) => {
+        const getUnique = (key) => [...new Set(data.map(s => s[key]).filter(Boolean).map(s => s.trim()))].sort();
+        setOptions({
+            cities: getUnique('city'),
+            states: getUnique('state'),
+            countries: getUnique('country')
+        });
+    };
+
     const prepareGraphData = (data) => {
-        // 1. Courses
+        // ... (Stats Logic Unchanged)
         const courses = COURSE_COLS.map(col => ({
             name: col,
             students: data.filter(s => (s.history?.[col] || 0) > 0).length
         }));
-        
-        // 2. Demographics
         const male = data.filter(s => String(s.gender).toLowerCase().startsWith('m')).length;
         const female = data.filter(s => String(s.gender).toLowerCase().startsWith('f')).length;
         
@@ -154,23 +170,18 @@ export default function MasterDatabase() {
             else buckets['60+']++;
         });
 
-        // 3. Geography Helper
         const getTopK = (key, k=10) => {
             const counts = {};
             data.forEach(s => {
                 const rawVal = s[key];
                 if (rawVal === undefined || rawVal === null) return;
                 const val = String(rawVal).trim();
-                
                 if(val && val.toLowerCase() !== 'unknown') {
                     const norm = toTitleCase(val); 
                     counts[norm] = (counts[norm] || 0) + 1;
                 }
             });
-            return Object.entries(counts)
-                .map(([name, count]) => ({ name, count }))
-                .sort((a, b) => b.count - a.count)
-                .slice(0, k);
+            return Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, k);
         };
 
         setGraphData({
@@ -180,7 +191,7 @@ export default function MasterDatabase() {
             cityDist: getTopK('city', 10),
             stateDist: getTopK('state', 10),
             pinDist: getTopK('pin', 10),
-            countryDist: getTopK('country', 10) // New Country Data
+            countryDist: getTopK('country', 10)
         });
     };
 
@@ -188,7 +199,6 @@ export default function MasterDatabase() {
     const handleFileUpload = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
-
         setIsLoading(true);
         setMergeStatus('Reading files...');
 
@@ -204,22 +214,15 @@ export default function MasterDatabase() {
             let headerRowIndex = 0;
             for(let i=0; i<rawData.length; i++) {
                 const rowStr = JSON.stringify(rawData[i]).toLowerCase();
-                if (rowStr.includes('10d') || rowStr.includes('stp')) {
-                    headerRowIndex = i; break;
-                }
-                if (rowStr.includes('name') && (rowStr.includes('mobile') || rowStr.includes('gender') || rowStr.includes('city'))) {
-                    headerRowIndex = i; break;
-                }
+                if (rowStr.includes('10d') || rowStr.includes('stp')) { headerRowIndex = i; break; }
+                if (rowStr.includes('name') && (rowStr.includes('mobile') || rowStr.includes('gender'))) { headerRowIndex = i; break; }
             }
 
             const jsonData = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex });
             const firstRow = jsonData[0] || {};
             
-            if (findValue(firstRow, ['10D', 'STP']) !== '') {
-                teacherList = teacherList.concat(jsonData);
-            } else {
-                attendedList = attendedList.concat(jsonData);
-            }
+            if (findValue(firstRow, ['10D', 'STP']) !== '') teacherList = teacherList.concat(jsonData);
+            else attendedList = attendedList.concat(jsonData);
         }
 
         setMergeStatus(`Merging ${attendedList.length} students with ${teacherList.length} history records...`);
@@ -249,18 +252,16 @@ export default function MasterDatabase() {
                 last_update: new Date().toISOString(),
                 history: {} 
             };
-
             COURSE_COLS.forEach(col => student.history[col] = 0);
-
+            
+            // Match Logic
             const cleanName = cleanString(student.name);
             const cleanRoom = cleanString(student.accommodation).replace(/-/g, '').replace(/ /g, '');
-
             const teacherRow = teacherList.find(tRow => {
                 const tName = cleanString(findValue(tRow, ['Student', 'Name']));
                 const tRoom = cleanString(findValue(tRow, ['RoomNo', 'Room'])).replace(/-/g, '').replace(/ /g, '');
                 return tName === cleanName || (tRoom && tRoom === cleanRoom && tRoom.length > 3);
             });
-
             if (teacherRow) {
                 COURSE_COLS.forEach(col => {
                     const val = teacherRow[col];
@@ -270,42 +271,10 @@ export default function MasterDatabase() {
             return student;
         }).filter(Boolean);
 
-        if (finalData.length > 0) {
-            await dbHelper.addBulk(finalData);
-            setMergeStatus(`✅ Success! Merged ${finalData.length} records.`);
-        } else {
-            setMergeStatus("⚠️ No matching data found or invalid files.");
-        }
-        
+        if (finalData.length > 0) await dbHelper.addBulk(finalData);
         await refreshData();
         setIsLoading(false);
         setTimeout(() => setShowUpload(false), 3000);
-    };
-
-    // --- EXPORT ---
-    const handleExport = () => {
-        const wb = XLSX.utils.book_new();
-
-        const formatRow = (s) => {
-            const row = {};
-            FIXED_COLS.forEach(col => row[col.label] = s[col.key]);
-            COURSE_COLS.forEach(col => row[col] = s.history?.[col] || 0);
-            OTHER_COLS.forEach(col => row[col.label] = s[col.key]);
-            return row;
-        };
-
-        const masterData = students.map(formatRow);
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(masterData), "All Students");
-
-        COURSE_COLS.forEach(course => {
-            const filtered = students.filter(s => (s.history?.[course] || 0) > 0);
-            if (filtered.length > 0) {
-                const sheetData = filtered.map(formatRow);
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetData), `${course}`);
-            }
-        });
-
-        XLSX.writeFile(wb, `Dhamma_Master_DB_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
     // --- SORT ---
@@ -315,18 +284,42 @@ export default function MasterDatabase() {
         setSortConfig({ key, direction });
     };
 
+    // ✅ FILTER ENGINE (COMPOUND)
     const processedList = useMemo(() => {
         let list = [...students];
-        if (courseFilter !== 'All') list = list.filter(s => (s.history?.[courseFilter] || 0) > 0);
-        if (searchTerm) {
-            const lower = searchTerm.toLowerCase();
+
+        // 1. Course
+        if (filters.course !== 'All') {
+            list = list.filter(s => (s.history?.[filters.course] || 0) > 0);
+        }
+        // 2. Gender
+        if (filters.gender !== 'All') {
+            const char = filters.gender.charAt(0).toLowerCase();
+            list = list.filter(s => String(s.gender).toLowerCase().startsWith(char));
+        }
+        // 3. City
+        if (filters.city !== 'All') {
+            list = list.filter(s => s.city === filters.city);
+        }
+        // 4. State
+        if (filters.state !== 'All') {
+            list = list.filter(s => s.state === filters.state);
+        }
+        // 5. Country
+        if (filters.country !== 'All') {
+            list = list.filter(s => s.country === filters.country);
+        }
+        // 6. Search
+        if (filters.search) {
+            const lower = filters.search.toLowerCase();
             list = list.filter(s => 
                 String(s.name).toLowerCase().includes(lower) || 
                 String(s.mobile).includes(lower) ||
-                String(s.city).toLowerCase().includes(lower) ||
                 String(s.email).toLowerCase().includes(lower)
             );
         }
+
+        // Sort
         list.sort((a, b) => {
             let valA, valB;
             if (COURSE_COLS.includes(sortConfig.key)) {
@@ -340,7 +333,32 @@ export default function MasterDatabase() {
             return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
         });
         return list;
-    }, [students, searchTerm, courseFilter, sortConfig]);
+    }, [students, filters, sortConfig]);
+
+    // ✅ CONTEXT-AWARE EXPORT
+    const handleExport = () => {
+        const wb = XLSX.utils.book_new();
+
+        const formatRow = (s) => {
+            const row = {};
+            FIXED_COLS.forEach(col => row[col.label] = s[col.key]);
+            COURSE_COLS.forEach(col => row[col] = s.history?.[col] || 0);
+            OTHER_COLS.forEach(col => row[col.label] = s[col.key]);
+            return row;
+        };
+
+        // Export current view (Filtered)
+        const currentData = processedList.map(formatRow);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(currentData), "Filtered Data");
+
+        XLSX.writeFile(wb, `Filtered_Student_Data_${new Date().toISOString().slice(0,10)}.xlsx`);
+    };
+
+    const resetFilters = () => {
+        setFilters({
+            search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All'
+        });
+    };
 
     return (
         <div style={{animation:'fadeIn 0.3s'}}>
@@ -401,9 +419,7 @@ export default function MasterDatabase() {
                                     <YAxis dataKey="name" type="category" width={100} axisLine={false} tickLine={false} style={{fontSize:'11px'}} />
                                     <Tooltip />
                                     <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>
-                                        {graphData.cityDist.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
+                                        {graphData.cityDist.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
@@ -421,16 +437,14 @@ export default function MasterDatabase() {
                                     <YAxis />
                                     <Tooltip />
                                     <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={30}>
-                                        {graphData.stateDist.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />
-                                        ))}
+                                        {graphData.stateDist.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />)}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
 
-                    {/* CHART: COUNTRY */}
+                    {/* CHART: COUNTRY & PIN */}
                     <div style={chartCardStyle}>
                         <h3 style={chartTitleStyle}><Flag size={16} style={{marginRight:'5px'}}/> Top Countries</h3>
                         <div style={{height:'300px'}}>
@@ -441,49 +455,7 @@ export default function MasterDatabase() {
                                     <YAxis dataKey="name" type="category" width={100} axisLine={false} tickLine={false} style={{fontSize:'11px'}} />
                                     <Tooltip />
                                     <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>
-                                        {graphData.countryDist.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[(index + 6) % COLORS.length]} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
-                    {/* CHART: PIN CODE */}
-                    <div style={chartCardStyle}>
-                        <h3 style={chartTitleStyle}><Hash size={16} style={{marginRight:'5px'}}/> Top PIN Codes</h3>
-                        <div style={{height:'300px'}}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={graphData.pinDist} layout="vertical">
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                                    <XAxis type="number" hide />
-                                    <YAxis dataKey="name" type="category" width={60} axisLine={false} tickLine={false} style={{fontSize:'11px'}} />
-                                    <Tooltip />
-                                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>
-                                        {graphData.pinDist.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[(index + 9) % COLORS.length]} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
-                    {/* CHART: COURSE */}
-                    <div style={{...chartCardStyle, gridColumn: 'span 2'}}>
-                        <h3 style={chartTitleStyle}><BarChart3 size={16} style={{marginRight:'5px'}}/> Course Portfolio</h3>
-                        <div style={{height:'300px'}}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={graphData.courseDist}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="name" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Bar dataKey="students" radius={[4, 4, 0, 0]} barSize={40}>
-                                        {graphData.courseDist.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[(index + 12) % COLORS.length]} />
-                                        ))}
+                                        {graphData.countryDist.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 6) % COLORS.length]} />)}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
@@ -496,54 +468,88 @@ export default function MasterDatabase() {
             {viewMode === 'list' && (
                 <div style={{background:'white', borderRadius:'12px', border:'1px solid #e2e8f0', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.1)', overflow:'hidden'}}>
                     
-                    {/* TOOLBAR */}
-                    <div style={{padding:'15px', borderBottom:'1px solid #f1f5f9', display:'flex', gap:'15px', alignItems:'center', background:'#f8fafc', flexWrap:'wrap'}}>
-                        <div style={{position:'relative', width:'250px'}}>
-                            <Search size={16} style={{position:'absolute', left:'10px', top:'10px', color:'#94a3b8'}}/>
-                            <input 
-                                style={{...styles.input, paddingLeft:'35px', width:'100%', border:'1px solid #e2e8f0'}}
-                                placeholder="Search Name, Email, City..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                            />
-                        </div>
+                    {/* 🚀 COMPOUND FILTER TOOLBAR */}
+                    <div style={{padding:'15px', borderBottom:'1px solid #f1f5f9', background:'#f8fafc'}}>
+                        
+                        <div style={{display:'flex', flexWrap:'wrap', gap:'10px', alignItems:'center', marginBottom:'15px'}}>
+                            {/* SEARCH */}
+                            <div style={{position:'relative', width:'250px'}}>
+                                <Search size={16} style={{position:'absolute', left:'10px', top:'10px', color:'#94a3b8'}}/>
+                                <input 
+                                    style={{...styles.input, paddingLeft:'35px', width:'100%', border:'1px solid #cbd5e1'}}
+                                    placeholder="Search Name..."
+                                    value={filters.search}
+                                    onChange={e => setFilters({...filters, search: e.target.value})}
+                                />
+                            </div>
 
-                        <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-                            <Filter size={16} color="#64748b"/>
+                            {/* COURSE */}
                             <select 
-                                value={courseFilter} 
-                                onChange={e => setCourseFilter(e.target.value)}
-                                style={{padding:'8px', borderRadius:'6px', border:'1px solid #cbd5e1', fontSize:'13px', fontWeight:'600'}}
+                                value={filters.course} onChange={e => setFilters({...filters, course: e.target.value})}
+                                style={filterSelectStyle}
                             >
                                 <option value="All">All Courses</option>
                                 {COURSE_COLS.map(c => <option key={c} value={c}>Has done {c}</option>)}
                             </select>
+
+                            {/* GENDER */}
+                            <select 
+                                value={filters.gender} onChange={e => setFilters({...filters, gender: e.target.value})}
+                                style={filterSelectStyle}
+                            >
+                                <option value="All">All Genders</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+
+                             {/* CITY */}
+                             <select 
+                                value={filters.city} onChange={e => setFilters({...filters, city: e.target.value})}
+                                style={filterSelectStyle}
+                            >
+                                <option value="All">All Cities</option>
+                                {options.cities.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+
+                            {/* STATE */}
+                            <select 
+                                value={filters.state} onChange={e => setFilters({...filters, state: e.target.value})}
+                                style={filterSelectStyle}
+                            >
+                                <option value="All">All States</option>
+                                {options.states.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+
+                            {/* RESET */}
+                            <button onClick={resetFilters} style={{border:'none', background:'transparent', cursor:'pointer', color:'#ef4444', display:'flex', alignItems:'center'}}>
+                                <XCircle size={18}/>
+                            </button>
                         </div>
 
-                        <button 
-                            onClick={handleExport}
-                            style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:'8px', background:'#0f172a', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', fontWeight:'600', cursor:'pointer'}}
-                        >
-                            <Download size={16}/> Export Master File
-                        </button>
+                        {/* EXPORT ACTION */}
+                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                            <div style={{fontSize:'12px', color:'#64748b', fontWeight:'600'}}>
+                                Found {processedList.length} matches
+                            </div>
+                            <button 
+                                onClick={handleExport}
+                                style={{display:'flex', alignItems:'center', gap:'8px', background:'#0f172a', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', fontWeight:'600', cursor:'pointer'}}
+                            >
+                                <Download size={16}/> Export Filtered Data
+                            </button>
+                        </div>
                     </div>
 
                     {/* TABLE CONTAINER */}
-                    <div style={{overflowX:'auto', maxHeight:'650px', position:'relative'}}>
+                    <div style={{overflowX:'auto', maxHeight:'600px', position:'relative'}}>
                         <table style={{width:'max-content', borderCollapse:'separate', borderSpacing:0, fontSize:'12px'}}>
                             <thead style={{background:'#f1f5f9', position:'sticky', top:0, zIndex:30}}>
                                 <tr>
                                     {/* FIXED COLUMNS HEADERS */}
                                     {FIXED_COLS.map(col => (
                                         <th 
-                                            key={col.key}
-                                            onClick={() => handleSort(col.key)}
-                                            style={{
-                                                ...thStyle, width: col.width, minWidth: col.width, maxWidth: col.width,
-                                                position: 'sticky', left: col.left, zIndex: 35,
-                                                background: '#f1f5f9', borderRight:'1px solid #cbd5e1',
-                                                cursor:'pointer'
-                                            }}
+                                            key={col.key} onClick={() => handleSort(col.key)}
+                                            style={{...thStyle, width: col.width, position: 'sticky', left: col.left, zIndex: 35, background: '#f1f5f9', borderRight:'1px solid #cbd5e1', cursor:'pointer'}}
                                         >
                                             <div style={{display:'flex', alignItems:'center', gap:'5px'}}>
                                                 {col.label}
@@ -555,9 +561,8 @@ export default function MasterDatabase() {
                                     {/* COURSE COLUMNS HEADERS */}
                                     {COURSE_COLS.map(col => (
                                         <th 
-                                            key={col} 
-                                            onClick={() => handleSort(col)}
-                                            style={{...thStyle, width: 50, minWidth: 50, textAlign:'center', color:'#2563eb', cursor:'pointer'}}
+                                            key={col} onClick={() => handleSort(col)}
+                                            style={{...thStyle, width: 50, textAlign:'center', color:'#2563eb', cursor:'pointer'}}
                                         >
                                             <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:'2px'}}>
                                                 {col}
@@ -569,9 +574,8 @@ export default function MasterDatabase() {
                                     {/* OTHER COLUMNS HEADERS */}
                                     {OTHER_COLS.map(col => (
                                         <th 
-                                            key={col.key}
-                                            onClick={() => handleSort(col.key)}
-                                            style={{...thStyle, width: col.width, minWidth: col.width, cursor:'pointer'}}
+                                            key={col.key} onClick={() => handleSort(col.key)}
+                                            style={{...thStyle, width: col.width, cursor:'pointer'}}
                                         >
                                             <div style={{display:'flex', alignItems:'center', gap:'5px'}}>
                                                 {col.label}
@@ -584,47 +588,29 @@ export default function MasterDatabase() {
                             <tbody>
                                 {processedList.map((s, idx) => (
                                     <tr key={s.mobile} style={{background: idx%2===0 ? 'white' : '#fafafa'}}>
-                                        
                                         {/* FIXED COLUMNS DATA */}
                                         {FIXED_COLS.map(col => (
-                                            <td key={col.key} style={{
-                                                ...tdStyle, 
-                                                position: 'sticky', left: col.left, zIndex: 20,
-                                                background: idx%2===0 ? 'white' : '#fafafa',
-                                                borderRight: '1px solid #cbd5e1',
-                                                fontWeight: col.key === 'name' ? '600' : '400',
-                                                color: col.key === 'name' ? '#1e293b' : 'inherit'
-                                            }}>
-                                                <div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width: col.width}} title={s[col.key]}>
-                                                    {s[col.key]}
-                                                </div>
+                                            <td key={col.key} style={{...tdStyle, position: 'sticky', left: col.left, zIndex: 20, background: idx%2===0 ? 'white' : '#fafafa', borderRight: '1px solid #cbd5e1', fontWeight: col.key === 'name' ? '600' : '400', color: col.key === 'name' ? '#1e293b' : 'inherit'}}>
+                                                <div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width: col.width}} title={s[col.key]}>{s[col.key]}</div>
                                             </td>
                                         ))}
-
                                         {/* COURSE DATA */}
                                         {COURSE_COLS.map(col => (
                                             <td key={col} style={{...tdStyle, textAlign:'center', fontWeight:'700', color: s.history[col] > 0 ? '#0f172a' : '#e2e8f0'}}>
                                                 {s.history[col]}
                                             </td>
                                         ))}
-
                                         {/* OTHER DATA */}
                                         {OTHER_COLS.map(col => (
                                             <td key={col.key} style={tdStyle}>
-                                                <div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth: col.width}} title={s[col.key]}>
-                                                    {s[col.key]}
-                                                </div>
+                                                <div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth: col.width}} title={s[col.key]}>{s[col.key]}</div>
                                             </td>
                                         ))}
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                        {processedList.length === 0 && <div style={{padding:'30px', textAlign:'center', color:'#94a3b8', position:'sticky', left:0}}>No records found</div>}
-                    </div>
-                    
-                    <div style={{padding:'10px', background:'#f8fafc', borderTop:'1px solid #e2e8f0', fontSize:'12px', color:'#64748b', fontWeight:'600'}}>
-                        Showing {processedList.length} records
+                        {processedList.length === 0 && <div style={{padding:'30px', textAlign:'center', color:'#94a3b8', position:'sticky', left:0}}>No matching records found</div>}
                     </div>
                 </div>
             )}
@@ -637,3 +623,4 @@ const thStyle = { padding:'12px 10px', fontSize:'11px', fontWeight:'700', color:
 const tdStyle = { padding:'8px 10px', fontSize:'12px', borderRight:'1px solid #f1f5f9', color:'#334155', borderBottom:'1px solid #f1f5f9' };
 const chartCardStyle = { background:'white', padding:'20px', borderRadius:'12px', border:'1px solid #e2e8f0', boxShadow:'0 2px 4px rgba(0,0,0,0.05)' };
 const chartTitleStyle = { margin:'0 0 5px 0', fontSize:'16px', fontWeight:'700', color:'#1e293b', display:'flex', alignItems:'center' };
+const filterSelectStyle = { padding:'8px', borderRadius:'6px', border:'1px solid #cbd5e1', fontSize:'13px', fontWeight:'600', minWidth:'120px' };
