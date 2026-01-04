@@ -19,7 +19,8 @@ import GateReception from './components/GateReception';
 import ATPanel from './components/ATPanel';
 import DN1StudentForm from './components/DN1StudentForm';
 import AlumniDirectory from './components/AlumniDirectory'; 
-import MasterDatabase from './components/MasterDatabase';  
+import MasterDatabase from './components/MasterDatabase';
+import MentorManager from './components/MentorManager'; // ✅ NEW IMPORT
 
 // --- PREMIUM STYLES CONSTANTS ---
 const theme = {
@@ -120,8 +121,9 @@ function App() {
       { id: 'admin', label: 'Course Admin', icon: <Database size={18}/>, roles: ['admin', 'staff', 'dn1ops'] }, 
       { id: 'store', label: 'Store & Expenses', icon: <ShoppingBag size={18}/>, roles: ['admin', 'staff', 'dn1ops'] },
       { id: 'seva', label: 'Seva Board', icon: <Heart size={18}/>, roles: ['admin'] },
-      // ✅ UPDATED: Added 'master_at' to roles
-      { id: 'master', label: 'Master Database', icon: <Database size={18}/>, roles: ['admin', 'master_at'] }  
+      { id: 'master', label: 'Master Database', icon: <Database size={18}/>, roles: ['admin', 'master_at'] },
+      // ✅ NEW: Mentor Distribution
+      { id: 'mentor', label: 'Mentor Distribution', icon: <Users size={18}/>, roles: ['admin', 'master_at'] }
   ];
 
   const allowedMenuItems = MENU_ITEMS.filter(item => item.roles.includes(user.role));
@@ -260,8 +262,11 @@ function App() {
                   {activeTab === 'at' && <ATPanel courses={courses} />}
                   
                   {activeTab === 'alumni' && <AlumniDirectory courses={courses} />}
-                  {/* ✅ UPDATED: Passed user prop to MasterDatabase */}
-                  {activeTab === 'master' && <MasterDatabase user={user} />}                  
+                  {activeTab === 'master' && <MasterDatabase user={user} />}
+                  
+                  {/* ✅ RENDER NEW TAB */}
+                  {activeTab === 'mentor' && <MentorManager />}                  
+                  
                   {activeTab === 'admin' && <CourseAdmin courses={courses} refreshCourses={fetchCourses} userRole={user.role} />}
                   
                   {activeTab === 'seva' && <SevaBoard courses={courses} />}
