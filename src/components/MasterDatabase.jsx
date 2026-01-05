@@ -3,9 +3,7 @@ import {
     Database, Upload, Trash2, Search, Filter, Download, 
     PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
     ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe, Flag, XCircle, 
-    User, Shield, Lock, Save, GitMerge, AlertCircle, CheckCircle, 
-    Link as LinkIcon 
-    // Removed CloudDownload to fix crash. Using Download icon instead.
+    User, Shield, Lock, Save, GitMerge, AlertCircle, CheckCircle, Briefcase 
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -17,11 +15,12 @@ import { styles } from '../config';
 // --- CONFIGURATION ---
 const DB_NAME = 'DhammaMasterDB';
 const STORE_NAME = 'students';
-// ✅ FIXED: Bumped to 14 to resolve "VersionError: requested version (11) is less than existing (13)"
-const VERSION = 14; 
+const VERSION = 13; // Bumped to ensure Mentor Columns schema update
 
+// 1. COURSE COLUMNS
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
 
+// 2. FIXED COLUMNS (Sticky Left)
 const FIXED_COLS = [
     { key: 'sno', label: 'S.No', width: 50, left: 0 },
     { key: 'name', label: 'Student Name', width: 220, left: 50 },
@@ -30,10 +29,14 @@ const FIXED_COLS = [
     { key: 'mobile', label: 'Mobile', width: 110, left: 400 },
 ];
 
+// 3. DEMOGRAPHIC & MENTOR COLUMNS (Restored)
 const OTHER_COLS = [
+    // --- MENTOR DATA (Restored) ---
     { key: 'mentor', label: 'Assigned Mentor', width: 150 },
     { key: 'mentor_status', label: 'Status', width: 120 },
     { key: 'mentor_notes', label: 'Notes', width: 200 },
+
+    // --- STANDARD DATA ---
     { key: 'language', label: 'Language', width: 100 },
     { key: 'city', label: 'City', width: 120 },
     { key: 'state', label: 'State', width: 120 },
@@ -46,20 +49,15 @@ const OTHER_COLS = [
     { key: 'company', label: 'Company', width: 150 },
 ];
 
-const COLORS = [
-    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', 
-    '#6366f1', '#14b8a6', '#f97316', '#d946ef', '#06b6d4', '#84cc16'
-];
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#f97316', '#d946ef', '#06b6d4', '#84cc16'];
 
-// --- DB HELPER ---
+// --- DATABASE HELPER ---
 const dbHelper = {
     open: () => new Promise((resolve, reject) => {
         const req = indexedDB.open(DB_NAME, VERSION);
         req.onupgradeneeded = (e) => {
             const db = e.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME, { keyPath: 'mobile' });
-            }
+            if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { keyPath: 'mobile' });
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -70,10 +68,7 @@ const dbHelper = {
             const tx = db.transaction(STORE_NAME, 'readwrite');
             const store = tx.objectStore(STORE_NAME);
             let count = 0;
-            students.forEach(s => { 
-                store.put(s); 
-                count++; 
-            });
+            students.forEach(s => { store.put(s); count++; });
             tx.oncomplete = () => resolve(count);
             tx.onerror = () => reject(tx.error);
         });
@@ -106,7 +101,7 @@ const dbHelper = {
     }
 };
 
-// --- UTILS ---
+// --- UTILITIES ---
 const cleanString = (str) => String(str || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 const toTitleCase = (str) => {
@@ -119,63 +114,43 @@ const findValue = (row, possibleKeys) => {
     const rowKeys = Object.keys(row);
     for (const target of possibleKeys) {
         if (row[target] !== undefined) return row[target];
-        const match = rowKeys.find(k => k.toLowerCase().includes(target.toLowerCase()));
+        const match = rowKeys.find(k => k.toLowerCase().trim() === target.toLowerCase().trim());
         if (match && row[match] !== undefined) return row[match];
     }
     return '';
 };
 
-// =========================================================
+// ---------------------------------------------------------
 //  MAIN COMPONENT
-// =========================================================
+// ---------------------------------------------------------
 export default function MasterDatabase({ user }) {
     const [students, setStudents] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [viewMode, setViewMode] = useState('list');
     const [showUpload, setShowUpload] = useState(false);
     const [mergeStatus, setMergeStatus] = useState('');
-    const [sheetUrl, setSheetUrl] = useState(''); 
     
-    // Duplicate Resolution
+    // DUPLICATE RESOLVER STATE
     const [showDuplicates, setShowDuplicates] = useState(false);
     const [duplicateGroups, setDuplicateGroups] = useState([]);
 
-    // Filters
+    // FILTERS
     const [filters, setFilters] = useState({ 
-        search: '', 
-        course: 'All', 
-        gender: 'All', 
-        city: 'All', 
-        state: 'All', 
-        country: 'All', 
-        mentor: 'All' 
+        search: '', course: 'All', gender: 'All', city: 'All', state: 'All', country: 'All', mentor: 'All' 
     });
     
-    const [options, setOptions] = useState({ 
-        cities: [], 
-        states: [], 
-        countries: [], 
-        mentors: [] 
-    });
-    
+    const [options, setOptions] = useState({ cities: [], states: [], countries: [], mentors: [] });
     const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
     const [graphData, setGraphData] = useState({ 
-        courseDist: [], 
-        genderDist: [], 
-        ageDist: [], 
-        cityDist: [], 
-        stateDist: [], 
-        pinDist: [], 
-        countryDist: [] 
+        courseDist: [], genderDist: [], ageDist: [], cityDist: [], stateDist: [], pinDist: [], countryDist: [] 
     });
 
+    // SECURITY
     const canDelete = user && user.role === 'admin'; 
     const userLabel = user ? `${user.username.charAt(0).toUpperCase() + user.username.slice(1)}` : 'Guest';
     const roleLabel = user ? (user.role === 'admin' ? 'Administrator' : 'AT (Master Data)') : 'Viewer';
 
-    useEffect(() => { 
-        refreshData(); 
-    }, []);
+    useEffect(() => { refreshData(); }, []);
 
     const refreshData = async () => {
         setIsLoading(true);
@@ -184,13 +159,11 @@ export default function MasterDatabase({ user }) {
             setStudents(data);
             prepareFilterOptions(data);
             prepareGraphData(data);
-        } catch (e) { 
-            console.error("DB Error", e); 
-        } finally { 
-            setIsLoading(false); 
-        }
+        } catch (e) { console.error("DB Error", e); }
+        finally { setIsLoading(false); }
     };
 
+    // --- 🕵️‍♂️ DUPLICATE SCANNER (RESTORED) ---
     const scanForDuplicates = () => {
         setIsLoading(true);
         const nameGroups = {};
@@ -203,6 +176,7 @@ export default function MasterDatabase({ user }) {
 
         const groups = Object.values(nameGroups).filter(group => {
             if (group.length < 2) return false;
+            // Strict check: Same Gender required
             const genders = new Set(group.map(s => String(s.gender).toLowerCase().charAt(0)));
             return genders.size === 1;
         });
@@ -213,19 +187,23 @@ export default function MasterDatabase({ user }) {
     };
 
     const handleMergeGroup = async (group) => {
+        // Sort by update time (newest first)
         const sorted = [...group].sort((a, b) => new Date(b.last_update || 0) - new Date(a.last_update || 0));
         const master = { ...sorted[0] }; 
         const duplicates = sorted.slice(1);
 
         duplicates.forEach(dup => {
+            // Sum Course History
             COURSE_COLS.forEach(c => {
                 master.history[c] = (master.history[c] || 0) + (dup.history[c] || 0);
             });
+            // Fill missing fields
             Object.keys(master).forEach(key => {
                 if (!master[key] && dup[key]) master[key] = dup[key];
             });
         });
 
+        // Save Master, Delete Dups
         await dbHelper.addBulk([master]);
         await dbHelper.deleteBulk(duplicates.map(d => d.mobile));
 
@@ -237,13 +215,14 @@ export default function MasterDatabase({ user }) {
         }
     };
 
+    // --- DATA PREP ---
     const prepareFilterOptions = (data) => {
         const getUnique = (key) => [...new Set(data.map(s => s[key]).filter(Boolean).map(s => s.trim()))].sort();
         setOptions({
             cities: getUnique('city'),
             states: getUnique('state'),
             countries: getUnique('country'),
-            mentors: getUnique('mentor')
+            mentors: getUnique('mentor') // Added Mentor Filter Option
         });
     };
 
@@ -264,7 +243,7 @@ export default function MasterDatabase({ user }) {
             const lower = filters.search.toLowerCase();
             list = list.filter(s => 
                 String(s.name).toLowerCase().includes(lower) || 
-                String(s.mobile).includes(lower) || 
+                String(s.mobile).includes(lower) ||
                 String(s.email).toLowerCase().includes(lower)
             );
         }
@@ -278,20 +257,13 @@ export default function MasterDatabase({ user }) {
                 valA = a[sortConfig.key] || '';
                 valB = b[sortConfig.key] || '';
             }
-            if (typeof valA === 'string') {
-                return sortConfig.direction === 'asc' 
-                    ? valA.localeCompare(valB) 
-                    : valB.localeCompare(valA);
-            }
+            if (typeof valA === 'string') return sortConfig.direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
             return sortConfig.direction === 'asc' ? valA - valB : valB - valA;
         });
-        
         return list;
     }, [students, filters, sortConfig]);
 
-    useEffect(() => { 
-        prepareGraphData(processedList); 
-    }, [processedList]);
+    useEffect(() => { prepareGraphData(processedList); }, [processedList]);
 
     const prepareGraphData = (data) => {
         const courses = COURSE_COLS.map(col => ({
@@ -324,10 +296,7 @@ export default function MasterDatabase({ user }) {
                     counts[norm] = (counts[norm] || 0) + 1;
                 }
             });
-            return Object.entries(counts)
-                .map(([name, count]) => ({ name, count }))
-                .sort((a, b) => b.count - a.count)
-                .slice(0, k);
+            return Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, k);
         };
 
         setGraphData({
@@ -341,103 +310,91 @@ export default function MasterDatabase({ user }) {
         });
     };
 
-    const processIncomingData = async (rawJson) => {
-        setMergeStatus(`Processing ${rawJson.length} records...`);
-        
-        const firstRow = rawJson[0] || {};
-        const isTeacherList = findValue(firstRow, ['10D','STP']) !== '';
-        
-        const cleanData = rawJson.map(mainRow => {
-            const mobile = (findValue(mainRow,['PhoneMobile','Mobile','Phone','Contact','WhatsApp'])||'').toString().replace(/\D/g, '');
-            if (!mobile || mobile.length < 5) return null;
-
-            let student = {
-                mobile, 
-                name: toTitleCase(findValue(mainRow, ['Name','Student','Full Name'])), 
-                gender: toTitleCase(findValue(mainRow, ['Gender','Sex'])), 
-                age: findValue(mainRow, ['Age']),
-                city: toTitleCase(findValue(mainRow, ['City','Town','District'])), 
-                state: toTitleCase(findValue(mainRow, ['State','Province','Region'])), 
-                country: toTitleCase(findValue(mainRow, ['Country','Nation'])),
-                pin: String(findValue(mainRow,['Pin','Zip','Postal'])), 
-                email: String(findValue(mainRow,['Email'])), 
-                phone_home: String(findValue(mainRow,['PhoneHome'])),
-                education: findValue(mainRow,['Education']), 
-                occupation: findValue(mainRow,['Occupation']),
-                company: findValue(mainRow,['Company']), 
-                accommodation: findValue(mainRow,['Room']), 
-                last_course_conf: findValue(mainRow,['Conf']),
-                
-                mentor: findValue(mainRow, ['Mentor', 'Assigned To', 'Leader']),
-                mentor_status: findValue(mainRow, ['Status', 'Mentor Status', 'Result', 'Feedback']),
-                mentor_notes: findValue(mainRow, ['Notes', 'Mentor Notes', 'Comments', 'Remark']),
-
-                last_update: new Date().toISOString(),
-                history: {} 
-            };
-
-            if(isTeacherList) {
-                COURSE_COLS.forEach(c => student.history[c] = parseInt(mainRow[c]||0));
-            } else {
-                COURSE_COLS.forEach(c => student.history[c] = 0);
-            }
-            return student;
-        }).filter(Boolean);
-
-        if(cleanData.length > 0) {
-            await dbHelper.addBulk(cleanData);
-        }
-        
-        await refreshData();
-        setIsLoading(false);
-        setMergeStatus(`Success! Synced ${cleanData.length} records.`);
-        setTimeout(() => setShowUpload(false), 3000);
-    };
-
+    // --- UPLOAD HANDLER ---
     const handleFileUpload = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
-        
-        setIsLoading(true); 
+        setIsLoading(true);
         setMergeStatus('Reading files...');
-        
-        let allData = [];
+
+        let teacherList = [];
+        let attendedList = [];
+
         for (const file of files) {
             const data = await file.arrayBuffer();
             const workbook = XLSX.read(data, { type: 'array' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
             
-            let hIdx = 0;
+            let headerRowIndex = 0;
             for(let i=0; i<rawData.length; i++) {
-                const s = JSON.stringify(rawData[i]).toLowerCase();
-                if (s.includes('name') && (s.includes('mobile') || s.includes('phone') || s.includes('gender'))) { 
-                    hIdx=i; break; 
-                }
+                const rowStr = JSON.stringify(rawData[i]).toLowerCase();
+                if (rowStr.includes('10d') || rowStr.includes('stp')) { headerRowIndex = i; break; }
+                if (rowStr.includes('name') && (rowStr.includes('mobile') || rowStr.includes('gender'))) { headerRowIndex = i; break; }
             }
-            const jsonData = XLSX.utils.sheet_to_json(sheet, { range: hIdx });
-            allData = allData.concat(jsonData);
-        }
-        await processIncomingData(allData);
-    };
 
-    const handleUrlImport = async () => {
-        if(!sheetUrl) return;
-        setIsLoading(true); 
-        setMergeStatus('Fetching Google Sheet...');
-        
-        try {
-            const res = await fetch(sheetUrl);
-            const csvText = await res.text();
-            const workbook = XLSX.read(csvText, { type: 'string' });
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(sheet);
-            await processIncomingData(jsonData);
-        } catch(e) {
-            console.error(e);
-            setMergeStatus('Error: Could not fetch Sheet. Check permissions.');
-            setIsLoading(false);
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { range: headerRowIndex });
+            const firstRow = jsonData[0] || {};
+            
+            if (findValue(firstRow, ['10D', 'STP']) !== '') teacherList = teacherList.concat(jsonData);
+            else attendedList = attendedList.concat(jsonData);
         }
+
+        setMergeStatus(`Merging ${attendedList.length} students with ${teacherList.length} history records...`);
+
+        const finalData = attendedList.map(mainRow => {
+            const mobileRaw = findValue(mainRow, ['PhoneMobile', 'PhoneHome', 'Mobile', 'Cell', 'Phone']);
+            const mobile = mobileRaw.toString().replace(/\D/g, '');
+            if (!mobile || mobile.length < 5) return null;
+
+            let student = {
+                mobile: mobile,
+                name: toTitleCase(findValue(mainRow, ['Name', 'Student Name', 'Student'])),
+                gender: toTitleCase(findValue(mainRow, ['Gender', 'Sex'])),
+                age: findValue(mainRow, ['Age']),
+                phone_home: String(findValue(mainRow, ['PhoneHome', 'Home Phone'])),
+                email: String(findValue(mainRow, ['Email', 'E-mail', 'Mail'])),
+                language: toTitleCase(findValue(mainRow, ['Language', 'Languages', 'Mother Tongue'])),
+                city: toTitleCase(findValue(mainRow, ['City', 'District', 'Town'])),
+                state: toTitleCase(findValue(mainRow, ['State', 'Province', 'Region'])),
+                country: toTitleCase(findValue(mainRow, ['Country', 'Nation'])),
+                pin: String(findValue(mainRow, ['Pin', 'Pin Code', 'Pincode', 'Zip', 'Postal Code'])),
+                education: findValue(mainRow, ['Education', 'Qualification', 'Degree']),
+                occupation: findValue(mainRow, ['Occupation', 'Profession']),
+                company: findValue(mainRow, ['Company', 'Organization']),
+                accommodation: findValue(mainRow, ['Accommodation', 'Room', 'RoomNo']),
+                last_course_conf: findValue(mainRow, ['Conf No', 'ConfNo']),
+                
+                // ✅ MENTOR DATA CAPTURE
+                mentor: findValue(mainRow, ['Mentor', 'Assigned To', 'Leader']),
+                mentor_status: findValue(mainRow, ['Status', 'Mentor Status']),
+                mentor_notes: findValue(mainRow, ['Notes', 'Mentor Notes']),
+
+                last_update: new Date().toISOString(),
+                history: {} 
+            };
+            COURSE_COLS.forEach(col => student.history[col] = 0);
+            
+            const cleanName = cleanString(student.name);
+            const cleanRoom = cleanString(student.accommodation).replace(/-/g, '').replace(/ /g, '');
+            const teacherRow = teacherList.find(tRow => {
+                const tName = cleanString(findValue(tRow, ['Student', 'Name']));
+                const tRoom = cleanString(findValue(tRow, ['RoomNo', 'Room'])).replace(/-/g, '').replace(/ /g, '');
+                return tName === cleanName || (tRoom && tRoom === cleanRoom && tRoom.length > 3);
+            });
+            if (teacherRow) {
+                COURSE_COLS.forEach(col => {
+                    const val = teacherRow[col];
+                    student.history[col] = val ? parseInt(val) : 0;
+                });
+            }
+            return student;
+        }).filter(Boolean);
+
+        if (finalData.length > 0) await dbHelper.addBulk(finalData);
+        await refreshData();
+        setIsLoading(false);
+        setTimeout(() => setShowUpload(false), 3000);
     };
 
     const handleSort = (key) => {
@@ -445,7 +402,8 @@ export default function MasterDatabase({ user }) {
         if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
         setSortConfig({ key, direction });
     };
-    
+
+    // --- 🌍 MASTER EXPORT ---
     const handleMasterExport = () => {
         const wb = XLSX.utils.book_new();
         const formatRow = (s, index) => {
@@ -469,6 +427,7 @@ export default function MasterDatabase({ user }) {
         XLSX.writeFile(wb, `Dhamma_Master_FULL_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
+    // --- ⚡ FILTERED EXPORT ---
     const handleFilteredExport = () => {
         const wb = XLSX.utils.book_new();
         const formatRow = (s, index) => {
@@ -481,6 +440,7 @@ export default function MasterDatabase({ user }) {
 
         const currentData = processedList.map((s, i) => formatRow(s, i));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(currentData), "Filtered Results");
+        
         XLSX.writeFile(wb, `Dhamma_Filtered_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
@@ -500,27 +460,35 @@ export default function MasterDatabase({ user }) {
                 </div>
                 
                 <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+                    
+                    {/* DUPLICATE BUTTON */}
                     <button onClick={scanForDuplicates} style={{...styles.btn(false), background:'#fff7ed', color:'#c2410c', borderColor:'#fed7aa'}}>
                         <GitMerge size={16}/> Find Duplicates
                     </button>
 
                     <div style={{display:'flex', gap:'10px', alignItems:'center', paddingLeft:'15px', borderLeft:'1px solid #e2e8f0'}}>
+                        {/* User Badge */}
                         <div style={{display:'flex', alignItems:'center', gap:'10px', background:'white', padding:'6px 12px', borderRadius:'30px', border:'1px solid #e2e8f0'}}>
                             <div style={{width:'36px', height:'36px', borderRadius:'50%', background: canDelete?'#fef2f2':'#f0f9ff', display:'flex', alignItems:'center', justifyContent:'center'}}>
                                 <User size={18} color={canDelete?'#ef4444':'#0ea5e9'}/>
                             </div>
-                            <div>
-                                <div style={{fontSize:'13px', fontWeight:'700', color:'#1e293b'}}>{userLabel}</div>
-                                <div style={{fontSize:'11px', color:'#64748b'}}>{roleLabel}</div>
-                            </div>
+                            <div><div style={{fontSize:'13px', fontWeight:'700', color:'#1e293b'}}>{userLabel}</div><div style={{fontSize:'11px', color:'#64748b'}}>{roleLabel}</div></div>
                         </div>
+
+                        {/* View Toggle */}
                         <div style={{display:'flex', gap:'5px', background:'#e2e8f0', padding:'4px', borderRadius:'8px'}}>
                             <button onClick={()=>setViewMode('list')} style={{padding:'8px', borderRadius:'6px', border:'none', background: viewMode==='list'?'white':'transparent', cursor:'pointer'}}><List size={16}/></button>
                             <button onClick={()=>setViewMode('analytics')} style={{padding:'8px', borderRadius:'6px', border:'none', background: viewMode==='analytics'?'white':'transparent', cursor:'pointer'}}><BarChart3 size={16}/></button>
                         </div>
+
+                        {/* Secure Delete */}
                         {canDelete && <button onClick={()=>{if(window.confirm('Delete ALL?')) dbHelper.clear().then(refreshData)}} style={{...styles.btn(false), color:'#ef4444'}}><Trash2 size={16}/></button>}
+                        
+                        {/* Master Export */}
                         <button onClick={handleMasterExport} style={{...styles.btn(false)}}><Save size={16}/></button>
-                        <button onClick={()=>setShowUpload(!showUpload)} style={{...styles.btn(true)}}><Download size={16}/> Sync / Import</button>
+                        
+                        {/* Import */}
+                        <button onClick={()=>setShowUpload(!showUpload)} style={{...styles.btn(true)}}><Upload size={16}/></button>
                     </div>
                 </div>
             </div>
@@ -562,37 +530,8 @@ export default function MasterDatabase({ user }) {
                 </div>
             )}
 
-            {/* UNIFIED IMPORT PANEL */}
-            {showUpload && (
-                <div style={{background:'#f0fdf4', border:'2px dashed #86efac', borderRadius:'12px', padding:'25px', marginBottom:'20px', display:'flex', gap:'40px', alignItems:'flex-start'}}>
-                    
-                    {/* Option 1: File Upload */}
-                    <div style={{flex:1, textAlign:'center', borderRight:'1px solid #bbf7d0', paddingRight:'20px'}}>
-                        <FileText size={32} color="#15803d" style={{marginBottom:'10px'}}/>
-                        <h3 style={{margin:0, color:'#14532d'}}>Upload Excel/CSV</h3>
-                        <p style={{fontSize:'12px', color:'#166534', marginBottom:'15px'}}>Teacher Lists, Attended Lists, or Mentor Reports</p>
-                        <input type="file" accept=".xlsx, .xls, .csv" multiple onChange={handleFileUpload} style={{display:'block', margin:'10px auto', fontSize:'12px'}}/>
-                    </div>
-
-                    {/* Option 2: Google Sheet Sync */}
-                    <div style={{flex:1, textAlign:'center'}}>
-                        <LinkIcon size={32} color="#0369a1" style={{marginBottom:'10px'}}/>
-                        <h3 style={{margin:0, color:'#075985'}}>Sync Google Sheet</h3>
-                        <p style={{fontSize:'12px', color:'#0369a1', marginBottom:'15px'}}>Paste "Published to Web" CSV Link from Google Forms</p>
-                        <div style={{display:'flex', gap:'5px'}}>
-                            <input 
-                                style={{flex:1, padding:'8px', borderRadius:'4px', border:'1px solid #bae6fd', fontSize:'12px'}}
-                                placeholder="https://docs.google.com/.../pub?output=csv"
-                                value={sheetUrl}
-                                onChange={e => setSheetUrl(e.target.value)}
-                            />
-                            <button onClick={handleUrlImport} style={{...styles.btn(true), background:'#0284c7', borderColor:'#0284c7'}}>Sync</button>
-                        </div>
-                    </div>
-
-                    {isLoading && <div style={{position:'absolute', bottom:'10px', left:'50%', transform:'translateX(-50%)', fontWeight:'bold', color:'#059669', background:'white', padding:'5px 15px', borderRadius:'20px', boxShadow:'0 2px 10px rgba(0,0,0,0.1)'}}>{mergeStatus}</div>}
-                </div>
-            )}
+            {/* UPLOAD PANEL */}
+            {showUpload && <div style={{background:'#f0fdf4', border:'2px dashed #86efac', borderRadius:'12px', padding:'25px', textAlign:'center', marginBottom:'20px'}}><FileText size={32} color="#15803d" style={{marginBottom:'10px'}}/><h3 style={{margin:0, color:'#14532d'}}>Upload Files</h3><input type="file" accept=".xlsx, .xls" multiple onChange={handleFileUpload} style={{display:'block', margin:'10px auto'}}/>{isLoading && <div>{mergeStatus}</div>}</div>}
 
             {/* FILTER TOOLBAR */}
             <div style={{padding:'15px', marginBottom:'20px', border:'1px solid #e2e8f0', borderRadius:'12px', background:'white'}}>
@@ -618,10 +557,12 @@ export default function MasterDatabase({ user }) {
                         <option value="All">All States</option>
                         {options.states.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
+                    {/* Mentor Filter */}
                     <select value={filters.mentor} onChange={e => setFilters({...filters, mentor: e.target.value})} style={filterSelectStyle}>
                         <option value="All">All Mentors</option>
                         {options.mentors.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
+                    
                     <button onClick={resetFilters} style={{border:'none', background:'transparent', cursor:'pointer', color:'#ef4444', display:'flex', alignItems:'center'}}><XCircle size={18}/></button>
                 </div>
                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
@@ -633,12 +574,12 @@ export default function MasterDatabase({ user }) {
             {/* --- ANALYTICS VIEW --- */}
             {viewMode === 'analytics' && (
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'25px', marginBottom:'40px', animation:'fadeIn 0.4s'}}>
+                    <div style={chartCardStyle}><h3 style={chartTitleStyle}><BarChart3 size={16} style={{marginRight:'5px'}}/> Course Portfolio</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.courseDist}><XAxis dataKey="name"/><YAxis/><Tooltip/><Bar dataKey="students" radius={[4, 4, 0, 0]} barSize={40}>{graphData.courseDist.map((e, i) => <Cell key={i} fill={COLORS[(i + 12) % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div></div>
+                    <div style={chartCardStyle}><h3 style={chartTitleStyle}>Gender Ratio</h3><div style={{height:'300px'}}><ResponsiveContainer><PieChart><Pie data={graphData.genderDist} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"><Cell fill="#3b82f6"/><Cell fill="#ec4899"/></Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer></div></div>
                     <div style={chartCardStyle}><h3 style={chartTitleStyle}><MapPin size={16} style={{marginRight:'5px'}}/> Top Cities (Filtered)</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.cityDist} layout="vertical"><XAxis type="number" hide/><YAxis dataKey="name" type="category" width={100} style={{fontSize:'11px'}}/><Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>{graphData.cityDist.map((e, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div></div>
                     <div style={chartCardStyle}><h3 style={chartTitleStyle}><Globe size={16} style={{marginRight:'5px'}}/> State Distribution</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.stateDist}><XAxis dataKey="name" style={{fontSize:'10px'}} interval={0} angle={-30} textAnchor="end" height={60}/><YAxis/><Tooltip/><Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={30}>{graphData.stateDist.map((e, i) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div></div>
-                    <div style={chartCardStyle}><h3 style={chartTitleStyle}><BarChart3 size={16} style={{marginRight:'5px'}}/> Course Portfolio</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.courseDist}><XAxis dataKey="name"/><YAxis/><Tooltip/><Bar dataKey="students" radius={[4, 4, 0, 0]} barSize={40}>{graphData.courseDist.map((e, i) => <Cell key={i} fill={COLORS[(i + 12) % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div></div>
                     <div style={chartCardStyle}><h3 style={chartTitleStyle}><Hash size={16} style={{marginRight:'5px'}}/> Top PIN Codes</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.pinDist} layout="vertical"><XAxis type="number" hide/><YAxis dataKey="name" type="category" width={60} style={{fontSize:'11px'}}/><Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>{graphData.pinDist.map((e, i) => <Cell key={i} fill={COLORS[(i + 5) % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div></div>
                     <div style={chartCardStyle}><h3 style={chartTitleStyle}><Flag size={16} style={{marginRight:'5px'}}/> Top Countries</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.countryDist} layout="vertical"><XAxis type="number" hide/><YAxis dataKey="name" type="category" width={60} style={{fontSize:'11px'}}/><Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={15}>{graphData.countryDist.map((e, i) => <Cell key={i} fill={COLORS[(i + 6) % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></div></div>
-                    <div style={chartCardStyle}><h3 style={chartTitleStyle}>Gender Ratio</h3><div style={{height:'300px'}}><ResponsiveContainer><PieChart><Pie data={graphData.genderDist} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"><Cell fill="#3b82f6"/><Cell fill="#ec4899"/></Pie><Tooltip/><Legend/></PieChart></ResponsiveContainer></div></div>
                     <div style={chartCardStyle}><h3 style={chartTitleStyle}>Age Distribution</h3><div style={{height:'300px'}}><ResponsiveContainer><BarChart data={graphData.ageDist}><XAxis dataKey="name" style={{fontSize:'10px'}}/><YAxis/><Tooltip/><Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={30}/></BarChart></ResponsiveContainer></div></div>
                 </div>
             )}
@@ -648,28 +589,8 @@ export default function MasterDatabase({ user }) {
                 <div style={{background:'white', borderRadius:'12px', border:'1px solid #e2e8f0', overflow:'hidden'}}>
                     <div style={{overflowX:'auto', maxHeight:'650px'}}>
                         <table style={{width:'max-content', borderCollapse:'separate', borderSpacing:0, fontSize:'12px'}}>
-                            <thead style={{background:'#f1f5f9', position:'sticky', top:0, zIndex:30}}>
-                                <tr>
-                                    {FIXED_COLS.map(c=><th key={c.key} onClick={()=>handleSort(c.key)} style={{...thStyle, width:c.width, position:'sticky', left:c.left, zIndex:35, background:'#f1f5f9', cursor:'pointer'}}>{c.label} {sortConfig.key===c.key && <ArrowUpDown size={12}/>}</th>)}
-                                    {COURSE_COLS.map(c=><th key={c} onClick={()=>handleSort(c)} style={{...thStyle, width:50, textAlign:'center', cursor:'pointer'}}>{c} {sortConfig.key===c && <ArrowUpDown size={10}/>}</th>)}
-                                    {OTHER_COLS.map(c=><th key={c.key} onClick={()=>handleSort(c.key)} style={{...thStyle, width:c.width, cursor:'pointer'}}>{c.label} {sortConfig.key===c.key && <ArrowUpDown size={12}/>}</th>)}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {processedList.map((s,i) => (
-                                    <tr key={s.mobile} style={{background:i%2===0?'white':'#fafafa'}}>
-                                        {FIXED_COLS.map(c => (
-                                            <td key={c.key} style={{...tdStyle, position:'sticky', left:c.left, zIndex:20, background:i%2===0?'white':'#fafafa', borderRight:'1px solid #cbd5e1', fontWeight:c.key==='name'?'600':'400', color:c.key==='name'?'#1e293b':'inherit'}}>
-                                                <div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width:c.width}} title={s[c.key]}>
-                                                    {c.key==='sno' ? i+1 : s[c.key]}
-                                                </div>
-                                            </td>
-                                        ))}
-                                        {COURSE_COLS.map(c => <td key={c} style={{...tdStyle, textAlign:'center', fontWeight:'700', color:s.history[c]>0?'#0f172a':'#e2e8f0'}}>{s.history[c]}</td>)}
-                                        {OTHER_COLS.map(c => <td key={c.key} style={tdStyle}><div style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:c.width}} title={s[c.key]}>{s[c.key]}</div></td>)}
-                                    </tr>
-                                ))}
-                            </tbody>
+                            <thead style={{background:'#f1f5f9', position:'sticky', top:0, zIndex:30}}><tr>{FIXED_COLS.map(c=><th key={c.key} onClick={()=>handleSort(c.key)} style={{...thStyle, width:c.width, position:'sticky', left:c.left, zIndex:35, background:'#f1f5f9', cursor:'pointer'}}>{c.label} {sortConfig.key===c.key && <ArrowUpDown size={12}/>}</th>)}{COURSE_COLS.map(c=><th key={c} onClick={()=>handleSort(c)} style={{...thStyle, width:50, textAlign:'center', cursor:'pointer'}}>{c} {sortConfig.key===c && <ArrowUpDown size={10}/>}</th>)}{OTHER_COLS.map(c=><th key={c.key} onClick={()=>handleSort(c.key)} style={{...thStyle, width:c.width, cursor:'pointer'}}>{c.label} {sortConfig.key===c.key && <ArrowUpDown size={12}/>}</th>)}</tr></thead>
+                            <tbody>{processedList.map((s,i)=><tr key={s.mobile} style={{background:i%2===0?'white':'#fafafa'}}>{FIXED_COLS.map(c=><td key={c.key} style={{...tdStyle, position:'sticky', left:c.left, zIndex:20, background:i%2===0?'white':'#fafafa'}}>{c.key==='sno'?i+1:s[c.key]}</td>)}{COURSE_COLS.map(c=><td key={c} style={{...tdStyle, textAlign:'center', fontWeight:'bold'}}>{s.history[c]}</td>)}{OTHER_COLS.map(c=><td key={c.key} style={tdStyle}>{s[c.key]}</td>)}</tr>)}</tbody>
                         </table>
                     </div>
                 </div>
