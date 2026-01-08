@@ -4,8 +4,7 @@ import {
     PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
     ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe, Flag, XCircle, 
     User, Shield, Lock, Save, GitMerge, AlertCircle, CheckCircle, 
-    Link as LinkIcon 
-    // Removed CloudDownload to fix crash. Using Download icon instead.
+    Link as LinkIcon, Cloud, RefreshCw
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -13,13 +12,10 @@ import {
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import { styles } from '../config';
+import { supabase } from '../supabaseClient'; // ✅ Connects to Cloud
 
 // --- CONFIGURATION ---
-const DB_NAME = 'DhammaMasterDB';
-const STORE_NAME = 'students';
-// ✅ FIXED: Bumped to 14 to resolve "VersionError: requested version (11) is less than existing (13)"
-const VERSION = 14; 
-
+// Note: DB_NAME and VERSION are no longer needed for Cloud
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
 
 const FIXED_COLS = [
@@ -50,61 +46,6 @@ const COLORS = [
     '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', 
     '#6366f1', '#14b8a6', '#f97316', '#d946ef', '#06b6d4', '#84cc16'
 ];
-
-// --- DB HELPER ---
-const dbHelper = {
-    open: () => new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, VERSION);
-        req.onupgradeneeded = (e) => {
-            const db = e.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME, { keyPath: 'mobile' });
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    }),
-    addBulk: async (students) => {
-        const db = await dbHelper.open();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_NAME, 'readwrite');
-            const store = tx.objectStore(STORE_NAME);
-            let count = 0;
-            students.forEach(s => { 
-                store.put(s); 
-                count++; 
-            });
-            tx.oncomplete = () => resolve(count);
-            tx.onerror = () => reject(tx.error);
-        });
-    },
-    deleteBulk: async (keys) => {
-        const db = await dbHelper.open();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_NAME, 'readwrite');
-            const store = tx.objectStore(STORE_NAME);
-            keys.forEach(k => store.delete(k));
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
-        });
-    },
-    getAll: async () => {
-        const db = await dbHelper.open();
-        return new Promise((resolve) => {
-            const tx = db.transaction(STORE_NAME, 'readonly');
-            const req = tx.objectStore(STORE_NAME).getAll();
-            req.onsuccess = () => resolve(req.result);
-        });
-    },
-    clear: async () => {
-        const db = await dbHelper.open();
-        return new Promise((resolve) => {
-            const tx = db.transaction(STORE_NAME, 'readwrite');
-            tx.objectStore(STORE_NAME).clear();
-            tx.oncomplete = () => resolve();
-        });
-    }
-};
 
 // --- UTILS ---
 const cleanString = (str) => String(str || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -173,6 +114,7 @@ export default function MasterDatabase({ user }) {
     const userLabel = user ? `${user.username.charAt(0).toUpperCase() + user.username.slice(1)}` : 'Guest';
     const roleLabel = user ? (user.role === 'admin' ? 'Administrator' : 'AT (Master Data)') : 'Viewer';
 
+    // --- ☁️ INITIAL LOAD (FROM SUPABASE) ---
     useEffect(() => { 
         refreshData(); 
     }, []);
@@ -180,17 +122,26 @@ export default function MasterDatabase({ user }) {
     const refreshData = async () => {
         setIsLoading(true);
         try {
-            const data = await dbHelper.getAll();
-            setStudents(data);
-            prepareFilterOptions(data);
-            prepareGraphData(data);
+            // ✅ Fetch from Cloud
+            const { data, error } = await supabase
+                .from('master_registry')
+                .select('*')
+                .order('name', { ascending: true });
+            
+            if (error) throw error;
+
+            setStudents(data || []);
+            prepareFilterOptions(data || []);
+            prepareGraphData(data || []);
         } catch (e) { 
-            console.error("DB Error", e); 
+            console.error("Cloud Error", e);
+            alert("Error loading data from Cloud. Check console.");
         } finally { 
             setIsLoading(false); 
         }
     };
 
+    // --- 🕵️‍♂️ DUPLICATE SCANNER (CLIENT SIDE) ---
     const scanForDuplicates = () => {
         setIsLoading(true);
         const nameGroups = {};
@@ -203,6 +154,7 @@ export default function MasterDatabase({ user }) {
 
         const groups = Object.values(nameGroups).filter(group => {
             if (group.length < 2) return false;
+            // Strict check: Same Gender required
             const genders = new Set(group.map(s => String(s.gender).toLowerCase().charAt(0)));
             return genders.size === 1;
         });
@@ -212,31 +164,74 @@ export default function MasterDatabase({ user }) {
         setIsLoading(false);
     };
 
+    // --- ☁️ CLOUD MERGE LOGIC ---
     const handleMergeGroup = async (group) => {
-        const sorted = [...group].sort((a, b) => new Date(b.last_update || 0) - new Date(a.last_update || 0));
-        const master = { ...sorted[0] }; 
-        const duplicates = sorted.slice(1);
+        setIsLoading(true);
+        try {
+            // Sort by last_update desc (Keep newest)
+            const sorted = [...group].sort((a, b) => new Date(b.last_update || 0) - new Date(a.last_update || 0));
+            const master = { ...sorted[0] }; 
+            const duplicates = sorted.slice(1);
 
-        duplicates.forEach(dup => {
-            COURSE_COLS.forEach(c => {
-                master.history[c] = (master.history[c] || 0) + (dup.history[c] || 0);
+            duplicates.forEach(dup => {
+                // Sum Course History
+                COURSE_COLS.forEach(c => {
+                    master.history[c] = (master.history[c] || 0) + (dup.history[c] || 0);
+                });
+                // Fill missing details
+                Object.keys(master).forEach(key => {
+                    if (!master[key] && dup[key]) master[key] = dup[key];
+                });
             });
-            Object.keys(master).forEach(key => {
-                if (!master[key] && dup[key]) master[key] = dup[key];
-            });
-        });
 
-        await dbHelper.addBulk([master]);
-        await dbHelper.deleteBulk(duplicates.map(d => d.mobile));
+            // 1. Update Master in Cloud
+            const { error: upsertError } = await supabase
+                .from('master_registry')
+                .upsert(master, { onConflict: 'mobile' });
+            if (upsertError) throw upsertError;
 
-        const remaining = duplicateGroups.filter(g => g !== group);
-        setDuplicateGroups(remaining);
-        if (remaining.length === 0) {
-            setShowDuplicates(false);
-            await refreshData();
+            // 2. Delete Duplicates from Cloud
+            const duplicateMobiles = duplicates.map(d => d.mobile);
+            const { error: deleteError } = await supabase
+                .from('master_registry')
+                .delete()
+                .in('mobile', duplicateMobiles);
+            if (deleteError) throw deleteError;
+
+            // UI Cleanup
+            const remaining = duplicateGroups.filter(g => g !== group);
+            setDuplicateGroups(remaining);
+            if (remaining.length === 0) {
+                setShowDuplicates(false);
+                await refreshData();
+            }
+        } catch (e) {
+            console.error("Merge Error", e);
+            alert("Failed to merge. Check permissions.");
+        } finally {
+            setIsLoading(false);
         }
     };
 
+    // --- 🛑 CLOUD DELETE ALL ---
+    const handleClearDB = async () => {
+        if(window.confirm("⚠️ DANGER: This will delete ALL data from the CLOUD for EVERYONE. Are you sure?")) {
+            setIsLoading(true);
+            try {
+                // Delete rows where mobile is not equal to a dummy value (effectively all)
+                const { error } = await supabase.from('master_registry').delete().neq('mobile', '000');
+                if (error) throw error;
+                await refreshData();
+            } catch (e) {
+                console.error("Clear Error", e);
+                alert("Failed to clear database.");
+            } finally {
+                setIsLoading(false);
+            }
+        }
+    };
+
+    // --- DATA HELPERS ---
     const prepareFilterOptions = (data) => {
         const getUnique = (key) => [...new Set(data.map(s => s[key]).filter(Boolean).map(s => s.trim()))].sort();
         setOptions({
@@ -341,6 +336,7 @@ export default function MasterDatabase({ user }) {
         });
     };
 
+    // --- 🧬 UNIFIED DATA PROCESSOR (Cloud Sync) ---
     const processIncomingData = async (rawJson) => {
         setMergeStatus(`Processing ${rawJson.length} records...`);
         
@@ -367,11 +363,9 @@ export default function MasterDatabase({ user }) {
                 company: findValue(mainRow,['Company']), 
                 accommodation: findValue(mainRow,['Room']), 
                 last_course_conf: findValue(mainRow,['Conf']),
-                
                 mentor: findValue(mainRow, ['Mentor', 'Assigned To', 'Leader']),
                 mentor_status: findValue(mainRow, ['Status', 'Mentor Status', 'Result', 'Feedback']),
                 mentor_notes: findValue(mainRow, ['Notes', 'Mentor Notes', 'Comments', 'Remark']),
-
                 last_update: new Date().toISOString(),
                 history: {} 
             };
@@ -385,11 +379,25 @@ export default function MasterDatabase({ user }) {
         }).filter(Boolean);
 
         if(cleanData.length > 0) {
-            await dbHelper.addBulk(cleanData);
+            // ☁️ BATCH UPLOAD TO SUPABASE
+            const BATCH_SIZE = 100;
+            setMergeStatus(`Uploading ${cleanData.length} records to Cloud...`);
+            
+            for (let i = 0; i < cleanData.length; i += BATCH_SIZE) {
+                const batch = cleanData.slice(i, i + BATCH_SIZE);
+                // Upsert handles "Insert if new, Update if exists"
+                const { error } = await supabase
+                    .from('master_registry')
+                    .upsert(batch, { onConflict: 'mobile' });
+                
+                if (error) {
+                    console.error("Batch Upload Error", error);
+                    setMergeStatus(`Error uploading batch ${i}...`);
+                }
+            }
         }
         
         await refreshData();
-        setIsLoading(false);
         setMergeStatus(`Success! Synced ${cleanData.length} records.`);
         setTimeout(() => setShowUpload(false), 3000);
     };
@@ -406,16 +414,7 @@ export default function MasterDatabase({ user }) {
             const data = await file.arrayBuffer();
             const workbook = XLSX.read(data, { type: 'array' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-            
-            let hIdx = 0;
-            for(let i=0; i<rawData.length; i++) {
-                const s = JSON.stringify(rawData[i]).toLowerCase();
-                if (s.includes('name') && (s.includes('mobile') || s.includes('phone') || s.includes('gender'))) { 
-                    hIdx=i; break; 
-                }
-            }
-            const jsonData = XLSX.utils.sheet_to_json(sheet, { range: hIdx });
+            const jsonData = XLSX.utils.sheet_to_json(sheet);
             allData = allData.concat(jsonData);
         }
         await processIncomingData(allData);
@@ -492,14 +491,19 @@ export default function MasterDatabase({ user }) {
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
                 <div>
                     <h1 style={{margin:0, display:'flex', alignItems:'center', gap:'12px', color:'#1e293b'}}>
-                        <Database size={32} className="text-blue-600"/> Master Database
+                        <Database size={32} className="text-blue-600"/> Master Database (Cloud)
                     </h1>
                     <div style={{fontSize:'13px', color:'#64748b', marginTop:'5px'}}>
-                        {students.length.toLocaleString()} Total Records
+                        {students.length.toLocaleString()} Total Records • Cloud Synced
                     </div>
                 </div>
                 
                 <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+                    {/* REFRESH BUTTON */}
+                    <button onClick={refreshData} title="Force Refresh from Cloud" style={{...styles.btn(false), padding:'8px'}}>
+                        <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''}/>
+                    </button>
+
                     <button onClick={scanForDuplicates} style={{...styles.btn(false), background:'#fff7ed', color:'#c2410c', borderColor:'#fed7aa'}}>
                         <GitMerge size={16}/> Find Duplicates
                     </button>
@@ -518,9 +522,9 @@ export default function MasterDatabase({ user }) {
                             <button onClick={()=>setViewMode('list')} style={{padding:'8px', borderRadius:'6px', border:'none', background: viewMode==='list'?'white':'transparent', cursor:'pointer'}}><List size={16}/></button>
                             <button onClick={()=>setViewMode('analytics')} style={{padding:'8px', borderRadius:'6px', border:'none', background: viewMode==='analytics'?'white':'transparent', cursor:'pointer'}}><BarChart3 size={16}/></button>
                         </div>
-                        {canDelete && <button onClick={()=>{if(window.confirm('Delete ALL?')) dbHelper.clear().then(refreshData)}} style={{...styles.btn(false), color:'#ef4444'}}><Trash2 size={16}/></button>}
+                        {canDelete && <button onClick={handleClearDB} style={{...styles.btn(false), color:'#ef4444'}}><Trash2 size={16}/></button>}
                         <button onClick={handleMasterExport} style={{...styles.btn(false)}}><Save size={16}/></button>
-                        <button onClick={()=>setShowUpload(!showUpload)} style={{...styles.btn(true)}}><Download size={16}/> Sync / Import</button>
+                        <button onClick={()=>setShowUpload(!showUpload)} style={{...styles.btn(true)}}><Cloud size={16}/> Sync / Import</button>
                     </div>
                 </div>
             </div>
