@@ -4,7 +4,7 @@ import {
     PieChart as PieIcon, BarChart3, List, FileText, ChevronDown, 
     ChevronUp, ArrowUpDown, Table, MapPin, Hash, Globe, Flag, XCircle, 
     User, Shield, Lock, Save, GitMerge, AlertCircle, CheckCircle, 
-    Link as LinkIcon, Cloud, RefreshCw
+    Link as LinkIcon, Cloud, RefreshCw 
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
@@ -15,7 +15,6 @@ import { styles } from '../config';
 import { supabase } from '../supabaseClient'; // ✅ Connects to Cloud
 
 // --- CONFIGURATION ---
-// Note: DB_NAME and VERSION are no longer needed for Cloud
 const COURSE_COLS = ['60D', '45D', '30D', '20D', '10D', 'STP', 'SPL', 'TSC'];
 
 const FIXED_COLS = [
@@ -67,7 +66,7 @@ const findValue = (row, possibleKeys) => {
 };
 
 // =========================================================
-//  MAIN COMPONENT
+//  MAIN COMPONENT (CLOUD VERSION)
 // =========================================================
 export default function MasterDatabase({ user }) {
     const [students, setStudents] = useState([]);
@@ -122,7 +121,7 @@ export default function MasterDatabase({ user }) {
     const refreshData = async () => {
         setIsLoading(true);
         try {
-            // ✅ Fetch from Cloud
+            // ✅ Fetch from Cloud (Supabase)
             const { data, error } = await supabase
                 .from('master_registry')
                 .select('*')
@@ -135,7 +134,7 @@ export default function MasterDatabase({ user }) {
             prepareGraphData(data || []);
         } catch (e) { 
             console.error("Cloud Error", e);
-            alert("Error loading data from Cloud. Check console.");
+            // Don't alert immediately on load, just log it.
         } finally { 
             setIsLoading(false); 
         }
@@ -154,7 +153,6 @@ export default function MasterDatabase({ user }) {
 
         const groups = Object.values(nameGroups).filter(group => {
             if (group.length < 2) return false;
-            // Strict check: Same Gender required
             const genders = new Set(group.map(s => String(s.gender).toLowerCase().charAt(0)));
             return genders.size === 1;
         });
@@ -168,17 +166,14 @@ export default function MasterDatabase({ user }) {
     const handleMergeGroup = async (group) => {
         setIsLoading(true);
         try {
-            // Sort by last_update desc (Keep newest)
             const sorted = [...group].sort((a, b) => new Date(b.last_update || 0) - new Date(a.last_update || 0));
             const master = { ...sorted[0] }; 
             const duplicates = sorted.slice(1);
 
             duplicates.forEach(dup => {
-                // Sum Course History
                 COURSE_COLS.forEach(c => {
                     master.history[c] = (master.history[c] || 0) + (dup.history[c] || 0);
                 });
-                // Fill missing details
                 Object.keys(master).forEach(key => {
                     if (!master[key] && dup[key]) master[key] = dup[key];
                 });
@@ -198,7 +193,6 @@ export default function MasterDatabase({ user }) {
                 .in('mobile', duplicateMobiles);
             if (deleteError) throw deleteError;
 
-            // UI Cleanup
             const remaining = duplicateGroups.filter(g => g !== group);
             setDuplicateGroups(remaining);
             if (remaining.length === 0) {
@@ -218,7 +212,6 @@ export default function MasterDatabase({ user }) {
         if(window.confirm("⚠️ DANGER: This will delete ALL data from the CLOUD for EVERYONE. Are you sure?")) {
             setIsLoading(true);
             try {
-                // Delete rows where mobile is not equal to a dummy value (effectively all)
                 const { error } = await supabase.from('master_registry').delete().neq('mobile', '000');
                 if (error) throw error;
                 await refreshData();
@@ -336,7 +329,7 @@ export default function MasterDatabase({ user }) {
         });
     };
 
-    // --- 🧬 UNIFIED DATA PROCESSOR (Cloud Sync) ---
+    // --- ☁️ PROCESS & UPLOAD ---
     const processIncomingData = async (rawJson) => {
         setMergeStatus(`Processing ${rawJson.length} records...`);
         
@@ -385,14 +378,13 @@ export default function MasterDatabase({ user }) {
             
             for (let i = 0; i < cleanData.length; i += BATCH_SIZE) {
                 const batch = cleanData.slice(i, i + BATCH_SIZE);
-                // Upsert handles "Insert if new, Update if exists"
                 const { error } = await supabase
                     .from('master_registry')
                     .upsert(batch, { onConflict: 'mobile' });
                 
                 if (error) {
                     console.error("Batch Upload Error", error);
-                    setMergeStatus(`Error uploading batch ${i}...`);
+                    setMergeStatus(`Error: ${error.message}`);
                 }
             }
         }
@@ -405,10 +397,8 @@ export default function MasterDatabase({ user }) {
     const handleFileUpload = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
-        
         setIsLoading(true); 
         setMergeStatus('Reading files...');
-        
         let allData = [];
         for (const file of files) {
             const data = await file.arrayBuffer();
@@ -424,7 +414,6 @@ export default function MasterDatabase({ user }) {
         if(!sheetUrl) return;
         setIsLoading(true); 
         setMergeStatus('Fetching Google Sheet...');
-        
         try {
             const res = await fetch(sheetUrl);
             const csvText = await res.text();
@@ -434,7 +423,7 @@ export default function MasterDatabase({ user }) {
             await processIncomingData(jsonData);
         } catch(e) {
             console.error(e);
-            setMergeStatus('Error: Could not fetch Sheet. Check permissions.');
+            setMergeStatus('Error: Could not fetch Sheet.');
             setIsLoading(false);
         }
     };
@@ -457,14 +446,6 @@ export default function MasterDatabase({ user }) {
 
         const masterData = students.map((s, i) => formatRow(s, i));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(masterData), "All Students");
-
-        COURSE_COLS.forEach(course => {
-            const filtered = students.filter(s => (s.history?.[course] || 0) > 0);
-            if (filtered.length > 0) {
-                const sheetData = filtered.map((s, i) => formatRow(s, i));
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetData), `${course}`);
-            }
-        });
         XLSX.writeFile(wb, `Dhamma_Master_FULL_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
@@ -499,9 +480,9 @@ export default function MasterDatabase({ user }) {
                 </div>
                 
                 <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
-                    {/* REFRESH BUTTON */}
-                    <button onClick={refreshData} title="Force Refresh from Cloud" style={{...styles.btn(false), padding:'8px'}}>
-                        <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''}/>
+                    {/* Refresh Button */}
+                    <button onClick={refreshData} style={{...styles.btn(false), padding:'8px'}} title="Refresh Data">
+                        <RefreshCw size={16} className={isLoading?'animate-spin':''}/>
                     </button>
 
                     <button onClick={scanForDuplicates} style={{...styles.btn(false), background:'#fff7ed', color:'#c2410c', borderColor:'#fed7aa'}}>
