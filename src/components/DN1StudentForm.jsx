@@ -43,9 +43,9 @@ const DORM_LAYOUT = {
     'DORM-E1', 'DORM-E2', 'DORM-E3', 'DORM-E4', 'DORM-E5', 'DORM-E6',
     
     // --- ROOMS (1, 2, 3) ---
-    'ROOM-1A', 'ROOM-1B',
-    'ROOM-2A', 'ROOM-2B',
-    'ROOM-3A', 'ROOM-3B',
+    'ROOMF-1A', 'ROOMF-1B',
+    'ROOMF-2A', 'ROOMF-2B',
+    'ROOMF-3A', 'ROOMF-3B',
     // 201-206 (AI/BI)
     '201AI', '201BI', '202AI', '202BI', '203AI', '203BI', 
     '204AI', '204BI', '205AI', '205BI', '206AI', '206BI',
