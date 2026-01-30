@@ -151,7 +151,7 @@ const renderCell = (id, p, gender, selectedSeat, handleSeatClick) => {
             )}
             {displayP ? (
                 <div style={{fontSize:'10px', padding:'2px 5px', fontWeight:'bold', whiteSpace:'nowrap', display:'flex', justifyContent:'space-between', borderTop:'1px solid black', background:'white'}}>
-                    <span>{stats.cat}</span><span>Sc:{stats.s}</span><span>Age:({stats.age})</span>
+                    <span>{stats.cat}</span><span>Age:({stats.age})</span>
                 </div>
             ) : ( <div style={{flex:1}}></div> )}
             {displayP && displayP.is_seat_locked && <div style={{position:'absolute', bottom:'25px', left:'2px', fontSize:'10px'}}>🔒</div>}
