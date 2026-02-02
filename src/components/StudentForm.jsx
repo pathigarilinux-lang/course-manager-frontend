@@ -248,7 +248,7 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
           setTimeout(() => window.print(), 500); 
           setStatus('✅ Success!'); 
           
-          setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Chair', dhammaSeat: '' }));
+          setFormData(prev => ({ ...prev, participantId: '', roomNo: '', seatNo: '', laundryToken: '', mobileLocker: '', valuablesLocker: '', pagodaCell: '', laptop: 'No', confNo: '', specialSeating: 'None', seatType: 'Floor', dhammaSeat: '' }));
           setSelectedStudent(null); 
           setSearchTerm(''); 
           clearRoom(); 
@@ -339,11 +339,21 @@ export default function StudentForm({ courses, preSelectedRoom, clearRoom }) {
                                   <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'5px'}}>
                                       <div>
                                           <label style={{fontSize:'10px', fontWeight:'bold', color:'#777', display:'block', marginBottom:'2px'}}>Mobile</label>
-                                          <select style={{...styles.input, padding:'6px', fontSize:'12px', width:'100%', boxSizing:'border-box'}} value={formData.mobileLocker} onChange={e => setFormData({...formData, mobileLocker: e.target.value})}><option value="">None</option>{availableMobiles.map(n => <option key={n} value={n}>{n}</option>)}</select>
+                                          <input 
+                                              style={{...styles.input, padding:'6px', fontSize:'12px', width:'100%', boxSizing:'border-box', background:'#f0f8ff', fontWeight:'bold', color:'#0d47a1'}} 
+                                              value={formData.mobileLocker} 
+                                              onChange={e=>setFormData({...formData, mobileLocker:e.target.value})} 
+                                              placeholder="Mobile" 
+                                          />
                                       </div>
                                       <div>
                                           <label style={{fontSize:'10px', fontWeight:'bold', color:'#777', display:'block', marginBottom:'2px'}}>Valuables</label>
-                                          <select style={{...styles.input, padding:'6px', fontSize:'12px', width:'100%', boxSizing:'border-box'}} value={formData.valuablesLocker} onChange={e => setFormData({...formData, valuablesLocker: e.target.value})}><option value="">None</option>{availableValuables.map(n => <option key={n} value={n}>{n}</option>)}</select>
+                                          <input 
+                                              style={{...styles.input, padding:'6px', fontSize:'12px', width:'100%', boxSizing:'border-box', background:'#f0f8ff', fontWeight:'bold', color:'#0d47a1'}} 
+                                              value={formData.valuablesLocker} 
+                                              onChange={e=>setFormData({...formData, valuablesLocker:e.target.value})} 
+                                              placeholder="Value" 
+                                          />
                                       </div>
                                       
                                       {/* LAUNDRY INPUT MOVED HERE */}
